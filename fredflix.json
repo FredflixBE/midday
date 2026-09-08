@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "notion": {
+    "productId": "3d5be633-b99a-808c-ad0c-eea332f75dc7"
+  },
+  "linear": {
+    "teamId": "407db191-81ae-4df9-9256-cc6edbf075aa",
+    "projectId": "e0e1ae74-c63a-43ca-bd02-98cd7cad3def"
+  },
+  "github": {
+    "remote": "github.com/FredflixBE/midday"
+  },
+  "trunks": {
+    "working": "main",
+    "release": "main"
+  }
+}

@@ -1,0 +1,71 @@
+# Enforce the FF-xxx PR-title convention.
+#
+# A pull-request title must *lead* with its ticket number: `FF-xxx: <description>`.
+# Linear links the PR to the ticket from that leading token, and a number buried
+# at the end links only by luck. A rule that lives in prose depends on whoever
+# opens the PR having read it, which is why this is a check.
+#
+# Deliberately its own workflow rather than a job in production.yml or
+# staging.yml: those run the full build, and adding `edited` there would re-run
+# it every time someone touches a description. This is title-only and finishes
+# in seconds.
+#
+# This repository has a single trunk (`main` is both the working and the
+# release trunk in fredflix.json), so there is no release pull request to
+# exempt: every PR here is a ticket PR and must carry a ticket.
+name: PR title
+
+on:
+  pull_request:
+    # `edited` is the one that matters for the fix loop — a corrected title
+    # turns the check green on its own, with no new commit. `synchronize` keeps
+    # the result attached to the head SHA after a push, which is what a required
+    # status check looks at.
+    types: [opened, edited, synchronize]
+
+# Reads the title straight from the event payload — no checkout, no API calls,
+# so the token needs nothing at all.
+permissions: {}
+
+jobs:
+  convention:
+    name: "Title leads with FF-xxx:"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the title leads with FF-<number>
+        env:
+          # Never inline ${{ ... }} into the script below. GitHub substitutes
+          # expressions *before* the shell parses the line, so a PR title — which
+          # anyone opening a PR controls — would be executed as shell source. Via
+          # the environment it stays inert data, and "$PR_TITLE" is just a string.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # The title arrives on stdin rather than as an argument so that a title
+          # beginning with a dash can't be read as a grep option.
+          if printf '%s' "$PR_TITLE" | grep -qE '^FF-[0-9]+: .+'; then
+            echo "✅ $PR_TITLE"
+            exit 0
+          fi
+
+          echo "::error title=PR title must lead with FF-<number>::The title must match '^FF-[0-9]+: ' — ticket number first, then a colon and a space."
+
+          {
+            echo "### ❌ PR title doesn't lead with its ticket number"
+            echo
+            echo "Current title:"
+            echo
+            echo "    $PR_TITLE"
+            echo
+            echo "It must match \`^FF-[0-9]+: \` — the ticket number first, then a colon and a space:"
+            echo
+            echo "    FF-123: add a self-hosting guide"
+            echo
+            echo "Linear links a PR to its ticket from that leading token. A number at the"
+            echo "end of the title sometimes still links and sometimes doesn't, which is"
+            echo "exactly the fragility the convention exists to remove."
+            echo
+            echo "**Edit the title — no new commit needed.** This check re-runs on \`edited\`"
+            echo "and will go green on its own."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit 1
