@@ -1,4 +1,7 @@
+import { getMcpServerUrl } from "../mcp-url";
 import { Logo } from "./assets/logo";
+
+const MCP_SERVER_URL = getMcpServerUrl();
 
 export default {
   name: "Claude",
@@ -20,13 +23,12 @@ export default {
 
 **Claude.ai / Claude Desktop:**
 1. Go to **Settings → Connectors** and click **Add custom connector**
-2. Paste this URL as the server URL: \`https://api.midday.ai/mcp\`
+2. Paste this URL as the server URL: \`${MCP_SERVER_URL}\`
 3. When you use a Midday tool, you'll be prompted to sign in and select a team
 
 **Claude Code:**
-1. Run: \`claude mcp add --transport http midday https://api.midday.ai/mcp\`
+1. Run: \`claude mcp add --transport http midday ${MCP_SERVER_URL}\`
 2. When prompted, sign in to Midday in your browser
 3. Use @midday in Claude Code to access your financial data`,
   images: [],
-  installUrl: "https://midday.ai/mcp/claude",
 };

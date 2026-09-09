@@ -1,6 +1,7 @@
 import type { Database } from "@midday/db/client";
 import { getTeamById } from "@midday/db/queries";
 import { logger } from "@midday/logger";
+import { getAppUrl } from "@midday/utils/envs";
 import type { WebClient } from "@slack/web-api";
 
 export async function publishAppHome({
@@ -78,7 +79,7 @@ export async function publishAppHome({
             text: "Settings",
             emoji: false,
           },
-          url: "https://app.midday.ai/apps?app=slack&settings=true",
+          url: `${getAppUrl()}/apps?app=slack&settings=true`,
           action_id: "open_settings",
         },
       },
@@ -137,7 +138,7 @@ export async function publishAppHome({
               text: "Open Midday",
               emoji: false,
             },
-            url: "https://app.midday.ai",
+            url: getAppUrl(),
             action_id: "open_midday",
           },
           {
@@ -147,7 +148,7 @@ export async function publishAppHome({
               text: "Settings",
               emoji: false,
             },
-            url: "https://app.midday.ai/apps?app=slack&settings=true",
+            url: `${getAppUrl()}/apps?app=slack&settings=true`,
             action_id: "view_settings",
           },
         ],

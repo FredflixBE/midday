@@ -1,4 +1,7 @@
+import { getMcpServerUrl } from "../mcp-url";
 import { Logo } from "./assets/logo";
+
+const MCP_SERVER_URL = getMcpServerUrl();
 
 export default {
   name: "Zed",
@@ -19,7 +22,7 @@ export default {
 
 **Via Agent Panel:**
 1. Open the Agent Panel settings and click **Add Custom Server**
-2. Enter the URL: \`https://api.midday.ai/mcp\`
+2. Enter the URL: \`${MCP_SERVER_URL}\`
 3. When prompted, sign in to Midday in your browser
 
 **Via settings.json:**
@@ -28,7 +31,7 @@ Add to your Zed settings:
 {
   "context_servers": {
     "midday": {
-      "url": "https://api.midday.ai/mcp"
+      "url": "${MCP_SERVER_URL}"
     }
   }
 }
@@ -36,5 +39,4 @@ Add to your Zed settings:
 
 **Requirements:** Zed editor installed.`,
   images: [],
-  installUrl: "https://midday.ai/mcp/zed",
 };

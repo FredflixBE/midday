@@ -18,5 +18,4 @@ export default {
 
 **System requirements:** macOS`,
   images: [],
-  installUrl: "https://midday.ai/download",
 };

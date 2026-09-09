@@ -1,4 +1,7 @@
+import { getMcpServerUrl } from "../mcp-url";
 import { Logo } from "./assets/logo";
+
+const MCP_SERVER_URL = getMcpServerUrl();
 
 export default {
   name: "Cline",
@@ -17,10 +20,9 @@ export default {
 
 **Setup steps:**
 1. In the Cline sidebar, go to the **Remote Servers** tab
-2. Add the server URL: \`https://api.midday.ai/mcp\`
+2. Add the server URL: \`${MCP_SERVER_URL}\`
 3. Click **Authenticate** and sign in to Midday in your browser
 
 **Requirements:** VS Code with the Cline extension installed.`,
   images: [],
-  installUrl: "https://midday.ai/mcp/cline",
 };

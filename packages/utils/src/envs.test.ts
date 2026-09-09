@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { getApiUrl, getAppUrl, getCdnUrl, getEmailUrl } from "./envs";
+import {
+  getApiUrl,
+  getAppUrl,
+  getCdnUrl,
+  getEmailUrl,
+  tryGetApiUrl,
+} from "./envs";
 
 const VARS = [
   "NODE_ENV",
@@ -89,5 +95,19 @@ describe("asset hosts", () => {
     process.env.CDN_URL = "https://cdn.example.com";
     expect(getEmailUrl()).toBe("https://assets.example.com");
     expect(getCdnUrl()).toBe("https://cdn.example.com");
+  });
+});
+
+describe("tryGetApiUrl", () => {
+  test("returns the URL when it is set", () => {
+    clear();
+    process.env.API_URL = "https://api.example.com";
+    expect(tryGetApiUrl()).toBe("https://api.example.com");
+  });
+
+  test("returns null instead of throwing in production", () => {
+    clear();
+    process.env.NODE_ENV = "production";
+    expect(tryGetApiUrl()).toBeNull();
   });
 });
