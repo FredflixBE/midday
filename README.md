@@ -65,7 +65,6 @@ We are working on the documentation to get started with Midday for local develop
 - Resend (Transactional & Marketing)
 - Github Actions (CI/CD)
 - GoCardLess (Bank connection EU)
-- OpenPanel (Events and Analytics)
 - Typesense (Search)
 - Gemini
 - OpenAI

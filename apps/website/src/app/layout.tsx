@@ -1,7 +1,6 @@
 import "@/styles/globals.css";
 import { cn } from "@midday/ui/cn";
 import "@midday/ui/globals.css";
-import { Provider as Analytics } from "@midday/events/client";
 import type { Metadata } from "next";
 import { Hedvig_Letters_Sans, Hedvig_Letters_Serif } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
@@ -143,7 +142,6 @@ export default function Layout({ children }: { children: ReactElement }) {
               {children}
             </main>
             <Footer />
-            <Analytics />
           </ThemeProvider>
         </NuqsAdapter>
       </body>

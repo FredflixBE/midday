@@ -1,6 +1,5 @@
 "use client";
 
-import { LogEvents } from "@midday/events/events";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,7 +10,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@midday/ui/alert-dialog";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useState } from "react";
@@ -32,7 +30,6 @@ export function DeleteVaultFileDialog({
 }: Props) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { track } = useOpenPanel();
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Check if document has transaction attachments
@@ -71,7 +68,6 @@ export function DeleteVaultFileDialog({
   );
 
   const handleDelete = () => {
-    track(LogEvents.VaultFileDeleted.name);
     deleteDocumentMutation.mutate({ id });
   };
 

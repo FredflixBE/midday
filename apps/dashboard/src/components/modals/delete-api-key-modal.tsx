@@ -1,6 +1,5 @@
 "use client";
 
-import { LogEvents } from "@midday/events/events";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +8,6 @@ import {
   DialogTitle,
 } from "@midday/ui/dialog";
 import { SubmitButton } from "@midday/ui/submit-button";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTokenModalStore } from "@/store/token-modal";
 import { useTRPC } from "@/trpc/client";
@@ -18,12 +16,10 @@ export function DeleteApiKeyModal() {
   const { setData, type, data } = useTokenModalStore();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { track } = useOpenPanel();
 
   const deleteApiKeyMutation = useMutation(
     trpc.apiKeys.delete.mutationOptions({
       onSuccess: () => {
-        track(LogEvents.ApiKeyDeleted.name);
         setData(undefined);
         queryClient.invalidateQueries(trpc.apiKeys.get.queryOptions());
       },

@@ -1,6 +1,5 @@
 "use server";
 
-import { LogEvents } from "@midday/events/events";
 import type { SyncConnectionPayload } from "@midday/jobs/schema";
 import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
@@ -15,10 +14,6 @@ export const manualSyncTransactionsAction = authActionClient
   )
   .metadata({
     name: "manual-sync-transactions",
-    track: {
-      event: LogEvents.TransactionsManualSync.name,
-      channel: LogEvents.TransactionsManualSync.channel,
-    },
   })
   .action(async ({ parsedInput: { connectionId }, ctx: { teamId } }) => {
     // Verify the connection belongs to the caller's team

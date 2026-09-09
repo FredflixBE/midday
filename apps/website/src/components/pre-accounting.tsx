@@ -1,7 +1,5 @@
 "use client";
 
-import { track } from "@midday/events/client";
-import { LogEvents } from "@midday/events/events";
 import { BulkReconciliationAnimation } from "@midday/ui/animations/bulk-reconciliation";
 import { DashboardAnimation } from "@midday/ui/animations/dashboard";
 import { InboxMatchAnimation } from "@midday/ui/animations/inbox-match";
@@ -98,19 +96,7 @@ export function PreAccounting() {
                   asChild
                   className="w-full sm:w-auto h-11 px-6 text-sm font-sans"
                 >
-                  <a
-                    href="https://app.midday.ai/"
-                    onClick={() =>
-                      track({
-                        event: LogEvents.CTA.name,
-                        channel: LogEvents.CTA.channel,
-                        label: "Start free trial",
-                        position: "pre_accounting_hero",
-                      })
-                    }
-                  >
-                    Start free trial
-                  </a>
+                  <a href="https://app.midday.ai/">Start free trial</a>
                 </Button>
                 <Button
                   variant="outline"
@@ -179,19 +165,7 @@ export function PreAccounting() {
             {/* CTA Buttons */}
             <div className="flex gap-6 justify-center">
               <Button asChild className="h-11 px-6 text-sm font-sans">
-                <a
-                  href="https://app.midday.ai/"
-                  onClick={() =>
-                    track({
-                      event: LogEvents.CTA.name,
-                      channel: LogEvents.CTA.channel,
-                      label: "Start free trial",
-                      position: "pre_accounting_hero",
-                    })
-                  }
-                >
-                  Start free trial
-                </a>
+                <a href="https://app.midday.ai/">Start free trial</a>
               </Button>
               <Button
                 variant="outline"

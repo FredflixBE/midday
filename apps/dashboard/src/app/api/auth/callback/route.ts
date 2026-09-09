@@ -1,5 +1,3 @@
-import { LogEvents } from "@midday/events/events";
-import { setupAnalytics } from "@midday/events/server";
 import { getSession } from "@midday/supabase/cached-queries";
 import { createClient } from "@midday/supabase/server";
 import { sanitizeRedirectPath } from "@midday/utils/sanitize-redirect";
@@ -56,14 +54,6 @@ export async function GET(req: NextRequest) {
 
       // If user is redirected from an invite, redirect to teams page to accept/decline the invite
       if (returnTo?.startsWith("teams/invite/")) {
-        const analytics = await setupAnalytics();
-        analytics.track({
-          event: LogEvents.SignIn.name,
-          channel: LogEvents.SignIn.channel,
-          provider: provider ?? "unknown",
-          destination: "teams",
-        });
-
         return NextResponse.redirect(`${origin}/teams`);
       }
 
@@ -73,14 +63,6 @@ export async function GET(req: NextRequest) {
       const user = await trpcClient.user.me.query();
 
       const isOnboarding = !user?.fullName || !user.teamId;
-      const analytics = await setupAnalytics();
-
-      analytics.track({
-        event: LogEvents.SignIn.name,
-        channel: LogEvents.SignIn.channel,
-        provider: provider ?? "unknown",
-        destination: isOnboarding ? "onboarding" : "dashboard",
-      });
 
       if (isOnboarding) {
         return NextResponse.redirect(`${origin}/onboarding`);

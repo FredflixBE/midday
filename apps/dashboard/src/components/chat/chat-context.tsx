@@ -1,8 +1,6 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { LogEvents } from "@midday/events/events";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { DefaultChatTransport } from "ai";
 import type { ReactNode } from "react";
 import {
@@ -45,8 +43,6 @@ export function useChatState() {
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { track } = useOpenPanel();
-
   const [inputValue, setInputValue] = useState("");
   const [chatTitle, setChatTitle] = useState<string | null>(null);
   const [rateLimit, setRateLimit] = useState<RateLimitInfo | null>(null);
@@ -116,19 +112,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const trackedSendMessage: typeof chat.sendMessage = useCallback(
-    (...args) => {
-      track(LogEvents.AssistantMessageSent.name);
-      return chat.sendMessage(...args);
-    },
-    [chat.sendMessage, track],
-  );
-
   return (
     <ChatContext.Provider
       value={{
         ...chat,
-        sendMessage: trackedSendMessage,
         inputValue,
         setInputValue,
         chatTitle,

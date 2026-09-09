@@ -1,7 +1,5 @@
 "use client";
 
-import { track } from "@midday/events/client";
-import { LogEvents } from "@midday/events/events";
 import { cn } from "@midday/ui/cn";
 import { Icons } from "@midday/ui/icons";
 import { motion } from "motion/react";
@@ -834,14 +832,6 @@ export function Header({
                 <Link
                   href="https://app.midday.ai/"
                   className="text-sm transition-colors text-primary hover:text-primary/80"
-                  onClick={() =>
-                    track({
-                      event: LogEvents.CTA.name,
-                      channel: LogEvents.CTA.channel,
-                      label: "Sign in",
-                      position: "header",
-                    })
-                  }
                 >
                   Sign in
                 </Link>
@@ -1131,12 +1121,6 @@ export function Header({
                   className="text-2xl font-sans transition-colors py-2 text-primary hover:text-primary xl:active:text-primary focus:outline-none focus-visible:outline-none touch-manipulation"
                   onClick={() => {
                     setIsMenuOpen(false);
-                    track({
-                      event: LogEvents.CTA.name,
-                      channel: LogEvents.CTA.channel,
-                      label: "Sign in",
-                      position: "header_mobile",
-                    });
                   }}
                   style={{ WebkitTapHighlightColor: "transparent" }}
                 >

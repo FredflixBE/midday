@@ -1,8 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { track } from "@midday/events/client";
-import { LogEvents } from "@midday/events/events";
 import { Avatar, AvatarFallback } from "@midday/ui/avatar";
 import { Button } from "@midday/ui/button";
 import {
@@ -245,12 +243,6 @@ export function SelectBankAccountsContent({
       },
       onSuccess: (data) => {
         if (data?.id) {
-          track({
-            event: LogEvents.ConnectBankCompleted.name,
-            channel: LogEvents.ConnectBankCompleted.channel,
-            provider: provider ?? "unknown",
-          });
-
           if (onSyncStarted && onComplete) {
             onSyncStarted({
               runId: data.id,

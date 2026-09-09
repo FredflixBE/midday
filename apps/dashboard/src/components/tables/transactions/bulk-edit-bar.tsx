@@ -1,6 +1,5 @@
 "use client";
 
-import { LogEvents } from "@midday/events/events";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +13,6 @@ import {
 } from "@midday/ui/alert-dialog";
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
@@ -27,7 +25,6 @@ import { useTRPC } from "@/trpc/client";
 
 export function BulkEditBar() {
   const trpc = useTRPC();
-  const { track } = useOpenPanel();
   const queryClient = useQueryClient();
   const { tab } = useTransactionTab();
   const { rowSelectionByTab, setRowSelection, canDelete } =
@@ -44,8 +41,6 @@ export function BulkEditBar() {
   const deleteTransactionsMutation = useMutation(
     trpc.transactions.deleteMany.mutationOptions({
       onSuccess: () => {
-        track(LogEvents.TransactionDeleted.name, { count: selectedCount });
-
         queryClient.invalidateQueries({
           queryKey: trpc.transactions.get.infiniteQueryKey(),
         });

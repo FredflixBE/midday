@@ -1,6 +1,5 @@
 "use server";
 
-import { LogEvents } from "@midday/events/events";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { authActionClient } from "./safe-action";
@@ -15,10 +14,6 @@ export const mfaVerifyAction = authActionClient
   )
   .metadata({
     name: "mfa-verify",
-    track: {
-      event: LogEvents.MfaVerify.name,
-      channel: LogEvents.MfaVerify.channel,
-    },
   })
   .action(
     async ({

@@ -1,6 +1,5 @@
 "use server";
 
-import { LogEvents } from "@midday/events/events";
 import type { ReconnectConnectionPayload } from "@midday/jobs/schema";
 import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
@@ -15,10 +14,6 @@ export const reconnectConnectionAction = authActionClient
   )
   .metadata({
     name: "reconnect-connection",
-    track: {
-      event: LogEvents.ReconnectConnection.name,
-      channel: LogEvents.ReconnectConnection.channel,
-    },
   })
   .action(
     async ({ parsedInput: { connectionId, provider }, ctx: { teamId } }) => {

@@ -1,6 +1,3 @@
-// Import Sentry instrumentation first, before any other modules
-import "./instrument";
-
 import { trpcServer } from "@hono/trpc-server";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { closeSharedRedisClient } from "@midday/cache/shared-redis";
@@ -13,7 +10,6 @@ import {
 import { apiDependencies } from "@midday/health/probes";
 import { createLoggerWithContext, logger } from "@midday/logger";
 import { Scalar } from "@scalar/hono-api-reference";
-import * as Sentry from "@sentry/bun";
 
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -110,17 +106,6 @@ app.use(
         cause: error.cause instanceof Error ? error.cause.message : undefined,
         stack: error.stack,
       });
-
-      // Send to Sentry (skip client errors like NOT_FOUND, UNAUTHORIZED)
-      if (error.code === "INTERNAL_SERVER_ERROR") {
-        Sentry.captureException(error, {
-          tags: { source: "trpc", path: path ?? "unknown" },
-          extra: {
-            input:
-              typeof input === "object" ? JSON.stringify(input) : undefined,
-          },
-        });
-      }
     },
   }),
 );
@@ -354,15 +339,12 @@ if (poolStatsIntervalMs <= 0) {
   });
 }
 
-// Global error handler — captures unhandled route errors to Sentry
+// Global error handler for unhandled route errors
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     return err.getResponse();
   }
 
-  Sentry.captureException(err, {
-    tags: { source: "hono", path: c.req.path, method: c.req.method },
-  });
   logger.error(`[Hono] ${c.req.method} ${c.req.path}`, {
     message: err.message,
     stack: err.stack,
@@ -391,9 +373,6 @@ const shutdown = async (signal: string) => {
       logger.info("Closing Redis connection...");
       closeSharedRedisClient();
 
-      logger.info("Flushing Sentry events...");
-      await Sentry.close(2000);
-
       logger.info("Graceful shutdown complete");
     } catch (error) {
       logger.error("Error during shutdown", {
@@ -421,9 +400,6 @@ process.on("SIGINT", () => shutdown("SIGINT"));
  */
 process.on("uncaughtException", (err) => {
   logger.error("Uncaught exception", { error: err.message, stack: err.stack });
-  Sentry.captureException(err, {
-    tags: { errorType: "uncaught_exception" },
-  });
 });
 
 process.on("unhandledRejection", (reason, promise) => {
@@ -431,12 +407,6 @@ process.on("unhandledRejection", (reason, promise) => {
     reason: reason instanceof Error ? reason.message : String(reason),
     stack: reason instanceof Error ? reason.stack : undefined,
   });
-  Sentry.captureException(
-    reason instanceof Error ? reason : new Error(String(reason)),
-    {
-      tags: { errorType: "unhandled_rejection" },
-    },
-  );
 });
 
 // Pre-warm the chat tool index in the background so the first request is fast.

@@ -7,7 +7,6 @@ import {
   scopePresets,
   scopesToName,
 } from "@api/utils/scopes";
-import { LogEvents } from "@midday/events/events";
 import { AnimatedSizeContainer } from "@midday/ui/animated-size-container";
 import {
   Form,
@@ -20,7 +19,6 @@ import {
 import { Input } from "@midday/ui/input";
 import { SubmitButton } from "@midday/ui/submit-button";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { z } from "zod/v3";
@@ -52,13 +50,10 @@ export function ApiKeyForm({ onSuccess }: Props) {
 
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { track } = useOpenPanel();
 
   const upsertApiKeyMutation = useMutation(
     trpc.apiKeys.upsert.mutationOptions({
       onSuccess: (result) => {
-        track(LogEvents.ApiKeyCreated.name);
-
         queryClient.invalidateQueries({
           queryKey: trpc.apiKeys.get.queryKey(),
         });

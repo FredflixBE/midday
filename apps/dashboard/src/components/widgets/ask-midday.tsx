@@ -1,7 +1,5 @@
 "use client";
 
-import { LogEvents } from "@midday/events/events";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { flushSync } from "react-dom";
@@ -25,7 +23,6 @@ export function AskMidday({ onChatOpen }: { onChatOpen: () => void }) {
     removeMentionedApp,
     clearMentionedApps,
   } = useChatState();
-  const { track } = useOpenPanel();
   const trpc = useTRPC();
   const { data: connectedApps } = useQuery(
     trpc.connectors.connections.queryOptions(undefined, {
@@ -66,7 +63,6 @@ export function AskMidday({ onChatOpen }: { onChatOpen: () => void }) {
 
   const handleSuggestion = useCallback(
     (suggestion: string) => {
-      track(LogEvents.AssistantSuggestionUsed.name, { suggestion });
       flushSync(() => {
         setMessages([]);
         setChatTitle(null);
@@ -74,7 +70,7 @@ export function AskMidday({ onChatOpen }: { onChatOpen: () => void }) {
       sendMessage({ text: suggestion });
       onChatOpen();
     },
-    [sendMessage, setMessages, setChatTitle, onChatOpen, track],
+    [sendMessage, setMessages, setChatTitle, onChatOpen],
   );
 
   return (

@@ -33,7 +33,6 @@
     "@midday/supabase": "workspace:*",
     "@midday/trpc": "workspace:*",
     "@midday/utils": "workspace:*",
-    "@sentry/bun": "catalog:",
     "@types/archiver": "^7.0.0",
     "archiver": "^7.0.1",
     "bullmq": "catalog:",

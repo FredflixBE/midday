@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@midday/ui/button";
-import { useEffect } from "react";
 import { CopyInput } from "@/components/copy-input";
 import { SUPPORT_EMAIL } from "@/utils/constants";
 
@@ -12,14 +11,6 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    if (process.env.NODE_ENV === "production") {
-      import("@sentry/nextjs").then((Sentry) => {
-        Sentry.captureException(error);
-      });
-    }
-  }, [error]);
-
   return (
     <div className="h-[calc(100vh-200px)] w-full flex items-center justify-center">
       <div className="max-w-md w-full text-center px-4">
