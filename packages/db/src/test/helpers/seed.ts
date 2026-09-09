@@ -110,18 +110,27 @@ async function seedUsers(db: Database): Promise<void> {
   // users.id is a foreign key onto auth.users, which Supabase Auth owns and
   // cleanDatabase() therefore does not truncate — hence ON CONFLICT.
   await db.execute(sql`
-    insert into auth.users (id) values (${TEST_USER_ID})
+    insert into auth.users (id, email) values (${TEST_USER_ID}, 'test@midday.ai')
     on conflict (id) do nothing
   `);
 
-  await db.insert(users).values([
-    {
-      id: TEST_USER_ID,
-      fullName: "Test User",
-      email: "test@midday.ai",
-      teamId: null,
-    },
-  ]);
+  // The row already exists: 30-auth-user.sql's trigger creates one for every
+  // auth user, as it does in production. This fills in what the seed needs on
+  // top of what the trigger could know.
+  await db
+    .insert(users)
+    .values([
+      {
+        id: TEST_USER_ID,
+        fullName: "Test User",
+        email: "test@midday.ai",
+        teamId: null,
+      },
+    ])
+    .onConflictDoUpdate({
+      target: users.id,
+      set: { fullName: "Test User", email: "test@midday.ai", teamId: null },
+    });
 }
 
 async function seedTeams(db: Database): Promise<void> {

@@ -15,7 +15,8 @@
  *                         storage.objects, so this one often cannot be applied
  *                         from here; it is reported, not fatal.
  *   6. 20-realtime.sql    publication membership and the activities policy.
- *   7. verification       the part you paste into the ticket.
+ *   7. 30-auth-user.sql   the trigger that gives a new sign-in a users row.
+ *   8. verification       the part you paste into the ticket.
  *
  * The verification is the real gate, because `drizzle-kit push` exits 0 even
  * when statements inside it failed.
@@ -166,6 +167,20 @@ const CHECKS: Check[] = [
         : `${rows[0]?.n} policies grant nothing — expected at most the ${KNOWN_POLICIES_WITHOUT_EXPRESSION} of FF-1429`,
   },
   {
+    // Without this, Google sign-in succeeds and then every request 404s,
+    // because nothing else creates the public.users row.
+    what: "a new sign-in gets a users row (on_auth_user_created)",
+    sql: `select tgenabled from pg_trigger
+           where tgname = 'on_auth_user_created'
+             and tgrelid = 'auth.users'::regclass and not tgisinternal`,
+    verdict: (rows) =>
+      rows.length === 0
+        ? "trigger missing"
+        : rows[0]?.tgenabled === "D"
+          ? "trigger is disabled"
+          : "",
+  },
+  {
     what: "the API roles can reach the schema",
     sql: `select has_table_privilege('authenticated', 'public.transactions', 'SELECT') as ok`,
     verdict: (rows) =>
@@ -294,6 +309,9 @@ async function main(): Promise<number> {
 
     console.log("6. realtime publication");
     await applyFile(client, "20-realtime.sql");
+
+    console.log("7. a users row for every new sign-in");
+    await applyFile(client, "30-auth-user.sql");
 
     console.log("\nVerification\n");
     let failed = 0;

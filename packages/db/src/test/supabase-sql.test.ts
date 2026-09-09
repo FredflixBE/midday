@@ -150,15 +150,20 @@ describe.skipIf(SKIP)("drizzle-kit push", () => {
   });
 
   test("leaves Supabase's own auth.users alone", async () => {
-    // The stub in setup-test-db.sql has exactly one column. Anything more
-    // means push tried to manage a table Supabase owns.
-    const { rows } = await client.query<{ n: number }>(
-      `select count(*)::int as n
+    // Exactly the columns setup-test-db.sql declares, and no more: anything
+    // else means push tried to manage a table Supabase owns.
+    const { rows } = await client.query<{ column_name: string }>(
+      `select column_name
          from information_schema.columns
-        where table_schema = 'auth' and table_name = 'users'`,
+        where table_schema = 'auth' and table_name = 'users'
+        order by column_name`,
     );
 
-    expect(rows[0]!.n).toBe(1);
+    expect(rows.map((r) => r.column_name)).toEqual([
+      "email",
+      "id",
+      "raw_user_meta_data",
+    ]);
   });
 
   test("ties an app user to the authenticated user it belongs to", async () => {
@@ -172,11 +177,19 @@ describe.skipIf(SKIP)("drizzle-kit push", () => {
 
   test("deleting the authenticated user takes the app user with it", async () => {
     const id = "00000000-0000-0000-0000-0000000f1392";
-    await client.query("insert into auth.users (id) values ($1)", [id]);
+    // Its own leftovers, if a previous run died between the two statements.
+    await client.query("delete from auth.users where id = $1", [id]);
+    // The users row arrives via the trigger in 30-auth-user.sql, which is how
+    // it arrives in production too.
     await client.query(
-      "insert into users (id, email) values ($1, 'ff1392@example.test')",
+      "insert into auth.users (id, email) values ($1, 'ff1392@example.test')",
       [id],
     );
+    const { rows: created } = await client.query(
+      "select id from users where id = $1",
+      [id],
+    );
+    expect(created).toHaveLength(1);
 
     await client.query("delete from auth.users where id = $1", [id]);
 
@@ -514,5 +527,65 @@ describe.skipIf(SKIP)("supabase/20-realtime.sql", () => {
     });
 
     expect(visible).toEqual([OWNER]);
+  });
+});
+
+/**
+ * supabase/30-auth-user.sql. Nothing in the application creates the
+ * public.users row, so without this trigger a Google sign-in succeeds and
+ * then every request 404s in the team-permission middleware.
+ */
+describe.skipIf(SKIP)("supabase/30-auth-user.sql", () => {
+  let client: Client;
+
+  const NEW_USER = "eeeeeeee-0000-0000-0000-000000000001";
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DATABASE_URL });
+    await client.connect();
+  });
+
+  afterAll(async () => {
+    await client.query("delete from auth.users where id = $1", [NEW_USER]);
+    await client.end();
+  });
+
+  test("signing in for the first time creates the app user", async () => {
+    // What Supabase Auth does when Google returns: it writes auth.users, and
+    // nothing else. The stub carries only the columns the trigger reads.
+    await client.query(
+      `insert into auth.users (id, email, raw_user_meta_data)
+       values ($1, 'new@example.test', '{"full_name":"New Person","avatar_url":"https://example.test/a.png"}'::jsonb)`,
+      [NEW_USER],
+    );
+
+    const { rows } = await client.query<{
+      email: string;
+      full_name: string;
+      avatar_url: string;
+      team_id: string | null;
+    }>(
+      "select email, full_name, avatar_url, team_id from users where id = $1",
+      [NEW_USER],
+    );
+
+    expect(rows[0]).toEqual({
+      email: "new@example.test",
+      full_name: "New Person",
+      avatar_url: "https://example.test/a.png",
+      team_id: null,
+    });
+  });
+
+  test("does not create a team — onboarding owns that", async () => {
+    // The half of the historical trigger the epic banned: it would hand out a
+    // team before onboarding asks what to call it, and onboarding would then
+    // create a second one.
+    const { rows } = await client.query<{ n: number }>(
+      "select count(*)::int as n from users_on_team where user_id = $1",
+      [NEW_USER],
+    );
+
+    expect(rows[0]!.n).toBe(0);
   });
 });
