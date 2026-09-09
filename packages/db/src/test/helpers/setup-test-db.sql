@@ -33,7 +33,11 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 CREATE SCHEMA IF NOT EXISTS auth;
 
 CREATE TABLE IF NOT EXISTS auth.users (
-  id uuid PRIMARY KEY
+  id uuid PRIMARY KEY,
+  -- What 30-auth-user.sql's trigger reads off a new sign-in. Supabase's own
+  -- auth.users has these among many more.
+  email text,
+  raw_user_meta_data jsonb
 );
 
 -- Reads the claim the same way Supabase's own auth.uid() does, so a test can
