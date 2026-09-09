@@ -14,6 +14,11 @@
  * that points anywhere but a local container — this is the one script in the
  * package that issues DROP DATABASE, so "only ever reads the right variable"
  * is not a strong enough guard on its own.
+ *
+ * The one place it does mention DATABASE_SESSION_POOLER is when spawning
+ * drizzle-kit, whose config reads that variable and nothing else. It is passed
+ * explicitly in the child's env, which takes precedence over packages/db/.env
+ * — so the child reaches the scratch database and never the real project.
  */
 
 import { spawn } from "node:child_process";

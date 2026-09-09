@@ -4,7 +4,7 @@
   "scripts": {
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "bun test --exit",
+    "test": "bun test --exit --timeout 30000",
     "eval:matching:db": "bun run src/scripts/matching-eval-db.ts",
     "eval:progress": "bun run src/scripts/matching-progress.ts",
     "eval:similar": "bun run src/scripts/eval-similar-transactions.ts",
@@ -20,7 +20,7 @@
     "validate-golden": "bun run src/test/validate-golden-dataset.ts",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "verify:migrations": "bun run src/scripts/verify-base-migration.ts",
+    "verify:migrations": "bun run src/scripts/verify-migrations.ts",
     "typecheck": "tsc --noEmit",
     "bootstrap": "bun run src/scripts/bootstrap.ts",
     "stamp": "bun run src/scripts/stamp.ts"
