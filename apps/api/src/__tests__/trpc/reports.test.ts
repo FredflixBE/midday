@@ -278,7 +278,7 @@ describe("tRPC: reports.create", () => {
     expect(result).toMatchObject({
       id: "report-row-id",
       linkId: "link-abc",
-      shortUrl: `${process.env.MIDDAY_DASHBOARD_URL}/r/link-abc`,
+      shortUrl: `${process.env.DASHBOARD_URL}/r/link-abc`,
     });
     expect(mocks.createReport).toHaveBeenCalledWith(
       expect.anything(),

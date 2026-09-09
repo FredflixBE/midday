@@ -11,6 +11,7 @@ import { decryptOAuthState, encryptOAuthState } from "@midday/encryption";
 import { toStripeAmount } from "@midday/invoice/currency";
 import { verify as verifyInvoiceToken } from "@midday/invoice/token";
 import { logger } from "@midday/logger";
+import { getApiUrl, getAppUrl } from "@midday/utils/envs";
 import { HTTPException } from "hono/http-exception";
 import Stripe from "stripe";
 
@@ -99,9 +100,7 @@ app.openapi(
       source: "invoice-settings",
     });
 
-    const _dashboardUrl =
-      process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
-    const redirectUri = `${process.env.MIDDAY_API_URL || "https://api.midday.ai"}/invoice-payments/connect-stripe/callback`;
+    const redirectUri = `${getApiUrl()}/invoice-payments/connect-stripe/callback`;
 
     // Build Stripe Connect OAuth URL (Standard accounts)
     const params = new URLSearchParams({
@@ -182,8 +181,7 @@ app.openapi(
   async (c) => {
     const db = c.get("db");
     const { code, state, error, error_description } = c.req.valid("query");
-    const dashboardUrl =
-      process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
+    const dashboardUrl = getAppUrl();
 
     // Handle OAuth errors
     if (error || !code) {

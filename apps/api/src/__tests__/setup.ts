@@ -8,8 +8,8 @@ process.env.SUPABASE_SECRET_KEY =
   process.env.SUPABASE_SECRET_KEY || "test-service-key";
 process.env.DATABASE_URL =
   process.env.DATABASE_URL || "postgres://test:test@localhost:5432/test";
-process.env.MIDDAY_DASHBOARD_URL =
-  process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
+process.env.DASHBOARD_URL = process.env.DASHBOARD_URL || "https://midday.test";
+process.env.API_URL = process.env.API_URL || "https://api.midday.test";
 process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || "re_test_key";
 process.env.RESEND_AUDIENCE_ID =
   process.env.RESEND_AUDIENCE_ID || "aud_test_resend_audience";

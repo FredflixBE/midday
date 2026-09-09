@@ -33,17 +33,32 @@ export function shouldShowUI(flags: {
   return true;
 }
 
+/**
+ * The instance this CLI talks to. There is no default: the CLI ships to
+ * whoever self-hosts, and guessing a host would point their API keys at
+ * somebody else's deployment.
+ */
 export function getApiUrl(): string {
-  return process.env.MIDDAY_API_URL || "https://api.midday.ai";
+  const apiUrl = process.env.MIDDAY_API_URL;
+
+  if (!apiUrl) {
+    throw new Error(
+      "MIDDAY_API_URL is not set. Set it to the URL of your Midday API, e.g. https://api.midday.example.com",
+    );
+  }
+
+  return apiUrl.replace(/\/+$/, "");
 }
 
+/** Where the browser is sent for the OAuth consent step. */
 export function getDashboardUrl(): string {
-  if (process.env.MIDDAY_DASHBOARD_URL) {
-    return process.env.MIDDAY_DASHBOARD_URL;
+  const dashboardUrl = process.env.MIDDAY_DASHBOARD_URL;
+
+  if (!dashboardUrl) {
+    throw new Error(
+      "MIDDAY_DASHBOARD_URL is not set. Set it to the URL of your Midday dashboard, e.g. https://midday.example.com",
+    );
   }
-  const apiUrl = getApiUrl();
-  if (apiUrl.includes("localhost") || apiUrl.includes("127.0.0.1")) {
-    return "http://localhost:3000";
-  }
-  return apiUrl.replace("api.", "app.");
+
+  return dashboardUrl.replace(/\/+$/, "");
 }

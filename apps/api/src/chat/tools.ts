@@ -5,6 +5,7 @@ import { createMcpServer } from "@api/mcp/server";
 import type { McpContext } from "@api/mcp/types";
 import { expandScopes } from "@api/utils/scopes";
 import { logger } from "@midday/logger";
+import { getApiUrl } from "@midday/utils/envs";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { PrepareStepFunction, Tool } from "ai";
 import type { ToolIndex } from "toolpick";
@@ -131,7 +132,7 @@ export function warmToolIndex(): void {
     userId: "warmup",
     userEmail: null,
     scopes: expandScopes(["apis.all"]) as McpContext["scopes"],
-    apiUrl: process.env.MIDDAY_API_URL ?? "https://api.midday.ai",
+    apiUrl: getApiUrl(),
     timezone: "UTC",
     locale: "en",
     countryCode: null,

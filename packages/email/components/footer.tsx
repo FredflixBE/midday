@@ -11,9 +11,8 @@ import {
 import { LogoFooter } from "./logo-footer";
 import { getEmailInlineStyles, getEmailThemeClasses } from "./theme";
 
-const baseUrl = getEmailUrl();
-
 export function Footer() {
+  const baseUrl = getEmailUrl();
   const themeClasses = getEmailThemeClasses();
   const lightStyles = getEmailInlineStyles("light");
 

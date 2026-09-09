@@ -218,8 +218,8 @@ echo $API_KEY | midday auth login --token-stdin
 | Variable | Description |
 |----------|-------------|
 | `MIDDAY_API_KEY` | API key (skip `auth login`) |
-| `MIDDAY_API_URL` | Override API endpoint |
-| `MIDDAY_DASHBOARD_URL` | Override dashboard URL for OAuth |
+| `MIDDAY_API_URL` | **Required.** URL of your Midday API, e.g. `https://api.midday.example.com` |
+| `MIDDAY_DASHBOARD_URL` | **Required for `auth login`.** URL of your Midday dashboard |
 | `NO_COLOR` | Disable colored output |
 
 ## Development
