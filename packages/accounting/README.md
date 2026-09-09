@@ -1,10 +1,5 @@
 # Accounting Integration Package
 
-> **The job system is Trigger.dev, not BullMQ.** FF-1368 moved every job
-> across; the file paths below point at their new homes. The queue and
-> worker mechanics in the diagrams are historical — a BullMQ queue is now a
-> task's `queue`/`retry` options, and a cron is a `schedules.task`. Tracked
-> as FF-1445.
 Technical documentation for Midday's accounting software integrations (Xero, QuickBooks, Fortnox).
 
 ## Table of Contents
@@ -15,7 +10,7 @@ Technical documentation for Midday's accounting software integrations (Xero, Qui
 4. [Database Schema](#database-schema)
 5. [Export Logic](#export-logic)
 6. [Authentication](#authentication)
-7. [Worker Jobs](#worker-jobs)
+7. [Background Jobs](#background-jobs)
 8. [API Reference](#api-reference)
 9. [Configuration](#configuration)
 10. [Error Handling](#error-handling)
@@ -69,9 +64,9 @@ flowchart TB
         ATT[(transaction_attachments)]
     end
 
-    subgraph Worker["@midday/worker - BullMQ"]
-        PROC2[SyncAttachmentsProcessor]
-        PROC3[ExportTransactionsProcessor]
+    subgraph Jobs["@midday/jobs - Trigger.dev"]
+        PROC2[sync-accounting-attachments]
+        PROC3[export-to-accounting]
     end
 
     subgraph Accounting["@midday/accounting"]
@@ -352,22 +347,28 @@ export const ensureValidToken = async (
 
 ---
 
-## Worker Jobs
+## Background Jobs
 
-### Queue Configuration
+### Task Configuration
+
+Both accounting tasks carry the same unusual retry curve. It starts at five
+minutes rather than seconds because what it exists to survive is a provider
+rate limit, not a transient network blip:
 
 ```typescript
-const accountingQueueOptions: QueueOptions = {
-  defaultJobOptions: {
-    attempts: 4,
-    backoff: {
-      type: "exponential",
-      delay: 5 * 60 * 1000,  // 5 minutes initial
-    },
-    removeOnComplete: { age: 24 * 3600, count: 100 },
-    removeOnFail: { age: 7 * 24 * 3600, count: 500 },
+export const exportToAccounting = schemaTask({
+  id: "export-to-accounting",
+  schema: accountingExportSchema,
+  maxDuration: 900,                 // 15 minutes; uploads run under a rate limit
+  queue: { concurrencyLimit: 10 },
+  retry: {
+    maxAttempts: 4,
+    minTimeoutInMs: 5 * 60 * 1000,  // 5 minutes
+    maxTimeoutInMs: 20 * 60 * 1000, // 20 minutes
+    factor: 2,
   },
-};
+  run: /* ... */,
+});
 ```
 
 ### Retry Sequence
@@ -385,10 +386,16 @@ flowchart LR
 
 ### Job Types
 
-| Job Name | Processor | Trigger | Purpose |
-|----------|-----------|---------|---------|
-| `export-to-accounting` | ExportTransactionsProcessor | User action | Export selected transactions |
-| `sync-accounting-attachments` | SyncAttachmentsProcessor | Export job | Upload attachments to provider |
+| Task id | Triggered by | Purpose |
+|---------|--------------|---------|
+| `export-to-accounting` | User action, from the export bar | Export selected transactions |
+| `sync-accounting-attachments` | `export-to-accounting` | Upload attachments to the provider |
+
+Neither is scheduled. Auto-sync was removed in favour of manual export, so both
+only ever run because someone pressed a button.
+
+The export bar follows `export-to-accounting` over a realtime subscription; the
+task reports progress into its run metadata as it works.
 
 ---
 
@@ -493,7 +500,7 @@ ACCOUNTING_OAUTH_SECRET=32_byte_encryption_key
 
 | Error Type | Retry | Notes |
 |------------|-------|-------|
-| Network timeout | Yes | BullMQ exponential backoff |
+| Network timeout | Yes | Exponential backoff, 5 → 20 minutes |
 | Rate limit (429) | Yes | Backoff allows recovery |
 | Auth failure (401) | Yes | Token refresh attempted |
 | Invalid data (400) | No | Logged, marked as failed |
@@ -543,16 +550,20 @@ Attachment jobs are created with **calculated delays** to stay under rate limits
 // export-transactions.ts
 function calculateAttachmentJobDelay(providerId: string, jobIndex: number): number {
   const rateLimit = RATE_LIMITS[providerId]?.callsPerMinute ?? 60;
-  const msPerJob = Math.ceil((60000 / rateLimit) * 1.1); // 1.1x buffer
+  const msPerJob = Math.ceil((60000 / rateLimit) * 2); // 2x buffer for upload duration
   return jobIndex * msPerJob;
 }
-// Xero: Job 0 = 0ms, Job 1 = 1100ms, Job 2 = 2200ms, ...
+
+// Passed as an absolute start time:
+await syncAccountingAttachments.trigger(payload, {
+  delay: new Date(Date.now() + delay),
+});
 ```
 
 **Benefits:**
-- Jobs are in "delayed" state, not blocking workers
+- Runs sit delayed rather than occupying a concurrency slot
 - Different teams process in parallel (no blocking)
-- Zero rate limit errors (jobs are pre-spaced)
+- Zero rate limit errors (runs are pre-spaced)
 - No runtime rate limit checking needed
 
 ### Within-Job Concurrency

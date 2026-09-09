@@ -1,10 +1,5 @@
 # Invoice Recurring System
 
-> **The job system is Trigger.dev, not BullMQ.** FF-1368 moved every job
-> across; the file paths below point at their new homes. The queue and
-> worker mechanics in the diagrams are historical — a BullMQ queue is now a
-> task's `queue`/`retry` options, and a cron is a `schedules.task`. Tracked
-> as FF-1445.
 ## Overview
 
 The recurring invoice system automates the generation and delivery of invoices on a scheduled basis. Unlike one-time invoices (created manually) or scheduled invoices (sent once at a future date), recurring invoices represent an ongoing series that generates new invoices automatically based on a defined frequency until an end condition is met.
@@ -34,14 +29,10 @@ graph TB
         InvoicesTable[(invoices)]
     end
     
-    subgraph worker [Worker]
-        Scheduler[RecurringScheduler]
-        Generator[GenerateInvoice]
-        EmailSender[SendInvoiceEmail]
-    end
-    
-    subgraph queue [Job Queue]
-        BullMQ[BullMQ]
+    subgraph jobs [Trigger.dev tasks]
+        Scheduler[invoice-recurring-scheduler]
+        Generator[generate-invoice]
+        EmailSender[send-invoice-email]
     end
     
     UI --> Form
@@ -49,12 +40,11 @@ graph TB
     Router --> Schema
     Router --> RecurringTable
     
-    BullMQ -->|"every 2 hours"| Scheduler
+    Schedule[["cron 0 * * * *"]] --> Scheduler
     Scheduler -->|"query due series"| RecurringTable
     Scheduler -->|"create invoice"| InvoicesTable
-    Scheduler -->|"queue job"| BullMQ
-    BullMQ --> Generator
-    Generator --> EmailSender
+    Scheduler -->|"trigger"| Generator
+    Generator -->|"trigger"| EmailSender
     
     InvoicesTable -->|"invoiceRecurringId"| RecurringTable
 ```
@@ -180,15 +170,13 @@ stateDiagram-v2
 
 ```mermaid
 sequenceDiagram
-    participant Cron as Cron Trigger
-    participant BullMQ as Job Queue
+    participant Cron as Trigger.dev schedule
     participant Scheduler as RecurringScheduler
     participant DB as Database
     participant Generator as GenerateInvoice
     participant Email as SendInvoiceEmail
     
-    Cron->>BullMQ: Every 2 hours
-    BullMQ->>Scheduler: Process job
+    Cron->>Scheduler: Hourly, on the hour
     
     Scheduler->>DB: getDueInvoiceRecurring()
     Note over DB: WHERE status='active'<br/>AND next_scheduled_at <= now
@@ -206,11 +194,9 @@ sequenceDiagram
             Note over DB: Increment counter<br/>Calculate next date<br/>Check end condition
             Scheduler->>DB: COMMIT
             
-            Scheduler->>BullMQ: Queue generate-invoice
-            BullMQ->>Generator: Process
+            Scheduler->>Generator: Trigger generate-invoice
             Generator->>Generator: Generate PDF
-            Generator->>BullMQ: Queue send-invoice-email
-            BullMQ->>Email: Process
+            Generator->>Email: Trigger send-invoice-email
             Email->>Email: Send to customer
             Email->>DB: Update sentAt, status
         end
@@ -221,9 +207,13 @@ sequenceDiagram
 
 The system prevents duplicate invoice generation through multiple mechanisms:
 
-1. **Scheduler Level**: BullMQ's `upsertJobScheduler` ensures only one scheduler job runs
-2. **Invoice Level**: `checkInvoiceExists(recurringId, sequence)` check before creation
-3. **Transaction**: Invoice creation and counter update are atomic
+1. **Schedule level**: the cron is declared on the task itself, so exactly one
+   schedule exists per deployment — there is nothing to register twice
+2. **Invoice level**: `checkInvoiceExists(recurringId, sequence)` check before creation
+3. **Transaction**: invoice creation and counter update are atomic
+
+The invoice-level check is the one that matters. It is what makes a retried run
+safe, and Trigger will retry a failed run three times.
 
 ### Failure Handling
 
@@ -248,6 +238,17 @@ DISABLE_RECURRING_INVOICES=true
 
 When set, the scheduler returns immediately without processing any series.
 
+### Dry Run
+
+```
+INVOICE_JOBS_DRY_RUN=true
+```
+
+Off unless set. The scheduler runs its real query, logs exactly which series
+would generate — per team, with customer, amount and sequence — and then returns
+without creating or sending anything. Worth one run before letting a series
+send to a customer for the first time.
+
 ### Batch Limits
 
 To prevent overwhelming the system when many invoices are due at once, processing is batched:
@@ -259,7 +260,7 @@ To prevent overwhelming the system when many invoices are due at once, processin
 
 **Design rationale:**
 - Prevents memory pressure from processing thousands of series at once
-- Distributes load over time (scheduler runs every 2 hours)
+- Distributes load over time (the scheduler runs hourly)
 - Older due invoices are processed first (ordered by `nextScheduledAt`)
 - Jobs return `hasMore: true` when additional items remain for the next run
 
@@ -267,22 +268,23 @@ To prevent overwhelming the system when many invoices are due at once, processin
 
 ### Upcoming Invoice Notification
 
-A separate scheduler runs every 2 hours (offset from the main scheduler) to send 24-hour advance notifications:
+A separate schedule runs hourly at :30, offset from the generation scheduler
+on the hour, to send 24-hour advance notifications:
 
 ```mermaid
 sequenceDiagram
-    participant Cron as Cron (odd hours)
-    participant Worker as UpcomingNotification
+    participant Cron as Trigger.dev schedule (:30)
+    participant Task as invoice-upcoming-notification
     participant DB as Database
     participant Email as Email Service
     
-    Cron->>Worker: Trigger job
-    Worker->>DB: Find series due within 24h
+    Cron->>Task: Hourly at :30
+    Task->>DB: Find series due within 24h
     Note over DB: WHERE next_scheduled_at <= now + 24h<br/>AND upcoming_notification_sent_at IS NULL
     
     loop For each series
-        Worker->>Email: Send upcoming invoice email
-        Worker->>DB: Set upcoming_notification_sent_at
+        Task->>Email: Send upcoming invoice email
+        Task->>DB: Set upcoming_notification_sent_at
     end
 ```
 
@@ -476,7 +478,7 @@ Recurring series are "canceled" rather than hard-deleted to preserve the relatio
 ### Why auto-pause after 3 failures?
 
 Consecutive failures typically indicate a systemic issue (customer email invalid, template broken, etc.). Auto-pausing prevents:
-- Accumulating failed jobs in the queue
+- Accumulating failed runs, each retried three times before it gives up
 - Spamming error notifications
 - Wasting processing resources
 
