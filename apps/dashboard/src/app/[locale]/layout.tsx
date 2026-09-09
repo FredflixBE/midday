@@ -8,10 +8,11 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactElement } from "react";
 import { DesktopHeader } from "@/components/desktop-header";
 import { isDesktopApp } from "@/utils/desktop";
+import { getUrl } from "@/utils/environment";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://app.midday.ai"),
+  metadataBase: new URL(getUrl()),
   title: "Midday | Run your business smarter",
   description:
     "Automate financial tasks, stay organized, and make informed decisions effortlessly.",

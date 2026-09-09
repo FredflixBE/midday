@@ -60,6 +60,26 @@ the API values as environment, and split the dashboard file: every
 `NEXT_PUBLIC_*` line is a build argument, the rest is environment. In
 Trigger.dev, set the jobs values on the project.
 
+### URLs
+
+Every URL this deployment needs comes from four variables, read in one place
+(`packages/utils/src/envs.ts`):
+
+| Variable | Meaning |
+| --- | --- |
+| `DASHBOARD_URL` | Public URL of the dashboard. The dashboard itself sets `NEXT_PUBLIC_URL` to the same value. |
+| `API_URL` | Public URL of the API. The dashboard sets `NEXT_PUBLIC_API_URL` to the same value. |
+| `EMAIL_ASSETS_URL` | Optional. Where the images in emails are served from; defaults to `DASHBOARD_URL`. |
+| `CDN_URL` | Optional. Static asset host; defaults to `DASHBOARD_URL`. |
+
+There is no hosted fallback. With `NODE_ENV=production` and no `DASHBOARD_URL`,
+the API fails at startup rather than quietly emailing your customers links to
+somebody else's instance. Outside production the local ports (`:3001`, `:3003`)
+stand in, so a plain `bun run dev` needs nothing set.
+
+The `midday` CLI is configured separately, with `MIDDAY_API_URL` and
+`MIDDAY_DASHBOARD_URL`; it is distributed on its own and has no defaults either.
+
 ### Shared secrets
 
 Generate each with `openssl rand -hex 32` unless stated otherwise, and use the
@@ -82,8 +102,9 @@ same value everywhere the name appears.
 | --- | --- | --- |
 | `NODE_ENV`, `LOG_LEVEL`, `LOG_PRETTY` | yes | `production`, `info`, `false` in Dokploy. |
 | `PORT` | no | Defaults to 3000; the Dockerfile sets 8080. |
-| `MIDDAY_DASHBOARD_URL`, `DASHBOARD_URL`, `ALLOWED_API_ORIGINS` | yes | The dashboard's public URL (`https://midday.fredflix.be`). |
-| `MIDDAY_API_URL`, `API_URL` | yes | The API's public URL (`https://api.midday.fredflix.be`). OAuth redirect URLs below are built from it. |
+| `DASHBOARD_URL`, `ALLOWED_API_ORIGINS` | yes | The dashboard's public URL (`https://midday.fredflix.be`). The API throws at startup if `DASHBOARD_URL` is unset in production. |
+| `API_URL` | yes | The API's public URL (`https://api.midday.fredflix.be`). OAuth redirect URLs, the OpenAPI document and the MCP metadata are built from it. |
+| `EMAIL_ASSETS_URL`, `CDN_URL` | no | Where email images and static assets are served from. Both default to `DASHBOARD_URL`. |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | yes | Supabase project settings > API. |
 | `SUPABASE_JWT_SECRET` | no | Legacy HS256 fallback; drop once the legacy JWT secret is revoked. |
 | `DATABASE_URL` | yes | Supabase > Database > session pooler, port 5432. |
@@ -137,14 +158,14 @@ Runtime environment:
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Supabase session pooler. |
 | `MIDDAY_ENCRYPTION_KEY`, `INTERNAL_API_KEY` | yes | Shared secrets above. |
-| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. |
+| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
 
 ### Worker (`apps/worker`, until FF-1368)
 
-Same database, Supabase, Redis, banking, Resend and AI values as the API, plus
+Same database, Supabase, Redis, banking, Resend, URL and AI values as the API, plus
 `PORT=8080` and `INSIGHTS_ENABLED` (`true` to send weekly insight emails). The
 scheduled processors run unless `SYNC_INSTITUTIONS_ENABLED`,
 `RATES_SCHEDULER_ENABLED` or `NO_MATCH_SCHEDULER_ENABLED` is set to `false`;

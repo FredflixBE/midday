@@ -35,6 +35,7 @@ import {
   getSpending,
   getTaxSummary,
 } from "@midday/db/queries";
+import { getAppUrl } from "@midday/utils/envs";
 import { TRPCError } from "@trpc/server";
 
 export const reportsRouter = createTRPCRouter({
@@ -161,7 +162,7 @@ export const reportsRouter = createTRPCRouter({
 
       return {
         ...result,
-        shortUrl: `${process.env.MIDDAY_DASHBOARD_URL}/r/${result?.linkId}`,
+        shortUrl: `${getAppUrl()}/r/${result?.linkId}`,
       };
     }),
 

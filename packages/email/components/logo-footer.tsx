@@ -1,9 +1,9 @@
 import { getEmailUrl } from "@midday/utils/envs";
 import { Img, Link, Section } from "@react-email/components";
 
-const baseUrl = getEmailUrl();
-
 export function LogoFooter() {
+  const baseUrl = getEmailUrl();
+
   return (
     <Section>
       <style>{`

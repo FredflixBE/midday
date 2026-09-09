@@ -14,6 +14,7 @@ import {
 import config from "@midday/app-store/xero";
 import { createApp } from "@midday/db/queries";
 import { logger } from "@midday/logger";
+import { getAppUrl } from "@midday/utils/envs";
 import { HTTPException } from "hono/http-exception";
 
 const app = new OpenAPIHono<Context>();
@@ -86,8 +87,7 @@ app.openapi(
     const db = c.get("db");
     const query = c.req.valid("query");
     const { code, state, error } = query;
-    const dashboardUrl =
-      process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
+    const dashboardUrl = getAppUrl();
 
     // Try to decrypt state first to determine redirect target (apps vs settings)
     const parsedState = decryptAccountingOAuthState(state);

@@ -1,11 +1,11 @@
 import { SCOPES } from "@api/utils/scopes";
 import { OpenAPIHono } from "@hono/zod-openapi";
+import { getApiUrl, getAppUrl } from "@midday/utils/envs";
 
 const app = new OpenAPIHono();
 
-const apiUrl = process.env.MIDDAY_API_URL || "https://api.midday.ai";
-const dashboardUrl =
-  process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
+const apiUrl = getApiUrl();
+const dashboardUrl = getAppUrl();
 
 const supportedScopes = SCOPES.filter(
   (s) => !s.startsWith("apis."),
@@ -15,7 +15,8 @@ const protectedResourceMetadata = {
   resource: apiUrl,
   authorization_servers: [apiUrl],
   scopes_supported: supportedScopes,
-  resource_documentation: "https://midday.ai/docs",
+  // The API serves its own OpenAPI reference at the root.
+  resource_documentation: apiUrl,
 };
 
 // RFC 9728: clients try the path-suffixed URL first (e.g. /oauth-protected-resource/mcp)

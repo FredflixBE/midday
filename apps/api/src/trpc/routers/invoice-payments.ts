@@ -6,6 +6,7 @@ import {
   updateTeamById,
 } from "@midday/db/queries";
 import { logger } from "@midday/logger";
+import { getApiUrl } from "@midday/utils/envs";
 import { TRPCError } from "@trpc/server";
 import Stripe from "stripe";
 import { z } from "zod";
@@ -47,8 +48,7 @@ export const invoicePaymentsRouter = createTRPCRouter({
     }
 
     // Return the REST endpoint URL that handles the OAuth flow
-    const apiUrl = process.env.MIDDAY_API_URL || "https://api.midday.ai";
-    return `${apiUrl}/invoice-payments/connect-stripe`;
+    return `${getApiUrl()}/invoice-payments/connect-stripe`;
   }),
 
   // Disconnect Stripe account

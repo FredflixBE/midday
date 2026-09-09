@@ -9,8 +9,8 @@ import {
 } from "@midday/health/checker";
 import { apiDependencies } from "@midday/health/probes";
 import { createLoggerWithContext, logger } from "@midday/logger";
+import { getApiUrl, getAppUrl } from "@midday/utils/envs";
 import { Scalar } from "@scalar/hono-api-reference";
-
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
@@ -155,8 +155,8 @@ const openAPIConfig = {
   },
   servers: [
     {
-      url: "https://api.midday.ai",
-      description: "Production API",
+      url: getApiUrl(),
+      description: "This deployment",
     },
   ],
   security: [
@@ -265,9 +265,8 @@ app.openAPIRegistry.registerComponent("securitySchemes", "token", {
   "x-speakeasy-example": "MIDDAY_API_KEY",
 });
 
-const dashboardUrl =
-  process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
-const apiUrl = process.env.MIDDAY_API_URL || "https://api.midday.ai";
+const dashboardUrl = getAppUrl();
+const apiUrl = getApiUrl();
 
 app.openAPIRegistry.registerComponent("securitySchemes", "oauth2", {
   type: "oauth2",

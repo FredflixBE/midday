@@ -10,6 +10,7 @@ import {
 import { getBot } from "@midday/bot";
 import { createApp, createOrUpdatePlatformIdentity } from "@midday/db/queries";
 import { logger } from "@midday/logger";
+import { getAppUrl } from "@midday/utils/envs";
 import { HTTPException } from "hono/http-exception";
 import { sendWelcomeMessage } from "./messages";
 
@@ -258,8 +259,7 @@ app.openapi(
       });
 
       // Build redirect URL to dashboard
-      const dashboardUrl =
-        process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
+      const dashboardUrl = getAppUrl();
 
       return c.redirect(`${dashboardUrl}/oauth-callback?status=success`, 302);
     } catch (err) {

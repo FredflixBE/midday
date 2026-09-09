@@ -1,9 +1,9 @@
 import { getEmailUrl } from "@midday/utils/envs";
 import { Img, Section } from "@react-email/components";
 
-const baseUrl = getEmailUrl();
-
 export function Logo() {
+  const baseUrl = getEmailUrl();
+
   // CSS-blended version for automatic dark mode adaptation
   return (
     <Section className="mt-[32px]">

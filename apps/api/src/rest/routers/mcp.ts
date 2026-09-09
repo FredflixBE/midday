@@ -9,11 +9,12 @@ import type { Scope } from "@api/utils/scopes";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { getUserById } from "@midday/db/queries";
+import { getApiUrl } from "@midday/utils/envs";
 import { rateLimiter } from "hono-rate-limiter";
 
 const app = new OpenAPIHono<Context>();
 
-const apiUrl = process.env.MIDDAY_API_URL || "https://api.midday.ai";
+const apiUrl = getApiUrl();
 
 const mcpRateLimitEnv = process.env.MCP_API_RATE_LIMIT;
 const parsedMcpLimit =

@@ -51,6 +51,7 @@ import {
   updatePlatformIdentityMetadata,
 } from "@midday/db/queries";
 import { createLoggerWithContext } from "@midday/logger";
+import { getApiUrl } from "@midday/utils/envs";
 import type { ModelMessage } from "ai";
 import type { Attachment, Message, Thread } from "chat";
 import { toAiMessages } from "chat";
@@ -227,7 +228,7 @@ async function handleIncomingMessage(
     userId: user.id,
     userEmail: user.email ?? null,
     scopes: ALL_ASSISTANT_SCOPES,
-    apiUrl: process.env.MIDDAY_API_URL || "https://api.midday.ai",
+    apiUrl: getApiUrl(),
     timezone: user.timezone ?? "UTC",
     locale: user.locale ?? "en",
     countryCode: user.team?.countryCode ?? null,
