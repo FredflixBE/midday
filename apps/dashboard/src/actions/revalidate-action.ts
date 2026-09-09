@@ -21,8 +21,3 @@ export async function redirectAfterAccountDeletion() {
 export async function revalidateInbox() {
   revalidatePath("/inbox");
 }
-
-export async function revalidateAfterCheckout() {
-  revalidatePath("/", "layout");
-  redirect("/");
-}

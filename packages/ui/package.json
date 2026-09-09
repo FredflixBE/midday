@@ -79,7 +79,6 @@
     "./quantity-input": "./src/components/quantity-input.tsx",
     "./text-morph": "./src/components/text-morph.tsx",
     "./text-shimmer": "./src/components/text-shimmer.tsx",
-    "./plan-cards": "./src/components/plan-cards.tsx",
     "./animations/ai-assistant": "./src/components/animations/ai-assistant-animation.tsx",
     "./animations/assistant-question": "./src/components/animations/assistant-question-animation.tsx",
     "./animations/bulk-reconciliation": "./src/components/animations/bulk-reconciliation-animation.tsx",
@@ -101,7 +100,6 @@
     "./animations/chat-demo-autoplay": "./src/components/animations/chat-demo-autoplay.tsx"
   },
   "dependencies": {
-    "@midday/plans": "workspace:*",
     "@midday/utils": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",

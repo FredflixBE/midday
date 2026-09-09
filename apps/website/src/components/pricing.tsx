@@ -1,15 +1,12 @@
 "use client";
 
 import { FAQSection } from "./sections/faq-section";
-import { PricingSection } from "./sections/pricing-section";
 
 export function Pricing() {
   return (
     <div className="min-h-screen">
       {/* Pricing Section */}
-      <div className="pt-24 sm:pt-16 lg:pt-20">
-        <PricingSection />
-      </div>
+      <div className="pt-24 sm:pt-16 lg:pt-20"></div>
 
       {/* Divider */}
       <div className="max-w-[1400px] mx-auto">

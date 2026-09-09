@@ -6,7 +6,6 @@ import { appsRouter } from "./apps";
 import { bankAccountsRouter } from "./bank-accounts";
 import { bankConnectionsRouter } from "./bank-connections";
 import { bankingRouter } from "./banking";
-import { billingRouter } from "./billing";
 
 import { connectorsRouter } from "./connectors";
 import { customersRouter } from "./customers";
@@ -70,7 +69,6 @@ export const appRouter = createTRPCRouter({
   overview: overviewRouter,
   reports: reportsRouter,
   oauthApplications: oauthApplicationsRouter,
-  billing: billingRouter,
 
   tags: tagsRouter,
   team: teamRouter,

@@ -1,7 +1,6 @@
 import { Icons } from "@midday/ui/icons";
 import Link from "next/link";
 import { FeaturesGridSection } from "./sections/features-grid-section";
-import { PricingSection } from "./sections/pricing-section";
 
 type PlatformConfig = {
   name: string;
@@ -143,8 +142,6 @@ export function ChatPlatformPage({ config }: { config: PlatformConfig }) {
       <div className="max-w-[1400px] mx-auto">
         <div className="h-px w-full border-t border-border" />
       </div>
-
-      <PricingSection />
     </div>
   );
 }

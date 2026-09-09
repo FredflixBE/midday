@@ -4,7 +4,6 @@ import { Button } from "@midday/ui/button";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { FeaturesGridSection } from "./sections/features-grid-section";
-import { PricingSection } from "./sections/pricing-section";
 import { TestimonialsSection } from "./sections/testimonials-section";
 
 export function Download() {
@@ -255,7 +254,6 @@ export function Download() {
       </div>
 
       {/* Pricing Section */}
-      <PricingSection />
     </div>
   );
 }
