@@ -27,10 +27,11 @@ const createSlackAppMock = mock(() => ({
 const ensureBotInChannelMock = mock(() => Promise.resolve());
 
 mock.module("@midday/bot", () => ({
-  bot: {
+  getBot: () => ({
     initialize: initializeMock,
     getAdapter: getAdapterMock,
-  },
+  }),
+  isSlackConfigured: () => true,
 }));
 
 mock.module("@midday/app-store/slack", () => ({

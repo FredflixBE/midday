@@ -7,7 +7,7 @@ import {
   getSlackInstaller,
   publishAppHome,
 } from "@midday/app-store/slack/server";
-import { bot } from "@midday/bot";
+import { getBot } from "@midday/bot";
 import { createApp, createOrUpdatePlatformIdentity } from "@midday/db/queries";
 import { logger } from "@midday/logger";
 import { HTTPException } from "hono/http-exception";
@@ -204,6 +204,7 @@ app.openapi(
         });
       }
 
+      const bot = getBot();
       await bot.initialize();
       const slackAdapter = bot.getAdapter("slack");
       await slackAdapter.setInstallation(parsedJson.data.team.id, {

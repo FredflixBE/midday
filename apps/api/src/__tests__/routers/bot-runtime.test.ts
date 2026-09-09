@@ -41,24 +41,27 @@ mock.module("@midday/logger", () => ({
   }),
 }));
 
+const botMock = {
+  onNewMention: mock(() => undefined),
+  onSubscribedMessage: mock(() => undefined),
+  onNewMessage: mock(
+    (
+      _pattern: RegExp,
+      handler: (thread: any, message: any) => Promise<void>,
+    ) => {
+      slackDmMessageHandler = handler;
+    },
+  ),
+  onAssistantThreadStarted: mock(() => undefined),
+  onAssistantContextChanged: mock(() => undefined),
+  getAdapter: mock(() => ({
+    setSuggestedPrompts: mock(() => Promise.resolve()),
+  })),
+};
+
 mock.module("@midday/bot", () => ({
-  bot: {
-    onNewMention: mock(() => undefined),
-    onSubscribedMessage: mock(() => undefined),
-    onNewMessage: mock(
-      (
-        _pattern: RegExp,
-        handler: (thread: any, message: any) => Promise<void>,
-      ) => {
-        slackDmMessageHandler = handler;
-      },
-    ),
-    onAssistantThreadStarted: mock(() => undefined),
-    onAssistantContextChanged: mock(() => undefined),
-    getAdapter: mock(() => ({
-      setSuggestedPrompts: mock(() => Promise.resolve()),
-    })),
-  },
+  getBot: () => botMock,
+  isSlackConfigured: () => true,
   formatInboxResultMessage: mock(() => ""),
   formatNotificationContextForPrompt: mock(() => ""),
   formatProcessedUploadSummary: mock(() => ""),
