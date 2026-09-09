@@ -88,6 +88,21 @@ anything; read that line. The helper scripts under `packages/db/src/scripts`
 deliberately never fall back to that variable: they only ever reach
 `TEST_DATABASE_URL`, defaulting to the test container.
 
+### Keeping it awake
+
+A free Supabase project pauses after 7 days with no API activity, and coming
+back is a manual restore. The Trigger.dev schedules do not prevent it — they
+reach Postgres through the pooler, which is not the API.
+
+`.github/workflows/supabase-keepalive.yml` makes one authenticated REST call
+and one storage call, twice a week, using the two repository secrets below. It
+fails loudly rather than quietly, because a keepalive that reports success
+while the project is unreachable is worse than none.
+
+GitHub disables a scheduled workflow after 60 days with no commit to the
+repository, and emails first. A quiet repository is exactly when this matters,
+so if the fork goes dormant for a season, check the Actions tab.
+
 ### Keeping it current
 
 `bun run db:migrate` applies pending files from `packages/db/migrations`, and is
@@ -248,6 +263,8 @@ Runtime environment:
 | Secret | Purpose |
 | --- | --- |
 | `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice — which is what it did for as long as `db:migrate` was broken. |
+| `SUPABASE_URL` | The project's API URL. With the next one, lets `supabase-keepalive.yml` touch the API twice a week so a free project never pauses. When either is unset the job skips with a notice. |
+| `SUPABASE_SECRET_KEY` | The project's secret (service role) key, so the keepalive call does not depend on what RLS allows anonymously. |
 | `TRIGGER_ACCESS_TOKEN`, `TRIGGER_PROJECT_ID` | Let `trigger-deploy.yml` ship `packages/jobs` on push to `main`. Both must be set or the job skips with a notice. The token comes from the Trigger.dev account (Personal Access Token); the project id is the `proj_…` reference on the project. |
 
 ## Local development
