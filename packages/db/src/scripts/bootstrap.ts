@@ -16,7 +16,8 @@
  *                         from here; it is reported, not fatal.
  *   6. 20-realtime.sql    publication membership and the activities policy.
  *   7. 30-auth-user.sql   the trigger that gives a new sign-in a users row.
- *   8. verification       the part you paste into the ticket.
+ *   8. 40-functions.sql   the functions the application calls at runtime.
+ *   9. verification       the part you paste into the ticket.
  *
  * The verification is the real gate, because `drizzle-kit push` exits 0 even
  * when statements inside it failed.
@@ -181,6 +182,34 @@ const CHECKS: Check[] = [
           : "",
   },
   {
+    // The gap FF-1439 closed: the app calls these at runtime, and a missing
+    // one is a 500 on whichever page reaches it first.
+    what: "the functions the app calls exist",
+    sql: `select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public'
+             and proname in ('global_search','global_semantic_search',
+                             'match_similar_documents_by_title',
+                             'get_team_bank_accounts_balances',
+                             'get_bank_account_currencies','slugify','total_duration',
+                             'get_project_total_amount','get_assigned_users_for_project')`,
+    verdict: (rows) => {
+      const want = [
+        "get_assigned_users_for_project",
+        "get_bank_account_currencies",
+        "get_project_total_amount",
+        "get_team_bank_accounts_balances",
+        "global_search",
+        "global_semantic_search",
+        "match_similar_documents_by_title",
+        "slugify",
+        "total_duration",
+      ];
+      const have = rows.map((r) => String(r.proname));
+      const missing = want.filter((f) => !have.includes(f));
+      return missing.length === 0 ? "" : `missing ${missing.join(", ")}`;
+    },
+  },
+  {
     what: "the API roles can reach the schema",
     sql: `select has_table_privilege('authenticated', 'public.transactions', 'SELECT') as ok`,
     verdict: (rows) =>
@@ -312,6 +341,9 @@ async function main(): Promise<number> {
 
     console.log("7. a users row for every new sign-in");
     await applyFile(client, "30-auth-user.sql");
+
+    console.log("8. the functions the app calls at runtime");
+    await applyFile(client, "40-functions.sql");
 
     console.log("\nVerification\n");
     let failed = 0;
