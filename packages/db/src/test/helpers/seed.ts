@@ -1,5 +1,6 @@
 import { UTCDate } from "@date-fns/utc";
 import { format, subMonths } from "date-fns";
+import { sql } from "drizzle-orm";
 import type { Database } from "../../client";
 import {
   bankAccounts,
@@ -106,6 +107,13 @@ export async function seedAll(db: Database): Promise<void> {
 }
 
 async function seedUsers(db: Database): Promise<void> {
+  // users.id is a foreign key onto auth.users, which Supabase Auth owns and
+  // cleanDatabase() therefore does not truncate — hence ON CONFLICT.
+  await db.execute(sql`
+    insert into auth.users (id) values (${TEST_USER_ID})
+    on conflict (id) do nothing
+  `);
+
   await db.insert(users).values([
     {
       id: TEST_USER_ID,
