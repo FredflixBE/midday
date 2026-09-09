@@ -11,28 +11,6 @@ export type SlackAppConfig = {
   bot_user_id: string;
 };
 
-export type WhatsAppConnection = {
-  phoneNumber: string;
-  displayName?: string;
-  connectedAt: string;
-};
-
-export type WhatsAppAppConfig = {
-  connections?: WhatsAppConnection[];
-};
-
-export type TelegramConnection = {
-  userId: string;
-  chatId: string;
-  username?: string;
-  displayName?: string;
-  connectedAt: string;
-};
-
-export type TelegramAppConfig = {
-  connections?: TelegramConnection[];
-};
-
 export type XeroAppConfig = {
   provider: "xero";
   accessToken: string;
@@ -65,8 +43,6 @@ export type FortnoxAppConfig = {
 
 export type AppConfigById = {
   slack: SlackAppConfig;
-  telegram: TelegramAppConfig;
-  whatsapp: WhatsAppAppConfig;
   xero: XeroAppConfig;
   quickbooks: QuickBooksAppConfig;
   fortnox: FortnoxAppConfig;

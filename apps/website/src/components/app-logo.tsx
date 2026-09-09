@@ -27,7 +27,6 @@ import {
   SlackLogo,
   StripeLogo,
   StripePaymentsLogo,
-  WhatsAppLogo,
   WindsurfMcpLogo,
   XeroLogo,
   ZapierMcpLogo,
@@ -38,6 +37,7 @@ import { Icons } from "@midday/ui/icons";
 
 const IMessageLogo = () => <Icons.IMessage className="h-full w-full" />;
 const TelegramLogo = () => <Icons.Telegram className="h-full w-full" />;
+const WhatsAppLogo = () => <Icons.WhatsApp className="h-full w-full" />;
 
 const logoMap: Record<string, React.ComponentType> = {
   gmail: GmailLogo,

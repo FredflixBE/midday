@@ -25,24 +25,6 @@ export class InvalidReportTypeError extends Error {
   }
 }
 
-export class WhatsAppAlreadyConnectedToAnotherTeamError extends Error {
-  code = "WHATSAPP_ALREADY_CONNECTED_TO_ANOTHER_TEAM" as const;
-
-  constructor() {
-    super("Phone number already connected to another team");
-    this.name = "WhatsAppAlreadyConnectedToAnotherTeamError";
-  }
-}
-
-export class TelegramAlreadyConnectedToAnotherTeamError extends Error {
-  code = "TELEGRAM_ALREADY_CONNECTED_TO_ANOTHER_TEAM" as const;
-
-  constructor() {
-    super("Telegram account already connected to another team");
-    this.name = "TelegramAlreadyConnectedToAnotherTeamError";
-  }
-}
-
 export class PlatformIdentityAlreadyLinkedToAnotherUserError extends Error {
   code = "PLATFORM_IDENTITY_ALREADY_LINKED_TO_ANOTHER_USER" as const;
 

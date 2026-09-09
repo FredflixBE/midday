@@ -12,10 +12,6 @@ export const updateAppSettingsSchema = z.object({
   }),
 });
 
-export const removeWhatsAppConnectionSchema = z.object({
-  phoneNumber: z.string(),
-});
-
 export const createPlatformLinkTokenSchema = z.object({
-  provider: z.enum(["slack", "telegram", "whatsapp", "sendblue"]),
+  provider: z.enum(["slack"]),
 });

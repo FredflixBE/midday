@@ -5,7 +5,6 @@ import {
 import type { Database } from "@midday/db/client";
 import {
   getAppByAppId,
-  getPlatformIdentity,
   getPlatformIdentityById,
   listDueProviderNotificationBatches,
   listPlatformIdentitiesForTeam,
@@ -14,18 +13,6 @@ import {
   shouldSendNotification,
   updatePlatformIdentityMetadata,
 } from "@midday/db/queries";
-import { createLoggerWithContext } from "@midday/logger";
-import { sendSendblueTextNotification } from "./sendblue-notifications";
-import { sendTelegramTextNotification } from "./telegram-notifications";
-import {
-  buildBatchTemplateComponents,
-  buildMatchTemplateComponents,
-  sendWhatsAppMatchNotification,
-  sendWhatsAppTemplateNotification,
-  sendWhatsAppTextNotification,
-} from "./whatsapp-notifications";
-
-const logger = createLoggerWithContext("activity-notifications");
 
 export type ProviderNotificationType =
   | "transaction"
@@ -104,13 +91,6 @@ type AppConfig = {
   settings?: Array<{ id: string; value: boolean | string | number }>;
 };
 
-type PlatformIdentityMetadata = {
-  lastSeenAt?: string;
-  lastNotificationContext?: NotificationContext | null;
-  lastNotificationSentAt?: string;
-  [key: string]: unknown;
-};
-
 export type NotificationContext = {
   eventType: ProviderNotificationType;
   teamId: string;
@@ -118,7 +98,7 @@ export type NotificationContext = {
   entityType: string;
   entityIds: string[];
   summary: string;
-  sourcePlatform: "slack" | "telegram" | "whatsapp" | "sendblue";
+  sourcePlatform: "slack";
   sourceMessageId?: string;
   suggestedPrompts: string[];
   sentAt: string;
@@ -204,6 +184,13 @@ export async function flushDueActivityNotificationBatches(db: Database) {
     );
 
     if (!identity) {
+      await markProviderNotificationBatchSent(db, { id: batch.id });
+      continue;
+    }
+
+    // Batches queued for providers this fork no longer ships are marked sent
+    // so they stop being retried.
+    if (batch.provider !== "slack") {
       await markProviderNotificationBatchSent(db, { id: batch.id });
       continue;
     }
@@ -308,12 +295,7 @@ async function queueTeamWideNotification(
     | InvoiceOverduePayload
     | RecurringInvoiceUpcomingPayload,
 ) {
-  for (const provider of [
-    "slack",
-    "telegram",
-    "whatsapp",
-    "sendblue",
-  ] as const) {
+  for (const provider of ["slack"] as const) {
     const app = await getAppConfig(db, provider, teamId);
 
     if (!app || !isSettingEnabled(app, type)) {
@@ -396,106 +378,6 @@ async function sendImmediateMatchNotifications(
       return;
     }
   }
-
-  if (source === "whatsapp") {
-    const phoneNumber = options?.inboxMeta?.sourceMetadata?.phoneNumber;
-
-    if (!phoneNumber || payload.matchType === "auto_matched") {
-      return;
-    }
-
-    const identity = await getPlatformIdentity(db, {
-      provider: "whatsapp",
-      externalUserId: phoneNumber,
-    });
-
-    const metadata =
-      (identity?.metadata as PlatformIdentityMetadata | null) ?? {};
-
-    if (isWithinWhatsAppSessionWindow(metadata.lastSeenAt)) {
-      await sendWhatsAppMatchNotification({
-        phoneNumber,
-        inboxId: payload.inboxId,
-        transactionId: payload.transactionId,
-        inboxName: payload.documentName,
-        transactionName: payload.transactionName,
-        amount: payload.transactionAmount,
-        currency: payload.transactionCurrency,
-        transactionDate: payload.transactionDate,
-      });
-    } else {
-      const { templateName, components } = buildMatchTemplateComponents(
-        payload.documentName,
-        payload.transactionName,
-      );
-
-      await sendWhatsAppTemplateNotification({
-        phoneNumber,
-        templateName,
-        components,
-      });
-    }
-
-    if (identity) {
-      await updatePlatformIdentityMetadata(db, {
-        id: identity.id,
-        metadata: {
-          lastNotificationContext: buildMatchContext(
-            identity.userId,
-            teamId,
-            "whatsapp",
-            payload,
-          ),
-          lastNotificationSentAt: new Date().toISOString(),
-        },
-      });
-    }
-
-    return;
-  }
-
-  if (source === "telegram") {
-    const chatId = options?.inboxMeta?.sourceMetadata?.channelId;
-    const externalUserId = options?.inboxMeta?.sourceMetadata?.externalUserId;
-
-    if (!chatId) {
-      return;
-    }
-
-    if (externalUserId) {
-      await sendPlainTextMatchNotification({
-        db,
-        provider: "telegram",
-        sendFn: (text) => sendTelegramTextNotification({ chatId, text }),
-        externalUserId,
-        teamId,
-        payload,
-      });
-    } else {
-      await sendTelegramTextNotification({
-        chatId,
-        text: buildPlainMatchText(payload),
-      });
-    }
-  }
-
-  if (source === "sendblue") {
-    const phoneNumber = options?.inboxMeta?.sourceMetadata?.phoneNumber;
-    const externalUserId = options?.inboxMeta?.sourceMetadata?.externalUserId;
-
-    if (!phoneNumber) {
-      return;
-    }
-
-    await sendPlainTextMatchNotification({
-      db,
-      provider: "sendblue",
-      sendFn: (text) => sendSendblueTextNotification({ phoneNumber, text }),
-      externalUserId: externalUserId || phoneNumber,
-      teamId,
-      payload,
-    });
-  }
 }
 
 async function sendSummaryToIdentity(
@@ -532,72 +414,9 @@ async function sendSummaryToIdentity(
       });
       return true;
     }
-    case "telegram": {
-      if (!identity.externalChannelId) {
-        return false;
-      }
-
-      await sendTelegramTextNotification({
-        chatId: identity.externalChannelId,
-        text,
-      });
-      return true;
-    }
-    case "whatsapp": {
-      const metadata =
-        (identity.metadata as PlatformIdentityMetadata | null) ?? {};
-
-      if (isWithinWhatsAppSessionWindow(metadata.lastSeenAt)) {
-        await sendWhatsAppTextNotification({
-          phoneNumber: identity.externalUserId,
-          body: text,
-        });
-        return true;
-      }
-
-      if (eventFamily && entries) {
-        const templateData = buildBatchTemplateComponents(eventFamily, entries);
-
-        if (templateData) {
-          await sendWhatsAppTemplateNotification({
-            phoneNumber: identity.externalUserId,
-            templateName: templateData.templateName,
-            components: templateData.components,
-          });
-          return true;
-        }
-      }
-
-      logger.info(
-        "Skipping WhatsApp activity notification — outside session window and no template available",
-        {
-          identityId: identity.id,
-          teamId: identity.teamId,
-        },
-      );
+    default:
       return false;
-    }
-    case "sendblue": {
-      await sendSendblueTextNotification({
-        phoneNumber: identity.externalUserId,
-        text,
-      });
-      return true;
-    }
   }
-}
-
-export function isWithinWhatsAppSessionWindow(lastSeenAt?: string) {
-  if (!lastSeenAt) {
-    return false;
-  }
-
-  const seenAt = new Date(lastSeenAt).getTime();
-  if (Number.isNaN(seenAt)) {
-    return false;
-  }
-
-  return Date.now() - seenAt <= 24 * 60 * 60 * 1000;
 }
 
 export function buildBatchSummary(
@@ -606,7 +425,7 @@ export function buildBatchSummary(
   params: {
     teamId: string;
     userId: string;
-    provider: "slack" | "telegram" | "whatsapp" | "sendblue";
+    provider: "slack";
   },
 ) {
   const sentAt = new Date().toISOString();
@@ -751,78 +570,6 @@ export function buildBatchSummary(
   };
 }
 
-function buildMatchContext(
-  userId: string,
-  teamId: string,
-  provider: "telegram" | "whatsapp" | "sendblue",
-  payload: MatchPayload,
-): NotificationContext {
-  const summary =
-    payload.matchType === "auto_matched"
-      ? `${payload.documentName} was auto-matched to ${payload.transactionName}.`
-      : `${payload.documentName} may match ${payload.transactionName}.`;
-
-  return {
-    eventType: "match",
-    teamId,
-    userId,
-    entityType: "inbox_match",
-    entityIds: [payload.inboxId, payload.transactionId],
-    summary,
-    sourcePlatform: provider,
-    suggestedPrompts: ["Explain the match", "Show me the transaction"],
-    sentAt: new Date().toISOString(),
-  };
-}
-
-async function sendPlainTextMatchNotification(params: {
-  db: Database;
-  provider: "telegram" | "sendblue";
-  sendFn: (text: string) => Promise<void>;
-  externalUserId: string;
-  teamId: string;
-  payload: MatchPayload;
-}) {
-  const {
-    db: database,
-    provider,
-    sendFn,
-    externalUserId,
-    teamId,
-    payload,
-  } = params;
-
-  await sendFn(buildPlainMatchText(payload));
-
-  const identity = await getPlatformIdentity(database, {
-    provider,
-    externalUserId,
-  });
-
-  if (identity) {
-    await updatePlatformIdentityMetadata(database, {
-      id: identity.id,
-      metadata: {
-        lastNotificationContext: buildMatchContext(
-          identity.userId,
-          teamId,
-          provider,
-          payload,
-        ),
-        lastNotificationSentAt: new Date().toISOString(),
-      },
-    });
-  }
-}
-
-function buildPlainMatchText(payload: MatchPayload) {
-  if (payload.matchType === "auto_matched") {
-    return `${payload.documentName} was auto-matched to ${payload.transactionName}. Reply here if you want me to explain the match.`;
-  }
-
-  return `Possible match found for ${payload.documentName} and ${payload.transactionName}. Reply here if you want help reviewing it.`;
-}
-
 function createBatchEntry(
   type: Exclude<ProviderNotificationType, "match">,
   payload:
@@ -854,7 +601,7 @@ function isSettingEnabled(
 
 async function getAppConfig(
   db: Database,
-  appId: "slack" | "telegram" | "whatsapp" | "sendblue",
+  appId: "slack",
   teamId: string,
 ): Promise<AppConfig | null> {
   const app = await getAppByAppId(db, { appId, teamId });

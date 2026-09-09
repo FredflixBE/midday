@@ -270,22 +270,3 @@ export const getApplicationInfoSchema = z.object({
   scope: z.string(),
   state: z.string().optional(),
 });
-
-export const updateApprovalStatusSchema = z
-  .object({
-    id: z.string().uuid().openapi({
-      description: "The unique identifier of the OAuth application",
-      example: "123e4567-e89b-12d3-a456-426614174000",
-    }),
-    status: z.enum(["draft", "pending"]).openapi({
-      description: "The approval status of the OAuth application",
-      example: "pending",
-    }),
-  })
-  .openapi({
-    description: "Update the approval status of an OAuth application",
-    example: {
-      id: "123e4567-e89b-12d3-a456-426614174000",
-      status: "pending",
-    },
-  });

@@ -688,16 +688,6 @@ export const mocks = {
       settings: {},
     }),
   ) as MockFn,
-  addTelegramConnection: mock(() =>
-    Promise.resolve({
-      id: "telegram_app_123",
-    }),
-  ) as MockFn,
-  addWhatsAppConnection: mock(() =>
-    Promise.resolve({
-      id: "whatsapp_app_123",
-    }),
-  ) as MockFn,
   consumePlatformLinkToken: mock(() =>
     Promise.resolve({
       code: "tst12345",
@@ -1052,8 +1042,6 @@ const dbQueriesMock = new Proxy(
     bulkUpdateNotificationSettings: mocks.bulkUpdateNotificationSettings,
 
     // Apps
-    addTelegramConnection: mocks.addTelegramConnection,
-    addWhatsAppConnection: mocks.addWhatsAppConnection,
     consumePlatformLinkToken: mocks.consumePlatformLinkToken,
     getApps: mocks.getApps,
     createApp: mocks.createApp,
@@ -1081,7 +1069,6 @@ const dbQueriesMock = new Proxy(
     disconnectApp: createDefaultMock(),
     updateAppSettings: createDefaultMock(),
     updateAppSettingsBulk: createDefaultMock(),
-    removeWhatsAppConnection: createDefaultMock(),
 
     // Bank connections (mutations on router)
     addProviderAccounts: createDefaultMock(),
