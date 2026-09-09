@@ -1,4 +1,7 @@
+import { getMcpServerUrl } from "../mcp-url";
 import { Logo } from "./assets/logo";
+
+const MCP_SERVER_URL = getMcpServerUrl();
 
 export default {
   name: "n8n",
@@ -17,9 +20,8 @@ export default {
 - Integrate Midday with 400+ other apps via n8n
 
 **How it works:**
-1. Add the Midday MCP server URL to your n8n MCP Client node
+1. Add \`${MCP_SERVER_URL}\` as the server URL in your n8n MCP Client node
 2. Configure authentication with your Midday API key
 3. Use the available tools in your workflows and AI agents`,
   images: [],
-  installUrl: "https://midday.ai/mcp/n8n",
 };

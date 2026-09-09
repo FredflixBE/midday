@@ -283,6 +283,7 @@
       "name": "@midday/app-store",
       "version": "1.0.0",
       "dependencies": {
+        "@midday/utils": "workspace:*",
         "@slack/bolt": "^4.6.0",
         "@slack/web-api": "^7.15.0",
         "@supabase/supabase-js": "^2.101.1",

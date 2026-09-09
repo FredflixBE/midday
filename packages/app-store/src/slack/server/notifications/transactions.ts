@@ -1,4 +1,5 @@
 import { logger } from "@midday/logger";
+import { getAppUrl } from "@midday/utils/envs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { createSlackWebClient, ensureBotInChannel } from "../client";
@@ -79,7 +80,7 @@ export async function sendSlackTransactionNotifications({
                 type: "plain_text",
                 text: "View transactions",
               },
-              url: "https://app.midday.ai/transactions",
+              url: `${getAppUrl()}/transactions`,
               action_id: "button_click",
             },
           ],

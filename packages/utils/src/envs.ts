@@ -48,6 +48,19 @@ export function getApiUrl() {
 }
 
 /**
+ * The API URL for copy shown to a reader — setup instructions and the like —
+ * where a missing value should not take a page down with it. Everything that
+ * actually routes a request or a customer keeps the strict version above.
+ */
+export function tryGetApiUrl() {
+  try {
+    return getApiUrl();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Where the images an email references are served from. Emails are read long
  * after they are sent and by clients that will not authenticate, so this has
  * to be publicly reachable; it defaults to the dashboard, which serves

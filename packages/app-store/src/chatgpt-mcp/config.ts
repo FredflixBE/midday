@@ -1,4 +1,7 @@
+import { getMcpServerUrl } from "../mcp-url";
 import { Logo } from "./assets/logo";
+
+const MCP_SERVER_URL = getMcpServerUrl();
 
 export default {
   name: "ChatGPT",
@@ -18,10 +21,9 @@ export default {
 
 **Setup steps:**
 1. In ChatGPT, go to **Settings → Connectors** and click **Create**
-2. Paste this URL as the connector URL: \`https://api.midday.ai/mcp\`
+2. Paste this URL as the connector URL: \`${MCP_SERVER_URL}\`
 3. When you use a Midday tool, you'll be prompted to sign in and select a team
 
 **Requirements:** ChatGPT Pro, Plus, Business, Enterprise, or Education account. Enable developer mode in Settings → Apps & Connectors → Advanced settings.`,
   images: [],
-  installUrl: "https://midday.ai/mcp/chatgpt",
 };

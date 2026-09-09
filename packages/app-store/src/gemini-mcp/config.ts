@@ -1,4 +1,7 @@
+import { getMcpServerUrl } from "../mcp-url";
 import { Logo } from "./assets/logo";
+
+const MCP_SERVER_URL = getMcpServerUrl();
 
 export default {
   name: "Gemini",
@@ -17,11 +20,10 @@ export default {
 - Manage invoices and track time from your terminal
 
 **Setup steps:**
-1. Run: \`gemini mcp add --transport http midday https://api.midday.ai/mcp\`
+1. Run: \`gemini mcp add --transport http midday ${MCP_SERVER_URL}\`
 2. When prompted, sign in to Midday in your browser and select a team
 3. Use Midday tools in Gemini CLI to access your financial data
 
 **Requirements:** Gemini CLI installed (see [Gemini CLI docs](https://github.com/google-gemini/gemini-cli) for installation).`,
   images: [],
-  installUrl: "https://midday.ai/mcp/gemini",
 };

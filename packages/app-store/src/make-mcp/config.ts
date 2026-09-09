@@ -21,5 +21,4 @@ export default {
 2. Configure the Midday MCP server URL and authentication
 3. Select tools and map inputs in the visual builder`,
   images: [],
-  installUrl: "https://midday.ai/mcp/make",
 };
