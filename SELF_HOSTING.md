@@ -115,6 +115,7 @@ same value everywhere the name appears.
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
 | `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | no | Cloudflare R2 bucket for institution logos. Leave empty to serve provider logo URLs directly. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
+| `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | The address email is sent from, e.g. `Midday <midday@fredflix.be>`. Its domain must be verified with Resend or every message fails DKIM. Invoices go out under the team's name from this address. |
 | `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY` | yes / yes / no | The assistant, embeddings, and document OCR. |
 | `COMPOSIO_API_KEY` | no | AI tool connectors. |
 | `PLAIN_API_KEY` | no | Plain support tickets; the API only probes it for health. |
@@ -160,6 +161,7 @@ Runtime environment:
 | `MIDDAY_ENCRYPTION_KEY`, `INTERNAL_API_KEY` | yes | Shared secrets above. |
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
+| `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
 
