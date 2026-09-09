@@ -54,10 +54,6 @@
       "persistent": true,
       "cache": false
     },
-    "jobs": {
-      "persistent": true,
-      "cache": false
-    },
     "format": {},
     "lint": {
       "dependsOn": ["^topo"]
