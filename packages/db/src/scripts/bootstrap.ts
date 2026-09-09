@@ -202,7 +202,7 @@ function runPush(): Promise<void> {
   return new Promise((done, fail) => {
     const child = spawn("bunx", ["drizzle-kit", "push", "--force"], {
       cwd: PACKAGE_ROOT,
-      stdio: ["ignore", "ignore", "inherit"],
+      stdio: ["inherit", "ignore", "inherit"],
       env: process.env,
     });
     child.on("error", fail);
@@ -239,11 +239,9 @@ async function main(): Promise<number> {
     const { rows: existing } = await client.query<{ n: number }>(
       "select count(*)::int as n from pg_tables where schemaname = 'public'",
     );
+    const alreadyHasSchema = Number(existing[0]?.n ?? 0) > 0;
 
-    if (
-      Number(existing[0]?.n ?? 0) > 0 &&
-      process.env.ALLOW_NON_EMPTY !== "true"
-    ) {
+    if (alreadyHasSchema && process.env.ALLOW_NON_EMPTY !== "true") {
       console.error(`public already has ${existing[0]?.n} tables.`);
       console.error(
         "db:bootstrap is for an empty project, and it pushes with --force, which",
@@ -267,8 +265,19 @@ async function main(): Promise<number> {
     console.log("1. functions, extensions and the private schema");
     await applyFile(client, "00-bootstrap.sql");
 
-    console.log("2. tables, columns and indexes (drizzle-kit push)");
-    await runPush();
+    // Push is for building the schema, and it only does that once. Run again
+    // over a schema that is already there, it finds policies whose expressions
+    // step 3 filled in — which its own reading of schema.ts does not have — and
+    // stops to ask whether they were renamed. There is no terminal to ask, and
+    // no useful answer either: the schema is already what it should be.
+    if (alreadyHasSchema) {
+      console.log(
+        "2. tables, columns and indexes — already here, skipping push",
+      );
+    } else {
+      console.log("2. tables, columns and indexes (drizzle-kit push)");
+      await runPush();
+    }
 
     console.log("3. row level security policies, from schema.ts");
     const applied = await applyPolicies(client);
