@@ -18,7 +18,7 @@ one Postgres, one region, and a handful of external services you own.
 | Email | Resend | Transactional email only. |
 | Login | Google OAuth through Supabase Auth | Plus an internal Google OAuth client with Gmail scopes for inbox sync. |
 | Desktop app (`apps/desktop`) | Built locally on a Mac | No updater. See `apps/desktop/README.md`. |
-| CI | GitHub Actions, `ubuntu-latest` | `ci.yml` typechecks, lints and tests; on push to `main` it first applies schema migrations. Dokploy deploys on the same push. |
+| CI | GitHub Actions, `ubuntu-latest` | `ci.yml` typechecks, lints and tests; on push to `main` it first applies schema migrations. `trigger-deploy.yml` ships the jobs. Dokploy deploys the API and dashboard on the same push. |
 
 Every Dockerfile uses the repository root as build context; the root
 `.dockerignore` keeps the context small. The images work from a plain checkout:
@@ -224,7 +224,13 @@ Runtime environment:
 | Variable | Required | Where it comes from |
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Supabase session pooler. |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | yes | Nearly every job reads or writes the `vault` bucket. |
+| `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | `@midday/banking` validates these on load, so an unset value stops the institution sync at startup rather than at runtime. |
 | `MIDDAY_ENCRYPTION_KEY`, `INTERNAL_API_KEY` | yes | Shared secrets above. |
+| `INVOICE_JWT_SECRET` | for invoicing | Signs the public invoice links in invoice emails. Same value as the API. |
+| `GMAIL_*` / `OUTLOOK_*` | for inbox sync | Same OAuth client as the API. |
+| `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | for accounting export | Token refresh needs the client credentials. |
+| `MISTRAL_API_KEY`, `OPENAI_API_KEY` | no | Document OCR fallback; Slack receipt summaries. |
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
@@ -238,6 +244,7 @@ Runtime environment:
 | Secret | Purpose |
 | --- | --- |
 | `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice — which is what it did for as long as `db:migrate` was broken. |
+| `TRIGGER_ACCESS_TOKEN`, `TRIGGER_PROJECT_ID` | Let `trigger-deploy.yml` ship `packages/jobs` on push to `main`. Both must be set or the job skips with a notice. The token comes from the Trigger.dev account (Personal Access Token); the project id is the `proj_…` reference on the project. |
 
 ## Local development
 
