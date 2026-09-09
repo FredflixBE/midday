@@ -6,7 +6,7 @@ import {
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import { createAttachments, deleteAttachment } from "@midday/db/queries";
 import { allowedMimeTypes } from "@midday/documents/utils";
-import { triggerJob } from "@midday/job-client";
+import { tasks } from "@trigger.dev/sdk";
 
 export const transactionAttachmentsRouter = createTRPCRouter({
   createMany: protectedProcedure
@@ -42,16 +42,12 @@ export const transactionAttachmentsRouter = createTRPCRouter({
       // Trigger BullMQ jobs for each attachment
       const jobResults = await Promise.all(
         allowedAttachments.map((item) =>
-          triggerJob(
-            "process-transaction-attachment",
-            {
-              filePath: item.filePath,
-              mimetype: item.mimetype,
-              teamId: teamId!,
-              transactionId: item.transactionId,
-            },
-            "transactions",
-          ),
+          tasks.trigger("process-transaction-attachment", {
+            filePath: item.filePath,
+            mimetype: item.mimetype,
+            teamId: teamId!,
+            transactionId: item.transactionId,
+          }),
         ),
       );
 

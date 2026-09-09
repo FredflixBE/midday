@@ -12,6 +12,7 @@ import {
   updateTeamMemberSchema,
 } from "@api/schemas/team";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
+import { toTriggeredRun } from "@api/utils/jobs";
 import type { InviteTeamMembersPayload } from "@jobs/schema";
 
 import { teamCache } from "@midday/cache/team-cache";
@@ -37,7 +38,6 @@ import {
   updateTeamById,
   updateTeamMember,
 } from "@midday/db/queries";
-import { triggerJob } from "@midday/job-client";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 
@@ -177,18 +177,14 @@ export const teamRouter = createTRPCRouter({
       // the team remains intact and the user can retry. The cleanup job will handle
       // bank connection deletion. Subscription cancellation should be done manually
       // by the user via the customer portal before deleting the team.
-      await triggerJob(
-        "delete-team",
-        {
-          teamId: input.teamId!,
-          connections: bankConnections.map((c) => ({
-            referenceId: c.referenceId,
-            provider: c.provider,
-            accessToken: c.accessToken,
-          })),
-        },
-        "teams",
-      );
+      await tasks.trigger("delete-team", {
+        teamId: input.teamId!,
+        connections: bankConnections.map((c) => ({
+          referenceId: c.referenceId,
+          provider: c.provider,
+          accessToken: c.accessToken,
+        })),
+      });
 
       const data = await deleteTeam(db, {
         teamId: input.teamId,
@@ -387,13 +383,11 @@ export const teamRouter = createTRPCRouter({
   updateBaseCurrency: protectedProcedure
     .input(updateBaseCurrencySchema)
     .mutation(async ({ ctx: { teamId }, input }) => {
-      return triggerJob(
-        "update-base-currency",
-        {
+      return toTriggeredRun(
+        await tasks.trigger("update-base-currency", {
           teamId: teamId!,
           baseCurrency: input.baseCurrency,
-        },
-        "transactions",
+        }),
       );
     }),
 
@@ -406,14 +400,12 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      return triggerJob(
-        "export-team-data",
-        {
+      return toTriggeredRun(
+        await tasks.trigger("export-team-data", {
           teamId,
           userId: session.user.id,
           userEmail: session.user.email ?? undefined,
-        },
-        "transactions",
+        }),
       );
     },
   ),

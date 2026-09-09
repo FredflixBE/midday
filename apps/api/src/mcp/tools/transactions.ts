@@ -6,6 +6,7 @@ import {
   updateTransactionSchema,
   updateTransactionsSchema,
 } from "@api/schemas/transactions";
+import { getRunStatus } from "@api/utils/jobs";
 import type { AccountingProviderConfig } from "@midday/accounting";
 import { getOrgName } from "@midday/accounting";
 import {
@@ -20,11 +21,7 @@ import {
   updateTransaction,
   updateTransactions,
 } from "@midday/db/queries";
-import {
-  getJobStatus,
-  triggerJob,
-  triggerJobAndWait,
-} from "@midday/job-client";
+import { runs, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import {
   mcpTransactionDetailSchema,
@@ -691,14 +688,22 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
           const SYNC_THRESHOLD = 500;
 
           if (transactionIds!.length <= SYNC_THRESHOLD) {
-            const { result } = await triggerJobAndWait(
+            // Small exports answer inline: start the run, then wait for it.
+            const handle = await tasks.trigger(
               "export-transactions",
               jobPayload,
-              "transactions",
-              { timeout: 120_000 },
             );
+            const completed = await runs.poll(handle.id, {
+              pollIntervalMs: 1000,
+            });
 
-            const jobResult = result as
+            if (completed.status !== "COMPLETED") {
+              throw new Error(
+                `Export did not complete: ${completed.error?.message ?? completed.status}`,
+              );
+            }
+
+            const jobResult = completed.output as
               | { fullPath?: string; fileName?: string; totalItems?: number }
               | undefined;
 
@@ -719,10 +724,9 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
             };
           }
 
-          const triggerResult = await triggerJob(
+          const triggerResult = await tasks.trigger(
             "export-transactions",
             jobPayload,
-            "transactions",
           );
 
           const response = {
@@ -790,16 +794,12 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
             };
           }
 
-          const result = await triggerJob(
-            "export-to-accounting",
-            {
-              teamId,
-              userId,
-              providerId: params.providerId,
-              transactionIds: params.transactionIds,
-            },
-            "accounting",
-          );
+          const result = await tasks.trigger("export-to-accounting", {
+            teamId,
+            userId,
+            providerId: params.providerId,
+            transactionIds: params.transactionIds,
+          });
 
           const config = app.config as AccountingProviderConfig;
           const orgName = getOrgName(config) ?? params.providerId;
@@ -850,7 +850,7 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
       },
       async ({ jobId }) => {
         try {
-          const status = await getJobStatus(jobId, { teamId });
+          const status = await getRunStatus(jobId, { teamId });
           const response: Record<string, unknown> = { ...status };
 
           if (

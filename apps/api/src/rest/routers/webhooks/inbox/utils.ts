@@ -1,7 +1,7 @@
-import { triggerJob } from "@midday/job-client";
 import { logger } from "@midday/logger";
 import { getExtensionFromMimeType } from "@midday/utils";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { tasks } from "@trigger.dev/sdk";
 import { nanoid } from "nanoid";
 
 // Constants
@@ -132,18 +132,14 @@ export async function triggerProcessingJobs(
 ) {
   // Trigger process-attachment jobs in parallel
   const jobPromises = uploadResults.map((item) =>
-    triggerJob(
-      "process-attachment",
-      {
-        filePath: item.file_path,
-        mimetype: item.content_type,
-        size: item.size,
-        senderEmail: item.sender_email || undefined,
-        teamId,
-        referenceId: item.reference_id,
-      },
-      "inbox",
-    ),
+    tasks.trigger("process-attachment", {
+      filePath: item.file_path,
+      mimetype: item.content_type,
+      size: item.size,
+      senderEmail: item.sender_email || undefined,
+      teamId,
+      referenceId: item.reference_id,
+    }),
   );
 
   const jobResults = await Promise.all(jobPromises);
@@ -157,20 +153,18 @@ export async function triggerProcessingJobs(
   // Send notification for email attachments
   // This is a non-critical side effect - fire-and-forget to prevent webhook failures
   // if notification job fails to enqueue
-  triggerJob(
-    "notification",
-    {
+  tasks
+    .trigger("notification", {
       type: "inbox_new",
       teamId,
       totalCount: uploadResults.length,
       inboxType: "email",
-    },
-    "notifications",
-  ).catch((error) => {
-    // Log error but don't propagate - notification failure shouldn't fail the webhook
-    logger.warn("Failed to trigger inbox_new notification", {
-      teamId,
-      error: error instanceof Error ? error.message : "Unknown error",
+    })
+    .catch((error) => {
+      // Log error but don't propagate - notification failure shouldn't fail the webhook
+      logger.warn("Failed to trigger inbox_new notification", {
+        teamId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     });
-  });
 }

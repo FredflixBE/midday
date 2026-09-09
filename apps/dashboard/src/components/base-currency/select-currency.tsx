@@ -16,7 +16,9 @@ export function SelectCurrency() {
   const queryClient = useQueryClient();
   const { toast, update, dismiss } = useToast();
   const [isSyncing, setSyncing] = useState(false);
-  const [jobId, setJobId] = useState<string | undefined>();
+  const [run, setRun] = useState<
+    { id: string; accessToken: string } | undefined
+  >();
   const [toastId, setToastId] = useState<string | null>(null);
   const toastIdRef = useRef<string | null>(null);
   const lastProgressRef = useRef<number | undefined>(undefined);
@@ -31,7 +33,7 @@ export function SelectCurrency() {
       },
       onSuccess: (data) => {
         if (data?.id) {
-          setJobId(data.id);
+          setRun({ id: data.id, accessToken: data.publicAccessToken });
         }
       },
       onError: () => {
@@ -40,7 +42,7 @@ export function SelectCurrency() {
           setToastId(null);
           toastIdRef.current = null;
         }
-        setJobId(undefined);
+        setRun(undefined);
         setSyncing(false);
 
         toast({
@@ -53,8 +55,9 @@ export function SelectCurrency() {
   );
 
   const { status, progress } = useJobStatus({
-    jobId,
-    enabled: !!jobId,
+    runId: run?.id,
+    accessToken: run?.accessToken,
+    enabled: !!run,
   });
 
   const handleChange = async (baseCurrency: string) => {
@@ -88,7 +91,7 @@ export function SelectCurrency() {
 
   // Create toast when syncing starts
   useEffect(() => {
-    if (isSyncing && jobId && !toastId) {
+    if (isSyncing && run && !toastId) {
       const { id } = toast({
         title: "Updating...",
         description: "We're updating your base currency, please wait.",
@@ -100,7 +103,7 @@ export function SelectCurrency() {
       toastIdRef.current = id;
       lastProgressRef.current = 0;
     }
-  }, [isSyncing, jobId, toastId]);
+  }, [isSyncing, run, toastId]);
 
   // Update toast progress when it changes
   useEffect(() => {
@@ -130,7 +133,7 @@ export function SelectCurrency() {
       toastIdRef.current = null;
       lastProgressRef.current = undefined;
       setSyncing(false);
-      setJobId(undefined);
+      setRun(undefined);
       invalidateTransactionQueries();
       queryClient.invalidateQueries({
         queryKey: trpc.bankAccounts.get.queryKey(),
@@ -150,7 +153,7 @@ export function SelectCurrency() {
       toastIdRef.current = null;
       lastProgressRef.current = undefined;
       setSyncing(false);
-      setJobId(undefined);
+      setRun(undefined);
 
       toast({
         duration: 3500,

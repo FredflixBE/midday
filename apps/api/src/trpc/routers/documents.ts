@@ -19,8 +19,8 @@ import {
   updateDocuments,
 } from "@midday/db/queries";
 import { isMimeTypeSupportedForProcessing } from "@midday/documents/utils";
-import { triggerJob } from "@midday/job-client";
 import { remove, signedUrl } from "@midday/supabase/storage";
+import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 
 export const documentsRouter = createTRPCRouter({
@@ -119,15 +119,17 @@ export const documentsRouter = createTRPCRouter({
       // Use deterministic jobId based on teamId:filePath for deduplication
       const jobResults = await Promise.all(
         supportedDocuments.map((item) =>
-          triggerJob(
+          tasks.trigger(
             "process-document",
             {
               filePath: item.filePath,
               mimetype: item.mimetype,
               teamId: teamId!,
             },
-            "documents",
-            { jobId: `process-doc_${teamId}_${item.filePath.join("/")}` },
+            {
+              idempotencyKey: `process-doc_${teamId}_${item.filePath.join("/")}`,
+              idempotencyKeyTTL: "24h",
+            },
           ),
         ),
       );
@@ -191,18 +193,11 @@ export const documentsRouter = createTRPCRouter({
       // reprocessing MUST use unique IDs because BullMQ won't create a new job if an ID exists.
       // Completed jobs are retained for 24h and failed for 7 days, so deterministic IDs
       // would cause retries within these windows to silently fail (returns existing job).
-      const jobResult = await triggerJob(
-        "process-document",
-        {
-          filePath: document.pathTokens,
-          mimetype,
-          teamId: teamId!,
-        },
-        "documents",
-        {
-          jobId: `reprocess-doc_${teamId}_${document.pathTokens.join("/")}_${Date.now()}`,
-        },
-      );
+      const jobResult = await tasks.trigger("process-document", {
+        filePath: document.pathTokens,
+        mimetype,
+        teamId: teamId!,
+      });
 
       return {
         success: true,

@@ -392,8 +392,14 @@ describe("tRPC: transactions.moveToReview", () => {
 
 describe("tRPC: transactions.export", () => {
   beforeEach(() => {
-    mocks.triggerJob.mockReset();
-    mocks.triggerJob.mockImplementation(() => ({ id: "job-export-1" }));
+    mocks.triggerTask.mockReset();
+    // The route returns the run handle as-is; the dashboard needs the token
+    // on it to subscribe to the run.
+    mocks.triggerTask.mockImplementation(() => ({
+      id: "job-export-1",
+      publicAccessToken: "public-token",
+      taskIdentifier: "export-transactions",
+    }));
   });
 
   test("triggers export job for transaction ids", async () => {
@@ -404,15 +410,17 @@ describe("tRPC: transactions.export", () => {
       transactionIds: [id1, id2],
     });
 
-    expect(result).toEqual({ id: "job-export-1" });
-    expect(mocks.triggerJob).toHaveBeenCalledWith(
+    expect(result).toEqual({
+      id: "job-export-1",
+      publicAccessToken: "public-token",
+    });
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
       "export-transactions",
       expect.objectContaining({
         teamId: "test-team-id",
         userId: "test-user-id",
         transactionIds: [id1, id2],
       }),
-      "transactions",
     );
   });
 });

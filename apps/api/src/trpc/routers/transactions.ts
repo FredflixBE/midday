@@ -15,6 +15,7 @@ import {
   updateTransactionsSchema,
 } from "@api/schemas/transactions";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
+import { toTriggeredRun } from "@api/utils/jobs";
 import {
   createTransaction,
   deleteTransactions,
@@ -35,7 +36,7 @@ import {
   formatAmountValue,
   selectPromptColumns,
 } from "@midday/import";
-import { triggerJob } from "@midday/job-client";
+import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 import { generateObject } from "ai";
 
@@ -136,23 +137,15 @@ export const transactionsRouter = createTRPCRouter({
       });
 
       if (transaction?.id) {
-        await triggerJob(
-          "enrich-transactions",
-          {
-            transactionIds: [transaction.id],
-            teamId: teamId!,
-          },
-          "transactions",
-        );
+        await tasks.trigger("enrich-transactions", {
+          transactionIds: [transaction.id],
+          teamId: teamId!,
+        });
 
-        await triggerJob(
-          "match-transactions-bidirectional",
-          {
-            teamId: teamId!,
-            newTransactionIds: [transaction.id],
-          },
-          "inbox",
-        );
+        await tasks.trigger("match-transactions-bidirectional", {
+          teamId: teamId!,
+          newTransactionIds: [transaction.id],
+        });
       }
 
       return transaction;
@@ -165,9 +158,8 @@ export const transactionsRouter = createTRPCRouter({
         throw new Error("Team not found");
       }
 
-      return triggerJob(
-        "export-transactions",
-        {
+      return toTriggeredRun(
+        await tasks.trigger("export-transactions", {
           teamId,
           userId: session.user.id,
           userEmail: session.user.email ?? undefined,
@@ -175,8 +167,7 @@ export const transactionsRouter = createTRPCRouter({
           transactionIds: input.transactionIds,
           dateFormat: input.dateFormat,
           exportSettings: input.exportSettings,
-        },
-        "transactions",
+        }),
       );
     }),
 
@@ -218,17 +209,15 @@ export const transactionsRouter = createTRPCRouter({
         });
       }
 
-      return triggerJob(
-        "import-transactions",
-        {
+      return toTriggeredRun(
+        await tasks.trigger("import-transactions", {
           filePath: input.filePath,
           bankAccountId: input.bankAccountId,
           currency: input.currency,
           mappings: input.mappings,
           teamId,
           inverted: input.inverted,
-        },
-        "transactions",
+        }),
       );
     }),
 

@@ -6,10 +6,10 @@ import {
   updateInboxWithProcessedData,
 } from "@midday/db/queries";
 import { DocumentClient } from "@midday/documents";
-import { triggerJob } from "@midday/job-client";
 import { logger } from "@midday/logger";
 import { createClient } from "@midday/supabase/job";
 import { getExtensionFromMimeType } from "@midday/utils";
+import { tasks } from "@trigger.dev/sdk";
 import { nanoid } from "nanoid";
 
 export type InboxUploadPlatform = "dashboard" | "slack";
@@ -233,24 +233,16 @@ export async function processInboxUpload(
       });
     }
 
-    await triggerJob(
-      "process-document",
-      {
-        mimetype: mimeType,
-        filePath,
-        teamId,
-      },
-      "documents",
-    );
+    await tasks.trigger("process-document", {
+      mimetype: mimeType,
+      filePath,
+      teamId,
+    });
 
-    await triggerJob(
-      "batch-process-matching",
-      {
-        teamId,
-        inboxIds: [inboxData.id],
-      },
-      "inbox",
-    );
+    await tasks.trigger("batch-process-matching", {
+      teamId,
+      inboxIds: [inboxData.id],
+    });
 
     return {
       inboxId: inboxData.id,

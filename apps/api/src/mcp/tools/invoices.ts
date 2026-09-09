@@ -32,9 +32,9 @@ import {
 import { DEFAULT_TEMPLATE, PdfTemplate, renderToStream } from "@midday/invoice";
 import { calculateTotal } from "@midday/invoice/calculate";
 import { transformCustomerToContent } from "@midday/invoice/utils";
-import { triggerJob } from "@midday/job-client";
 import { isAllowedAssetUrl } from "@midday/utils/asset-hosts";
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
+import { tasks } from "@trigger.dev/sdk";
 import { addDays } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
@@ -813,11 +813,7 @@ export const registerInvoiceTools: RegisterTools = (server, ctx) => {
 
           const now = new Date().toISOString();
 
-          await triggerJob(
-            "send-invoice-reminder",
-            { invoiceId: id },
-            "invoices",
-          );
+          await tasks.trigger("send-invoice-reminder", { invoiceId: id });
 
           await updateInvoice(db, {
             id,
@@ -1146,11 +1142,10 @@ export const registerInvoiceTools: RegisterTools = (server, ctx) => {
                   : null,
             });
 
-            await triggerJob(
-              "generate-invoice",
-              { invoiceId: result.id, deliveryType: delivery },
-              "invoices",
-            );
+            await tasks.trigger("generate-invoice", {
+              invoiceId: result.id,
+              deliveryType: delivery,
+            });
           }
 
           const fresh = await getInvoiceById(db, {
@@ -1608,11 +1603,10 @@ export const registerInvoiceTools: RegisterTools = (server, ctx) => {
             sentTo: recipientEmail,
           });
 
-          await triggerJob(
-            "generate-invoice",
-            { invoiceId: id, deliveryType: "create_and_send" },
-            "invoices",
-          );
+          await tasks.trigger("generate-invoice", {
+            invoiceId: id,
+            deliveryType: "create_and_send",
+          });
 
           const previewUrl = existing.token
             ? `${DASHBOARD_URL}/i/${existing.token}`
