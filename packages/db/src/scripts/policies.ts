@@ -21,10 +21,11 @@ const dialect = new PgDialect();
 
 /**
  * How many policies in schema.ts carry a name and a command but no expression,
- * and so grant nothing. FF-1429 is restoring or authoring them; until then
- * this is the number to measure against, so that a new one is noticed.
+ * and so grant nothing. FF-1429 restored or authored the last of them, so this
+ * is now zero and stays zero: a policy without an expression is a table closed
+ * to the browser, and the API bypasses RLS, so nothing else would notice.
  */
-export const KNOWN_POLICIES_WITHOUT_EXPRESSION = 44;
+export const KNOWN_POLICIES_WITHOUT_EXPRESSION = 0;
 
 /** Postgres keywords that must not be quoted in a policy's TO list. */
 const BARE_ROLES = new Set([
@@ -56,6 +57,12 @@ export type PolicyStatement = {
   /** Run before `create`: this is what repairs the one push left behind. */
   drop: string;
   create: string;
+  /** The command, uppercased: SELECT, INSERT, UPDATE, DELETE or ALL. */
+  command: string;
+  /** The rendered expression, or "" when the policy declares none. */
+  using: string;
+  /** The rendered expression, or "" when the policy declares none. */
+  withCheck: string;
   /** False when schema.ts declares no USING and no WITH CHECK, so it grants nothing. */
   restricts: boolean;
 };
@@ -92,21 +99,30 @@ export function policyStatements(): PolicyStatements {
         .map((name) => (BARE_ROLES.has(name) ? name : quoteIdent(name)))
         .join(", ");
 
-      const using = policy.using
-        ? ` USING (${dialect.sqlToQuery(policy.using).sql})`
+      const usingExpression = policy.using
+        ? dialect.sqlToQuery(policy.using).sql
         : "";
-      const withCheck = policy.withCheck
-        ? ` WITH CHECK (${dialect.sqlToQuery(policy.withCheck).sql})`
+      const withCheckExpression = policy.withCheck
+        ? dialect.sqlToQuery(policy.withCheck).sql
+        : "";
+
+      const using = usingExpression ? ` USING (${usingExpression})` : "";
+      const withCheck = withCheckExpression
+        ? ` WITH CHECK (${withCheckExpression})`
         : "";
 
       const name = quoteIdent(policy.name);
+      const command = (policy.for ?? "all").toUpperCase();
 
       policies.push({
         name: policy.name,
         table,
+        command,
+        using: usingExpression,
+        withCheck: withCheckExpression,
         restricts: using !== "" || withCheck !== "",
         drop: `DROP POLICY IF EXISTS ${name} ON ${table};`,
-        create: `CREATE POLICY ${name} ON ${table} AS ${(policy.as ?? "permissive").toUpperCase()} FOR ${(policy.for ?? "all").toUpperCase()} TO ${to}${using}${withCheck};`,
+        create: `CREATE POLICY ${name} ON ${table} AS ${(policy.as ?? "permissive").toUpperCase()} FOR ${command} TO ${to}${using}${withCheck};`,
       });
     }
   }

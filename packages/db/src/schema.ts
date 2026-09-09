@@ -587,16 +587,20 @@ export const trackerEntries = pgTable(
       as: "permissive",
       for: "delete",
       to: ["authenticated"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Entries can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["authenticated"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Entries can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["authenticated"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+      withCheck: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -681,11 +685,14 @@ export const inboxAccounts = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Inbox accounts can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+      withCheck: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -763,16 +770,19 @@ export const bankAccounts = pgTable(
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Bank Accounts can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Bank Accounts can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -1353,16 +1363,19 @@ export const reports = pgTable(
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Reports can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Reports can be updated by member of team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -1442,16 +1455,19 @@ export const bankConnections = pgTable(
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Bank Connections can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Bank Connections can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -1498,26 +1514,31 @@ export const userInvites = pgTable(
       as: "permissive",
       for: "insert",
       to: ["public"],
+      withCheck: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("User Invites can be deleted by a member of the team", {
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("User Invites can be deleted by invited email", {
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`(((auth.jwt() ->> 'email'::text) = email))`,
     }),
     pgPolicy("User Invites can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("User Invites can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -1644,15 +1665,22 @@ export const transactionAttachments = pgTable(
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy(
       "Transaction Attachments can be selected by a member of the team",
-      { as: "permissive", for: "select", to: ["public"] },
+      {
+        as: "permissive",
+        for: "select",
+        to: ["public"],
+        using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
+      },
     ),
     pgPolicy("Transaction Attachments can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -1702,21 +1730,25 @@ export const teams = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`((id IN ( SELECT private.get_invites_for_authenticated_user() AS get_invites_for_authenticated_user)))`,
     }),
     pgPolicy("Teams can be deleted by a member of the team", {
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`((id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Teams can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`((id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Teams can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`((id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -1836,11 +1868,14 @@ export const documents = pgTable(
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+      withCheck: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Enable insert for authenticated users only", {
       as: "permissive",
       for: "insert",
       to: ["authenticated"],
+      withCheck: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -1881,16 +1916,20 @@ export const apps = pgTable(
       as: "permissive",
       for: "insert",
       to: ["public"],
+      withCheck: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Apps can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Apps can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+      withCheck: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -2328,6 +2367,7 @@ export const transactionEnrichments = pgTable(
       as: "permissive",
       for: "update",
       to: ["authenticated"],
+      withCheck: sql`(true)`,
     }),
   ],
 );
@@ -2380,16 +2420,19 @@ export const users = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`((auth.uid() = id))`,
     }),
     pgPolicy("Users can select users if they are in the same team", {
       as: "permissive",
       for: "select",
       to: ["authenticated"],
+      using: sql`((EXISTS ( SELECT 1 FROM public.users_on_team WHERE ((users_on_team.user_id = ( SELECT auth.uid() AS uid)) AND (users_on_team.team_id = users.team_id)))))`,
     }),
     pgPolicy("Users can update own profile.", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`((auth.uid() = id))`,
     }),
   ],
 );
@@ -2453,16 +2496,19 @@ export const trackerProjects = pgTable(
       as: "permissive",
       for: "delete",
       to: ["authenticated"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Projects can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["authenticated"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Projects can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["authenticated"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -2825,16 +2871,20 @@ export const usersOnTeam = pgTable(
       as: "permissive",
       for: "update",
       to: ["authenticated"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
+      withCheck: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
     pgPolicy("Select for current user teams", {
       as: "permissive",
       for: "select",
       to: ["authenticated"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Users on team can be deleted by a member of the team", {
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`((team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user)))`,
     }),
   ],
 );
@@ -3996,6 +4046,7 @@ export const accountingSyncRecords = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Team members can insert sync records", {
       as: "permissive",
@@ -4007,6 +4058,8 @@ export const accountingSyncRecords = pgTable(
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+      withCheck: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -4234,6 +4287,8 @@ export const insightUserStatus = pgTable(
       as: "permissive",
       for: "all",
       to: ["public"],
+      using: sql`(user_id = auth.uid())`,
+      withCheck: sql`(user_id = auth.uid())`,
     }),
   ],
 );

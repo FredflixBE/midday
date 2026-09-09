@@ -172,7 +172,7 @@ const CHECKS: Check[] = [
     verdict: (rows) =>
       Number(rows[0]?.n ?? 0) <= KNOWN_POLICIES_WITHOUT_EXPRESSION
         ? ""
-        : `${rows[0]?.n} policies grant nothing — expected at most the ${KNOWN_POLICIES_WITHOUT_EXPRESSION} of FF-1429`,
+        : `${rows[0]?.n} policies grant nothing — expected at most ${KNOWN_POLICIES_WITHOUT_EXPRESSION}, so the policy step did not take`,
   },
   {
     // Without this, Google sign-in succeeds and then every request 404s,

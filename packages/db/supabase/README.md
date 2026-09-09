@@ -8,9 +8,14 @@ What `drizzle-kit push` cannot create, and what it creates wrongly.
 | `10-storage.sql` | The `vault`, `avatars` and `apps` buckets. |
 | `11-storage-policies.sql` | Who may reach into them. Separate because `storage.objects` belongs to Supabase. |
 | `20-realtime.sql` | Publication membership, and the `activities` read policy. |
+| `30-auth-user.sql` | The trigger that gives a new sign-in its `public.users` row. |
+| `40-functions.sql` | The functions the application calls at runtime. |
 
 All are idempotent, and `bun run db:bootstrap` applies them in order with
-`drizzle-kit push` and the RLS policies in between. See
+`drizzle-kit push` and the RLS policies in between. The policy step is not
+optional: `drizzle-kit push` creates every policy without its `USING`
+expression, and a policy without one grants nothing, so a project that skipped
+it would be closed to the browser while looking fine from the API. See
 [SELF_HOSTING.md](../../../SELF_HOSTING.md#building-the-database).
 
 ## Running it against the Frankfurt project
