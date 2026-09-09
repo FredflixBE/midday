@@ -25,10 +25,6 @@ process.env.ENABLE_BANKING_KEY_CONTENT =
   process.env.ENABLE_BANKING_KEY_CONTENT || "test";
 process.env.ENABLEBANKING_REDIRECT_URL =
   process.env.ENABLEBANKING_REDIRECT_URL || "https://test.midday.ai/callback";
-process.env.R2_ENDPOINT = process.env.R2_ENDPOINT || "https://test.r2.dev";
-process.env.R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "test";
-process.env.R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "test";
-process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test";
 process.env.STRIPE_CONNECT_CLIENT_ID =
   process.env.STRIPE_CONNECT_CLIENT_ID || "ca_test_connect_client";
 process.env.STRIPE_SECRET_KEY =

@@ -3,13 +3,11 @@ import { isGoCardlessConfigured } from "./env";
 import { EnableBankingApi } from "./providers/enablebanking/enablebanking-api";
 import { GoCardLessApi } from "./providers/gocardless/gocardless-api";
 import type { Providers } from "./types";
-import { getFileExtension, getLogoURL } from "./utils/logo";
 
 export type InstitutionRecord = {
   id: string;
   name: string;
   logo: string | null;
-  sourceLogo: string | null;
   provider: Providers;
   countries: string[];
   availableHistory: number | null;
@@ -34,13 +32,10 @@ async function fetchEnableBankingInstitutions(): Promise<InstitutionRecord[]> {
       .digest("hex")
       .slice(0, 12);
 
-    const logo = getLogoURL(encodeURIComponent(institution.name), "png");
-
     return (institution.psu_types ?? []).map((psuType: string) => ({
       id: psuType === "business" ? hashId : `${hashId}-personal`,
       name: institution.name,
-      logo,
-      sourceLogo: institution.logo ?? null,
+      logo: institution.logo ?? null,
       provider: "enablebanking" as const,
       countries: [institution.country],
       availableHistory: null,
@@ -56,13 +51,10 @@ async function fetchGoCardLessInstitutions(): Promise<InstitutionRecord[]> {
   const data = await api.getInstitutions();
 
   return data.map((institution) => {
-    const ext = getFileExtension(institution.logo);
-
     return {
       id: institution.id,
       name: institution.name,
-      logo: getLogoURL(institution.id, ext),
-      sourceLogo: institution.logo ?? null,
+      logo: institution.logo ?? null,
       provider: "gocardless" as const,
       countries: institution.countries,
       availableHistory: institution.transaction_total_days

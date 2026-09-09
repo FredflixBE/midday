@@ -115,7 +115,7 @@ export class Provider {
   }
 }
 
-export { isGoCardlessConfigured, isR2Configured } from "./env";
+export { isGoCardlessConfigured } from "./env";
 export type {
   FetchInstitutionsResult,
   InstitutionRecord,
@@ -123,7 +123,6 @@ export type {
 export { fetchAllInstitutions } from "./institutions";
 export { EnableBankingApi } from "./providers/enablebanking/enablebanking-api";
 export { GoCardLessApi } from "./providers/gocardless/gocardless-api";
-export { syncInstitutionLogos } from "./sync-logos";
 // Re-export types, provider APIs, and institution sync
 export type * from "./types";
 export {
@@ -131,5 +130,4 @@ export {
   getProviderErrorDetails,
   ProviderError,
 } from "./utils/error";
-export { getFileExtension, getLogoURL } from "./utils/logo";
 export { getRates } from "./utils/rates";

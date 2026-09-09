@@ -15,7 +15,7 @@ one Postgres, one region, and a handful of external services you own.
 | Background jobs (`packages/jobs`) | Trigger.dev (free plan) | Deployed by its own workflow (see the job-system epic). |
 | Worker (`apps/worker`) | Dokploy, `apps/worker/Dockerfile` | Only until every job has moved to Trigger.dev (FF-1368); then it is deleted. |
 | Redis | On the VPS | Cache (`REDIS_URL`) and BullMQ queue (`REDIS_QUEUE_URL`); one instance is fine. |
-| Bank data | Enable Banking (required), GoCardless (optional) | Plaid and Teller are gone. |
+| Bank data | Enable Banking (required), GoCardless (optional) | Plaid and Teller are gone. Institution logos are served from the provider's own URL; there is no object store. |
 | Email | Resend | Transactional email only. |
 | Login | Google OAuth through Supabase Auth | Plus an internal Google OAuth client with Gmail scopes for inbox sync. |
 | Desktop app (`apps/desktop`) | Built locally on a Mac | No updater. See `apps/desktop/README.md`. |
@@ -113,7 +113,6 @@ same value everywhere the name appears.
 | `REDIS_URL`, `REDIS_QUEUE_URL` | yes | The VPS Redis. |
 | `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel; the redirect URL points at the API. The API does not start without these. |
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
-| `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | no | Cloudflare R2 bucket for institution logos. Leave empty to serve provider logo URLs directly. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | The address email is sent from, e.g. `Midday <midday@fredflix.be>`. Its domain must be verified with Resend or every message fails DKIM. Invoices go out under the team's name from this address. |
 | `ALLOWED_ASSET_HOSTS` | no | Extra hostnames the renderer may fetch a logo or avatar from, comma-separated. The Supabase storage host and your own `CDN_URL`, `DASHBOARD_URL` and `API_URL` are always allowed. |
