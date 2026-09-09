@@ -46,21 +46,20 @@ describe("policyStatements", () => {
     );
   });
 
-  test("only one policy is left that grants nothing in practice", () => {
-    // An UPDATE policy with WITH CHECK but no USING makes no existing row
+  test("no policy grants nothing in practice either", () => {
+    // An UPDATE policy with a WITH CHECK but no USING makes no existing row
     // selectable for update, so it updates zero rows — verified directly, it
-    // is not treated as true. Production's transaction_enrichments policy is
-    // exactly that, and restoring it verbatim was the instruction; widening it
-    // to USING (true) would let any authenticated user rewrite any team's
-    // enrichments. Tracked separately; nothing reads that table with the
-    // publishable key today.
+    // is not treated as true. `restricts` above cannot see this shape, because
+    // such a policy does carry an expression.
+    //
+    // transaction_enrichments had the last one. FF-1442 deleted it rather than
+    // completing it: the only completion consistent with the dump was
+    // USING (true), and nothing needs the table from a browser anyway.
     const dead = policies
       .filter((p) => p.command === "UPDATE" && !p.using && p.withCheck)
       .map((p) => `${p.table} ${p.name}`);
 
-    expect(dead).toEqual([
-      'public."transaction_enrichments" Enable update for authenticated users only',
-    ]);
+    expect(dead).toEqual([]);
   });
 
   test("enables row level security on every table it writes a policy for", () => {
@@ -69,5 +68,20 @@ describe("policyStatements", () => {
         `ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`,
       );
     }
+  });
+
+  test("enables it on a table that has no policies on purpose", () => {
+    // The dangerous case, and the reason this is asserted rather than assumed.
+    // Supabase grants anon/authenticated/service_role ALL on tables in `public`
+    // through default privileges, so RLS is the only thing standing between a
+    // signed-in browser and a table. A table whose policies are all deleted
+    // must therefore still be listed here — if it is skipped for having none,
+    // deleting the last policy silently opens the table to everyone.
+    expect(enableRls).toContain(
+      'ALTER TABLE public."transaction_enrichments" ENABLE ROW LEVEL SECURITY;',
+    );
+    expect(
+      policies.filter((p) => p.table.includes("transaction_enrichments")),
+    ).toEqual([]);
   });
 });

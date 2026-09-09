@@ -2361,20 +2361,29 @@ export const transactionEnrichments = pgTable(
       name: "transaction_enrichments_team_id_fkey",
     }).onDelete("cascade"),
     unique("unique_team_name").on(table.name, table.teamId),
-    pgPolicy("Enable insert for authenticated users only", {
-      as: "permissive",
-      for: "insert",
-      to: ["authenticated"],
-      withCheck: sql`true`,
-    }),
-    pgPolicy("Enable update for authenticated users only", {
-      as: "permissive",
-      for: "update",
-      to: ["authenticated"],
-      withCheck: sql`(true)`,
-    }),
   ],
-);
+  /**
+   * Row level security on, and deliberately no policies: nothing may reach
+   * this table with the publishable key.
+   *
+   * It had two, both recovered verbatim from the dump and both wrong. The
+   * UPDATE one had a WITH CHECK and no USING, which selects no row and so
+   * updates nothing. The INSERT one was WITH CHECK (true) to `authenticated`,
+   * which let any signed-in user write a row for any team.
+   *
+   * Neither is replaced, because there is nothing to serve. This table is
+   * merchant-name → category mappings read by public.update_enrich_transaction(),
+   * a BEFORE INSERT trigger on transactions that this fork deliberately never
+   * recreated — categories come from the enrich-transaction job now. Nothing
+   * in the repository reads or writes the table.
+   *
+   * enableRLS is what keeps that true. Supabase grants the API roles ALL on
+   * tables in `public` through default privileges, so a table with RLS *off*
+   * is open to every signed-in user; RLS on with no policies is what closes
+   * it. It also stops drizzle-kit generating a DISABLE ROW LEVEL SECURITY
+   * once the last policy goes.
+   */
+).enableRLS();
 
 export const users = pgTable(
   "users",
