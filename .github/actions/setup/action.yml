@@ -1,5 +1,5 @@
 name: Setup
-description: Setup Bun, cache dependencies, and install
+description: Install Bun at the version pinned in package.json, restore the install cache, and install dependencies
 
 runs:
   using: composite
@@ -7,20 +7,20 @@ runs:
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
       with:
-        bun-version: v1.3.10
+        # Read the version from the root `packageManager` field so CI and local
+        # installs produce the same lockfile.
+        bun-version-file: package.json
 
-    - name: Mount bun global cache
-      uses: useblacksmith/stickydisk@v1
+    - name: Restore bun install cache
+      uses: actions/cache@v4
       with:
-        key: ${{ github.repository }}-bun-cache
         path: ~/.bun/install/cache
-
-    - name: Mount node_modules
-      uses: useblacksmith/stickydisk@v1
-      with:
-        key: ${{ github.repository }}-node-modules
-        path: node_modules
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-
 
     - name: Install dependencies
       shell: bash
-      run: bun install
+      # Frozen so a package.json edit without a lockfile update fails here
+      # instead of silently resolving to something different from local.
+      run: bun install --frozen-lockfile

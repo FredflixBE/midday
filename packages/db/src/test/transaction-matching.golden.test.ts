@@ -199,51 +199,63 @@ describe("Golden Dataset Tests", () => {
     }
   });
   describe("Performance with Golden Dataset", () => {
-    test("should process all golden cases efficiently", () => {
-      const start = performance.now();
-      for (const goldenCase of GOLDEN_DATASET) {
-        const { inbox, transaction } = goldenCase;
-        // Run all scoring functions
-        calculateAmountScore(inbox, transaction);
-        calculateCurrencyScore(inbox.currency, transaction.currency);
-        calculateDateScore(inbox.date, transaction.date);
-        if (inbox.baseAmount && transaction.baseAmount) {
-          isCrossCurrencyMatch(inbox, transaction);
-        }
-      }
-      const duration = performance.now() - start;
-      const avgDuration = duration / GOLDEN_DATASET.length;
-      expect(avgDuration).toBeLessThan(1); // Should be <1ms per case
-      console.log(
-        `Processed ${GOLDEN_DATASET.length} golden cases in ${duration.toFixed(2)}ms (${avgDuration.toFixed(3)}ms avg)`,
-      );
-    });
-    test("should maintain consistent performance across categories", () => {
-      const categoryTimes: Record<string, number[]> = {
-        small_amount: [],
-        medium_amount: [],
-        large_amount: [],
-      };
-      for (const goldenCase of GOLDEN_DATASET) {
+    // Wall-clock micro-benchmarks with sub-millisecond thresholds flake on
+    // shared CI runners (FF-1424 decides their long-term shape); they still
+    // run locally.
+    test.skipIf(process.env.CI === "true")(
+      "should process all golden cases efficiently",
+      () => {
         const start = performance.now();
-        calculateAmountScore(goldenCase.inbox, goldenCase.transaction);
-        calculateCurrencyScore(
-          goldenCase.inbox.currency,
-          goldenCase.transaction.currency,
-        );
-        calculateDateScore(goldenCase.inbox.date, goldenCase.transaction.date);
+        for (const goldenCase of GOLDEN_DATASET) {
+          const { inbox, transaction } = goldenCase;
+          // Run all scoring functions
+          calculateAmountScore(inbox, transaction);
+          calculateCurrencyScore(inbox.currency, transaction.currency);
+          calculateDateScore(inbox.date, transaction.date);
+          if (inbox.baseAmount && transaction.baseAmount) {
+            isCrossCurrencyMatch(inbox, transaction);
+          }
+        }
         const duration = performance.now() - start;
-        categoryTimes[goldenCase.category]?.push(duration);
-      }
-      // Performance should be consistent across categories
-      for (const [category, times] of Object.entries(categoryTimes)) {
-        const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
-        expect(avgTime).toBeLessThan(0.5); // Very fast
+        const avgDuration = duration / GOLDEN_DATASET.length;
+        expect(avgDuration).toBeLessThan(1); // Should be <1ms per case
         console.log(
-          `${category}: ${avgTime.toFixed(4)}ms avg (${times.length} cases)`,
+          `Processed ${GOLDEN_DATASET.length} golden cases in ${duration.toFixed(2)}ms (${avgDuration.toFixed(3)}ms avg)`,
         );
-      }
-    });
+      },
+    );
+    test.skipIf(process.env.CI === "true")(
+      "should maintain consistent performance across categories",
+      () => {
+        const categoryTimes: Record<string, number[]> = {
+          small_amount: [],
+          medium_amount: [],
+          large_amount: [],
+        };
+        for (const goldenCase of GOLDEN_DATASET) {
+          const start = performance.now();
+          calculateAmountScore(goldenCase.inbox, goldenCase.transaction);
+          calculateCurrencyScore(
+            goldenCase.inbox.currency,
+            goldenCase.transaction.currency,
+          );
+          calculateDateScore(
+            goldenCase.inbox.date,
+            goldenCase.transaction.date,
+          );
+          const duration = performance.now() - start;
+          categoryTimes[goldenCase.category]?.push(duration);
+        }
+        // Performance should be consistent across categories
+        for (const [category, times] of Object.entries(categoryTimes)) {
+          const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
+          expect(avgTime).toBeLessThan(0.5); // Very fast
+          console.log(
+            `${category}: ${avgTime.toFixed(4)}ms avg (${times.length} cases)`,
+          );
+        }
+      },
+    );
   });
   describe("Regression Detection", () => {
     test("should detect if algorithm performance degrades", () => {
