@@ -18,7 +18,7 @@ one Postgres, one region, and a handful of external services you own.
 | Email | Resend | Transactional email only. |
 | Login | Google OAuth through Supabase Auth | Plus an internal Google OAuth client with Gmail scopes for inbox sync. |
 | Desktop app (`apps/desktop`) | Built locally on a Mac | No updater. See `apps/desktop/README.md`. |
-| CI | GitHub Actions, `ubuntu-latest` | `ci.yml` typechecks, lints and tests; on push to `main` it first applies schema migrations. Dokploy deploys on the same push. |
+| CI | GitHub Actions, `ubuntu-latest` | `ci.yml` typechecks, lints and tests; on push to `main` it first applies schema migrations. `trigger-deploy.yml` ships the jobs. Dokploy deploys the API and dashboard on the same push. |
 
 Every Dockerfile uses the repository root as build context; the root
 `.dockerignore` keeps the context small. The images work from a plain checkout:
@@ -238,6 +238,7 @@ Runtime environment:
 | Secret | Purpose |
 | --- | --- |
 | `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice — which is what it did for as long as `db:migrate` was broken. |
+| `TRIGGER_ACCESS_TOKEN`, `TRIGGER_PROJECT_ID` | Let `trigger-deploy.yml` ship `packages/jobs` on push to `main`. Both must be set or the job skips with a notice. The token comes from the Trigger.dev account (Personal Access Token); the project id is the `proj_…` reference on the project. |
 
 ## Local development
 

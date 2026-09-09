@@ -1,0 +1,60 @@
+# Ship the background jobs to Trigger.dev.
+#
+# Separate from ci.yml on purpose: that workflow's job is to prove `main`
+# typechecks, lints and passes its tests, and it must not be able to fail
+# because a third party is having a bad day.
+#
+# The jobs are the one part of this deployment Dokploy does not build. Its two
+# applications are the API and the dashboard; `packages/jobs` runs on
+# Trigger.dev, and this is what puts it there.
+name: Deploy jobs
+
+on:
+  push:
+    branches:
+      - main
+    # `packages/jobs` depends on seventeen workspace packages and all of them
+    # live under `packages/`, so watching the whole directory is both simpler
+    # and safer than listing them. An unrelated package change costs one extra
+    # deploy; a missed dependency would ship stale job code.
+    paths:
+      - "packages/**"
+      - "bun.lock"
+      - "package.json"
+      - ".github/workflows/trigger-deploy.yml"
+      - ".github/actions/setup/**"
+  # So the first deploy can be run by hand once the Trigger.dev project exists.
+  workflow_dispatch:
+
+# Never two deploys at once, and never cancel one in flight: a half-finished
+# deploy is worse than a slow queue.
+concurrency:
+  group: trigger-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Trigger.dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Deploy
+        working-directory: packages/jobs
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+        run: |
+          if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
+            echo "::notice title=Jobs deploy skipped::TRIGGER_ACCESS_TOKEN or TRIGGER_PROJECT_ID is not set on this repository; nothing to deploy to."
+            exit 0
+          fi
+          # Uses the trigger.dev version pinned in packages/jobs, so the CLI and
+          # the SDK the tasks are built against never drift apart.
+          bunx trigger.dev deploy
