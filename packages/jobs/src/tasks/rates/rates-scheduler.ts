@@ -65,10 +65,12 @@ export class RatesSchedulerProcessor extends BaseProcessor<RatesSchedulerPayload
 
 const processor = new RatesSchedulerProcessor();
 
-// No `cron` yet — FF-1387 registers the schedules. Gated on
+// Gated on
 // RATES_SCHEDULER_ENABLED inside the processor.
 export const ratesScheduler = schedules.task({
   id: "rates-scheduler",
+  // Twice daily at 00:00 and 12:00 UTC.
+  cron: "0 0,12 * * *",
   maxDuration: 300,
   run: (_payload, { ctx }) =>
     runProcessor(processor, "rates-scheduler", {}, ctx),

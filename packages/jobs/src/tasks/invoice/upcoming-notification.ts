@@ -309,9 +309,10 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
 
 const processor = new InvoiceUpcomingNotificationProcessor();
 
-// No `cron` yet — FF-1387 registers the schedules.
 export const invoiceUpcomingNotification = schedules.task({
   id: "invoice-upcoming-notification",
+  // Hourly at :30, offset from the recurring scheduler.
+  cron: "30 * * * *",
   maxDuration: 300,
   run: (_payload, { ctx }) =>
     runProcessor(processor, "invoice-upcoming-notification", {}, ctx),
