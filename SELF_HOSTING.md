@@ -254,6 +254,7 @@ Runtime environment:
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. `packages/jobs/README.md` lists every schedule and its cron. |
+| `INVOICE_JOBS_DRY_RUN` | no | Off unless set. Makes the two invoice schedules log which invoices they would generate and who they would email, and send nothing. Worth one run before letting invoicing send for real. |
 | `TRIGGER_PROJECT_ID` | yes | Read by `trigger.config.ts`, and a repository secret for the deploy workflow. |
 | `INSIGHTS_ENABLED` | no | Weekly insight emails, off unless exactly `true`. No schedule is registered for the dispatcher, so this alone starts nothing. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
