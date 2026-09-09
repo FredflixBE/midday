@@ -23,6 +23,7 @@ import { UploadZone } from "./inbox-upload-zone";
 
 export function InboxGetStarted() {
   const { data: user } = useUserQuery();
+  const inboxEmail = getInboxEmail(user?.team?.inboxId ?? "");
   const { setParams } = useInboxParams();
   const queryClient = useQueryClient();
   const trpc = useTRPC();
@@ -104,9 +105,7 @@ export function InboxGetStarted() {
                   <AccordionContent className="mt-4">
                     <div className="flex flex-col space-y-4">
                       <ConnectSlack />
-                      {user?.team?.inboxId && (
-                        <CopyInput value={getInboxEmail(user.team.inboxId)} />
-                      )}
+                      {inboxEmail && <CopyInput value={inboxEmail} />}
                     </div>
                   </AccordionContent>
                 </AccordionItem>

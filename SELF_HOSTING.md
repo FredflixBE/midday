@@ -94,7 +94,7 @@ same value everywhere the name appears.
 | `WEBHOOK_SECRET_KEY` | dashboard | Verifies the Supabase registration webhook. |
 | `MIDDAY_CACHE_API_SECRET` | dashboard | Protects the cache revalidation route. |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | dashboard | `openssl rand -base64 32`. Must be identical across replicas. |
-| `INBOX_WEBHOOK_USERNAME` / `INBOX_WEBHOOK_PASSWORD` | api | Basic auth on the inbound inbox email webhook. |
+| `INBOX_WEBHOOK_USERNAME` / `INBOX_WEBHOOK_PASSWORD` | api | Basic auth on the inbound inbox email webhook. The route refuses every request without them. |
 
 ### API (`apps/api`)
 
@@ -115,6 +115,7 @@ same value everywhere the name appears.
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | The address email is sent from, e.g. `Midday <midday@fredflix.be>`. Its domain must be verified with Resend or every message fails DKIM. Invoices go out under the team's name from this address. |
+| `INBOX_FORWARDING_DOMAIN` | no | Domain receipts may be forwarded to, e.g. `inbox.fredflix.be`. Requires an inbound email provider posting to `/webhooks/inbox`. Unset means that route is not mounted and the dashboard hides the address; Gmail sync and manual upload are unaffected. Set `NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN` to the same value for the dashboard. |
 | `ALLOWED_ASSET_HOSTS` | no | Extra hostnames the renderer may fetch a logo or avatar from, comma-separated. The Supabase storage host and your own `CDN_URL`, `DASHBOARD_URL` and `API_URL` are always allowed. |
 | `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY` | yes / yes / no | The assistant, embeddings, and document OCR. |
 | `COMPOSIO_API_KEY` | no | AI tool connectors. |
