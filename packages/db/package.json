@@ -18,6 +18,7 @@
     "test:e2e:setup": "bun run src/scripts/apply-sql.ts supabase/00-bootstrap.sql src/test/helpers/setup-test-db.sql && bunx drizzle-kit push --config=drizzle.config.test.ts --force && bun run src/scripts/apply-policies.ts && bun run src/scripts/apply-sql.ts supabase/10-storage.sql supabase/11-storage-policies.sql supabase/20-realtime.sql supabase/30-auth-user.sql supabase/40-functions.sql",
     "test:watch": "bun test --watch",
     "validate-golden": "bun run src/test/validate-golden-dataset.ts",
+    "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "typecheck": "tsc --noEmit",
     "bootstrap": "bun run src/scripts/bootstrap.ts"
