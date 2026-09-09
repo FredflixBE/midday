@@ -1771,12 +1771,16 @@ export const documents = pgTable(
     tag: text(),
     title: text(),
     body: text(),
-    fts: tsvector("fts")
-      .notNull()
-      .generatedAlwaysAs(
-        (): SQL =>
-          sql`to_tsvector('english'::regconfig, ((title || ' '::text) || body))`,
-      ),
+    // Not notNull, and deliberately so. The expression concatenates title and
+    // body, and NULL || anything is NULL, so a document with neither could not
+    // be inserted at all — which is every document at the moment it is
+    // uploaded, since title and body are filled in later by processing. The
+    // dump this schema was introspected from defines the column without the
+    // constraint; the constraint was an artifact of the introspection.
+    fts: tsvector("fts").generatedAlwaysAs(
+      (): SQL =>
+        sql`to_tsvector('english'::regconfig, ((title || ' '::text) || body))`,
+    ),
     summary: text(),
     content: text(),
     date: date(),

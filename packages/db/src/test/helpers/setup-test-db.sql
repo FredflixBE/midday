@@ -78,8 +78,17 @@ CREATE TABLE IF NOT EXISTS storage.objects (
   owner_id text,
   metadata jsonb,
   created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  updated_at timestamptz DEFAULT now(),
+  -- Supabase generates this one the same way. The document trigger in
+  -- 12-documents.sql reads it to find the team id, so a stub without it
+  -- would make that trigger untestable.
+  path_tokens text[] GENERATED ALWAYS AS (string_to_array(name, '/')) STORED
 );
+
+-- For a stub table created before path_tokens existed.
+ALTER TABLE storage.objects
+  ADD COLUMN IF NOT EXISTS path_tokens text[]
+  GENERATED ALWAYS AS (string_to_array(name, '/')) STORED;
 
 -- Supabase ships storage.objects with row level security already on, and owned
 -- by supabase_storage_admin. Enabling it here is what makes the bucket

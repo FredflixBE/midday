@@ -15,6 +15,13 @@
       "when": 1788987562233,
       "tag": "0001_restore_policy_expressions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788987858588,
+      "tag": "0002_documents_fts_nullable",
+      "breakpoints": true
     }
   ]
 }
