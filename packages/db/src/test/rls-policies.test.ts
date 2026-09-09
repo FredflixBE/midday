@@ -246,6 +246,37 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
     expect(mine).toEqual([MEMBER]);
   });
 
+  test("a table with no policies is closed, not open", async () => {
+    // transaction_enrichments has row level security on and deliberately no
+    // policies (FF-1442). That is only safe because RLS is enabled: Supabase
+    // grants the API roles ALL on tables in `public` through default
+    // privileges, so with RLS off this table would be readable and writable by
+    // every signed-in user. Asserting the effect rather than the catalog is
+    // the point — `relrowsecurity = true` would pass even if a stray policy
+    // let everything through.
+    const seen = await asRole(client, { id: MEMBER }, () =>
+      ids("select id from transaction_enrichments"),
+    );
+
+    expect(seen).toEqual([]);
+
+    const inserted = await asRole(client, { id: MEMBER }, async () => {
+      try {
+        await client.query(
+          "insert into transaction_enrichments (name, team_id) values ('acme', $1)",
+          [TEAM],
+        );
+        return "allowed";
+      } catch (error) {
+        return (error as { code?: string }).code;
+      }
+    });
+
+    // 42501 is insufficient_privilege: the WITH CHECK (true) policy that used
+    // to let any signed-in user write a row for any team is gone.
+    expect(inserted).toBe("42501");
+  });
+
   test("anon reads none of it", async () => {
     for (const table of ["teams", "users_on_team", "apps", "bank_accounts"]) {
       const seen = await asRole(client, null, () =>

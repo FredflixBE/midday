@@ -22,6 +22,13 @@
       "when": 1788987858588,
       "tag": "0002_documents_fts_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788993027341,
+      "tag": "0003_enrichments_server_only",
+      "breakpoints": true
     }
   ]
 }

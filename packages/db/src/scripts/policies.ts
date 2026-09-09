@@ -94,7 +94,13 @@ export function policyStatements(): PolicyStatements {
       continue; // Not a table: an enum, a relation, a helper.
     }
 
-    if (config.policies.length === 0) continue;
+    // A table with RLS on and no policies is closed to the API roles, which is
+    // a deliberate state (transaction_enrichments), not an omission — so
+    // enableRLS alone is enough to be worth a statement here. Getting this
+    // wrong is worse than it sounds: Supabase grants those roles ALL on tables
+    // in `public` through default privileges, so a table this loop skips is a
+    // table any signed-in user can read and write.
+    if (config.policies.length === 0 && !config.enableRLS) continue;
 
     const table = qualify(config.schema, config.name);
     enableRls.push(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`);
