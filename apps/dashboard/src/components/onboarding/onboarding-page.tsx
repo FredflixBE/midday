@@ -14,6 +14,7 @@ import {
   WindsurfMcpLogo,
   ZapierMcpLogo,
 } from "@midday/app-store/logos";
+import { AssistantQuestionAnimation } from "@midday/ui/animations/assistant-question";
 import { BulkReconciliationAnimation } from "@midday/ui/animations/bulk-reconciliation";
 import { DashboardAnimation } from "@midday/ui/animations/dashboard";
 import { ReceiptAttachmentAnimation } from "@midday/ui/animations/receipt-attachment";
@@ -30,7 +31,6 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { AppDetailSheet } from "@/components/sheets/app-detail-sheet";
 import { useOnboardingStep } from "@/hooks/use-onboarding-step";
 import { useTRPC } from "@/trpc/client";
-import { ChatDemoWithRail } from "./chat-demo-with-rail";
 import {
   type BankSyncState,
   type InboxSyncState,
@@ -373,10 +373,12 @@ export function OnboardingPage({
         navigation: "next",
         canGoBack: true,
       },
-      // Step 7 — Connect chat platforms (Slack)
+      // Step 7 — Connect chat platforms (Slack).
+      // The illustration used to be an iMessage demo streamed from
+      // cdn.midday.ai, for a bot FF-1380 deleted.
       {
         key: "connect-chat",
-        animation: <ChatDemoWithRail />,
+        animation: <AssistantQuestionAnimation />,
         content: <ConnectChatStep />,
         navigation: "skip",
         canGoBack: true,
