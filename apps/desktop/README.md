@@ -1,79 +1,46 @@
 # Midday Desktop App
 
-A Tauri-based desktop application for Midday that supports multiple environments with a native transparent titlebar on macOS.
+A Tauri shell around the web dashboard: the window loads the dashboard URL, and the
+Rust side adds a tray icon, a global shortcut with a search window, deep links and
+native downloads. The dashboard detects the shell through `@midday/desktop-client`.
 
-## Features
+There is no auto-updater. You build the app yourself and install the result.
 
-- **Environment Support**: Development, Staging, and Production environments
-- **Transparent Titlebar**: Native macOS transparent titlebar with traffic light buttons
-- **Responsive Design**: Minimum window size of 1450x900 for optimal experience
+## Which dashboard it opens
 
-## Environment Configuration
+The URL is baked in at build time from `MIDDAY_APP_URL` (default
+`http://localhost:3001`). A runtime `MIDDAY_APP_URL` overrides it for local testing.
 
-The desktop app supports three environments, each loading a different URL:
+The host must also be listed under `remote.urls` in
+`src-tauri/capabilities/default.json`, otherwise the page loads but the tray,
+global shortcut and download IPC do not work. `localhost:3001` and
+`https://midday.fredflix.be` are listed; add your own host there if it differs.
 
-- **Development**: `http://localhost:3001`
-- **Staging**: `https://beta.midday.ai`
-- **Production**: `https://app.midday.ai`
+The deep-link scheme is `midday` (`midday-dev` for the dev config). The dashboard's
+`NEXT_PUBLIC_DESKTOP_SCHEME` must match the build you install.
 
-## Running the App
+## Prerequisites
 
-### Development Mode
+- Rust and the Tauri CLI prerequisites for macOS: https://tauri.app/start/prerequisites/
+- Xcode command line tools
+
+## Development
+
 ```bash
-# Run in development environment (loads localhost:3001)
+# Loads http://localhost:3001 with the "Midday Dev" identifier and midday-dev scheme
 bun run tauri:dev
 ```
 
-### Staging Mode
-```bash
-# Run in staging environment (loads beta.midday.ai)
-bun run tauri:staging
-```
-
-### Production Mode
-```bash
-# Run in production environment (loads app.midday.ai)
-bun run tauri:prod
-```
-
-## Building the App
-
-### Development Build
-```bash
-bun run tauri:build
-```
-
-### Staging Build
-```bash
-bun run tauri:build:staging
-```
-
-### Production Build
-```bash
-bun run tauri:build:prod
-```
-
-## Environment Variable
-
-The environment is controlled by the `MIDDAY_ENV` environment variable:
-
-- `development` or `dev` → `http://localhost:3001`
-- `staging` → `https://beta.midday.ai`
-- `production` or `prod` → `https://app.midday.ai`
-
-If no environment is specified, it defaults to development mode.
-
-## Manual Environment Setting
-
-You can also set the environment manually:
+## Building for the self-hosted dashboard
 
 ```bash
-# macOS/Linux
-MIDDAY_ENV=staging tauri dev
-
-# Windows (PowerShell)
-$env:MIDDAY_ENV="staging"; tauri dev
-
-# Windows (Command Prompt)
-set MIDDAY_ENV=staging && tauri dev
+cd apps/desktop
+MIDDAY_APP_URL=https://midday.fredflix.be bun run tauri:build
 ```
+
+The bundle lands in `src-tauri/target/release/bundle/` (a `.dmg` and a `.app`).
+Drag the `.app` into Applications.
+
+The build is not signed or notarised. On first launch macOS refuses to open it;
+right-click the app, choose **Open**, and confirm. After that it opens normally.
+Rebuild and reinstall the same way to update.

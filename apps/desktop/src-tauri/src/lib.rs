@@ -6,7 +6,6 @@ use tauri::{
     WebviewWindowBuilder,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_updater;
 use tauri_plugin_dialog;
 use tauri_plugin_process;
 use tauri::menu::{Menu, MenuItem};
@@ -35,106 +34,6 @@ fn show_window(window: tauri::Window) -> Result<(), String> {
         .set_focus()
         .map_err(|e| format!("Failed to set focus: {}", e))?;
 
-    Ok(())
-}
-
-/// Prompt the user to download and install an update.
-/// Shared by both manual and silent update flows.
-#[cfg(desktop)]
-async fn prompt_and_install_update(app: &tauri::AppHandle, update: tauri_plugin_updater::Update) {
-    use tauri_plugin_dialog::{DialogExt, MessageDialogKind, MessageDialogButtons};
-
-    let answer = app.dialog()
-        .message(format!("A new version {} is available. Would you like to update now?", update.version))
-        .title("Update Available")
-        .kind(MessageDialogKind::Info)
-        .buttons(MessageDialogButtons::OkCancel)
-        .blocking_show();
-
-    if answer {
-        let _ = update.download_and_install(
-            |_chunk_length, _content_length| {},
-            || {
-                println!("Update download finished");
-            }
-        ).await;
-    }
-}
-
-/// Silent update check — only shows a dialog when an update is available.
-/// Used on startup and by the periodic background timer.
-#[cfg(desktop)]
-async fn silent_update_check(app: tauri::AppHandle) {
-    use tauri_plugin_updater::UpdaterExt;
-
-    if let Ok(updater) = app.updater() {
-        match updater.check().await {
-            Ok(Some(update)) => {
-                println!("Update available: {}", update.version);
-                prompt_and_install_update(&app, update).await;
-            }
-            Ok(None) => {
-                println!("No updates available");
-            }
-            Err(e) => {
-                println!("Silent update check failed: {}", e);
-            }
-        }
-    }
-}
-
-/// Manual update check (triggered from tray menu).
-/// Shows dialogs for all outcomes: update available, up-to-date, and errors.
-#[tauri::command]
-async fn check_for_updates(app: tauri::AppHandle) -> Result<(), String> {
-    use tauri_plugin_dialog::{DialogExt, MessageDialogKind, MessageDialogButtons};
-    use tauri_plugin_updater::UpdaterExt;
-    
-    #[cfg(desktop)]
-    {
-        if let Ok(updater) = app.updater() {
-            match updater.check().await {
-                Ok(Some(update)) => {
-                    prompt_and_install_update(&app, update).await;
-                }
-                Ok(None) => {
-                    let version = app.package_info().version.to_string();
-                    app.dialog()
-                        .message(format!("Midday\nversion {}\n\nYou're up to date!", version))
-                        .title("No Updates Available")
-                        .kind(MessageDialogKind::Info)
-                        .buttons(MessageDialogButtons::Ok)
-                        .blocking_show();
-                }
-                Err(e) => {
-                    app.dialog()
-                        .message(format!("Failed to check for updates: {}", e))
-                        .title("Update Check Failed")
-                        .kind(MessageDialogKind::Error)
-                        .buttons(MessageDialogButtons::Ok)
-                        .blocking_show();
-                }
-            }
-        } else {
-            app.dialog()
-                .message("Update checking is not available in this build.")
-                .title("Updates Not Available")
-                .kind(MessageDialogKind::Warning)
-                .buttons(MessageDialogButtons::Ok)
-                .blocking_show();
-        }
-    }
-    
-    #[cfg(not(desktop))]
-    {
-        app.dialog()
-            .message("Updates are managed through your app store.")
-            .title("Check App Store")
-            .kind(MessageDialogKind::Info)
-            .buttons(MessageDialogButtons::Ok)
-            .blocking_show();
-    }
-    
     Ok(())
 }
 
@@ -332,40 +231,22 @@ async fn create_preloaded_search_window(
     Ok(())
 }
 
+/// The dashboard URL the desktop shell loads.
+///
+/// Set `MIDDAY_APP_URL` when building (`MIDDAY_APP_URL=https://... bun run tauri:build`)
+/// to bake it into the binary; a runtime `MIDDAY_APP_URL` overrides it for local
+/// testing. Defaults to the local dev server. The host must also be listed in
+/// `capabilities/default.json` so the webview can reach the Tauri IPC.
 fn get_app_url() -> String {
-    // Try runtime environment variable first, then fall back to compile-time
-    let env = env::var("MIDDAY_ENV")
-        .unwrap_or_else(|_| {
-            option_env!("MIDDAY_ENV")
-                .unwrap_or("development")
-                .to_string()
-        });
+    let url = env::var("MIDDAY_APP_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| option_env!("MIDDAY_APP_URL").map(|value| value.to_string()))
+        .unwrap_or_else(|| "http://localhost:3001".to_string());
+    let url = url.trim().trim_end_matches('/').to_string();
 
-    println!("🌍 Environment detected: {}", env);
-
-    match env.as_str() {
-        "development" | "dev" => {
-            let url = "http://localhost:3001".to_string();
-            println!("🌍 Using development URL: {}", url);
-            url
-        },
-        "staging" => {
-            let url = "https://beta.midday.ai".to_string();
-            println!("🌍 Using staging URL: {}", url);
-            url
-        },
-        "production" | "prod" => {
-            let url = "https://app.midday.ai".to_string();
-            println!("🌍 Using production URL: {}", url);
-            url
-        },
-        _ => {
-            eprintln!("Unknown environment: {}, defaulting to development", env);
-            let url = "http://localhost:3001".to_string();
-            println!("🌍 Using fallback development URL: {}", url);
-            url
-        }
-    }
+    println!("🌍 Using app URL: {}", url);
+    url
 }
 
 fn is_external_url(url: &str, app_url: &str) -> bool {
@@ -419,33 +300,8 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![show_window, check_for_updates])
+        .invoke_handler(tauri::generate_handler![show_window])
         .setup(move |app| {
-            // Add updater plugin conditionally for desktop
-            #[cfg(desktop)]
-            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
-
-            // Check for updates on startup (after a short delay) and every 4 hours
-            #[cfg(desktop)]
-            {
-                let app_handle_for_updates = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    // Wait 5 seconds after startup before first check
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    println!("Running startup update check...");
-                    silent_update_check(app_handle_for_updates.clone()).await;
-
-                    // Then check every 4 hours
-                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(4 * 60 * 60));
-                    interval.tick().await; // skip the immediate first tick
-                    loop {
-                        interval.tick().await;
-                        println!("Running periodic update check...");
-                        silent_update_check(app_handle_for_updates.clone()).await;
-                    }
-                });
-            }
-
             let app_url_clone = app_url.clone();
             let app_handle = app.handle().clone();
 
@@ -633,8 +489,8 @@ pub fn run() {
             };
 
             // Create tray menu
-            let check_updates_item = MenuItem::with_id(app, "check_updates", "Check for Updates...", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&check_updates_item])?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit Midday", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&quit_item])?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(tray_icon)
@@ -642,12 +498,8 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
                     println!("🔧 Tray menu event triggered: {:?}", event.id);
-                    if event.id == "check_updates" {
-                        println!("🔧 Calling check_for_updates...");
-                        let app_handle = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let _ = check_for_updates(app_handle).await;
-                        });
+                    if event.id == "quit" {
+                        app.exit(0);
                     }
                 })
                 .on_tray_icon_event(move |tray, event| {
@@ -679,7 +531,12 @@ pub fn run() {
                     let _ = main_window.set_focus();
                 }
             }
-            tauri::RunEvent::ExitRequested { api, .. } => {
+            tauri::RunEvent::ExitRequested { api, code, .. } => {
+                // An explicit quit (tray menu → app.exit) carries a code; let it through.
+                if code.is_some() {
+                    return;
+                }
+
                 // Prevent app from quitting to keep global shortcuts working
                 api.prevent_exit();
                 
