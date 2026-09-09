@@ -9,6 +9,11 @@ RUN bun add -g turbo
 FROM turbo-cli AS builder
 WORKDIR /app
 COPY . .
+# Optional git SHA stamp. CI writes .git-commit-sha before the build; a plain
+# checkout (Dokploy) has none, so fall back to the GIT_COMMIT_SHA build arg or
+# an empty file. The entrypoint exports it as GIT_COMMIT_SHA at runtime.
+ARG GIT_COMMIT_SHA=""
+RUN [ -f .git-commit-sha ] || printf '%s' "$GIT_COMMIT_SHA" > .git-commit-sha
 RUN turbo prune @midday/worker --docker --out-dir=out/worker
 
 # Installer stage - install deps and build
@@ -48,7 +53,7 @@ COPY --from=installer /app/apps/worker ./apps/worker
 COPY --from=installer /app/packages ./packages
 COPY --from=installer /app/package.json ./package.json
 
-# Carry the git SHA into the runtime container (stamped by CI before the image build)
+# Carry the git SHA into the runtime container (optional; see the builder stage)
 COPY --from=builder /app/.git-commit-sha /tmp/git-sha.txt
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

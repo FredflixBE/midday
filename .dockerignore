@@ -1,0 +1,24 @@
+# Build context for every Dockerfile in apps/*/Dockerfile is the repo root.
+# Keep the context small: no installed modules, no git history, no build output.
+
+**/node_modules
+.git
+.github
+.turbo
+**/.turbo
+**/.next
+**/dist
+**/build
+**/out
+apps/desktop/src-tauri/target
+
+# Local environment files never belong in an image; the examples are documentation.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Editor and OS noise
+.vscode
+.idea
+.DS_Store
+**/*.log

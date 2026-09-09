@@ -37,7 +37,7 @@ Midday is an all-in-one tool designed to help freelancers, contractors, consulta
 
 ## Get started
 
-We are working on the documentation to get started with Midday for local development: https://docs.midday.ai
+This fork is self-hosted. [SELF_HOSTING.md](./SELF_HOSTING.md) describes the target stack, the order of the work, and every environment variable per deployable.
 
 ## App Architecture
 
