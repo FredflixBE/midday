@@ -135,7 +135,7 @@ Build arguments (inlined by `next build`; changing one needs a rebuild):
 | --- | --- | --- |
 | `NEXT_PUBLIC_URL` | yes | `https://midday.fredflix.be` |
 | `NEXT_PUBLIC_API_URL` | yes | `https://api.midday.fredflix.be` |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_ID` | yes | Supabase project settings > API. |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes | Supabase project settings > API. Resumable uploads derive their endpoint from the URL. |
 | `NEXT_PUBLIC_DESKTOP_SCHEME` | yes | `midday` for the production desktop build (`midday-dev` for `tauri:dev`). |
 | `NEXT_PUBLIC_GOOGLE_API_KEY` | no | Google Maps key for address autocomplete. |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | no | Stripe Connect. |
