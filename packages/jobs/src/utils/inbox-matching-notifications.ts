@@ -1,15 +1,17 @@
+import { sendToProviders } from "@midday/bot/activity-notifications";
 import type { Database } from "@midday/db/client";
 import type { MatchResult } from "@midday/db/queries";
-import { getInboxById, getTransactionById } from "@midday/db/queries";
-import { logger, tasks } from "@trigger.dev/sdk";
+import {
+  getInboxById,
+  getTransactionById,
+  hasSuggestion,
+} from "@midday/db/queries";
+import { Notifications } from "@midday/notifications";
+import { logger as triggerLogger } from "@trigger.dev/sdk";
 
-// Helper function to trigger appropriate notifications based on matching results
-export async function triggerMatchingNotification({
-  db,
-  teamId,
-  inboxId,
-  result,
-}: {
+const logger = triggerLogger;
+
+export async function triggerMatchingNotification(params: {
   db: Database;
   teamId: string;
   inboxId: string;
@@ -22,12 +24,22 @@ export async function triggerMatchingNotification({
         action: "suggestion_created";
         suggestion: MatchResult;
       };
-}) {
+}): Promise<void> {
+  const { db, teamId, inboxId, result } = params;
+
+  // Only send notifications if there's a suggestion
+  if (!hasSuggestion(result)) {
+    return;
+  }
+
   try {
     // Get inbox and transaction details
     const [inboxItem, transactionItem] = await Promise.all([
       getInboxById(db, { id: inboxId, teamId }),
-      getTransactionById(db, { id: result.suggestion.transactionId, teamId }),
+      getTransactionById(db, {
+        id: result.suggestion.transactionId,
+        teamId,
+      }),
     ]);
 
     if (!inboxItem || !transactionItem) {
@@ -42,69 +54,83 @@ export async function triggerMatchingNotification({
     const documentName = inboxItem.displayName || fileName;
     const transactionName = transactionItem.name || "Transaction";
 
-    // Check if this is a cross-currency match (for context, not routing)
-    const isCrossCurrency =
+    // Check if this is a cross-currency match
+    const isCrossCurrency = Boolean(
       inboxItem.currency &&
-      transactionItem.currency &&
-      inboxItem.currency !== transactionItem.currency;
+        transactionItem.currency &&
+        inboxItem.currency !== transactionItem.currency,
+    );
+
+    const notifications = new Notifications(db);
+
+    // Build common payload for both notification types
+    const matchPayload = {
+      inboxId,
+      transactionId: result.suggestion.transactionId,
+      documentName,
+      documentAmount: inboxItem.amount || 0,
+      documentCurrency: inboxItem.currency || "USD",
+      transactionAmount: transactionItem.amount || 0,
+      transactionCurrency: transactionItem.currency || "USD",
+      transactionName,
+      confidenceScore: result.suggestion.confidenceScore,
+      isCrossCurrency,
+    };
+
+    // Get inbox metadata for provider-specific channel info
+    const inboxMeta = inboxItem.meta as
+      | {
+          source?: string;
+          sourceMetadata?: {
+            channelId?: string;
+            threadTs?: string;
+            messageTs?: string;
+            phoneNumber?: string;
+          };
+        }
+      | undefined;
 
     if (result.action === "auto_matched") {
       // Trigger auto-matched notification
-      await tasks.trigger("notification", {
-        type: "inbox_auto_matched",
-        teamId,
-        inboxId,
-        transactionId: result.suggestion.transactionId,
-        documentName,
-        documentAmount: inboxItem.amount || 0,
-        documentCurrency: inboxItem.currency || "USD",
-        transactionAmount: transactionItem.amount || 0,
-        transactionCurrency: transactionItem.currency || "USD",
-        transactionName,
-        confidenceScore: result.suggestion.confidenceScore,
-        matchType: result.suggestion.matchType as "auto_matched",
-        isCrossCurrency,
+      await notifications.create("inbox_auto_matched", teamId, {
+        ...matchPayload,
+        matchType: "auto_matched",
       });
 
-      logger.info("Triggered auto-match notification", {
+      // Send to external providers (Slack)
+      await sendToProviders(
+        db,
         teamId,
-        inboxId,
-        transactionId: result.suggestion.transactionId,
-        isCrossCurrency,
-        documentAmount: inboxItem.amount,
-        documentCurrency: inboxItem.currency,
-        transactionAmount: transactionItem.amount,
-        transactionCurrency: transactionItem.currency,
-      });
+        "match",
+        {
+          ...matchPayload,
+          matchType: "auto_matched" as const,
+        },
+        { inboxMeta },
+      );
     } else if (result.action === "suggestion_created") {
-      // All suggestions use inbox_needs_review, but with different matchType for smart messaging
-      await tasks.trigger("notification", {
-        type: "inbox_needs_review",
-        teamId,
-        inboxId,
-        transactionId: result.suggestion.transactionId,
-        documentName,
-        documentAmount: inboxItem.amount || 0,
-        documentCurrency: inboxItem.currency || "USD",
-        transactionAmount: transactionItem.amount || 0,
-        transactionCurrency: transactionItem.currency || "USD",
-        amount: inboxItem.amount || 0,
-        currency: inboxItem.currency || transactionItem.currency || "USD",
-        transactionName,
-        confidenceScore: result.suggestion.confidenceScore,
-        matchType: result.suggestion.matchType as
-          | "high_confidence"
-          | "suggested",
-        isCrossCurrency,
+      const matchType =
+        result.suggestion.matchType === "high_confidence"
+          ? "high_confidence"
+          : "suggested";
+
+      // All suggestions use inbox_needs_review, but with different matchType
+      await notifications.create("inbox_needs_review", teamId, {
+        ...matchPayload,
+        matchType,
       });
 
-      logger.info("Triggered inbox_needs_review notification", {
+      // Send to external providers (Slack)
+      await sendToProviders(
+        db,
         teamId,
-        inboxId,
-        transactionId: result.suggestion.transactionId,
-        matchType: result.suggestion.matchType,
-        confidenceScore: result.suggestion.confidenceScore,
-      });
+        "match",
+        {
+          ...matchPayload,
+          matchType: matchType as "high_confidence" | "suggested",
+        },
+        { inboxMeta },
+      );
     }
   } catch (error) {
     logger.error("Failed to trigger matching notification", {

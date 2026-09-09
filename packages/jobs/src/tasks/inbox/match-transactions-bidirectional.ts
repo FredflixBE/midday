@@ -1,4 +1,11 @@
 import { getDb } from "@jobs/init";
+import { BaseProcessor } from "@jobs/processors/base";
+import { runProcessor } from "@jobs/processors/run";
+import type { JobContext } from "@jobs/processors/types";
+import {
+  type MatchTransactionsBidirectionalPayload,
+  matchTransactionsBidirectionalSchema,
+} from "@jobs/schemas/inbox";
 import { triggerMatchingNotification } from "@jobs/utils/inbox-matching-notifications";
 import {
   calculateInboxSuggestions,
@@ -11,32 +18,36 @@ import {
   shouldResetInboxToPendingAfterSuggestionFailure,
   updateInbox,
 } from "@midday/db/queries";
-import { logger, schemaTask } from "@trigger.dev/sdk";
-import { z } from "zod";
+import { schemaTask } from "@trigger.dev/sdk";
 
-export const matchTransactionsBidirectional = schemaTask({
-  id: "match-transactions-bidirectional",
-  schema: z.object({
-    teamId: z.string().uuid(),
-    newTransactionIds: z.array(z.string().uuid()),
-  }),
-  maxDuration: 120,
-  queue: { concurrencyLimit: 5 },
-  run: async ({ teamId, newTransactionIds }) => {
+export class MatchTransactionsBidirectionalProcessor extends BaseProcessor<MatchTransactionsBidirectionalPayload> {
+  async process(
+    job: JobContext<MatchTransactionsBidirectionalPayload>,
+  ): Promise<{
+    processed: number;
+    autoMatched: number;
+    suggestions: number;
+    noMatches: number;
+    forwardMatches: number;
+    reverseMatches: number;
+  }> {
+    const { teamId, newTransactionIds } = job.data;
     const db = getDb();
 
-    logger.info("Starting bidirectional transaction matching", {
+    this.logger.info("Starting bidirectional transaction matching", {
       teamId,
       newTransactionCount: newTransactionIds.length,
     });
 
     // PHASE 1: Forward matching - Find inbox items for new transactions
-    const forwardMatches = new Map<string, string>();
+    const forwardMatches = new Map<string, string>(); // transactionId -> inboxId
     const claimedInboxIds = new Set<string>();
     let forwardMatchCount = 0;
     let forwardSuggestionCount = 0;
 
-    for (const transactionId of newTransactionIds) {
+    for (let i = 0; i < newTransactionIds.length; i++) {
+      const transactionId = newTransactionIds[i];
+      if (!transactionId) continue;
       let processingInboxId: string | null = null;
       let workflowPersisted = false;
 
@@ -73,12 +84,19 @@ export const matchTransactionsBidirectional = schemaTask({
             source: "forward_match",
           });
 
+          this.logger.info("Persisted inbox suggestion workflow", {
+            teamId,
+            transactionId,
+            inboxId: inboxMatch.inboxId,
+            action,
+          });
+
           workflowPersisted = true;
 
           if (action === "auto_matched") {
             forwardMatchCount++;
 
-            logger.info("Auto-matched transaction to inbox", {
+            this.logger.info("Auto-matched transaction to inbox", {
               teamId,
               transactionId,
               inboxId: inboxMatch.inboxId,
@@ -87,7 +105,7 @@ export const matchTransactionsBidirectional = schemaTask({
           } else {
             forwardSuggestionCount++;
 
-            logger.info("Created forward match suggestion", {
+            this.logger.info("Created forward match suggestion", {
               teamId,
               transactionId,
               inboxId: inboxMatch.inboxId,
@@ -129,11 +147,17 @@ export const matchTransactionsBidirectional = schemaTask({
           }
         }
       } catch (error) {
-        forwardMatches.delete(transactionId);
-        if (processingInboxId) {
-          claimedInboxIds.delete(processingInboxId);
+        // Only release the in-memory claim when the DB workflow was NOT persisted.
+        // If workflowPersisted is true the match/suggestion is committed — releasing
+        // the claim would let Phase 2 reprocess an already-matched inbox item.
+        if (!workflowPersisted) {
+          forwardMatches.delete(transactionId);
+          if (processingInboxId) {
+            claimedInboxIds.delete(processingInboxId);
+          }
         }
 
+        // If persistence did not complete, avoid leaving the inbox stuck in "analyzing".
         if (processingInboxId && !workflowPersisted) {
           try {
             const inboxState = await getInboxById(db, {
@@ -158,7 +182,7 @@ export const matchTransactionsBidirectional = schemaTask({
               });
             }
           } catch (rollbackError) {
-            logger.error(
+            this.logger.error(
               "Failed to reset inbox status after forward match error",
               {
                 teamId,
@@ -173,7 +197,7 @@ export const matchTransactionsBidirectional = schemaTask({
           }
         }
 
-        logger.error("Failed to process forward match", {
+        this.logger.error("Failed to process forward match", {
           teamId,
           transactionId,
           error: error instanceof Error ? error.message : "Unknown error",
@@ -182,17 +206,19 @@ export const matchTransactionsBidirectional = schemaTask({
     }
 
     // PHASE 2: Reverse matching - Find transactions for pending inbox items
+    // Only process inbox items that weren't already matched in Phase 1
     const pendingInboxItems = await getPendingInboxForMatching(db, {
       teamId,
-      limit: 20,
+      limit: 50,
     });
 
+    // Filter out inbox items that were already matched in Phase 1
     const matchedInboxIds = new Set(forwardMatches.values());
     const unmatchedInboxItems = pendingInboxItems.filter(
       (item) => !matchedInboxIds.has(item.id),
     );
 
-    logger.info("Processing reverse matching for unmatched inbox items", {
+    this.logger.info("Processing reverse matching for unmatched inbox items", {
       teamId,
       totalPendingItems: pendingInboxItems.length,
       alreadyMatchedInPhase1: matchedInboxIds.size,
@@ -226,7 +252,7 @@ export const matchTransactionsBidirectional = schemaTask({
         switch (result.action) {
           case "auto_matched":
             reverseMatchCount++;
-            logger.info("Auto-matched inbox item to transaction", {
+            this.logger.info("Auto-matched inbox item to transaction", {
               teamId,
               inboxId: inboxItem.id,
               transactionId: result.suggestion?.transactionId,
@@ -236,7 +262,7 @@ export const matchTransactionsBidirectional = schemaTask({
 
           case "suggestion_created":
             reverseSuggestionCount++;
-            logger.info("Created reverse match suggestion", {
+            this.logger.info("Created reverse match suggestion", {
               teamId,
               inboxId: inboxItem.id,
               transactionId: result.suggestion?.transactionId,
@@ -249,7 +275,7 @@ export const matchTransactionsBidirectional = schemaTask({
             break;
         }
       } catch (error) {
-        logger.error("Failed to process reverse match", {
+        this.logger.error("Failed to process reverse match", {
           teamId,
           inboxId: inboxItem.id,
           error: error instanceof Error ? error.message : "Unknown error",
@@ -257,12 +283,13 @@ export const matchTransactionsBidirectional = schemaTask({
       }
     }
 
+    // Final summary
     const totalProcessed =
       newTransactionIds.length + unmatchedInboxItems.length;
     const totalMatched = forwardMatchCount + reverseMatchCount;
     const totalSuggestions = forwardSuggestionCount + reverseSuggestionCount;
 
-    logger.info("Completed bidirectional transaction matching", {
+    this.logger.info("Completed bidirectional transaction matching", {
       teamId,
       summary: {
         newTransactions: newTransactionIds.length,
@@ -286,5 +313,16 @@ export const matchTransactionsBidirectional = schemaTask({
       forwardMatches: forwardMatchCount,
       reverseMatches: reverseMatchCount,
     };
-  },
+  }
+}
+
+const processor = new MatchTransactionsBidirectionalProcessor();
+
+export const matchTransactionsBidirectional = schemaTask({
+  id: "match-transactions-bidirectional",
+  schema: matchTransactionsBidirectionalSchema,
+  maxDuration: 120,
+  queue: { concurrencyLimit: 5 },
+  run: (payload, { ctx }) =>
+    runProcessor(processor, "match-transactions-bidirectional", payload, ctx),
 });
