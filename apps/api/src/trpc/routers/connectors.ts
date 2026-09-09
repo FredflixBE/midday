@@ -5,6 +5,7 @@ import {
   getComposio,
   getUserToolkits,
   invalidateUserToolkitsCache,
+  isComposioConfigured,
   type ToolkitDetail,
   type ToolsResponse,
 } from "@api/composio/client";
@@ -15,10 +16,19 @@ import { z } from "zod";
 
 export const connectorsRouter = createTRPCRouter({
   list: protectedProcedure.query(async () => {
+    // No key, no connectors: an empty catalog renders no cards.
+    if (!isComposioConfigured()) {
+      return [];
+    }
+
     return getCatalog();
   }),
 
   connections: protectedProcedure.query(async ({ ctx: { session } }) => {
+    if (!isComposioConfigured()) {
+      return [];
+    }
+
     const userId = session.user.id;
     const toolkits = await getUserToolkits(userId);
     return extractActiveConnections(toolkits);
@@ -27,6 +37,13 @@ export const connectorsRouter = createTRPCRouter({
   detail: protectedProcedure
     .input(z.object({ slug: z.string() }))
     .query(async ({ input }) => {
+      if (!isComposioConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "AI tool connectors are not configured on this instance",
+        });
+      }
+
       const [toolkit, toolsData] = await Promise.all([
         composioFetch<ToolkitDetail>(`/toolkits/${input.slug}`),
         composioFetch<ToolsResponse>(

@@ -10,6 +10,9 @@ import {
   globalSearchQuery,
   globalSemanticSearchQuery,
 } from "@midday/db/queries";
+import { createLoggerWithContext } from "@midday/logger";
+
+const logger = createLoggerWithContext("trpc:search");
 
 export const searchRouter = createTRPCRouter({
   global: protectedProcedure
@@ -18,9 +21,12 @@ export const searchRouter = createTRPCRouter({
       const { searchTerm } = input;
 
       // Determine if we should fall back to LLM-generated filters:
-      // we only do this when the user provides a multi-word query.
+      // we only do this when the user provides a multi-word query, and only
+      // when this deployment has an OpenAI key to do it with.
       const shouldUseLLMFilters =
-        !!searchTerm && searchTerm.trim().split(/\s+/).length > 1;
+        Boolean(process.env.OPENAI_API_KEY) &&
+        !!searchTerm &&
+        searchTerm.trim().split(/\s+/).length > 1;
 
       const results = await globalSearchQuery(db, {
         teamId: teamId!,
@@ -43,15 +49,22 @@ export const searchRouter = createTRPCRouter({
       });
 
       if (shouldUseLLMFilters && !results.length) {
-        const filters = await generateLLMFilters(searchTerm);
+        // A failing model call should return no results, not fail the search.
+        try {
+          const filters = await generateLLMFilters(searchTerm);
 
-        const semanticResults = await globalSemanticSearchQuery(db, {
-          teamId: teamId!,
-          itemsPerTableLimit: input.itemsPerTableLimit,
-          ...filters,
-        });
+          return await globalSemanticSearchQuery(db, {
+            teamId: teamId!,
+            itemsPerTableLimit: input.itemsPerTableLimit,
+            ...filters,
+          });
+        } catch (error) {
+          logger.warn("LLM search fallback failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
 
-        return semanticResults;
+          return results;
+        }
       }
 
       return results;

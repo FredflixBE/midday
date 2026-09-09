@@ -11,6 +11,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { AppConnectionToast } from "@/components/app-connection-toast";
+import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { isOAuthMessage } from "@/utils/oauth-message";
@@ -20,6 +21,9 @@ export function Apps() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: user } = useUserQuery();
+  // Which apps this deployment actually has credentials for. A card whose
+  // connect button can only fail is worse than no card at all.
+  const availability = useFeatureAvailability();
   const router = useRouter();
 
   // Global listener for OAuth completion messages
@@ -86,65 +90,81 @@ export function Apps() {
     return inboxAccounts?.find((account) => account.provider === providerId);
   };
 
-  // Transform official apps
-  const transformedOfficialApps: UnifiedApp[] = appStoreApps.map((app) => {
-    // Gmail and Outlook use inbox_accounts for installation status
-    const isInboxApp = app.id === "gmail" || app.id === "outlook";
-    const inboxAccount = isInboxApp ? getInboxAccount(app.id) : null;
-    // Stripe Payments uses team.stripeAccountId for installation status
-    const isStripePaymentsApp = app.id === "stripe-payments";
-    const installed = isInboxApp
-      ? !!inboxAccount
-      : isStripePaymentsApp
-        ? (stripeStatus?.connected ?? false)
-        : (installedOfficialApps?.some(
-            (installed) => installed.app_id === app.id,
-          ) ?? false);
+  // Apps that need server-side credentials. Everything not listed here (the
+  // MCP client instructions, the desktop app, e-invoice) needs none.
+  const requiredCredential: Record<string, keyof typeof availability> = {
+    slack: "slack",
+    xero: "xero",
+    "quick-books": "quickbooks",
+    quickbooks: "quickbooks",
+    fortnox: "fortnox",
+    "stripe-payments": "stripe",
+  };
 
-    return {
-      id: app.id,
-      name: app.name,
-      category: "category" in app ? app.category : "Integration",
-      active: app.active,
-      beta:
-        "beta" in app && typeof app.beta === "boolean" ? app.beta : undefined,
-      logo: app.logo,
-      short_description: app.short_description,
-      description: app.description || undefined,
-      images: app.images || [],
-      installed,
-      type: "official" as const,
-      onInitialize:
-        "onInitialize" in app && typeof app.onInitialize === "function"
-          ? async ({
-              accessToken,
-              onComplete,
-            }: {
-              accessToken: string;
-              onComplete?: () => void;
-            }) => {
-              const result = app.onInitialize({ accessToken, onComplete });
-              return result instanceof Promise
-                ? result
-                : Promise.resolve(result);
-            }
-          : undefined,
-      settings:
-        "settings" in app && Array.isArray(app.settings)
-          ? app.settings
-          : undefined,
-      userSettings:
-        (installedOfficialApps?.find((inst) => inst.app_id === app.id)
-          ?.settings as Record<string, any>) || undefined,
-      // Include inbox account ID for Gmail/Outlook disconnect
-      inboxAccountId: inboxAccount?.id,
-      // Include installUrl for apps with external download pages
-      installUrl:
-        "installUrl" in app && typeof app.installUrl === "string"
-          ? app.installUrl
-          : undefined,
-    };
-  });
+  // Transform official apps
+  const transformedOfficialApps: UnifiedApp[] = appStoreApps
+    .filter((app) => {
+      const credential = requiredCredential[app.id];
+      return credential ? availability[credential] : true;
+    })
+    .map((app) => {
+      // Gmail and Outlook use inbox_accounts for installation status
+      const isInboxApp = app.id === "gmail" || app.id === "outlook";
+      const inboxAccount = isInboxApp ? getInboxAccount(app.id) : null;
+      // Stripe Payments uses team.stripeAccountId for installation status
+      const isStripePaymentsApp = app.id === "stripe-payments";
+      const installed = isInboxApp
+        ? !!inboxAccount
+        : isStripePaymentsApp
+          ? (stripeStatus?.connected ?? false)
+          : (installedOfficialApps?.some(
+              (installed) => installed.app_id === app.id,
+            ) ?? false);
+
+      return {
+        id: app.id,
+        name: app.name,
+        category: "category" in app ? app.category : "Integration",
+        active: app.active,
+        beta:
+          "beta" in app && typeof app.beta === "boolean" ? app.beta : undefined,
+        logo: app.logo,
+        short_description: app.short_description,
+        description: app.description || undefined,
+        images: app.images || [],
+        installed,
+        type: "official" as const,
+        onInitialize:
+          "onInitialize" in app && typeof app.onInitialize === "function"
+            ? async ({
+                accessToken,
+                onComplete,
+              }: {
+                accessToken: string;
+                onComplete?: () => void;
+              }) => {
+                const result = app.onInitialize({ accessToken, onComplete });
+                return result instanceof Promise
+                  ? result
+                  : Promise.resolve(result);
+              }
+            : undefined,
+        settings:
+          "settings" in app && Array.isArray(app.settings)
+            ? app.settings
+            : undefined,
+        userSettings:
+          (installedOfficialApps?.find((inst) => inst.app_id === app.id)
+            ?.settings as Record<string, any>) || undefined,
+        // Include inbox account ID for Gmail/Outlook disconnect
+        inboxAccountId: inboxAccount?.id,
+        // Include installUrl for apps with external download pages
+        installUrl:
+          "installUrl" in app && typeof app.installUrl === "string"
+            ? app.installUrl
+            : undefined,
+      };
+    });
 
   // Transform external apps (only approved, manually created ones — exclude DCR apps)
   const approvedExternalApps =
