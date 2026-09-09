@@ -16,6 +16,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./email-from": "./src/email-from.ts",
     "./envs": "./src/envs.ts",
     "./flags": "./src/flags.ts",
     "./format": "./src/format.ts",

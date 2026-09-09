@@ -9,6 +9,7 @@ import TransactionsEmail from "@midday/email/emails/transactions";
 import TransactionsExportedEmail from "@midday/email/emails/transactions-exported";
 import UpcomingInvoicesEmail from "@midday/email/emails/upcoming-invoices";
 import { render } from "@midday/email/render";
+import { getEmailFrom } from "@midday/utils/email-from";
 import { getResend } from "@midday/utils/resend";
 import { nanoid } from "nanoid";
 import type { CreateEmailOptions } from "resend";
@@ -135,7 +136,7 @@ export class EmailService {
     const recipients = email.to || [email.user.email];
 
     const payload: CreateEmailOptions = {
-      from: email.from || "Midday <middaybot@midday.ai>",
+      from: email.from || getEmailFrom(),
       to: recipients,
       subject: email.subject,
       html,

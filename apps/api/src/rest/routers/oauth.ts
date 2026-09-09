@@ -30,6 +30,7 @@ import {
 import { AppInstalledEmail } from "@midday/email/emails/app-installed";
 import { render } from "@midday/email/render";
 import { createLoggerWithContext } from "@midday/logger";
+import { getEmailFrom } from "@midday/utils/email-from";
 import { getResend } from "@midday/utils/resend";
 import { HTTPException } from "hono/http-exception";
 import { rateLimiter } from "hono-rate-limiter";
@@ -407,7 +408,7 @@ app.openapi(
           );
 
           await getResend().emails.send({
-            from: "Midday <middaybot@midday.ai>",
+            from: getEmailFrom(),
             to: session.user.email,
             subject: "An app has been added to your team",
             html,

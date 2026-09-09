@@ -1,3 +1,4 @@
+import { getAppUrl } from "@midday/utils/envs";
 import {
   Body,
   Container,
@@ -79,7 +80,7 @@ export const ApiKeyCreatedEmail = ({
           </Text>
 
           <Section className="text-center mt-[50px] mb-[50px]">
-            <Button href="https://app.midday.ai/settings/developer">
+            <Button href={`${getAppUrl()}/settings/developer`}>
               View API Keys
             </Button>
           </Section>

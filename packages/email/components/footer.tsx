@@ -1,18 +1,10 @@
-import { getEmailUrl } from "@midday/utils/envs";
-import {
-  Column,
-  Hr,
-  Img,
-  Link,
-  Row,
-  Section,
-  Text,
-} from "@react-email/components";
+import { getAppUrl } from "@midday/utils/envs";
+import { Hr, Link, Section, Text } from "@react-email/components";
 import { LogoFooter } from "./logo-footer";
 import { getEmailInlineStyles, getEmailThemeClasses } from "./theme";
 
 export function Footer() {
-  const baseUrl = getEmailUrl();
+  const appUrl = getAppUrl();
   const themeClasses = getEmailThemeClasses();
   const lightStyles = getEmailInlineStyles("light");
 
@@ -30,76 +22,26 @@ export function Footer() {
         Run your business smarter.
       </Text>
 
-      <Row>
-        <Column className="align-middle w-[40px]">
-          <Link href="https://go.midday.ai/lS72Toq">
-            <Img
-              src={`${baseUrl}/email/x.png`}
-              width="18"
-              height="18"
-              alt="X"
-            />
-          </Link>
-        </Column>
-        <Column className="align-middle">
-          <Link href="https://go.midday.ai/Ct3xybK">
-            <Img
-              src={`${baseUrl}/email/linkedin.png`}
-              width="22"
-              height="22"
-              alt="LinkedIn"
-            />
-          </Link>
-        </Column>
-      </Row>
-
-      <br />
-
       <Text
         className={`text-[13px] leading-relaxed ${themeClasses.mutedText}`}
         style={{ color: lightStyles.mutedText.color }}
       >
         <Link
-          href="https://midday.ai"
+          href={appUrl}
           className={themeClasses.mutedLink}
           style={{ color: lightStyles.mutedText.color }}
         >
-          Website
+          Dashboard
         </Link>
         {" · "}
         <Link
-          href="https://midday.ai/pricing"
-          className={themeClasses.mutedLink}
-          style={{ color: lightStyles.mutedText.color }}
-        >
-          Pricing
-        </Link>
-        {" · "}
-        <Link
-          href="https://go.midday.ai/ZrhEMbR"
-          className={themeClasses.mutedLink}
-          style={{ color: lightStyles.mutedText.color }}
-        >
-          Support
-        </Link>
-        {" · "}
-        <Link
-          href="https://app.midday.ai/settings/notifications"
+          href={`${appUrl}/settings/notifications`}
           className={themeClasses.mutedLink}
           style={{ color: lightStyles.mutedText.color }}
         >
           Notifications
         </Link>
       </Text>
-
-      <Text
-        className={`text-xs ${themeClasses.secondaryText}`}
-        style={{ color: lightStyles.secondaryText.color }}
-      >
-        Midday Labs AB · Torsgatan 59, 113 37 Stockholm, Sweden
-      </Text>
-
-      <br />
 
       <LogoFooter />
     </Section>

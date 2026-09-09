@@ -1,3 +1,4 @@
+import { getAppUrl } from "@midday/utils/envs";
 import {
   Body,
   Container,
@@ -73,7 +74,7 @@ export const WelcomeEmail = ({ fullName = "" }: Props) => {
           </Text>
 
           <Section className="text-center mt-[32px] mb-[32px]">
-            <Button href="https://app.midday.ai">Get started</Button>
+            <Button href={getAppUrl()}>Get started</Button>
           </Section>
 
           <Text

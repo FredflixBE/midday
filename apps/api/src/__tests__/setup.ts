@@ -11,6 +11,8 @@ process.env.DATABASE_URL =
 process.env.DASHBOARD_URL = process.env.DASHBOARD_URL || "https://midday.test";
 process.env.API_URL = process.env.API_URL || "https://api.midday.test";
 process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || "re_test_key";
+process.env.EMAIL_FROM =
+  process.env.EMAIL_FROM || "Midday <midday@midday.test>";
 process.env.RESEND_AUDIENCE_ID =
   process.env.RESEND_AUDIENCE_ID || "aud_test_resend_audience";
 process.env.FILE_KEY_SECRET = process.env.FILE_KEY_SECRET || "test-secret";

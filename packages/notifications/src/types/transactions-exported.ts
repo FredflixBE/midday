@@ -1,3 +1,4 @@
+import { getEmailFrom } from "@midday/utils/email-from";
 import type { NotificationHandler } from "../base";
 import { transactionsExportedSchema } from "../schemas";
 
@@ -25,7 +26,7 @@ export const transactionsExported: NotificationHandler = {
     to: data.accountantEmail ? [data.accountantEmail] : [],
     bcc: data.sendCopyToMe && data.userEmail ? [data.userEmail] : undefined,
     subject: `${team.name} shared an export`,
-    from: `${team.name} <middaybot@midday.ai>`,
+    from: getEmailFrom(team.name ?? undefined),
     data: {
       teamName: team.name,
       transactionCount: data.transactionCount,

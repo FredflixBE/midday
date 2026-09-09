@@ -1,5 +1,6 @@
 import { getI18n } from "@midday/email/locales";
 import { encrypt } from "@midday/encryption";
+import { getEmailFrom } from "@midday/utils/email-from";
 import { getAppUrl } from "@midday/utils/envs";
 import type { NotificationHandler } from "../base";
 import { invoiceSentSchema } from "../schemas";
@@ -39,7 +40,7 @@ export const invoiceSent: NotificationHandler = {
       emailType: "customer",
       to: [data.customerEmail],
       subject,
-      from: `${team.name} <middaybot@midday.ai>`,
+      from: getEmailFrom(team.name ?? undefined),
       data: {
         customerName: data.customerName,
         teamName: team.name,
