@@ -1,3 +1,4 @@
+import type { ProcessAttachmentPayload } from "@midday/jobs/schemas/inbox";
 import { logger } from "@midday/logger";
 import { getExtensionFromMimeType } from "@midday/utils";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -139,7 +140,7 @@ export async function triggerProcessingJobs(
       senderEmail: item.sender_email || undefined,
       teamId,
       referenceId: item.reference_id,
-    }),
+    } satisfies ProcessAttachmentPayload),
   );
 
   const jobResults = await Promise.all(jobPromises);

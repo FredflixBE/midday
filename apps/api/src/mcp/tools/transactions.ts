@@ -21,6 +21,8 @@ import {
   updateTransaction,
   updateTransactions,
 } from "@midday/db/queries";
+import type { AccountingExportPayload } from "@midday/jobs/schemas/accounting";
+import type { ExportTransactionsPayload } from "@midday/jobs/schemas/transactions";
 import { runs, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import {
@@ -41,6 +43,12 @@ import {
   truncateListResponse,
   withErrorHandling,
 } from "../utils";
+
+/**
+ * How long an inline MCP export waits before handing back a job id instead.
+ * Matches the timeout the BullMQ `triggerJobAndWait` call used.
+ */
+const SYNC_EXPORT_TIMEOUT_MS = 120_000;
 
 export const registerTransactionTools: RegisterTools = (server, ctx) => {
   const { db, teamId, userId, userEmail } = ctx;
@@ -683,7 +691,7 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
               sendCopyToMe: params.sendCopyToMe ?? false,
               accountantEmail: params.accountantEmail,
             },
-          };
+          } satisfies ExportTransactionsPayload;
 
           const SYNC_THRESHOLD = 500;
 
@@ -693,9 +701,31 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
               "export-transactions",
               jobPayload,
             );
-            const completed = await runs.poll(handle.id, {
-              pollIntervalMs: 1000,
-            });
+
+            // `runs.poll` has no deadline of its own and the task may run for
+            // half an hour, so bound the wait — an MCP caller is a person
+            // holding a chat open. Past the deadline this answers like a large
+            // export: here is the id, poll it.
+            const completed = await Promise.race([
+              runs.poll(handle.id, { pollIntervalMs: 1000 }),
+              new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), SYNC_EXPORT_TIMEOUT_MS),
+              ),
+            ]);
+
+            if (!completed) {
+              const response = {
+                message:
+                  "Export is taking longer than expected and is still running. Poll export_job_status with the jobId for the download URL.",
+                jobId: handle.id,
+                transactionCount: transactionIds!.length,
+              };
+
+              return {
+                content: [{ type: "text", text: JSON.stringify(response) }],
+                structuredContent: response,
+              };
+            }
 
             if (completed.status !== "COMPLETED") {
               throw new Error(
@@ -799,7 +829,7 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
             userId,
             providerId: params.providerId,
             transactionIds: params.transactionIds,
-          });
+          } satisfies AccountingExportPayload);
 
           const config = app.config as AccountingProviderConfig;
           const orgName = getOrgName(config) ?? params.providerId;

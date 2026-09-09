@@ -36,6 +36,12 @@ import {
   formatAmountValue,
   selectPromptColumns,
 } from "@midday/import";
+import type { MatchTransactionsBidirectionalPayload } from "@midday/jobs/schemas/inbox";
+import type {
+  EnrichTransactionsPayload,
+  ExportTransactionsPayload,
+  ImportTransactionsPayload,
+} from "@midday/jobs/schemas/transactions";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 import { generateObject } from "ai";
@@ -140,12 +146,12 @@ export const transactionsRouter = createTRPCRouter({
         await tasks.trigger("enrich-transactions", {
           transactionIds: [transaction.id],
           teamId: teamId!,
-        });
+        } satisfies EnrichTransactionsPayload);
 
         await tasks.trigger("match-transactions-bidirectional", {
           teamId: teamId!,
           newTransactionIds: [transaction.id],
-        });
+        } satisfies MatchTransactionsBidirectionalPayload);
       }
 
       return transaction;
@@ -167,7 +173,7 @@ export const transactionsRouter = createTRPCRouter({
           transactionIds: input.transactionIds,
           dateFormat: input.dateFormat,
           exportSettings: input.exportSettings,
-        }),
+        } satisfies ExportTransactionsPayload),
       );
     }),
 
@@ -217,7 +223,7 @@ export const transactionsRouter = createTRPCRouter({
           mappings: input.mappings,
           teamId,
           inverted: input.inverted,
-        }),
+        } satisfies ImportTransactionsPayload),
       );
     }),
 

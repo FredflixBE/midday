@@ -94,6 +94,7 @@
         "@midday/documents": "workspace:*",
         "@midday/inbox": "workspace:*",
         "@midday/invoice": "workspace:*",
+        "@midday/jobs": "workspace:*",
         "@midday/location": "workspace:*",
         "@midday/mcp-apps": "workspace:*",
         "@midday/supabase": "workspace:*",

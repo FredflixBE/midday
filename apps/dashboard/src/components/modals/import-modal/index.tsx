@@ -1,4 +1,6 @@
-"use client";
+import type { TriggeredRun } from "@midday/jobs/run-status";
+
+("use client");
 
 import { uniqueCurrencies } from "@midday/location/currencies";
 import { AnimatedSizeContainer } from "@midday/ui/animated-size-container";
@@ -36,9 +38,7 @@ export function ImportModal() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const invalidateTransactionQueries = useInvalidateTransactionQueries();
-  const [run, setRun] = useState<
-    { id: string; accessToken: string } | undefined
-  >();
+  const [run, setRun] = useState<TriggeredRun | undefined>();
   const [isImporting, setIsImporting] = useState(false);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,7 +71,7 @@ export function ImportModal() {
 
   const { status, progressStep, progress, result } = useJobStatus({
     runId: run?.id,
-    accessToken: run?.accessToken,
+    accessToken: run?.publicAccessToken,
     enabled: !!run && isOpen,
   });
 
@@ -79,7 +79,7 @@ export function ImportModal() {
     trpc.transactions.import.mutationOptions({
       onSuccess: (data) => {
         if (data?.id) {
-          setRun({ id: data.id, accessToken: data.publicAccessToken });
+          setRun(data);
         } else {
           setIsImporting(false);
           toast({

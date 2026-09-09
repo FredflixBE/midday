@@ -48,6 +48,11 @@ import {
 import { DEFAULT_TEMPLATE } from "@midday/invoice";
 import { verify } from "@midday/invoice/token";
 import { transformCustomerToContent } from "@midday/invoice/utils";
+import type {
+  GenerateInvoicePayload,
+  ScheduleInvoicePayload,
+  SendInvoiceReminderPayload,
+} from "@midday/jobs/schemas/invoices";
 import { createLoggerWithContext } from "@midday/logger";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
@@ -482,7 +487,7 @@ export const invoiceRouter = createTRPCRouter({
           // leave the invoice with nothing scheduled at all.
           const scheduledRun = await tasks.trigger(
             "schedule-invoice",
-            { invoiceId: input.id },
+            { invoiceId: input.id } satisfies ScheduleInvoicePayload,
             { delay: scheduledDate },
           );
 
@@ -565,7 +570,7 @@ export const invoiceRouter = createTRPCRouter({
       await tasks.trigger("generate-invoice", {
         invoiceId: data.id,
         deliveryType: input.deliveryType,
-      });
+      } satisfies GenerateInvoicePayload);
 
       return data;
     }),
@@ -575,7 +580,7 @@ export const invoiceRouter = createTRPCRouter({
     .mutation(async ({ input, ctx: { db, teamId } }) => {
       await tasks.trigger("send-invoice-reminder", {
         invoiceId: input.id,
-      });
+      } satisfies SendInvoiceReminderPayload);
 
       return updateInvoice(db, {
         id: input.id,
@@ -628,7 +633,7 @@ export const invoiceRouter = createTRPCRouter({
       // leave the invoice with nothing scheduled at all.
       const scheduledRun = await tasks.trigger(
         "schedule-invoice",
-        { invoiceId: input.id },
+        { invoiceId: input.id } satisfies ScheduleInvoicePayload,
         { delay: scheduledDate },
       );
 

@@ -19,6 +19,7 @@ import {
   updateDocuments,
 } from "@midday/db/queries";
 import { isMimeTypeSupportedForProcessing } from "@midday/documents/utils";
+import type { ProcessDocumentPayload } from "@midday/jobs/schemas/documents";
 import { remove, signedUrl } from "@midday/supabase/storage";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
@@ -115,8 +116,8 @@ export const documentsRouter = createTRPCRouter({
         return;
       }
 
-      // Trigger BullMQ jobs for each supported document
-      // Use deterministic jobId based on teamId:filePath for deduplication
+      // One processing run per stored file, however often the same path is
+      // uploaded — hence the idempotency key below.
       const jobResults = await Promise.all(
         supportedDocuments.map((item) =>
           tasks.trigger(
@@ -125,7 +126,7 @@ export const documentsRouter = createTRPCRouter({
               filePath: item.filePath,
               mimetype: item.mimetype,
               teamId: teamId!,
-            },
+            } satisfies ProcessDocumentPayload,
             {
               idempotencyKey: `process-doc_${teamId}_${item.filePath.join("/")}`,
               idempotencyKeyTTL: "24h",
@@ -188,16 +189,13 @@ export const documentsRouter = createTRPCRouter({
         processingStatus: "pending",
       });
 
-      // Trigger reprocessing with unique jobId (includes timestamp)
-      // Unlike initial processing which uses deterministic IDs to prevent duplicate uploads,
-      // reprocessing MUST use unique IDs because BullMQ won't create a new job if an ID exists.
-      // Completed jobs are retained for 24h and failed for 7 days, so deterministic IDs
-      // would cause retries within these windows to silently fail (returns existing job).
+      // Deliberately no idempotency key: reprocessing is meant to be a fresh
+      // run every time, where the upload path above wants exactly one per file.
       const jobResult = await tasks.trigger("process-document", {
         filePath: document.pathTokens,
         mimetype,
         teamId: teamId!,
-      });
+      } satisfies ProcessDocumentPayload);
 
       return {
         success: true,

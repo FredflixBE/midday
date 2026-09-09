@@ -32,6 +32,10 @@ import {
 } from "@midday/db/queries";
 import { calculateTotal } from "@midday/invoice/calculate";
 import { transformCustomerToContent } from "@midday/invoice/utils";
+import type {
+  GenerateInvoicePayload,
+  ScheduleInvoicePayload,
+} from "@midday/jobs/schemas/invoices";
 import { createLoggerWithContext } from "@midday/logger";
 import { getAppUrl } from "@midday/utils/envs";
 import { tasks } from "@trigger.dev/sdk";
@@ -493,7 +497,7 @@ app.openapi(
       await tasks.trigger("generate-invoice", {
         invoiceId: result.id,
         deliveryType: input.deliveryType,
-      });
+      } satisfies GenerateInvoicePayload);
     } else if (input.deliveryType === "scheduled") {
       // Handle scheduled invoices
       if (!input.scheduledAt) {
@@ -515,7 +519,7 @@ app.openapi(
       // Create a run that starts at the scheduled time
       const scheduledRun = await tasks.trigger(
         "schedule-invoice",
-        { invoiceId: result.id },
+        { invoiceId: result.id } satisfies ScheduleInvoicePayload,
         { delay: scheduledDate },
       );
 

@@ -11,7 +11,16 @@
     "typecheck": "tsc --noEmit"
   },
   "exports": {
-    "./schema": "./src/schema.ts"
+    "./schema": "./src/schema.ts",
+    "./run-status": "./src/run-status.ts",
+    "./schemas/accounting": "./src/schemas/accounting.ts",
+    "./schemas/customers": "./src/schemas/customers.ts",
+    "./schemas/documents": "./src/schemas/documents.ts",
+    "./schemas/inbox": "./src/schemas/inbox.ts",
+    "./schemas/invoices": "./src/schemas/invoices.ts",
+    "./schemas/notifications": "./src/schemas/notifications.ts",
+    "./schemas/teams": "./src/schemas/teams.ts",
+    "./schemas/transactions": "./src/schemas/transactions.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "catalog:",

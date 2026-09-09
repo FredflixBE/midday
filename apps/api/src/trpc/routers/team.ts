@@ -14,7 +14,6 @@ import {
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import { toTriggeredRun } from "@api/utils/jobs";
 import type { InviteTeamMembersPayload } from "@jobs/schema";
-
 import { teamCache } from "@midday/cache/team-cache";
 import {
   acceptTeamInvite,
@@ -38,6 +37,11 @@ import {
   updateTeamById,
   updateTeamMember,
 } from "@midday/db/queries";
+import type { DeleteTeamPayload } from "@midday/jobs/schemas/teams";
+import type {
+  ExportTeamDataPayload,
+  UpdateBaseCurrencyPayload,
+} from "@midday/jobs/schemas/transactions";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 
@@ -172,11 +176,10 @@ export const teamRouter = createTRPCRouter({
         teamId: input.teamId,
       });
 
-      // Trigger cleanup job BEFORE deleting team from database.
-      // This ensures that if job triggering fails (Redis down, queue unavailable),
-      // the team remains intact and the user can retry. The cleanup job will handle
-      // bank connection deletion. Subscription cancellation should be done manually
-      // by the user via the customer portal before deleting the team.
+      // Trigger cleanup BEFORE deleting the team from the database, so that
+      // if Trigger.dev is unreachable the team stays intact and the user can
+      // retry. The cleanup job deletes the bank connections. Subscription
+      // cancellation is done by the user in the customer portal beforehand.
       await tasks.trigger("delete-team", {
         teamId: input.teamId!,
         connections: bankConnections.map((c) => ({
@@ -184,7 +187,7 @@ export const teamRouter = createTRPCRouter({
           provider: c.provider,
           accessToken: c.accessToken,
         })),
-      });
+      } satisfies DeleteTeamPayload);
 
       const data = await deleteTeam(db, {
         teamId: input.teamId,
@@ -387,7 +390,7 @@ export const teamRouter = createTRPCRouter({
         await tasks.trigger("update-base-currency", {
           teamId: teamId!,
           baseCurrency: input.baseCurrency,
-        }),
+        } satisfies UpdateBaseCurrencyPayload),
       );
     }),
 
@@ -405,7 +408,7 @@ export const teamRouter = createTRPCRouter({
           teamId,
           userId: session.user.id,
           userEmail: session.user.email ?? undefined,
-        }),
+        } satisfies ExportTeamDataPayload),
       );
     },
   ),

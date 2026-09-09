@@ -1,4 +1,6 @@
-"use client";
+import type { TriggeredRun } from "@midday/jobs/run-status";
+
+("use client");
 
 import { uniqueCurrencies } from "@midday/location/currencies";
 import { Button } from "@midday/ui/button";
@@ -16,9 +18,7 @@ export function SelectCurrency() {
   const queryClient = useQueryClient();
   const { toast, update, dismiss } = useToast();
   const [isSyncing, setSyncing] = useState(false);
-  const [run, setRun] = useState<
-    { id: string; accessToken: string } | undefined
-  >();
+  const [run, setRun] = useState<TriggeredRun | undefined>();
   const [toastId, setToastId] = useState<string | null>(null);
   const toastIdRef = useRef<string | null>(null);
   const lastProgressRef = useRef<number | undefined>(undefined);
@@ -33,7 +33,7 @@ export function SelectCurrency() {
       },
       onSuccess: (data) => {
         if (data?.id) {
-          setRun({ id: data.id, accessToken: data.publicAccessToken });
+          setRun(data);
         }
       },
       onError: () => {
@@ -56,7 +56,7 @@ export function SelectCurrency() {
 
   const { status, progress } = useJobStatus({
     runId: run?.id,
-    accessToken: run?.accessToken,
+    accessToken: run?.publicAccessToken,
     enabled: !!run,
   });
 

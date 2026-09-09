@@ -7,6 +7,7 @@ import {
   updateInvoice,
   updateTeamById,
 } from "@midday/db/queries";
+import type { NotificationInput } from "@midday/jobs/schemas/notifications";
 import { logger } from "@midday/logger";
 import { tasks } from "@trigger.dev/sdk";
 import { HTTPException } from "hono/http-exception";
@@ -126,7 +127,7 @@ app.openapi(
                 teamId,
                 customerName: invoice.customerName || "",
                 paidAt,
-              });
+              } satisfies NotificationInput);
 
               logger.info("Invoice paid notification triggered", {
                 invoiceId,
@@ -157,7 +158,7 @@ app.openapi(
           });
 
           // Optionally: Send notification to team about failed payment
-          // await tasks.trigger("notification", { ... });
+          // await tasks.trigger("notification", { ... } satisfies NotificationInput);
 
           break;
         }
@@ -212,7 +213,7 @@ app.openapi(
               teamId: invoice.teamId,
               customerName: invoice.customerName || "",
               refundedAt,
-            });
+            } satisfies NotificationInput);
 
             logger.info("Invoice refund notification triggered", {
               invoiceId: invoice.id,

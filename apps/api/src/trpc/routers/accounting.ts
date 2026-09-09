@@ -18,6 +18,7 @@ import {
   getAppByAppId,
   getApps,
 } from "@midday/db/queries";
+import type { AccountingExportPayload } from "@midday/jobs/schemas/accounting";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 
@@ -53,7 +54,7 @@ export const accountingRouter = createTRPCRouter({
           userId: session.user.id,
           providerId,
           transactionIds,
-        }),
+        } satisfies AccountingExportPayload),
       );
 
       return result;
