@@ -67,11 +67,15 @@ export const bankConnectionsRouter = createTRPCRouter({
         throw new Error("Bank connection not found");
       }
 
-      await tasks.trigger("delete-connection", {
-        referenceId: data.referenceId,
-        provider: data.provider!,
-        accessToken: data.accessToken,
-      } satisfies DeleteConnectionPayload);
+      // Only providers this fork still ships can be cleaned up remotely.
+      // Rows from removed providers (Plaid, Teller) are deleted locally only.
+      if (data.provider === "gocardless" || data.provider === "enablebanking") {
+        await tasks.trigger("delete-connection", {
+          referenceId: data.referenceId,
+          provider: data.provider,
+          accessToken: data.accessToken,
+        } satisfies DeleteConnectionPayload);
+      }
 
       return data;
     }),

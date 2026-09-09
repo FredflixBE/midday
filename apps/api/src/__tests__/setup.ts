@@ -22,8 +22,6 @@ process.env.RESEND_AUDIENCE_ID =
   process.env.RESEND_AUDIENCE_ID || "aud_test_resend_audience";
 process.env.FILE_KEY_SECRET = process.env.FILE_KEY_SECRET || "test-secret";
 process.env.INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "test-internal";
-process.env.PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID || "test";
-process.env.PLAID_SECRET = process.env.PLAID_SECRET || "test";
 process.env.GOCARDLESS_SECRET_ID = process.env.GOCARDLESS_SECRET_ID || "test";
 process.env.GOCARDLESS_SECRET_KEY = process.env.GOCARDLESS_SECRET_KEY || "test";
 process.env.ENABLEBANKING_APPLICATION_ID =
@@ -32,13 +30,10 @@ process.env.ENABLE_BANKING_KEY_CONTENT =
   process.env.ENABLE_BANKING_KEY_CONTENT || "test";
 process.env.ENABLEBANKING_REDIRECT_URL =
   process.env.ENABLEBANKING_REDIRECT_URL || "https://test.midday.ai/callback";
-process.env.TELLER_CERT_BASE64 = process.env.TELLER_CERT_BASE64 || "dGVzdA==";
-process.env.TELLER_KEY_BASE64 = process.env.TELLER_KEY_BASE64 || "dGVzdA==";
 process.env.R2_ENDPOINT = process.env.R2_ENDPOINT || "https://test.r2.dev";
 process.env.R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "test";
 process.env.R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "test";
 process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test";
-process.env.LOGO_DEV_TOKEN = process.env.LOGO_DEV_TOKEN || "test";
 process.env.STRIPE_CONNECT_CLIENT_ID =
   process.env.STRIPE_CONNECT_CLIENT_ID || "ca_test_connect_client";
 process.env.STRIPE_SECRET_KEY =
@@ -438,9 +433,9 @@ export const mocks = {
       availableHistory: 90,
       maximumConsentValidity: null,
       popularity: 1,
-      provider: "plaid" as const,
+      provider: "enablebanking" as const,
       type: "personal" as const,
-      countries: ["US"],
+      countries: ["BE"],
     }),
   ) as MockFn,
 
@@ -1394,14 +1389,6 @@ mock.module("@midday/banking", () => ({
       this.name = "ProviderError";
       this.code = code;
     }
-  },
-  PlaidApi: class PlaidApi {
-    linkTokenCreate = mock(() =>
-      Promise.reject(new Error("PlaidApi not mocked")),
-    );
-    itemPublicTokenExchange = mock(() =>
-      Promise.reject(new Error("PlaidApi not mocked")),
-    );
   },
   GoCardLessApi: class GoCardLessApi {
     buildLink = mock(() =>

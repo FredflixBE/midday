@@ -14,8 +14,6 @@ tRPC Router (apps/api/src/trpc/routers/banking.ts)
 Provider Facade (packages/banking/src/index.ts)
     │
     ├── GoCardLessProvider  (EU/UK — xior HTTP client, OAuth2 tokens)
-    ├── PlaidProvider        (US/CA — official Plaid SDK)
-    ├── TellerProvider       (US — native fetch with mTLS)
     └── EnableBankingProvider (EU — xior HTTP client, RSA-signed JWT)
     │
     ▼
@@ -28,8 +26,8 @@ Trigger.dev Jobs (packages/jobs/src/tasks/bank/)
 ### Provider Facade (Strategy Pattern)
 
 The `Provider` class in `index.ts` dispatches to the correct provider based on a
-`provider` string param (`"gocardless" | "plaid" | "teller" | "enablebanking"`).
-All four providers implement a common interface:
+`provider` string param (`"gocardless" | "enablebanking"`).
+Both providers implement a common interface:
 
 - `getAccounts()` — list accounts with balances for the account selection screen
 - `getAccountBalance()` — fetch current balance for a single account
@@ -85,45 +83,6 @@ The maximum history is determined per-institution via the end user agreement:
   to bridge the gap between account selection and initial sync
 - Requisitions are **not** cached — they hold connection status that must be fresh
   on every sync to avoid stale state after reconnect
-
-### Plaid (US/CA)
-
-- **Auth**: Official Plaid SDK with `PLAID-CLIENT-ID` + `PLAID-SECRET` headers.
-  Per-Item access tokens from the Link flow.
-- **HTTP client**: Official Plaid SDK (wraps axios)
-- **Rate limits**: Per-endpoint, per-Item and per-client:
-  - `/accounts/get`: 15/min per Item, 15,000/min per client
-  - `/transactions/get`: 30/min per Item, 20,000/min per client
-  - `/transactions/sync`: 50/min per Item, 2,500/min per client
-  - `/institutions/get`: 50/min per client
-  - `/institutions/get_by_id`: 400/min per client
-  - Returns `error_type: "RATE_LIMIT_EXCEEDED"` with endpoint-specific error codes
-- **Connection identifier**: Access token (per-Item)
-- **Account identifier**: Plaid account ID (stable within an Item)
-- **Transaction history**: Up to 2 years (requested via `days_requested: 730`)
-
-**Key implementation details:**
-
-- Initial sync uses `/transactions/sync` with no cursor (returns all history)
-- Daily sync uses `/transactions/get` with a 5-day window
-- Institution data is cached for 24 hours (static data)
-- Plaid preserves account IDs across reconnects (update mode)
-
-### Teller (US)
-
-- **Auth**: mTLS (client certificate) + Basic Auth with access token
-- **HTTP client**: Native Bun `fetch` (required for mTLS `tls: { cert, key }` support)
-- **Rate limits**: HTTP 429, thresholds not publicly documented. Free tier has stricter limits.
-- **Connection identifier**: Access token
-- **Account identifier**: Teller account ID
-- **Balance strategy**: Derived from `running_balance` in recent transactions (free).
-  Avoids the paid `/balances` endpoint.
-
-**Key implementation details:**
-
-- `getConnectionStatus()` simplified to a single `/accounts` call (was N+1 calls)
-- Institution list cached for 24 hours
-- mTLS cert/key are base64-encoded in environment variables
 
 ### Enable Banking (EU)
 
@@ -188,7 +147,6 @@ return bankingCache.getOrSet(key, CacheTTL.THIRTY_MINUTES, () => fetchFromApi())
 - **Transactions**: Must be fresh every sync (the whole point of syncing)
 - **Mutations**: Link creation, token exchange, agreements — one-time operations
 - **Delete operations**: Side effects, cannot be cached
-- **Teller balance**: Derived from transaction data, not a standalone API call
 
 ---
 
@@ -230,8 +188,7 @@ return bankingCache.getOrSet(key, CacheTTL.THIRTY_MINUTES, () => fetchFromApi())
 2. "reconnect-connection" job:
    a. Fetches fresh accounts from provider
    b. Matches old account IDs to new ones:
-      - GoCardless/Teller/EnableBanking: uses account_reference matching
-      - Plaid: IDs preserved via update mode (no remapping needed)
+      - GoCardless/EnableBanking: uses account_reference matching
    c. Updates account_id mappings in DB
    d. Triggers syncConnection (manualSync: true)
 ```
@@ -250,7 +207,7 @@ return bankingCache.getOrSet(key, CacheTTL.THIRTY_MINUTES, () => fetchFromApi())
 
 All providers are wrapped with `withRateLimitRetry` which:
 
-1. Detects HTTP 429 responses (status code or Plaid's `RATE_LIMIT_EXCEEDED` error type)
+1. Detects HTTP 429 responses
 2. Reads provider-specific headers for delay:
    - GoCardless: `HTTP_X_RATELIMIT_ACCOUNT_SUCCESS_RESET` (seconds until reset)
    - Standard: `Retry-After` header
@@ -349,12 +306,6 @@ The system handles this at three levels:
    `"XXX"` and formats the value as a plain decimal number (e.g., `5,000.00`) without a
    currency symbol, avoiding misleading display.
 
-### Plaid: Transactions during pagination
-
-Plaid's `/transactions/sync` can return `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`
-if data changes during pagination. The `withRateLimitRetry` wrapper handles retries.
-Consider adding `count: 500` (max) to reduce the likelihood of this error.
-
 ### EnableBanking: Stale "longest" strategy data
 
 Some ASPSPs (e.g., Wise) return stale/cached data with the "longest" transaction strategy.
@@ -368,15 +319,9 @@ The JWT is cached with a 5-minute safety margin — if the JWT has less than 5 m
 validity left, a new one is generated. This prevents requests from failing due to token
 expiry during execution.
 
-### Teller: Balance from transactions
-
-Balance is derived from `running_balance` in the first 50 transactions. If no transactions
-have a `running_balance` (rare — new accounts or uncommon institutions), balance defaults
-to 0. A fallback to the paid `/balances` endpoint could be added if needed.
-
 ### Reconnect: Account ID remapping
 
-When a user reconnects a GoCardless, Teller, or EnableBanking connection, the provider
+When a user reconnects a GoCardless or EnableBanking connection, the provider
 issues new account identifiers. The `reconnect-connection` job
 (`packages/jobs/src/tasks/reconnect/connection.ts`) handles this by:
 
@@ -394,7 +339,6 @@ The matching algorithm (`packages/supabase/src/utils/account-matching.ts`) uses 
 
 Each DB account can only be matched once to prevent duplicate assignments.
 
-Plaid preserves account IDs across reconnects via "update mode", so no remapping is needed.
 
 ### Redis cache unavailability
 
@@ -405,28 +349,6 @@ This means the system degrades to making direct API calls — slower but functio
 ---
 
 ## Future Improvements
-
-### Plaid: Cursor persistence for incremental sync
-
-**Impact**: High — reduces daily sync API calls and catches modified/removed transactions
-
-Currently, daily syncs use `/transactions/get` with a 5-day window. Plaid recommends
-persisting the `/transactions/sync` cursor between syncs for true incremental updates.
-
-Requirements:
-- Add `plaid_sync_cursor` column to `bank_connections` table (cursor is per-Item)
-- Restructure sync to call `transactionsSync` at the connection level, then distribute
-  transactions to individual accounts
-- Handle `modified` and `removed` arrays from the sync response (currently ignored)
-- Listen only for `SYNC_UPDATES_AVAILABLE` webhook (can drop `HISTORICAL_UPDATE`,
-  `DEFAULT_UPDATE`, `INITIAL_UPDATE`)
-
-### Plaid: transactionsSync count parameter
-
-**Impact**: Low — prevents documented pagination error
-
-Add `count: 500` to `transactionsSync` calls to reduce the likelihood of
-`TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` errors during initial sync pagination.
 
 ### GoCardless: Proactive rate limit checking
 

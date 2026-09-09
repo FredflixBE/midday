@@ -5,10 +5,8 @@ export const getBankConnectionsSchema = z
   .optional();
 
 export const createBankConnectionSchema = z.object({
-  accessToken: z.string().nullable().optional(), // Teller
-  enrollmentId: z.string().nullable().optional(), // Teller
   referenceId: z.string().nullable().optional(), // GoCardLess
-  provider: z.enum(["gocardless", "teller", "plaid", "enablebanking"]),
+  provider: z.enum(["gocardless", "enablebanking"]),
   accounts: z.array(
     z.object({
       accountId: z.string(),
@@ -32,7 +30,7 @@ export const createBankConnectionSchema = z.object({
       iban: z.string().nullable().optional(),
       subtype: z.string().nullable().optional(),
       bic: z.string().nullable().optional(),
-      // US bank account details (Teller, Plaid)
+      // Account details some providers return
       routingNumber: z.string().nullable().optional(),
       wireRoutingNumber: z.string().nullable().optional(),
       accountNumber: z.string().nullable().optional(),

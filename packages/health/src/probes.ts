@@ -7,7 +7,7 @@
  * - Fast timeout
  */
 
-import { Provider } from "@midday/banking";
+import { isGoCardlessConfigured, Provider } from "@midday/banking";
 import { checkHealth as checkCacheHealth } from "@midday/cache/health";
 import { checkHealth as checkDbHealth } from "@midday/db/utils/health";
 import type { Dependency } from "./registry";
@@ -97,24 +97,6 @@ export function redisQueueProbe(): Dependency {
 // Tier 2 — Important services
 // ---------------------------------------------------------------------------
 
-/** Plaid health check via @midday/banking */
-export function plaidProbe(): Dependency {
-  return {
-    name: "plaid",
-    tier: 2,
-    cacheTtlMs: 60_000,
-    timeoutMs: 5_000,
-    probe: async () => {
-      try {
-        const provider = new Provider({ provider: "plaid" });
-        return await provider.getHealthCheck().then((h) => h.plaid.healthy);
-      } catch {
-        return false;
-      }
-    },
-  };
-}
-
 /** GoCardless health check via @midday/banking */
 export function gocardlessProbe(): Dependency {
   return {
@@ -148,24 +130,6 @@ export function enableBankingProbe(): Dependency {
         return await provider
           .getHealthCheck()
           .then((h) => h.enablebanking.healthy);
-      } catch {
-        return false;
-      }
-    },
-  };
-}
-
-/** Teller health check via @midday/banking */
-export function tellerProbe(): Dependency {
-  return {
-    name: "teller",
-    tier: 2,
-    cacheTtlMs: 60_000,
-    timeoutMs: 5_000,
-    probe: async () => {
-      try {
-        const provider = new Provider({ provider: "teller" });
-        return await provider.getHealthCheck().then((h) => h.teller.healthy);
       } catch {
         return false;
       }
@@ -415,10 +379,8 @@ export function apiDependencies(): Dependency[] {
     redisQueueProbe(),
     supabaseProbe(),
     // Tier 2 — Important
-    plaidProbe(),
-    gocardlessProbe(),
+    ...(isGoCardlessConfigured() ? [gocardlessProbe()] : []),
     enableBankingProbe(),
-    tellerProbe(),
     stripeProbe(),
     polarProbe(),
     resendProbe(),
@@ -444,10 +406,8 @@ export function workerDependencies(): Dependency[] {
     redisQueueProbe(),
     supabaseProbe(),
     // Tier 2 — Important
-    plaidProbe(),
-    gocardlessProbe(),
+    ...(isGoCardlessConfigured() ? [gocardlessProbe()] : []),
     enableBankingProbe(),
-    tellerProbe(),
     resendProbe(),
     openaiProbe(),
     // Tier 4 — Optional

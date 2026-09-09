@@ -79,8 +79,7 @@ describe("Account type constants", () => {
 });
 
 describe("Account type classification scenarios", () => {
-  it("Plaid account types should map correctly", () => {
-    // Plaid returns these types
+  it("common provider account types should map correctly", () => {
     expect(getType("depository")).toBe("depository"); // checking, savings
     expect(getType("credit")).toBe("credit"); // credit cards
     expect(getType("loan")).toBe("loan"); // student loans, etc.

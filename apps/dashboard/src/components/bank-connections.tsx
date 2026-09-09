@@ -29,10 +29,6 @@ function getProviderName(provider: string | null) {
       return "GoCardLess";
     case "enablebanking":
       return "Enable Banking";
-    case "teller":
-      return "Teller";
-    case "plaid":
-      return "Plaid";
     default:
       return null;
   }
@@ -179,9 +175,7 @@ export function BankConnection({ connection }: { connection: BankConnection }) {
                 variant="button"
                 id={connection.id}
                 provider={connection.provider}
-                enrollmentId={connection.enrollmentId}
                 institutionId={connection.institutionId}
-                accessToken={connection.accessToken}
                 onComplete={handleComplete}
                 referenceId={connection.referenceId}
               />
@@ -192,9 +186,7 @@ export function BankConnection({ connection }: { connection: BankConnection }) {
               <ReconnectProvider
                 id={connection.id}
                 provider={connection.provider}
-                enrollmentId={connection.enrollmentId}
                 institutionId={connection.institutionId}
-                accessToken={connection.accessToken}
                 onComplete={handleComplete}
                 referenceId={connection.referenceId}
               />
@@ -246,13 +238,7 @@ export function BankConnection({ connection }: { connection: BankConnection }) {
 
       <AddBankAccountsModal
         connectionId={connection.id}
-        provider={
-          connection.provider as
-            | "gocardless"
-            | "plaid"
-            | "teller"
-            | "enablebanking"
-        }
+        provider={connection.provider as "gocardless" | "enablebanking"}
         accessToken={connection.accessToken}
         referenceId={connection.referenceId}
         enrollmentId={connection.enrollmentId}

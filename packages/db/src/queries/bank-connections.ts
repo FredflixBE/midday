@@ -101,7 +101,7 @@ export type CreateBankConnectionPayload = {
     iban?: string | null;
     subtype?: string | null;
     bic?: string | null;
-    // US bank account details (Teller, Plaid)
+    // Account details some providers return
     routingNumber?: string | null;
     wireRoutingNumber?: string | null;
     accountNumber?: string | null; // Will be encrypted before storage
@@ -115,7 +115,7 @@ export type CreateBankConnectionPayload = {
   referenceId?: string | null;
   teamId: string;
   userId: string;
-  provider: "gocardless" | "teller" | "plaid" | "enablebanking";
+  provider: "gocardless" | "enablebanking";
 };
 
 export const createBankConnection = async (

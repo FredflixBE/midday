@@ -9,8 +9,6 @@ import {
   getProviderTransactionsSchema,
   gocardlessAgreementSchema,
   gocardlessLinkSchema,
-  plaidExchangeSchema,
-  plaidLinkSchema,
 } from "@api/schemas/banking";
 import {
   createTRPCRouter,
@@ -23,7 +21,6 @@ import {
   GoCardLessApi,
   getProviderErrorDetails,
   getRates,
-  PlaidApi,
   Provider,
   ProviderError,
 } from "@midday/banking";
@@ -34,58 +31,6 @@ import { TRPCError } from "@trpc/server";
 const logger = createLoggerWithContext("trpc:banking");
 
 export const bankingRouter = createTRPCRouter({
-  plaidLink: protectedProcedure
-    .input(plaidLinkSchema)
-    .mutation(async ({ input, ctx }) => {
-      const api = new PlaidApi();
-
-      try {
-        const { data } = await api.linkTokenCreate({
-          userId: ctx.session.user.id,
-          language: input?.language,
-          accessToken: input?.accessToken,
-        });
-
-        return {
-          data,
-        };
-      } catch (error) {
-        logger.error(
-          "Failed to create Plaid link token",
-          getProviderErrorDetails(error),
-        );
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to create Plaid link token",
-        });
-      }
-    }),
-
-  plaidExchange: protectedProcedure
-    .input(plaidExchangeSchema)
-    .mutation(async ({ input }) => {
-      const api = new PlaidApi();
-
-      try {
-        const { data } = await api.itemPublicTokenExchange({
-          publicToken: input.token,
-        });
-
-        return {
-          data,
-        };
-      } catch (error) {
-        logger.error(
-          "Failed to exchange Plaid token",
-          getProviderErrorDetails(error),
-        );
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to exchange Plaid token",
-        });
-      }
-    }),
-
   gocardlessLink: protectedProcedure
     .input(gocardlessLinkSchema)
     .mutation(async ({ input }) => {

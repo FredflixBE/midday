@@ -73,46 +73,6 @@ export const reconnectConnection = schemaTask({
       }
     }
 
-    if (provider === "teller") {
-      // Get the connection to retrieve access_token and enrollment_id
-      const { data: connectionData } = await supabase
-        .from("bank_connections")
-        .select("access_token, enrollment_id")
-        .eq("id", connectionId)
-        .eq("team_id", teamId)
-        .single();
-
-      if (!connectionData?.access_token || !connectionData?.enrollment_id) {
-        logger.error("Teller connection missing access_token or enrollment_id");
-        throw new Error("Teller connection not found");
-      }
-
-      // Fetch fresh accounts from Teller API
-      const accountsResponse = await trpc.banking.getProviderAccounts.query({
-        id: connectionData.enrollment_id,
-        provider: "teller",
-        accessToken: connectionData.access_token,
-      });
-
-      if (!accountsResponse.data) {
-        logger.error("Failed to fetch Teller accounts");
-        throw new Error("Teller accounts not found");
-      }
-
-      logger.info("Updating Teller account IDs after reconnect", {
-        accountCount: accountsResponse.data.length,
-      });
-
-      if (existingAccounts && existingAccounts.length > 0) {
-        await matchAndUpdateAccountIds({
-          existingAccounts,
-          apiAccounts: accountsResponse.data,
-          connectionId,
-          provider: "teller",
-        });
-      }
-    }
-
     if (provider === "enablebanking") {
       // Get the connection to retrieve reference_id (session_id)
       const { data: connectionData } = await supabase
@@ -150,42 +110,6 @@ export const reconnectConnection = schemaTask({
           provider: "enablebanking",
         });
       }
-    }
-
-    if (provider === "plaid") {
-      // Plaid uses "update mode" for reconnect which preserves account IDs
-      // No account ID remapping is needed, but we log for consistency
-      logger.info("Plaid reconnect - account IDs preserved via update mode", {
-        connectionId,
-      });
-
-      // We still fetch accounts to verify the connection is working
-      const { data: connectionData } = await supabase
-        .from("bank_connections")
-        .select("access_token, institution_id")
-        .eq("id", connectionId)
-        .eq("team_id", teamId)
-        .single();
-
-      if (!connectionData?.access_token) {
-        logger.error("Plaid connection missing access_token");
-        throw new Error("Plaid connection not found");
-      }
-
-      const accountsResponse = await trpc.banking.getProviderAccounts.query({
-        provider: "plaid",
-        accessToken: connectionData.access_token,
-        institutionId: connectionData.institution_id ?? undefined,
-      });
-
-      if (!accountsResponse.data) {
-        logger.error("Failed to verify Plaid accounts after reconnect");
-        throw new Error("Plaid accounts verification failed");
-      }
-
-      logger.info("Plaid accounts verified after reconnect", {
-        accountCount: accountsResponse.data.length,
-      });
     }
 
     // Trigger sync to fetch latest transactions
