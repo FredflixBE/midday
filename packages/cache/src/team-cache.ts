@@ -1,7 +1,7 @@
 import { MemoryCache } from "./memory-cache";
 import { teamPermissionsCache } from "./team-permissions-cache";
 
-// In-process cache to check if a user has access to a team,
+// In-process cache of whether a user has access to a team.
 const cache = new MemoryCache("team", 30 * 60); // 30 minutes TTL
 
 export const teamCache = {

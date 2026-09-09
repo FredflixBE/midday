@@ -17,7 +17,7 @@ Provider Facade (packages/banking/src/index.ts)
     └── EnableBankingProvider (EU — xior HTTP client, RSA-signed JWT)
     │
     ▼
-Redis Cache (packages/cache/src/banking-cache.ts)
+Cache (packages/cache/src/banking-cache.ts)
     │
     ▼
 Trigger.dev Jobs (packages/jobs/src/tasks/bank/)
@@ -43,7 +43,7 @@ Both providers implement a common interface:
 
 ### GoCardless (EU/UK)
 
-- **Auth**: OAuth2 — secret_id/secret_key → access_token + refresh_token, both cached in Redis
+- **Auth**: OAuth2 — secret_id/secret_key → access_token + refresh_token, both cached in `@midday/cache`
 - **HTTP client**: xior (axios-like), instance cached per token
 - **Coverage**: All EEA countries under PSD2 regulation
 - **Rate limits**: Bank-imposed, as low as **4 API calls per day per account**. Each endpoint
@@ -77,9 +77,9 @@ The maximum history is determined per-institution via the end user agreement:
 **Key implementation details:**
 
 - `getAccounts()` pre-resolves the access token once and passes it to all sub-methods
-  to avoid repeated Redis lookups (~8 → 1 per call)
+  to avoid repeated cache lookups (~8 → 1 per call)
 - Institution is fetched once per requisition (all accounts share the same institution)
-- Account details, balances, and institutions are cached in Redis
+- Account details, balances, and institutions are cached in `@midday/cache`
   to bridge the gap between account selection and initial sync
 - Requisitions are **not** cached — they hold connection status that must be fresh
   on every sync to avoid stale state after reconnect
@@ -99,7 +99,7 @@ The maximum history is determined per-institution via the end user agreement:
 
 - JWT is cached in memory (~20 hours) to avoid RSA signing on every request
 - xior client instance is reused as long as JWT hasn't changed
-- Account details and institution list are cached in Redis
+- Account details and institution list are cached in `@midday/cache`
 - Sessions are **not** cached — they hold connection status that must be fresh
   on every sync to avoid stale state after reconnect
 - Requires `Psu-Ip-Address` and `Psu-User-Agent` headers on GET requests
@@ -110,7 +110,7 @@ The maximum history is determined per-institution via the end user agreement:
 ## Caching Strategy
 
 All caching uses `bankingCache` from `@midday/cache/banking-cache`, backed by
-Redis (Upstash) with the `"banking"` key prefix.
+`@midday/cache`'s in-process store, under the `"banking"` prefix.
 
 ### Cache TTLs
 
@@ -340,11 +340,11 @@ The matching algorithm (`packages/supabase/src/utils/account-matching.ts`) uses 
 Each DB account can only be matched once to prevent duplicate assignments.
 
 
-### Redis cache unavailability
+### Cache misses
 
-If Redis is temporarily unavailable, all cache operations fail gracefully (RedisCache has
-try/catch on get/set). Methods fall through to the fetch function as if the cache was empty.
-This means the system degrades to making direct API calls — slower but functional.
+A cold process has an empty cache, and entries expire on their TTL. Every read
+falls through to the fetch function as if the cache were empty, so a miss costs
+a direct API call — slower, but correct.
 
 ---
 
@@ -389,7 +389,7 @@ cache for HTTP clients.
 | File | Purpose |
 |------|---------|
 | `banking-cache.ts` | `bankingCache` object, `getOrSet` helper, `CacheTTL` constants |
-| `redis-client.ts` | `RedisCache` class (generic Redis wrapper) |
+| `memory-cache.ts` | `MemoryCache` class (per-process TTL cache) |
 
 ### Jobs (`packages/jobs/src/tasks/bank/`)
 
