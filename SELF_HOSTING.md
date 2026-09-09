@@ -72,7 +72,7 @@ Ten steps, in an order that matters:
 | 6 | `packages/db/supabase/20-realtime.sql` | Publication membership for the tables the dashboard subscribes to. |
 | 7 | `packages/db/supabase/30-auth-user.sql` | The trigger that gives a new sign-in its `public.users` row. Without it, signing in succeeds and then every request 404s. |
 | 8 | `packages/db/supabase/40-functions.sql` | The functions the application calls at runtime, `global_search` among them. |
-| 9 | `packages/db/supabase/12-documents.sql` and `13-document-triggers.sql` | A vault upload becomes a `documents` row, which is what the vault lists. The triggers are on `storage.objects`, so they can be refused like step 5; the script reports it and carries on. |
+| 9 | `packages/db/supabase/50-documents.sql` and `51-document-triggers.sql` | A vault upload becomes a `documents` row, which is what the vault lists. The triggers are on `storage.objects`, so they can be refused like step 5; the script reports it and carries on. |
 | 10 | migration journal | Records what the schema already contains in `drizzle.__drizzle_migrations`, so `bun run db:migrate` starts from here rather than replaying the base migration. |
 
 Then it runs nineteen checks and prints a pass/fail line for each. **The checks

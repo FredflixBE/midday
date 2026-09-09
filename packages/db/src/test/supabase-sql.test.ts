@@ -812,7 +812,7 @@ describe.skipIf(SKIP)("supabase/40-functions.sql", () => {
   });
 });
 
-describe.skipIf(SKIP)("supabase/12-documents.sql", () => {
+describe.skipIf(SKIP)("supabase/50-documents.sql", () => {
   let client: Client;
 
   const TEAM = "ffffffff-0000-0000-0000-000000000001";
@@ -973,13 +973,7 @@ describe.skipIf(SKIP)("supabase/12-documents.sql", () => {
 
     const path = `${TEAM}/as-the-user.pdf`;
 
-    await client.query("begin");
-    try {
-      await client.query("set local role authenticated");
-      await client.query(
-        "select set_config('request.jwt.claim.sub', $1, true)",
-        [OWNER],
-      );
+    const rows = await asRole(client, { id: OWNER }, async () => {
       await client.query(
         `insert into storage.objects (bucket_id, name, owner_id, metadata)
          values ('vault', $1, $2, '{"size": 1}'::jsonb)`,
@@ -991,10 +985,10 @@ describe.skipIf(SKIP)("supabase/12-documents.sql", () => {
         [path],
       );
 
-      expect(rows[0]!.n).toBe("1");
-    } finally {
-      await client.query("rollback");
-    }
+      return rows;
+    });
+
+    expect(rows[0]!.n).toBe("1");
   });
 
   test("deleting the file deletes the documents row", async () => {

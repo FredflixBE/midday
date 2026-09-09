@@ -1,6 +1,6 @@
--- 13-document-triggers.sql — fire 12-documents.sql on a vault upload.
+-- 51-document-triggers.sql — fire 50-documents.sql on a vault upload.
 --
--- Separate from 12-documents.sql for the same reason 11-storage-policies.sql
+-- Separate from 50-documents.sql for the same reason 11-storage-policies.sql
 -- is separate from 10-storage.sql: storage.objects belongs to Supabase
 -- (supabase_storage_admin owns it), and CREATE TRIGGER needs the TRIGGER
 -- privilege on the table. Creating a *policy* on storage.objects is permitted

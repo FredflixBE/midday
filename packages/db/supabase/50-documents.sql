@@ -1,4 +1,4 @@
--- 12-documents.sql — keep public.documents in step with the vault bucket.
+-- 50-documents.sql — keep public.documents in step with the vault bucket.
 --
 -- Run after `drizzle-kit push`: public.documents has to exist. Idempotent:
 -- both functions are CREATE OR REPLACE.
@@ -11,7 +11,7 @@
 -- never recreated. Without it a file lands in the bucket and never appears in
 -- the vault, because the vault lists documents rows.
 --
--- The triggers themselves are in 13-document-triggers.sql, because
+-- The triggers themselves are in 51-document-triggers.sql, because
 -- storage.objects belongs to Supabase and creating a trigger on it may be
 -- refused; these functions are ours and always apply.
 --

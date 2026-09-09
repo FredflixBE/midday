@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS storage.objects (
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   -- Supabase generates this one the same way. The document trigger in
-  -- 12-documents.sql reads it to find the team id, so a stub without it
+  -- 50-documents.sql reads it to find the team id, so a stub without it
   -- would make that trigger untestable.
   path_tokens text[] GENERATED ALWAYS AS (string_to_array(name, '/')) STORED
 );

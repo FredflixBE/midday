@@ -17,7 +17,7 @@
  *   6. 20-realtime.sql    publication membership and the activities policy.
  *   7. 30-auth-user.sql   the trigger that gives a new sign-in a users row.
  *   8. 40-functions.sql   the functions the application calls at runtime.
- *   9. 12-documents.sql / 13-document-triggers.sql
+ *   9. 50-documents.sql / 51-document-triggers.sql
  *                         a vault upload makes a documents row. The trigger
  *                         is on storage.objects, so it is reported rather
  *                         than fatal, like the storage policies.
@@ -393,10 +393,10 @@ async function main(): Promise<number> {
     await applyFile(client, "40-functions.sql");
 
     console.log("9. a documents row for every vault upload");
-    await applyFile(client, "12-documents.sql");
+    await applyFile(client, "50-documents.sql");
     const documentTriggers = await tryApplyFile(
       client,
-      "13-document-triggers.sql",
+      "51-document-triggers.sql",
     );
 
     console.log("10. recording the migrations this schema already contains");
@@ -425,7 +425,7 @@ async function main(): Promise<number> {
         "reason as the storage policies: Supabase owns storage.objects. Paste",
       );
       console.log(
-        "packages/db/supabase/13-document-triggers.sql into the Supabase SQL",
+        "packages/db/supabase/51-document-triggers.sql into the Supabase SQL",
       );
       console.log(
         "editor and run this again. Until then a vault upload lands in storage",
