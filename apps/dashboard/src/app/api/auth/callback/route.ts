@@ -8,7 +8,6 @@ import { NextResponse } from "next/server";
 import { getTRPCClient } from "@/trpc/server";
 import { Cookies } from "@/utils/constants";
 import { getUrl } from "@/utils/environment";
-import { isBlockedNewUser } from "@/utils/new-user-gate";
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
@@ -38,11 +37,6 @@ export async function GET(req: NextRequest) {
     } = await getSession();
 
     if (session) {
-      if (isBlockedNewUser(session.user.created_at)) {
-        await supabase.auth.signOut();
-        return NextResponse.redirect(`${origin}/login?waitlist=1`);
-      }
-
       // If user is redirected from an invite, redirect to teams page to accept/decline the invite
       if (returnTo?.startsWith("teams/invite/")) {
         return NextResponse.redirect(`${origin}/teams`);
