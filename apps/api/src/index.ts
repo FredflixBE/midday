@@ -408,9 +408,13 @@ process.on("unhandledRejection", (reason, promise) => {
 });
 
 // Pre-warm the chat tool index in the background so the first request is fast.
+// It embeds the tool descriptions, so it needs OpenAI; without a key it would
+// only log a failure at every boot.
 import { warmToolIndex } from "./chat/tools";
 
-warmToolIndex();
+if (process.env.OPENAI_API_KEY) {
+  warmToolIndex();
+}
 
 export default {
   port: process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 3000,
