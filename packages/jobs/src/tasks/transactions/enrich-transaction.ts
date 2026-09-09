@@ -1,5 +1,12 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { getDb } from "@jobs/init";
+import { BaseProcessor } from "@jobs/processors/base";
+import { runProcessor } from "@jobs/processors/run";
+import type { JobContext } from "@jobs/processors/types";
+import {
+  type EnrichTransactionsPayload,
+  enrichTransactionsSchema,
+} from "@jobs/schemas/transactions";
 import {
   generateEnrichmentPrompt,
   prepareTransactionData,
@@ -13,9 +20,8 @@ import {
   type UpdateTransactionEnrichmentParams,
   updateTransactionEnrichments,
 } from "@midday/db/queries";
-import { logger, schemaTask } from "@trigger.dev/sdk";
+import { schemaTask } from "@trigger.dev/sdk";
 import { generateObject } from "ai";
-import { z } from "zod";
 
 const BATCH_SIZE = 50;
 
@@ -23,30 +29,36 @@ const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
 });
 
-export const enrichTransactions = schemaTask({
-  id: "enrich-transactions",
-  schema: z.object({
-    transactionIds: z.array(z.string().uuid()),
-    teamId: z.string().uuid(),
-  }),
-  machine: "micro",
-  maxDuration: 300, // 5 minutes for batch processing
-  queue: {
-    concurrencyLimit: 2, // Lower to manage API costs
-  },
-  run: async ({ transactionIds, teamId }) => {
+/**
+ * Enriches transactions with AI (merchant names, categories)
+ * Uses Google Generative AI (Gemini) to extract merchant names and categorize transactions
+ */
+export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactionsPayload> {
+  async process(job: JobContext<EnrichTransactionsPayload>): Promise<{
+    enrichedCount: number;
+    teamId: string;
+  }> {
+    const { transactionIds, teamId } = job.data;
+    const db = getDb();
+
+    this.logger.info("Starting enrich-transactions job", {
+      jobId: job.id,
+      teamId,
+      transactionCount: transactionIds.length,
+    });
+
     // Get transactions that need enrichment
-    const transactionsToEnrich = await getTransactionsForEnrichment(getDb(), {
+    const transactionsToEnrich = await getTransactionsForEnrichment(db, {
       transactionIds,
       teamId,
     });
 
     if (transactionsToEnrich.length === 0) {
-      logger.info("No transactions need enrichment", { teamId });
+      this.logger.info("No transactions need enrichment", { teamId });
       return { enrichedCount: 0, teamId };
     }
 
-    logger.info("Starting transaction enrichment", {
+    this.logger.info("Starting transaction enrichment", {
       teamId,
       transactionCount: transactionsToEnrich.length,
     });
@@ -119,7 +131,7 @@ export const enrichTransactions = schemaTask({
 
           // Log if we have mismatched result counts
           if (results.length !== batch.length) {
-            logger.warn(
+            this.logger.warn(
               "LLM returned different number of results than expected",
               {
                 expectedCount: batch.length,
@@ -131,19 +143,19 @@ export const enrichTransactions = schemaTask({
 
           // Execute all updates
           if (updates.length > 0) {
-            await updateTransactionEnrichments(getDb(), updates);
+            await updateTransactionEnrichments(db, updates);
             batchEnrichedCount += updates.length;
           }
 
           // Mark transactions that don't need updates as enriched
           if (noUpdateNeeded.length > 0) {
-            await markTransactionsAsEnriched(getDb(), noUpdateNeeded);
+            await markTransactionsAsEnriched(db, noUpdateNeeded);
             batchEnrichedCount += noUpdateNeeded.length;
           }
 
           const totalProcessed = updates.length + noUpdateNeeded.length;
           if (totalProcessed > 0) {
-            logger.info("Enriched transaction batch", {
+            this.logger.info("Enriched transaction batch", {
               batchSize: batch.length,
               enrichedCount: totalProcessed,
               updatesApplied: updates.length,
@@ -171,12 +183,12 @@ export const enrichTransactions = schemaTask({
           // Mark ANY remaining unprocessed transactions as enriched (process completed, even if no data found)
           if (unprocessedTransactions.length > 0) {
             await markTransactionsAsEnriched(
-              getDb(),
+              db,
               unprocessedTransactions.map((tx) => tx.id),
             );
             batchEnrichedCount += unprocessedTransactions.length;
 
-            logger.info(
+            this.logger.info(
               "Marked remaining unprocessed transactions as completed",
               {
                 count: unprocessedTransactions.length,
@@ -193,7 +205,7 @@ export const enrichTransactions = schemaTask({
           // Defensive handling for potentially falsy transactions
           return batch.filter((tx) => tx?.id).map((tx) => tx.id);
         } catch (error) {
-          logger.error("Failed to enrich transaction batch", {
+          this.logger.error("Failed to enrich transaction batch", {
             error: error instanceof Error ? error.message : "Unknown error",
             batchSize: batch.length,
             teamId,
@@ -207,9 +219,9 @@ export const enrichTransactions = schemaTask({
               .filter((tx) => tx?.id)
               .map((tx) => tx.id);
 
-            await markTransactionsAsEnriched(getDb(), validTransactionIds);
+            await markTransactionsAsEnriched(db, validTransactionIds);
 
-            logger.info(
+            this.logger.info(
               "Marked failed batch transactions as completed to prevent infinite loading",
               {
                 count: validTransactionIds.length,
@@ -229,7 +241,7 @@ export const enrichTransactions = schemaTask({
             // Return the valid transaction IDs even though enrichment failed
             return validTransactionIds;
           } catch (markError) {
-            logger.error(
+            this.logger.error(
               "Failed to mark transactions as completed after enrichment error",
               {
                 markError:
@@ -248,11 +260,24 @@ export const enrichTransactions = schemaTask({
       },
     );
 
-    logger.info("Transaction enrichment completed", {
+    this.logger.info("Transaction enrichment completed", {
       totalEnriched,
       teamId,
     });
 
     return { enrichedCount: totalEnriched, teamId };
-  },
+  }
+}
+
+const processor = new EnrichTransactionProcessor();
+
+export const enrichTransactions = schemaTask({
+  id: "enrich-transactions",
+  schema: enrichTransactionsSchema,
+  machine: "micro",
+  maxDuration: 300,
+  // Kept low to bound Gemini spend rather than for throughput.
+  queue: { concurrencyLimit: 2 },
+  run: (payload, { ctx }) =>
+    runProcessor(processor, "enrich-transactions", payload, ctx),
 });
