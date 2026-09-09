@@ -744,10 +744,10 @@ function createMockDatabase(mockData: {
         findMany: async () => Promise.resolve([]),
       },
     },
-    executeOnReplica: async (_query: any) => {
+    execute: async (_query: any) => {
       // Mock raw SQL execution for tax summary queries
-      // Return empty array - tax summary will process it
-      return Promise.resolve([]);
+      // Return no rows - tax summary will process it
+      return Promise.resolve({ rows: [] });
     },
   } as any;
 

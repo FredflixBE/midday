@@ -11,17 +11,8 @@ import {
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import { useState } from "react";
 import superjson from "superjson";
-import { Cookies } from "@/utils/constants";
 import { getAccessToken } from "@/utils/session";
 import { makeQueryClient } from "./query-client";
-
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
-  return null;
-}
 
 export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
 
@@ -57,11 +48,6 @@ export function TRPCReactProvider(
 
             if (accessToken) {
               headers.Authorization = `Bearer ${accessToken}`;
-            }
-
-            const forcePrimary = getCookie(Cookies.ForcePrimary);
-            if (forcePrimary === "true") {
-              headers["x-force-primary"] = "true";
             }
 
             return headers;

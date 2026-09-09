@@ -21,9 +21,9 @@ function isRetryable(err: any): boolean {
 }
 
 /**
- * Fetch wrapper for service-to-service calls over Railway private networking.
+ * Fetch wrapper for service-to-service calls over a private network.
  *
- * During API redeployments, DNS propagation on Railway's Wireguard mesh can
+ * During API redeployments, DNS propagation on the private network can
  * lag and pooled keep-alive connections may point at dead containers. The 5s
  * timeout ensures we fail fast instead of hanging, and the retry with
  * exponential backoff gives the mesh time to converge.

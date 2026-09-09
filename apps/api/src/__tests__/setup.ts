@@ -6,15 +6,8 @@ process.env.SUPABASE_URL =
   process.env.SUPABASE_URL || "https://test.supabase.co";
 process.env.SUPABASE_SECRET_KEY =
   process.env.SUPABASE_SECRET_KEY || "test-service-key";
-process.env.DATABASE_PRIMARY_URL =
-  process.env.DATABASE_PRIMARY_URL ||
-  "postgres://test:test@localhost:5432/test";
-process.env.DATABASE_FRA_URL =
-  process.env.DATABASE_FRA_URL || "postgres://test:test@localhost:5432/test";
-process.env.DATABASE_SJC_URL =
-  process.env.DATABASE_SJC_URL || "postgres://test:test@localhost:5432/test";
-process.env.DATABASE_IAD_URL =
-  process.env.DATABASE_IAD_URL || "postgres://test:test@localhost:5432/test";
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL || "postgres://test:test@localhost:5432/test";
 process.env.MIDDAY_DASHBOARD_URL =
   process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
 process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || "re_test_key";
@@ -67,9 +60,6 @@ const createMockDb = () => ({
       },
     }),
   ),
-  // Add usePrimaryOnly for the withReplicas pattern
-  usePrimaryOnly: () => createMockDb(),
-  $primary: undefined,
 });
 
 export const mockDb = createMockDb();
@@ -1314,7 +1304,6 @@ mock.module("@api/utils/auth", () => ({
 // Mock @midday/db/client
 mock.module("@midday/db/client", () => ({
   db: mockDb,
-  primaryDb: mockDb,
   connectDb: mock(async () => mockDb),
 }));
 

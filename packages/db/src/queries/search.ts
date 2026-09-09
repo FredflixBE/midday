@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { Database } from "../client";
+import { type Database, executeRows } from "../client";
 
 export type GlobalSearchReturnType = {
   id: string;
@@ -55,7 +55,8 @@ export async function globalSemanticSearchQuery(
   // team_id (uuid), search_term (text), start_date (text), end_date (text), types (text[]),
   // amount (numeric), amount_min (numeric), amount_max (numeric), status (text), currency (text),
   // language (text), due_date_start (text), due_date_end (text), max_results (integer), items_per_table_limit (integer)
-  const result: GlobalSearchReturnType[] = await db.executeOnReplica(
+  const result: GlobalSearchReturnType[] = await executeRows(
+    db,
     sql`SELECT * FROM global_semantic_search(
         ${params.teamId ?? null},                    -- team_id (uuid)
         ${params.searchTerm ?? null},                -- search_term (text)
@@ -91,7 +92,8 @@ export async function globalSearchQuery(
   db: Database,
   params: GlobalSearchParams,
 ) {
-  const result: GlobalSearchReturnType[] = await db.executeOnReplica(
+  const result: GlobalSearchReturnType[] = await executeRows(
+    db,
     sql`SELECT * FROM global_search(
         ${params.searchTerm ?? null},
         ${params.teamId ?? null},

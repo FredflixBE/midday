@@ -2,7 +2,7 @@ import { createMcpServer } from "@api/mcp/server";
 import { withAuth } from "@api/rest/middleware/auth";
 import { withDatabase } from "@api/rest/middleware/db";
 import { withClientIp } from "@api/rest/middleware/ip";
-import { withPrimaryReadAfterWrite } from "@api/rest/middleware/primary-read-after-write";
+import { withTeamId } from "@api/rest/middleware/team-id";
 import type { Context } from "@api/rest/types";
 import { getGeoContext } from "@api/utils/geo";
 import type { Scope } from "@api/utils/scopes";
@@ -69,7 +69,7 @@ app.use(
     statusCode: 429,
     message: "Rate limit exceeded",
   }),
-  withPrimaryReadAfterWrite,
+  withTeamId,
 );
 
 app.all("/", async (c) => {

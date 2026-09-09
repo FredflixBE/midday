@@ -2,5 +2,5 @@ import { sql } from "drizzle-orm";
 import { db } from "../client";
 
 export async function checkHealth() {
-  await db.executeOnReplica(sql`SELECT 1`);
+  await db.execute(sql`SELECT 1`);
 }

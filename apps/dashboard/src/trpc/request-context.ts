@@ -2,7 +2,6 @@ import { getLocationHeaders } from "@midday/location";
 import { createClient } from "@midday/supabase/server";
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
-import { Cookies } from "@/utils/constants";
 import { getRequestTraceHeaders } from "@/utils/request-trace";
 
 const getSupabaseClient = cache(createClient);
@@ -32,7 +31,6 @@ export const getServerRequestContext = cache(async () => {
 
 export function buildTRPCRequestHeaders(opts: {
   session?: { access_token?: string | null } | null;
-  forcePrimary?: boolean;
   location: ReturnType<typeof getLocationHeaders>;
   traceHeaders: ReturnType<typeof getRequestTraceHeaders>;
 }) {
@@ -52,15 +50,5 @@ export function buildTRPCRequestHeaders(opts: {
     requestHeaders["cf-ray"] = opts.traceHeaders.cfRay;
   }
 
-  if (opts.forcePrimary) {
-    requestHeaders["x-force-primary"] = "true";
-  }
-
   return requestHeaders;
-}
-
-export function getForcePrimaryFromCookies(
-  cookieStore: Awaited<ReturnType<typeof cookies>>,
-) {
-  return cookieStore.get(Cookies.ForcePrimary)?.value === "true";
 }

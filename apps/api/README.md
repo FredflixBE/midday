@@ -11,14 +11,14 @@ REDIS_URL=redis://localhost:6379
 REDIS_QUEUE_URL=redis://localhost:6379
 
 # Production:
-# REDIS_URL=rediss://:password@...upstash.io:6379 (Upstash multi-region)
-# REDIS_QUEUE_URL=redis://...railway.internal:6379 (Railway Redis - BullMQ queue)
+# REDIS_URL=rediss://:password@...:6379 (cache)
+# REDIS_QUEUE_URL=redis://...:6379 (self-hosted Redis - BullMQ queue)
 ```
 
 Two separate Redis instances are used:
 
-- **`REDIS_URL`** — Upstash multi-region Redis for caching. Upstash automatically routes reads to the nearest replica and writes to the primary. A single URL works across all Railway regions.
-- **`REDIS_QUEUE_URL`** — Railway internal Redis for BullMQ job queues. Kept on Railway because BullMQ requires persistent TCP connections with blocking operations that aren't compatible with Upstash.
+- **`REDIS_URL`** — Redis for caching.
+- **`REDIS_QUEUE_URL`** — Redis for BullMQ job queues. BullMQ requires persistent TCP connections with blocking operations, so this must be a plain Redis server rather than an HTTP-based one.
 
 #### Local Development Setup
 
@@ -34,10 +34,7 @@ Two separate Redis instances are used:
 
 #### Database Configuration
 ```bash
-DATABASE_PRIMARY_URL=postgresql://...
-DATABASE_FRA_URL=postgresql://...  # EU replica
-DATABASE_IAD_URL=postgresql://...  # US East replica
-DATABASE_SJC_URL=postgresql://...  # US West replica
+DATABASE_URL=postgresql://...  # Supabase session pooler
 ```
 
 ### Development
@@ -54,12 +51,11 @@ bun start
 
 ### Cache Implementation
 
-The API uses Upstash multi-region Redis for distributed caching across all server regions:
+The API uses Redis for caching:
 
 - **apiKeyCache**: Caches API key lookups (30 min TTL)
 - **userCache**: Caches user data (30 min TTL)
 - **teamCache**: Caches team access permissions (30 min TTL)
 - **teamPermissionsCache**: Caches team permission lookups (30 min TTL)
-- **replicationCache**: Tracks recent mutations for read-after-write consistency (10 sec TTL)
 
-Cache invalidations propagate to all regions automatically via Upstash replication. The client gracefully degrades when Redis is unavailable — cache misses return `undefined` and operations no-op instead of throwing.
+The client gracefully degrades when Redis is unavailable — cache misses return `undefined` and operations no-op instead of throwing.

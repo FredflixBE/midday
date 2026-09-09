@@ -3,10 +3,10 @@ import { rateLimiter } from "hono-rate-limiter";
 import { withAuth } from "./auth";
 import { withDatabase } from "./db";
 import { withClientIp } from "./ip";
-import { withPrimaryReadAfterWrite } from "./primary-read-after-write";
+import { withTeamId } from "./team-id";
 
 /**
- * Public endpoint middleware - only attaches database with smart routing
+ * Public endpoint middleware - only attaches the database
  * No authentication required
  */
 export const publicMiddleware: MiddlewareHandler[] = [
@@ -32,7 +32,7 @@ export const protectedMiddleware: MiddlewareHandler[] = [
     statusCode: 429,
     message: "Rate limit exceeded",
   }),
-  withPrimaryReadAfterWrite,
+  withTeamId,
 ];
 
 export const fileMiddleware: MiddlewareHandler[] = [

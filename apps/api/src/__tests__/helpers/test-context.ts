@@ -32,6 +32,5 @@ export function createTestContext(options: TestContextOptions = {}): any {
       ip: "127.0.0.1",
     },
     teamId,
-    forcePrimary: false,
   };
 }

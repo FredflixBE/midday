@@ -27,7 +27,7 @@ RUN bun install
 # Copy full source from pruned workspace
 COPY --from=builder /app/out/full/ .
 
-# Build-time NEXT_PUBLIC_ env vars (Railway passes these as build args)
+# Build-time NEXT_PUBLIC_ env vars (passed as build args)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_SUPABASE_ID
@@ -40,12 +40,12 @@ ARG NEXT_PUBLIC_WHATSAPP_NUMBER
 ARG NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
 ARG NEXT_PUBLIC_SENDBLUE_NUMBER
 
-# Server Action encryption key — must be identical across all replicas/regions
+# Server Action encryption key — must be identical across all replicas
 # to prevent "Failed to find Server Action" errors. Base64-encoded, 32 bytes.
 ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 
-# Git SHA stamped by CI (echo "$GITHUB_SHA" > .git-commit-sha) before `railway up`.
+# Git SHA stamped by CI (echo "$GITHUB_SHA" > .git-commit-sha) before the image build.
 # The file lives at repo root, so the builder stage has it after COPY . .
 COPY --from=builder /app/.git-commit-sha /tmp/git-sha.txt
 

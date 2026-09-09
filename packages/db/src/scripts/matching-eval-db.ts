@@ -539,7 +539,7 @@ async function main() {
     );
     console.log("");
     console.log("Required env:");
-    console.log("  DATABASE_PRIMARY_URL or DATABASE_URL");
+    console.log("  DATABASE_URL");
     return;
   }
 
@@ -547,9 +547,9 @@ async function main() {
   if (opts.fromDaysAgo <= opts.toDaysAgo) {
     throw new Error("--from-days-ago must be greater than --to-days-ago");
   }
-  const dbUrl = process.env.DATABASE_PRIMARY_URL || process.env.DATABASE_URL;
+  const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    throw new Error("DATABASE_PRIMARY_URL or DATABASE_URL is required");
+    throw new Error("DATABASE_URL is required");
   }
 
   const pool = new Pool({
