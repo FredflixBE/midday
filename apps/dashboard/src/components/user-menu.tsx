@@ -5,9 +5,7 @@ import {
   ClaudeMcpLogo,
   CursorMcpLogo,
   GeminiMcpLogo,
-  MiddayDesktopLogo,
 } from "@midday/app-store/logos";
-import { isDesktopApp } from "@midday/desktop-client/platform";
 import { Avatar, AvatarFallback, AvatarImageNext } from "@midday/ui/avatar";
 import {
   DropdownMenu,
@@ -111,27 +109,6 @@ export function UserMenu({ onlySignOut }: Props) {
                   </div>
                 </DropdownMenuItem>
               </Link>
-
-              {!isDesktopApp() && (
-                <Link
-                  href="https://midday.ai/api/download"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <DropdownMenuItem className="text-xs flex items-center justify-between">
-                    <span>Download Mac app</span>
-                    <div
-                      className="size-4 rounded overflow-hidden user-menu-mcp-icon mr-1 animate-in fade-in duration-500"
-                      style={{
-                        animationDelay: "150ms",
-                        animationFillMode: "backwards",
-                      }}
-                    >
-                      <MiddayDesktopLogo />
-                    </div>
-                  </DropdownMenuItem>
-                </Link>
-              )}
             </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
