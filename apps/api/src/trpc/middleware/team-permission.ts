@@ -1,5 +1,4 @@
 import type { Session } from "@api/utils/auth";
-import { withRetryOnPrimary } from "@api/utils/db-retry";
 import { teamCache } from "@midday/cache/team-cache";
 import type { Database } from "@midday/db/client";
 import { createLoggerWithContext } from "@midday/logger";
@@ -39,23 +38,17 @@ async function resolveTeamPermission(
   }
 
   const dbStart = DEBUG_PERF ? performance.now() : 0;
-  const result = await withRetryOnPrimary(
-    db,
-    async (db) => {
-      return await db.query.users.findFirst({
-        with: {
-          usersOnTeams: {
-            columns: {
-              id: true,
-              teamId: true,
-            },
-          },
+  const result = await db.query.users.findFirst({
+    with: {
+      usersOnTeams: {
+        columns: {
+          id: true,
+          teamId: true,
         },
-        where: (users, { eq }) => eq(users.id, userId),
-      });
+      },
     },
-    { retryOnNull: true },
-  );
+    where: (users, { eq }) => eq(users.id, userId),
+  });
   const dbMs = DEBUG_PERF ? performance.now() - dbStart : 0;
 
   if (!result) {

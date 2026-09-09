@@ -8,9 +8,8 @@ import type { Database } from "../client";
  * same promise. The cached promise is removed as soon as it settles, so this is
  * purely for in-flight dedup, not a cache.
  *
- * Promises are scoped per `db` instance (via WeakMap) so that primary and replica
- * connections never share results. This preserves read-after-write consistency
- * when `withPrimaryReadAfterWrite` middleware swaps the db instance.
+ * Promises are scoped per `db` instance (via WeakMap) so that different
+ * database instances never share results.
  *
  * @example
  * ```ts

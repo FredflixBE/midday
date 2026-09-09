@@ -1,7 +1,7 @@
 import { getSession } from "@midday/supabase/cached-queries";
 import { createClient } from "@midday/supabase/server";
 import { sanitizeRedirectPath } from "@midday/utils/sanitize-redirect";
-import { addSeconds, addYears } from "date-fns";
+import { addYears } from "date-fns";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
@@ -43,23 +43,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.redirect(`${origin}/login?waitlist=1`);
       }
 
-      // Set cookie to force primary database reads for subsequent client-side
-      // requests after redirect. This prevents replication lag issues when the
-      // user record hasn't replicated to read replicas yet.
-      cookieStore.set(Cookies.ForcePrimary, "true", {
-        expires: addSeconds(new Date(), 30),
-        httpOnly: false, // Needs to be readable by client-side tRPC
-        sameSite: "lax",
-      });
-
       // If user is redirected from an invite, redirect to teams page to accept/decline the invite
       if (returnTo?.startsWith("teams/invite/")) {
         return NextResponse.redirect(`${origin}/teams`);
       }
 
-      // Explicitly force primary reads for this query -- the user may have
-      // just been created and not yet replicated to read replicas.
-      const trpcClient = await getTRPCClient({ forcePrimary: true });
+      const trpcClient = await getTRPCClient();
       const user = await trpcClient.user.me.query();
 
       const isOnboarding = !user?.fullName || !user.teamId;

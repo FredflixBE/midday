@@ -4,7 +4,7 @@ import {
 } from "@midday/banking/account";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import type { Database } from "../client";
+import { type Database, executeRows } from "../client";
 import { bankAccounts, teams } from "../schema";
 
 export type CreateBankAccountParams = {
@@ -156,7 +156,8 @@ type GetBankAccountBalanceResponse = {
 };
 
 export async function getBankAccountsBalances(db: Database, teamId: string) {
-  const result: GetBankAccountBalanceResponse[] = await db.executeOnReplica(
+  const result: GetBankAccountBalanceResponse[] = await executeRows(
+    db,
     sql`SELECT * FROM get_team_bank_accounts_balances(${teamId})`,
   );
 
@@ -168,7 +169,8 @@ type GetBankAccountsCurrenciesResponse = {
 };
 
 export async function getBankAccountsCurrencies(db: Database, teamId: string) {
-  const result: GetBankAccountsCurrenciesResponse[] = await db.executeOnReplica(
+  const result: GetBankAccountsCurrenciesResponse[] = await executeRows(
+    db,
     sql`SELECT * FROM get_bank_account_currencies(${teamId})`,
   );
 

@@ -1,7 +1,7 @@
 import { buildSearchQuery } from "@midday/db/utils/search-query";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
-import type { Database } from "../client";
+import { type Database, executeRows } from "../client";
 import {
   customers,
   tags,
@@ -200,7 +200,8 @@ export async function getTrackerProjects(
     users: AssignedUser[];
   }[] =
     projectIds.length > 0
-      ? await db.executeOnReplica(
+      ? await executeRows(
+          db,
           sql`SELECT id as project_id, get_assigned_users_for_project(tracker_projects) as users
               FROM tracker_projects
               WHERE id IN (${sql.join(projectIds, sql`, `)})`,
@@ -456,7 +457,8 @@ export async function getTrackerProjectById(
       .from(trackerProjectTags)
       .leftJoin(tags, eq(trackerProjectTags.tagId, tags.id))
       .where(eq(trackerProjectTags.trackerProjectId, id)),
-    db.executeOnReplica(
+    executeRows(
+      db,
       sql`SELECT get_assigned_users_for_project(tracker_projects) as users
           FROM tracker_projects
           WHERE id = ${id} AND team_id = ${teamId}`,

@@ -20,9 +20,7 @@ let reconnectCount = 0;
 let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
 let initialConnectPromise: Promise<void> | null = null;
 
-const isProduction =
-  process.env.NODE_ENV === "production" ||
-  process.env.RAILWAY_ENVIRONMENT === "production";
+const isProduction = process.env.NODE_ENV === "production";
 
 const MAX_DISCONNECT_MS = 15_000;
 
@@ -164,8 +162,7 @@ function createClient(): RedisClient {
 
 /**
  * Get or create a shared Bun RedisClient singleton.
- * Connects to Upstash multi-region Redis via REDIS_URL — Upstash routes
- * reads to the nearest replica and writes to the primary automatically.
+ * Connects to the Redis at REDIS_URL.
  *
  * Self-healing: if the client has been disconnected for longer than
  * MAX_DISCONNECT_MS (auto-reconnect exhausted), it is destroyed and a

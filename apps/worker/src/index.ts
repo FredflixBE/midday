@@ -260,7 +260,7 @@ process.on("uncaughtException", (err) => {
     stack: err.stack,
     errorDetails: extractErrorDetails(err),
   });
-  // Don't exit - let the process manager (Railway) handle restarts
+  // Don't exit - let the process manager handle restarts
 });
 
 process.on("unhandledRejection", (reason, promise) => {
@@ -269,5 +269,5 @@ process.on("unhandledRejection", (reason, promise) => {
     stack: reason instanceof Error ? reason.stack : undefined,
     errorDetails: extractErrorDetails(reason),
   });
-  // Don't exit - let the process manager (Railway) handle restarts
+  // Don't exit - let the process manager handle restarts
 });

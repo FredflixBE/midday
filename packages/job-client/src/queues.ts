@@ -19,9 +19,7 @@ function getConnectionOptions() {
   }
 
   const url = new URL(redisUrl);
-  const isProduction =
-    process.env.NODE_ENV === "production" ||
-    process.env.RAILWAY_ENVIRONMENT === "production";
+  const isProduction = process.env.NODE_ENV === "production";
 
   return {
     host: url.hostname,
@@ -31,7 +29,7 @@ function getConnectionOptions() {
     // BullMQ required settings
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
-    // Network settings — Railway private networking is IPv4 only
+    // Network settings — force IPv4 for private networks without IPv6
     family: 4,
     keepAlive: 30000,
     lazyConnect: false,

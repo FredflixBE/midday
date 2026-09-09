@@ -48,7 +48,6 @@ app.use(
       "x-user-locale",
       "x-user-timezone",
       "x-user-country",
-      "x-force-primary",
       // Slack webhook headers
       "x-slack-signature",
       "x-slack-request-timestamp",
@@ -354,12 +353,12 @@ app.onError((err, c) => {
 
 /**
  * Graceful shutdown handlers
- * Close database connections cleanly on process termination (e.g. Railway deploys)
+ * Close database connections cleanly on process termination (e.g. redeploys)
  */
 const shutdown = async (signal: string) => {
   logger.info(`Received ${signal}, starting graceful shutdown...`);
 
-  const SHUTDOWN_TIMEOUT = 12_000; // 12s — fits within Railway's 15s draining window
+  const SHUTDOWN_TIMEOUT = 12_000; // 12s — fits within a 15s draining window
 
   const shutdownPromise = (async () => {
     try {

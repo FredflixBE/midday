@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@midday/supabase/server";
-import { addSeconds, addYears } from "date-fns";
+import { addYears } from "date-fns";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -45,15 +45,6 @@ export const verifyOtpAction = actionClient
 
     cookieStore.set(Cookies.PreferredSignInProvider, "otp", {
       expires: addYears(new Date(), 1),
-    });
-
-    // Force primary database reads for subsequent requests after redirect.
-    // This prevents replication lag issues when the user record hasn't
-    // replicated to read replicas yet (same as the OAuth callback).
-    cookieStore.set(Cookies.ForcePrimary, "true", {
-      expires: addSeconds(new Date(), 30),
-      httpOnly: false, // Needs to be readable by client-side tRPC
-      sameSite: "lax",
     });
 
     redirect(redirectTo);

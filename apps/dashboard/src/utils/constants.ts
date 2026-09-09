@@ -7,7 +7,6 @@ export const Cookies = {
 
   LastProject: "last-project",
   WeeklyCalendar: "weekly-calendar",
-  ForcePrimary: "midday-force-primary",
 };
 
 export const LocalStorageKeys = {

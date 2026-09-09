@@ -8,13 +8,10 @@ const isDevelopment = process.env.NODE_ENV === "development";
 const logger = createLoggerWithContext("db:worker");
 const DB_POOL_EVENT_LOGGING = process.env.DB_POOL_EVENT_LOGGING === "true";
 
-const connectionString =
-  process.env.DATABASE_PRIMARY_POOLER_URL ?? process.env.DATABASE_PRIMARY_URL;
+const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error(
-    "Missing database connection string: set DATABASE_PRIMARY_POOLER_URL or DATABASE_PRIMARY_URL",
-  );
+  throw new Error("Missing database connection string: set DATABASE_URL");
 }
 
 /**
@@ -100,28 +97,11 @@ const workerDrizzle = drizzle(workerPool, {
   casing: "snake_case",
 });
 
-// Shared query helpers call `db.executeOnReplica(...)`. Workers don't use
-// replicas, so route those reads through the primary pool via the normal
-// drizzle `execute` and return the rows in the same shape replicas.ts does.
-const workerDb = Object.assign(workerDrizzle, {
-  executeOnReplica: async <
-    TRow extends Record<string, unknown> = Record<string, unknown>,
-  >(
-    query: Parameters<typeof workerDrizzle.execute>[0],
-  ): Promise<TRow[]> => {
-    const result = await workerDrizzle.execute(query);
-    if (Array.isArray(result)) {
-      return result as TRow[];
-    }
-    return (result as { rows: TRow[] }).rows;
-  },
-});
-
 /**
  * Get the shared worker database instance
  */
 export const getWorkerDb = (): Database => {
-  return workerDb as unknown as Database;
+  return workerDrizzle as Database;
 };
 
 export const getWorkerPoolStats = () => {

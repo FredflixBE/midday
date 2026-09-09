@@ -10,10 +10,10 @@
  *   bun run packages/banking/scripts/debug.ts balance      <bank_account_id>
  *   bun run packages/banking/scripts/debug.ts transactions <bank_account_id> [--limit N]
  *
- * Requires DATABASE_PRIMARY_URL + provider API credentials in your environment.
+ * Requires DATABASE_URL + provider API credentials in your environment.
  */
 
-import { primaryDb as db } from "@midday/db/client";
+import { db } from "@midday/db/client";
 import {
   bankAccounts,
   bankConnections,

@@ -11,7 +11,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { initTRPC, TRPCError } from "@trpc/server";
 import type { Context } from "hono";
 import superjson from "superjson";
-import { withPrimaryReadAfterWrite } from "./middleware/primary-read-after-write";
 import { withTeamPermission } from "./middleware/team-permission";
 
 const DEBUG_PERF = process.env.DEBUG_PERF === "true";
@@ -23,7 +22,6 @@ type TRPCContext = {
   db: Database;
   geo: ReturnType<typeof getGeoContext>;
   teamId?: string;
-  forcePrimary?: boolean;
   isInternalRequest?: boolean;
   requestId: string;
   cfRay?: string;
@@ -53,7 +51,6 @@ export const createTRPCContext = async (
   const supaMs = DEBUG_PERF ? performance.now() - supaStart : 0;
 
   const geo = getGeoContext(c.req);
-  const forcePrimary = c.req.header("x-force-primary") === "true";
 
   if (DEBUG_PERF) {
     perfLogger.info("context", {
@@ -61,7 +58,6 @@ export const createTRPCContext = async (
       jwtVerifyMs: +jwtMs.toFixed(2),
       supabaseClientMs: +supaMs.toFixed(2),
       hasSession: !!session,
-      forcePrimary,
       requestId,
       cfRay,
     });
@@ -72,7 +68,6 @@ export const createTRPCContext = async (
     supabase,
     db,
     geo,
-    forcePrimary,
     isInternalRequest,
     requestId,
     cfRay,
@@ -101,14 +96,6 @@ const withTimingMiddleware = t.middleware(async (opts) => {
   return result;
 });
 
-const withPrimaryDbMiddleware = t.middleware(async (opts) => {
-  return withPrimaryReadAfterWrite({
-    ctx: opts.ctx,
-    type: opts.type,
-    next: opts.next,
-  });
-});
-
 const withTeamPermissionMiddleware = t.middleware(async (opts) => {
   return withTeamPermission({
     ctx: opts.ctx,
@@ -117,14 +104,11 @@ const withTeamPermissionMiddleware = t.middleware(async (opts) => {
   });
 });
 
-export const publicProcedure = t.procedure
-  .use(withTimingMiddleware)
-  .use(withPrimaryDbMiddleware);
+export const publicProcedure = t.procedure.use(withTimingMiddleware);
 
 export const protectedProcedure = t.procedure
   .use(withTimingMiddleware)
   .use(withTeamPermissionMiddleware)
-  .use(withPrimaryDbMiddleware)
   .use(async (opts) => {
     const { teamId, session } = opts.ctx;
 
@@ -148,7 +132,6 @@ export const protectedProcedure = t.procedure
  */
 export const internalProcedure = t.procedure
   .use(withTimingMiddleware)
-  .use(withPrimaryDbMiddleware)
   .use(async (opts) => {
     const { isInternalRequest } = opts.ctx;
 
@@ -168,7 +151,6 @@ export const internalProcedure = t.procedure
  */
 export const protectedOrInternalProcedure = t.procedure
   .use(withTimingMiddleware)
-  .use(withPrimaryDbMiddleware)
   .use(async (opts) => {
     const { isInternalRequest, session } = opts.ctx;
 

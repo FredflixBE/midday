@@ -12,7 +12,6 @@ import superjson from "superjson";
 import { makeQueryClient } from "./query-client";
 import {
   buildTRPCRequestHeaders,
-  getForcePrimaryFromCookies,
   getServerRequestContext,
 } from "./request-context";
 
@@ -20,8 +19,8 @@ import {
 //            will return the same client during the same request.
 export const getQueryClient = cache(makeQueryClient);
 
-// Server-side: prefer Railway private networking (skips DNS + TLS + Cloudflare)
-// Falls back to public URL for local dev / non-Railway environments
+// Server-side: prefer the internal API URL (skips DNS + TLS + proxy)
+// Falls back to the public URL when no internal URL is configured
 const API_BASE_URL =
   process.env.API_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL;
 
@@ -52,14 +51,8 @@ export const trpc = createTRPCOptionsProxy<AppRouter>({
         async headers() {
           const requestContext = await getServerRequestContext();
 
-          // Pass force-primary cookie as header to API for replication lag handling
-          const forcePrimary = getForcePrimaryFromCookies(
-            requestContext.cookieStore,
-          );
-
           return buildTRPCRequestHeaders({
             session: requestContext.session,
-            forcePrimary,
             location: requestContext.location,
             traceHeaders: requestContext.traceHeaders,
           });
@@ -122,18 +115,9 @@ export function batchPrefetch<T extends ReturnType<TRPCQueryOptions<any>>>(
  * Get a tRPC client for server-side API routes
  * Use this when you need to call mutations from API routes (e.g., webhooks, callbacks)
  * For queries, use the `trpc` proxy with `queryOptions` instead
- *
- * @param options.forcePrimary - Force all reads to use the primary database,
- *   bypassing replicas. Use this in auth callbacks and other flows where
- *   read-after-write consistency is critical (e.g., reading a user that was
- *   just created). This is more reliable than depending on the cookie alone.
  */
-export async function getTRPCClient(options?: { forcePrimary?: boolean }) {
+export async function getTRPCClient() {
   const requestContext = await getServerRequestContext();
-
-  const shouldForcePrimary =
-    options?.forcePrimary ||
-    getForcePrimaryFromCookies(requestContext.cookieStore);
 
   return createTRPCClient<AppRouter>({
     links: [
@@ -143,7 +127,6 @@ export async function getTRPCClient(options?: { forcePrimary?: boolean }) {
         fetch: fetchWithTimeout,
         headers: buildTRPCRequestHeaders({
           session: requestContext.session,
-          forcePrimary: shouldForcePrimary,
           location: requestContext.location,
           traceHeaders: requestContext.traceHeaders,
         }),

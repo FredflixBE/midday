@@ -353,7 +353,7 @@ async function main() {
     );
     console.log("");
     console.log("Required env:");
-    console.log("  DATABASE_PRIMARY_URL or DATABASE_URL");
+    console.log("  DATABASE_URL");
     return;
   }
 
@@ -364,9 +364,9 @@ async function main() {
     process.exit(1);
   }
 
-  const dbUrl = process.env.DATABASE_PRIMARY_URL || process.env.DATABASE_URL;
+  const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    console.error("Error: DATABASE_PRIMARY_URL or DATABASE_URL is required");
+    console.error("Error: DATABASE_URL is required");
     process.exit(1);
   }
 

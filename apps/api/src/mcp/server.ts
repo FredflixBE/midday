@@ -22,8 +22,7 @@ import {
 import type { McpContext } from "./types";
 import { getDateContext } from "./utils";
 
-const MCP_SERVER_VERSION =
-  process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) || "1.0.0";
+const MCP_SERVER_VERSION = process.env.GIT_COMMIT_SHA?.slice(0, 7) || "1.0.0";
 
 function getServerInstructions(ctx: McpContext): string {
   const dateCtx = getDateContext(ctx.timezone);

@@ -1,7 +1,7 @@
 import { buildSearchQuery } from "@midday/db/utils/search-query";
 import { and, desc, eq, gte, inArray, like, lte, not, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
-import type { Database } from "../client";
+import { type Database, executeRows } from "../client";
 import {
   documents,
   documentTagAssignments,
@@ -239,7 +239,8 @@ export async function getRelatedDocuments(
 ) {
   const { id, pageSize, teamId } = params;
 
-  const result: GetRelatedDocumentsResponse[] = await db.executeOnReplica(
+  const result: GetRelatedDocumentsResponse[] = await executeRows(
+    db,
     sql`SELECT * FROM match_similar_documents_by_title(${id}, ${teamId}, ${0.3}, ${pageSize})`,
   );
 

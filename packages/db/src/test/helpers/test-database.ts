@@ -2,7 +2,6 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import type { Database } from "../../client";
-import { withReplicas } from "../../replicas";
 import * as schema from "../../schema";
 
 const TEST_DATABASE_URL =
@@ -22,12 +21,11 @@ export function getTestDatabase(): Database {
     connectionTimeoutMillis: 10000,
   });
 
-  const primaryDb = drizzle(pool, {
+  db = drizzle(pool, {
     schema,
     casing: "snake_case",
   });
 
-  db = withReplicas(primaryDb, [primaryDb], (replicas) => replicas[0]!);
   return db;
 }
 

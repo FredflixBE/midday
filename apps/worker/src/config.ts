@@ -2,9 +2,7 @@ import { createLoggerWithContext } from "@midday/logger";
 
 const logger = createLoggerWithContext("worker:config");
 
-const isProduction =
-  process.env.NODE_ENV === "production" ||
-  process.env.RAILWAY_ENVIRONMENT === "production";
+const isProduction = process.env.NODE_ENV === "production";
 
 /**
  * Parse Redis URL and return connection options for BullMQ

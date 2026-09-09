@@ -29,7 +29,11 @@ import {
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
 import { v4 as uuidv4 } from "uuid";
-import type { Database, DatabaseOrTransaction } from "../client";
+import {
+  type Database,
+  type DatabaseOrTransaction,
+  executeRows,
+} from "../client";
 import {
   type activityTypeEnum,
   customers,
@@ -487,7 +491,8 @@ export async function getPaymentStatus(
   db: Database,
   teamId: string,
 ): Promise<PaymentStatusResult> {
-  const invoiceData = await db.executeOnReplica(
+  const invoiceData = await executeRows(
+    db,
     sql`
       SELECT 
         i.id,
