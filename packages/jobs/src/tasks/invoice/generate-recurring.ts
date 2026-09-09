@@ -546,9 +546,10 @@ export class InvoiceRecurringSchedulerProcessor extends BaseProcessor<InvoiceRec
 
 const processor = new InvoiceRecurringSchedulerProcessor();
 
-// No `cron` yet — FF-1387 registers the schedules.
 export const invoiceRecurringScheduler = schedules.task({
   id: "invoice-recurring-scheduler",
+  // Hourly on the hour.
+  cron: "0 * * * *",
   maxDuration: 600,
   run: (_payload, { ctx }) =>
     runProcessor(processor, "invoice-recurring-scheduler", {}, ctx),

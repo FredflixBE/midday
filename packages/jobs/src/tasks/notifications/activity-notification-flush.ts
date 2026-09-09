@@ -24,9 +24,10 @@ export class ActivityNotificationFlushProcessor extends BaseProcessor<
 
 const processor = new ActivityNotificationFlushProcessor();
 
-// No `cron` yet — FF-1387 registers the schedules.
 export const activityNotificationFlush = schedules.task({
   id: "activity-notification-flush",
+  // Every minute: batched provider notifications are only as timely as this.
+  cron: "*/1 * * * *",
   machine: "micro",
   maxDuration: 60,
   run: (_payload, { ctx }) =>

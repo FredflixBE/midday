@@ -93,10 +93,12 @@ export class SyncInstitutionsProcessor extends BaseProcessor<SyncInstitutionsPay
 
 const processor = new SyncInstitutionsProcessor();
 
-// No `cron` yet — FF-1387 registers the schedules. Gated on
+// Gated on
 // SYNC_INSTITUTIONS_ENABLED inside the processor.
 export const syncInstitutions = schedules.task({
   id: "sync-institutions",
+  // Daily at 03:00 UTC.
+  cron: "0 3 * * *",
   // Fetching every institution from every provider takes a while.
   maxDuration: 600,
   run: (_payload, { ctx }) =>
