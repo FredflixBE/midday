@@ -11,7 +11,6 @@ import {
   invoiceRecurringSchedulerSchema,
 } from "@jobs/schemas/invoices";
 import { withDbConnectionRetry } from "@jobs/utils/db-retry";
-import { isStaging } from "@jobs/utils/env";
 import {
   buildInvoiceTemplateFromRecurring,
   parseLineItems,
@@ -31,6 +30,7 @@ import {
 import { getStartOfDayUTC } from "@midday/invoice/recurring";
 import { generateToken } from "@midday/invoice/token";
 import { transformCustomerToContent } from "@midday/invoice/utils";
+import { isFlagEnabled } from "@midday/utils/flags";
 import { schedules } from "@trigger.dev/sdk";
 import { addDays } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -84,22 +84,25 @@ export class InvoiceRecurringSchedulerProcessor extends BaseProcessor<InvoiceRec
 
     const db = getDb();
 
-    // In staging, log what would happen but don't execute
-    if (isStaging()) {
+    // Dry run: work out exactly what would be generated and log it, without
+    // creating or sending anything. Off unless INVOICE_JOBS_DRY_RUN is on —
+    // the opposite default to the *_ENABLED flags, because a dry run nobody
+    // asked for would quietly stop invoicing.
+    if (isFlagEnabled("INVOICE_JOBS_DRY_RUN", { defaultValue: false })) {
       this.logger.info(
-        "[STAGING MODE] Recurring invoice scheduler - logging only, no execution",
+        "[DRY RUN] Recurring invoice scheduler - logging only, no execution",
       );
 
       const { data: dueRecurring, hasMore } = await withDbConnectionRetry(
         () => getDueInvoiceRecurring(db),
         {
-          operationName: "getDueInvoiceRecurring(staging)",
+          operationName: "getDueInvoiceRecurring(dry-run)",
           logger: this.logger,
         },
       );
 
       if (dueRecurring.length === 0) {
-        this.logger.info("[STAGING] No recurring invoices due for generation");
+        this.logger.info("[DRY RUN] No recurring invoices due for generation");
         return {
           processed: 0,
           skipped: 0,
@@ -111,7 +114,7 @@ export class InvoiceRecurringSchedulerProcessor extends BaseProcessor<InvoiceRec
       }
 
       this.logger.info(
-        `[STAGING] Would process ${dueRecurring.length} recurring invoices${hasMore ? " (more pending)" : ""}`,
+        `[DRY RUN] Would process ${dueRecurring.length} recurring invoices${hasMore ? " (more pending)" : ""}`,
         {
           count: dueRecurring.length,
           hasMore,
@@ -127,14 +130,15 @@ export class InvoiceRecurringSchedulerProcessor extends BaseProcessor<InvoiceRec
         },
       );
 
-      // Return simulated results
+      // Report what would have been created, marked so no caller mistakes
+      // these for real invoice ids.
       return {
         processed: dueRecurring.length,
         skipped: 0,
         failed: 0,
         results: dueRecurring.map((r) => ({
-          invoiceId: `[STAGING-SIMULATED-${r.id.slice(0, 8)}]`,
-          invoiceNumber: `[STAGING-SIM-${r.invoicesGenerated + 1}]`,
+          invoiceId: `[DRY-RUN-${r.id.slice(0, 8)}]`,
+          invoiceNumber: `[DRY-RUN-${r.invoicesGenerated + 1}]`,
           recurringId: r.id,
           sequence: r.invoicesGenerated + 1,
         })),

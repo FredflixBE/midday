@@ -31,7 +31,10 @@ Insight generation is ported and can be triggered by hand, but is deliberately
 registered on no schedule at all.
 
 The off switches read through `isFlagEnabled()` in `@midday/utils/flags`: unset
-means **on**, and only `false`, `0`, `no` or `off` turn a job off. The schedule
+means **on**, and only `false`, `0`, `no` or `off` turn a job off. The one
+exception is `INVOICE_JOBS_DRY_RUN`, which is off unless set — it makes the two
+invoice schedules log what they would generate and send nothing, so defaulting
+it on would quietly stop invoicing. The schedule
 still fires when a flag is off — the task returns immediately instead. That
 costs a negligible amount of compute and keeps the schedule in place, so
 turning a job back on is an environment change rather than a deploy.

@@ -6,13 +6,13 @@ import {
   type InvoiceUpcomingNotificationPayload,
   invoiceUpcomingNotificationSchema,
 } from "@jobs/schemas/invoices";
-import { isStaging } from "@jobs/utils/env";
 import { sendToProviders } from "@midday/bot/activity-notifications";
 import {
   getUpcomingDueRecurring,
   markUpcomingNotificationSent,
 } from "@midday/db/queries";
 import { Notifications } from "@midday/notifications";
+import { isFlagEnabled } from "@midday/utils/flags";
 import { schedules } from "@trigger.dev/sdk";
 
 type ProcessResult = {
@@ -56,17 +56,18 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
 
     const db = getDb();
 
-    // In staging, log what would happen but don't execute
-    if (isStaging()) {
+    // Dry run: work out who would be notified and log it, without sending.
+    // See the note on the same flag in generate-recurring.ts.
+    if (isFlagEnabled("INVOICE_JOBS_DRY_RUN", { defaultValue: false })) {
       this.logger.info(
-        "[STAGING MODE] Upcoming invoice notification processor - logging only, no execution",
+        "[DRY RUN] Upcoming invoice notification processor - logging only, no execution",
       );
 
       const { data: upcomingRecurring, hasMore } =
         await getUpcomingDueRecurring(db, 24);
 
       if (upcomingRecurring.length === 0) {
-        this.logger.info("[STAGING] No upcoming invoices to notify about");
+        this.logger.info("[DRY RUN] No upcoming invoices to notify about");
         return {
           processed: 0,
           skipped: 0,
@@ -85,7 +86,7 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
       }
 
       this.logger.info(
-        `[STAGING] Would notify ${invoicesByTeam.size} teams about ${upcomingRecurring.length} upcoming invoices${hasMore ? " (more pending)" : ""}`,
+        `[DRY RUN] Would notify ${invoicesByTeam.size} teams about ${upcomingRecurring.length} upcoming invoices${hasMore ? " (more pending)" : ""}`,
         {
           teamCount: invoicesByTeam.size,
           invoiceCount: upcomingRecurring.length,
