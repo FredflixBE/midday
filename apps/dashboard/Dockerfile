@@ -17,9 +17,6 @@ RUN turbo prune @midday/dashboard --docker
 FROM base AS installer
 WORKDIR /app
 
-# Install CA certificates so Sentry CLI can verify SSL during source map upload
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
-
 # Copy package.json files from pruned workspace
 COPY --from=builder /app/out/json/ .
 COPY bunfig.toml .
@@ -36,19 +33,12 @@ ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_SUPABASE_ID
 ARG NEXT_PUBLIC_URL
 ARG NEXT_PUBLIC_API_URL
-ARG NEXT_PUBLIC_OPENPANEL_CLIENT_ID
-ARG NEXT_PUBLIC_SENTRY_DSN
 ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_GOOGLE_API_KEY
 ARG NEXT_PUBLIC_DESKTOP_SCHEME
 ARG NEXT_PUBLIC_WHATSAPP_NUMBER
 ARG NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
 ARG NEXT_PUBLIC_SENDBLUE_NUMBER
-
-# Sentry source map upload (build-time only)
-ARG SENTRY_AUTH_TOKEN
-ARG SENTRY_ORG
-ARG SENTRY_PROJECT
 
 # Server Action encryption key — must be identical across all replicas/regions
 # to prevent "Failed to find Server Action" errors. Base64-encoded, 32 bytes.
@@ -62,11 +52,10 @@ COPY --from=builder /app/.git-commit-sha /tmp/git-sha.txt
 ENV CI=true
 ENV NODE_ENV=production
 
-# Build with GIT_COMMIT_SHA + SENTRY_RELEASE exported so next.config.ts and
-# the Sentry webpack plugin can read them via process.env.
+# Build with GIT_COMMIT_SHA exported so next.config.ts can read it via
+# process.env.
 RUN GIT_COMMIT_SHA=$(cat /tmp/git-sha.txt 2>/dev/null || echo ""); \
     export GIT_COMMIT_SHA; \
-    export SENTRY_RELEASE="$GIT_COMMIT_SHA"; \
     bunx turbo run build --filter=@midday/dashboard --only
 
 # Runner stage - clean bun image, no turbo
@@ -86,7 +75,7 @@ COPY --from=installer --chown=nextjs:nodejs /app/apps/dashboard/.next/static ./a
 COPY --from=installer --chown=nextjs:nodejs /app/apps/dashboard/public ./apps/dashboard/public
 
 # Carry the git SHA into the runtime container and use the shared entrypoint to
-# set GIT_COMMIT_SHA / SENTRY_RELEASE when Railway doesn't provide them.
+# set GIT_COMMIT_SHA when the platform doesn't provide it.
 COPY --from=installer /tmp/git-sha.txt /tmp/git-sha.txt
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

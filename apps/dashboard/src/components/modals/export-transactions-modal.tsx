@@ -1,6 +1,5 @@
 "use client";
 
-import { LogEvents } from "@midday/events/events";
 import {
   Accordion,
   AccordionContent,
@@ -29,7 +28,6 @@ import { Separator } from "@midday/ui/separator";
 import { Spinner } from "@midday/ui/spinner";
 import { Switch } from "@midday/ui/switch";
 import NumberFlow from "@number-flow/react";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { z } from "zod/v3";
@@ -89,7 +87,6 @@ export function ExportTransactionsModal({
   onOpenChange,
 }: ExportTransactionsModalProps) {
   const { exportData, setExportData, setIsExporting } = useExportStore();
-  const { track } = useOpenPanel();
   const { rowSelectionByTab, setRowSelection } = useTransactionsStore();
   // Export modal is used from review tab, so use review tab selection
   const rowSelection = rowSelectionByTab.review;
@@ -181,7 +178,6 @@ export function ExportTransactionsModal({
   const onFileExport = async (values: z.infer<typeof exportSettingsSchema>) => {
     if (transactionIds.length === 0) return;
 
-    track(LogEvents.ExportTransactions.name, { count: transactionIds.length });
     setIsExporting(true);
 
     await teamMutation.mutateAsync({

@@ -1,7 +1,5 @@
 "use client";
 
-import { track } from "@midday/events/client";
-import { LogEvents } from "@midday/events/events";
 import { uniqueCurrencies } from "@midday/location/currencies";
 import {
   Form,
@@ -90,14 +88,6 @@ export function CreateTeamStep({
   const createTeamMutation = useMutation(
     trpc.team.create.mutationOptions({
       onSuccess: async () => {
-        track({
-          event: LogEvents.OnboardingTeamCreated.name,
-          channel: LogEvents.OnboardingTeamCreated.channel,
-          countryCode: form.getValues("countryCode"),
-          currency: form.getValues("baseCurrency"),
-          companyType: form.getValues("companyType"),
-          heardAbout: form.getValues("heardAbout"),
-        });
         await queryClient.invalidateQueries();
         onComplete();
       },

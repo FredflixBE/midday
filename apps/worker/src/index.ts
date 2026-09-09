@@ -1,6 +1,3 @@
-// Import Sentry instrumentation first, before any other modules
-import "./instrument";
-
 import { closeWorkerDb, getWorkerPoolStats } from "@midday/db/worker-client";
 import {
   buildReadinessResponse,
@@ -8,7 +5,6 @@ import {
 } from "@midday/health/checker";
 import { workerDependencies } from "@midday/health/probes";
 import { createLoggerWithContext } from "@midday/logger";
-import * as Sentry from "@sentry/bun";
 import { Worker } from "bullmq";
 import { Hono } from "hono";
 import { workbench } from "workbench/hono";
@@ -42,31 +38,16 @@ const workers = queueConfigs.map((config) => {
       error: err.message,
       errorDetails: extractErrorDetails(err),
     });
-    Sentry.captureException(err, {
-      tags: { workerName: config.name, errorType: "worker_error" },
-    });
   });
 
-  // Centralized failed handler that captures to Sentry
-  // Note: BaseProcessor already captures in-process failures with full context
-  // This catches failures that bypass the processor (e.g., no processor registered)
+  // Centralized failed handler for failures that bypass the processor
+  // (e.g., no processor registered)
   worker.on("failed", async (job, err) => {
     logger.error(`Job failed: ${job?.name}`, {
       worker: config.name,
       jobId: job?.id,
       error: err.message,
       errorDetails: extractErrorDetails(err),
-    });
-    Sentry.captureException(err, {
-      tags: {
-        workerName: config.name,
-        jobName: job?.name ?? "unknown",
-        errorType: "job_failed",
-      },
-      extra: {
-        jobId: job?.id,
-        attemptsMade: job?.attemptsMade,
-      },
     });
 
     // Call custom onFailed handler if provided
@@ -91,12 +72,6 @@ const workers = queueConfigs.map((config) => {
             handlerError instanceof Error
               ? handlerError.message
               : String(handlerError),
-        });
-        Sentry.captureException(handlerError, {
-          tags: {
-            workerName: config.name,
-            errorType: "onfailed_handler_error",
-          },
         });
       }
     }
@@ -252,10 +227,6 @@ const shutdown = async (signal: string) => {
       logger.info("Closing database connections...");
       await closeWorkerDb();
 
-      // Flush pending Sentry events before exit
-      logger.info("Flushing Sentry events...");
-      await Sentry.close(2000);
-
       logger.info("Graceful shutdown complete");
     } catch (error) {
       logger.error("Error during shutdown", {
@@ -289,9 +260,6 @@ process.on("uncaughtException", (err) => {
     stack: err.stack,
     errorDetails: extractErrorDetails(err),
   });
-  Sentry.captureException(err, {
-    tags: { errorType: "uncaught_exception" },
-  });
   // Don't exit - let the process manager (Railway) handle restarts
 });
 
@@ -301,11 +269,5 @@ process.on("unhandledRejection", (reason, promise) => {
     stack: reason instanceof Error ? reason.stack : undefined,
     errorDetails: extractErrorDetails(reason),
   });
-  Sentry.captureException(
-    reason instanceof Error ? reason : new Error(String(reason)),
-    {
-      tags: { errorType: "unhandled_rejection" },
-    },
-  );
   // Don't exit - let the process manager (Railway) handle restarts
 });

@@ -3,7 +3,6 @@
 import { CopyInput } from "@/components/copy-input";
 import "@/styles/globals.css";
 import { Button } from "@midday/ui/button";
-import { useEffect } from "react";
 import { SUPPORT_EMAIL } from "@/utils/constants";
 
 export default function GlobalError({
@@ -11,14 +10,6 @@ export default function GlobalError({
 }: {
   error: Error & { digest?: string };
 }) {
-  useEffect(() => {
-    if (process.env.NODE_ENV === "production") {
-      import("@sentry/nextjs").then((Sentry) => {
-        Sentry.captureException(error);
-      });
-    }
-  }, [error]);
-
   return (
     <html lang="en" className="dark">
       <body className="bg-background text-foreground antialiased">

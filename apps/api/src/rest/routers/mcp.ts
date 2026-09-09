@@ -9,7 +9,6 @@ import type { Scope } from "@api/utils/scopes";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { getUserById } from "@midday/db/queries";
-import * as Sentry from "@sentry/bun";
 import { rateLimiter } from "hono-rate-limiter";
 
 const app = new OpenAPIHono<Context>();
@@ -74,11 +73,6 @@ app.use(
 );
 
 app.all("/", async (c) => {
-  if (process.env.SENTRY_DSN) {
-    Sentry.setTag("mcp", "true");
-    Sentry.setTag("api.route", "mcp");
-  }
-
   const transport = new StreamableHTTPTransport();
   const db = c.get("db");
   const teamId = c.get("teamId");

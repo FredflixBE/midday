@@ -1,7 +1,6 @@
 "use client";
 
 import { utc } from "@date-fns/utc";
-import { LogEvents } from "@midday/events/events";
 import { uniqueCurrencies } from "@midday/location/currencies";
 import {
   Accordion,
@@ -29,7 +28,6 @@ import { Select } from "@midday/ui/select";
 import { SubmitButton } from "@midday/ui/submit-button";
 import { Switch } from "@midday/ui/switch";
 import { Textarea } from "@midday/ui/textarea";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatISO } from "date-fns";
 import { nanoid } from "nanoid";
@@ -100,7 +98,6 @@ const isSameAttachment = (
 export function TransactionCreateForm() {
   const trpc = useTRPC();
   const _queryClient = useQueryClient();
-  const { track } = useOpenPanel();
   const invalidateTransactionQueries = useInvalidateTransactionQueries();
   const { setParams } = useTransactionParams();
   const [isOpen, setIsOpen] = useState(false);
@@ -121,7 +118,6 @@ export function TransactionCreateForm() {
   const createTransactionMutation = useMutation(
     trpc.transactions.create.mutationOptions({
       onSuccess: () => {
-        track(LogEvents.TransactionCreated.name);
         invalidateTransactionQueries();
         setParams(null);
       },

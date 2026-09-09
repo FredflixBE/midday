@@ -1,6 +1,5 @@
 "use client";
 
-import { LogEvents } from "@midday/events/events";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +13,6 @@ import {
 } from "@midday/ui/alert-dialog";
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
-import { useOpenPanel } from "@openpanel/nextjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
@@ -30,7 +28,6 @@ import { useTRPC } from "@/trpc/client";
 export function InboxBulkActions() {
   const { selectedIds, clearSelection } = useInboxStore();
   const trpc = useTRPC();
-  const { track } = useOpenPanel();
   const queryClient = useQueryClient();
   const router = useRouter();
   const { setParams } = useInboxParams();
@@ -189,9 +186,6 @@ export function InboxBulkActions() {
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => {
-                          track(LogEvents.InboxBulkDeleted.name, {
-                            count: selectedIdsArray.length,
-                          });
                           deleteInboxMutation.mutate(selectedIdsArray);
                         }}
                       >

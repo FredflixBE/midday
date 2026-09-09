@@ -14,7 +14,6 @@ import {
   WindsurfMcpLogo,
   ZapierMcpLogo,
 } from "@midday/app-store/logos";
-import { LogEvents } from "@midday/events/events";
 import { BulkReconciliationAnimation } from "@midday/ui/animations/bulk-reconciliation";
 import { ReceiptAttachmentAnimation } from "@midday/ui/animations/receipt-attachment";
 import { WidgetsAnimation } from "@midday/ui/animations/widgets";
@@ -30,7 +29,6 @@ import type { ReactNode } from "react";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { AppDetailSheet } from "@/components/sheets/app-detail-sheet";
 import { useOnboardingStep } from "@/hooks/use-onboarding-step";
-import { useOnboardingTracking } from "@/hooks/use-onboarding-tracking";
 import { useTRPC } from "@/trpc/client";
 import { ChatDemoWithRail } from "./chat-demo-with-rail";
 import {
@@ -54,7 +52,6 @@ type StepConfig = {
   overlay?: boolean;
   navigation: "none" | "submit" | "skip" | "next";
   canGoBack?: boolean;
-  trackEvent?: { name: string; channel: string };
 };
 
 function DashboardImageAnimation() {
@@ -272,8 +269,6 @@ export function OnboardingPage({
     hasFullName,
   });
 
-  const { trackNavigation, trackEvent } = useOnboardingTracking(step);
-
   useEffect(() => {
     if (
       connectionParams.connected === "true" &&
@@ -281,12 +276,9 @@ export function OnboardingPage({
       !inboxSync
     ) {
       setInboxSync({ provider: connectionParams.provider });
-      trackEvent(LogEvents.OnboardingInboxConnected, {
-        provider: connectionParams.provider,
-      });
       setConnectionParams({ connected: null, provider: null });
     }
-  }, [connectionParams, inboxSync, setConnectionParams, trackEvent]);
+  }, [connectionParams, inboxSync, setConnectionParams]);
 
   const defaultCountryCode = use(defaultCountryCodePromise);
 
@@ -322,9 +314,8 @@ export function OnboardingPage({
   const handleBankSyncStarted = useCallback(
     (data: { runId: string; accessToken: string }) => {
       setBankSync(data);
-      trackEvent(LogEvents.OnboardingBankConnected);
     },
-    [trackEvent],
+    [],
   );
 
   const steps: StepConfig[] = useMemo(
@@ -372,7 +363,6 @@ export function OnboardingPage({
           />
         ),
         navigation: "skip",
-        trackEvent: LogEvents.OnboardingBankSkipped,
       },
       // Step 4
       {
@@ -381,7 +371,6 @@ export function OnboardingPage({
         content: <ConnectInboxStep />,
         navigation: "skip",
         canGoBack: true,
-        trackEvent: LogEvents.OnboardingInboxSkipped,
       },
       // Step 5
       {
@@ -390,7 +379,6 @@ export function OnboardingPage({
         content: <ReconciliationStep />,
         navigation: "next",
         canGoBack: true,
-        trackEvent: LogEvents.OnboardingStepCompleted,
       },
       // Step 6 — Connect AI tools via MCP
       {
@@ -399,7 +387,6 @@ export function OnboardingPage({
         content: <ConnectMcpStep />,
         navigation: "next",
         canGoBack: true,
-        trackEvent: LogEvents.OnboardingStepCompleted,
       },
       // Step 7 — Connect chat platforms (iMessage, WhatsApp, Slack, Telegram)
       {
@@ -408,7 +395,6 @@ export function OnboardingPage({
         content: <ConnectChatStep />,
         navigation: "skip",
         canGoBack: true,
-        trackEvent: LogEvents.OnboardingStepCompleted,
       },
     ],
     [
@@ -439,7 +425,6 @@ export function OnboardingPage({
   const navLabel = NAV_LABELS[currentStep.navigation];
 
   const handleNavigation = () => {
-    trackNavigation(currentStep);
     if (currentStep?.key === "connect-chat") {
       router.push("/");
       return;

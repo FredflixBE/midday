@@ -1,4 +1,3 @@
-import { setupAnalytics } from "@midday/events/server";
 import { createClient } from "@midday/supabase/server";
 import {
   createSafeActionClient,
@@ -22,12 +21,6 @@ export const actionClientWithMeta = createSafeActionClient({
   defineMetadataSchema() {
     return z.object({
       name: z.string(),
-      track: z
-        .object({
-          event: z.string(),
-          channel: z.string(),
-        })
-        .optional(),
     });
   },
   handleServerError(e) {
@@ -53,7 +46,7 @@ export const authActionClient = actionClientWithMeta
 
     return result;
   })
-  .use(async ({ next, metadata }) => {
+  .use(async ({ next }) => {
     const queryClient = getQueryClient();
     const user = await queryClient.fetchQuery(trpc.user.me.queryOptions());
 
@@ -63,16 +56,9 @@ export const authActionClient = actionClientWithMeta
       throw new Error("Unauthorized");
     }
 
-    const analytics = await setupAnalytics();
-
-    if (metadata?.track) {
-      analytics.track(metadata.track);
-    }
-
     return next({
       ctx: {
         supabase,
-        analytics,
         user,
         teamId: user.teamId,
       },

@@ -1,6 +1,5 @@
 "use server";
 
-import { LogEvents } from "@midday/events/events";
 import { PlainClient } from "@team-plain/typescript-sdk";
 import { z } from "zod";
 import { authActionClient } from "./safe-action";
@@ -17,10 +16,6 @@ export const sendFeebackAction = authActionClient
   )
   .metadata({
     name: "send-feedback",
-    track: {
-      event: LogEvents.SendFeedback.name,
-      channel: LogEvents.SendFeedback.channel,
-    },
   })
   .action(async ({ parsedInput: { feedback }, ctx: { user } }) => {
     const customer = await client.upsertCustomer({

@@ -1,7 +1,5 @@
 "use client";
 
-import { track } from "@midday/events/client";
-import { LogEvents } from "@midday/events/events";
 import { Button } from "@midday/ui/button";
 import type { Competitor } from "@/data/competitors";
 
@@ -41,20 +39,7 @@ export function ComparisonHero({
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 mb-12">
           <Button asChild className="btn-inverse h-11 px-6">
-            <a
-              href="https://app.midday.ai/"
-              onClick={() =>
-                track({
-                  event: LogEvents.CTA.name,
-                  channel: LogEvents.CTA.channel,
-                  label: "Get started now",
-                  position: "comparison_hero",
-                  competitor: competitor.name,
-                })
-              }
-            >
-              Get started now
-            </a>
+            <a href="https://app.midday.ai/">Get started now</a>
           </Button>
         </div>
 
