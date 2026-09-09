@@ -93,10 +93,7 @@
     "./animations/invoice-prompt": "./src/components/animations/invoice-prompt-animation.tsx",
     "./animations/receipt-attachment": "./src/components/animations/receipt-attachment-animation.tsx",
     "./animations/transaction-flow": "./src/components/animations/transaction-flow-animation.tsx",
-    "./animations/widgets": "./src/components/animations/widgets-animation.tsx",
-    "./iphone-mock": "./src/components/iphone-mock.tsx",
-    "./chat-demo-rail": "./src/components/chat-demo-rail.tsx",
-    "./animations/chat-demo": "./src/components/animations/chat-demo-animation.tsx"
+    "./animations/widgets": "./src/components/animations/widgets-animation.tsx"
   },
   "dependencies": {
     "@midday/utils": "workspace:*",
