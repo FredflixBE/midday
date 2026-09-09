@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "trigger dev",
+    "dev": "bun --env-file=.env trigger dev",
     "deploy": "trigger deploy",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

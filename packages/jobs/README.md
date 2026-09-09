@@ -45,6 +45,12 @@ turning a job back on is an environment change rather than a deploy.
 bun run jobs:dev   # trigger.dev dev, against packages/jobs/.env
 ```
 
+Nothing needs exporting first. The script loads `.env` through `bun
+--env-file` rather than letting the CLI do it, because the CLI evaluates
+`trigger.config.ts` — which reads `TRIGGER_PROJECT_ID` — *before* it loads the
+env file. Without that the run fails with `Project not found: undefined`,
+which reads like a bad credential rather than a loading order.
+
 It registers every task and schedule against the Trigger.dev **dev**
 environment and stays attached, running each task locally as it is triggered.
 Leave it running while you use the API and dashboard, or nothing that dispatches
