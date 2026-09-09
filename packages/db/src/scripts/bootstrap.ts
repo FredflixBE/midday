@@ -17,10 +17,14 @@
  *   6. 20-realtime.sql    publication membership and the activities policy.
  *   7. 30-auth-user.sql   the trigger that gives a new sign-in a users row.
  *   8. 40-functions.sql   the functions the application calls at runtime.
- *   9. stamp              record the journal as applied, because step 2 built
+ *   9. 50-documents.sql / 51-document-triggers.sql
+ *                         a vault upload makes a documents row. The trigger
+ *                         is on storage.objects, so it is reported rather
+ *                         than fatal, like the storage policies.
+ *  10. stamp              record the journal as applied, because step 2 built
  *                         the state the migrations describe without running
  *                         them — otherwise db:migrate would replay them.
- *  10. verification       the part you paste into the ticket.
+ *  11. verification       the part you paste into the ticket.
  *
  * The verification is the real gate, because `drizzle-kit push` exits 0 even
  * when statements inside it failed.
@@ -217,6 +221,28 @@ const CHECKS: Check[] = [
     },
   },
   {
+    // Without this a vault upload lands in storage and never appears in the
+    // vault, which lists documents rows rather than storage objects.
+    what: "a vault upload makes a documents row (insert_into_documents)",
+    sql: `select tgname from pg_trigger
+           where tgrelid = 'storage.objects'::regclass and not tgisinternal
+             and tgname in ('insert_into_documents','delete_from_documents')`,
+    verdict: (rows) =>
+      rows.length === 2 ? "" : `found ${rows.length} of 2 triggers`,
+  },
+  {
+    // documents.fts is generated from title || ' ' || body, and NULL
+    // concatenates to NULL, so NOT NULL here means a document with no title
+    // cannot be inserted — which is every document at the moment of upload.
+    what: "documents.fts is nullable, so a titleless upload can be inserted",
+    sql: `select is_nullable from information_schema.columns
+           where table_name = 'documents' and column_name = 'fts'`,
+    verdict: (rows) =>
+      rows[0]?.is_nullable === "YES"
+        ? ""
+        : "fts is NOT NULL — the upload trigger cannot insert",
+  },
+  {
     // Without this db:migrate would replay the base migration over a schema
     // the push already built, and fail on the first CREATE TABLE.
     what: "db:migrate has nothing left to apply",
@@ -366,7 +392,14 @@ async function main(): Promise<number> {
     console.log("8. the functions the app calls at runtime");
     await applyFile(client, "40-functions.sql");
 
-    console.log("9. recording the migrations this schema already contains");
+    console.log("9. a documents row for every vault upload");
+    await applyFile(client, "50-documents.sql");
+    const documentTriggers = await tryApplyFile(
+      client,
+      "51-document-triggers.sql",
+    );
+
+    console.log("10. recording the migrations this schema already contains");
     const stamped = await stampMigrations(client);
     console.log(
       `  stamped ${stamped} migration${stamped === 1 ? "" : "s"} as applied`,
@@ -381,6 +414,23 @@ async function main(): Promise<number> {
       console.log(
         `  ${problem ? "FAIL" : "ok  "}  ${check.what}${problem ? ` — ${problem}` : ""}`,
       );
+    }
+
+    if (!documentTriggers) {
+      console.log("");
+      console.log(
+        "The document triggers could not be applied from here, for the same",
+      );
+      console.log(
+        "reason as the storage policies: Supabase owns storage.objects. Paste",
+      );
+      console.log(
+        "packages/db/supabase/51-document-triggers.sql into the Supabase SQL",
+      );
+      console.log(
+        "editor and run this again. Until then a vault upload lands in storage",
+      );
+      console.log("and never appears in the vault.");
     }
 
     if (!storagePolicies) {

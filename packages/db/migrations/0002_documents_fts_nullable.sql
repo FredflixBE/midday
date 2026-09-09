@@ -1,0 +1,1 @@
+ALTER TABLE "documents" ALTER COLUMN "fts" DROP NOT NULL;

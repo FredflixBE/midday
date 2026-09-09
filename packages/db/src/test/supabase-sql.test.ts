@@ -811,3 +811,194 @@ describe.skipIf(SKIP)("supabase/40-functions.sql", () => {
     await client.query("delete from tracker_projects where id = $1", [project]);
   });
 });
+
+describe.skipIf(SKIP)("supabase/50-documents.sql", () => {
+  let client: Client;
+
+  const TEAM = "ffffffff-0000-0000-0000-000000000001";
+  const OWNER = "ffffffff-0000-0000-0000-000000000002";
+
+  /** Uploads a file, the way Supabase Storage does: a storage.objects row. */
+  async function upload(bucket: string, name: string) {
+    const { rows } = await client.query<{ id: string }>(
+      `insert into storage.objects (bucket_id, name, owner_id, metadata)
+       values ($1, $2, $3, '{"size": 1}'::jsonb) returning id`,
+      [bucket, name, OWNER],
+    );
+    return rows[0]!.id;
+  }
+
+  async function documentsUnder(prefix: string) {
+    const { rows } = await client.query<{ name: string; team_id: string }>(
+      "select name, team_id from documents where name like $1 order by name",
+      [`${prefix}%`],
+    );
+    return rows;
+  }
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DATABASE_URL });
+    await client.connect();
+
+    await client.query(
+      "insert into auth.users (id) values ($1) on conflict do nothing",
+      [OWNER],
+    );
+    await client.query(
+      "insert into users (id, email) values ($1, $2) on conflict do nothing",
+      [OWNER, "vault-owner@example.test"],
+    );
+    await client.query(
+      "insert into teams (id, name) values ($1, 'Vault Team') on conflict do nothing",
+      [TEAM],
+    );
+  });
+
+  afterAll(async () => {
+    await client.query("delete from storage.objects where name like $1", [
+      `${TEAM}%`,
+    ]);
+    await client.query("delete from documents where team_id = $1", [TEAM]);
+    await client.query("delete from teams where id = $1", [TEAM]);
+    await client.query("delete from users where id = $1", [OWNER]);
+    await client.query("delete from auth.users where id = $1", [OWNER]);
+    await client.end();
+  });
+
+  test("a vault upload becomes a documents row", async () => {
+    // The whole ticket: nothing in the repository inserts one, so without the
+    // trigger the file is in the bucket and the vault shows nothing.
+    const path = `${TEAM}/invoice.pdf`;
+    const objectId = await upload("vault", path);
+
+    const { rows } = await client.query<{
+      name: string;
+      team_id: string;
+      object_id: string;
+      parent_id: string;
+      path_tokens: string[];
+    }>(
+      "select name, team_id, object_id, parent_id, path_tokens from documents where name = $1",
+      [path],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.team_id).toBe(TEAM);
+    expect(rows[0]!.object_id).toBe(objectId);
+    // What the dashboard sends to documents.processDocument as filePath.
+    expect(rows[0]!.path_tokens).toEqual([TEAM, "invoice.pdf"]);
+    expect(rows[0]!.parent_id).toBe(TEAM);
+  });
+
+  test("a titleless document can be inserted at all", async () => {
+    // documents.fts is generated from title || ' ' || body and NULL
+    // concatenates to NULL, so while the column was NOT NULL this insert
+    // failed outright — which is every document at the moment it is uploaded,
+    // because title and body are filled in later by processing.
+    await upload("vault", `${TEAM}/no-title.pdf`);
+
+    const { rows } = await client.query<{ fts: string | null }>(
+      "select fts from documents where name = $1",
+      [`${TEAM}/no-title.pdf`],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.fts).toBeNull();
+  });
+
+  test("a nested file also gets a row for the folder it sits in", async () => {
+    await upload("vault", `${TEAM}/Receipts/2026/march.pdf`);
+
+    const names = (await documentsUnder(`${TEAM}/Receipts/2026/`)).map(
+      (row) => row.name,
+    );
+
+    expect(names).toEqual([
+      `${TEAM}/Receipts/2026/.folderPlaceholder`,
+      `${TEAM}/Receipts/2026/march.pdf`,
+    ]);
+  });
+
+  test("the application's own storage areas get no folder row", async () => {
+    await upload("vault", `${TEAM}/inbox/receipt.pdf`);
+
+    const names = (await documentsUnder(`${TEAM}/inbox/`)).map(
+      (row) => row.name,
+    );
+
+    expect(names).toEqual([`${TEAM}/inbox/receipt.pdf`]);
+  });
+
+  test("an empty folder appears as a folder, not as a file", async () => {
+    // What the dashboard uploads when someone creates a folder with nothing
+    // in it. The placeholder itself must not become a document — it would show
+    // up in the vault as a file called .emptyFolderPlaceholder — but the
+    // folder row is exactly the point of uploading it.
+    await upload("vault", `${TEAM}/Empty/.emptyFolderPlaceholder`);
+
+    const names = (await documentsUnder(`${TEAM}/Empty/`)).map(
+      (row) => row.name,
+    );
+
+    expect(names).toEqual([`${TEAM}/Empty/.folderPlaceholder`]);
+  });
+
+  test("an avatar upload makes no documents row", async () => {
+    // The trigger's WHEN clause. Avatars paths begin with an id too, so
+    // without it every avatar would appear in the vault as a file nobody put
+    // there.
+    await client.query(
+      `insert into storage.objects (bucket_id, name, owner_id, metadata)
+       values ('avatars', $1, $2, '{}'::jsonb)`,
+      [`${TEAM}/avatar.png`, OWNER],
+    );
+
+    const names = (await documentsUnder(`${TEAM}/avatar`)).map(
+      (row) => row.name,
+    );
+
+    expect(names).toEqual([]);
+  });
+
+  test("the trigger's insert survives documents' own RLS", async () => {
+    // The trigger is SECURITY INVOKER, so the documents row is inserted as the
+    // uploading user and has to satisfy the team-scoped WITH CHECK that
+    // FF-1429 put on documents. Every other test here inserts as the owner,
+    // which bypasses RLS and so proves nothing about a real upload.
+    await client.query(
+      `insert into users_on_team (user_id, team_id, role)
+       values ($1, $2, 'owner') on conflict do nothing`,
+      [OWNER, TEAM],
+    );
+
+    const path = `${TEAM}/as-the-user.pdf`;
+
+    const rows = await asRole(client, { id: OWNER }, async () => {
+      await client.query(
+        `insert into storage.objects (bucket_id, name, owner_id, metadata)
+         values ('vault', $1, $2, '{"size": 1}'::jsonb)`,
+        [path, OWNER],
+      );
+
+      const { rows } = await client.query<{ n: string }>(
+        "select count(*)::text as n from documents where name = $1",
+        [path],
+      );
+
+      return rows;
+    });
+
+    expect(rows[0]!.n).toBe("1");
+  });
+
+  test("deleting the file deletes the documents row", async () => {
+    const path = `${TEAM}/temporary.pdf`;
+    await upload("vault", path);
+
+    expect(await documentsUnder(path)).toHaveLength(1);
+
+    await client.query("delete from storage.objects where name = $1", [path]);
+
+    expect(await documentsUnder(path)).toHaveLength(0);
+  });
+});

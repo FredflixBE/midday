@@ -10,6 +10,8 @@ What `drizzle-kit push` cannot create, and what it creates wrongly.
 | `20-realtime.sql` | Publication membership, and the `activities` read policy. |
 | `30-auth-user.sql` | The trigger that gives a new sign-in its `public.users` row. |
 | `40-functions.sql` | The functions the application calls at runtime. |
+| `50-documents.sql` | The functions that keep `documents` in step with the `vault` bucket. |
+| `51-document-triggers.sql` | The triggers that fire them. Separate for the same reason as `11-`. |
 
 All are idempotent, and `bun run db:bootstrap` applies them in order with
 `drizzle-kit push` and the RLS policies in between. The policy step is not
@@ -38,7 +40,7 @@ it, and neither should the paste.
 even if you pass nothing. Before it changes anything the script prints the
 database and host it is about to build — read that line first.
 
-### If the storage policies are skipped
+### If the storage policies or the document triggers are skipped
 
 `storage.objects` belongs to Supabase (`supabase_storage_admin` owns it), so
 what may be done to it is narrower than for our own tables. Creating policies
@@ -49,6 +51,13 @@ file anyway, the script says so and carries on rather than failing:
 5. storage policies
   skipped 11-storage-policies.sql — permission denied for schema storage
 ```
+
+`51-document-triggers.sql` can be refused the same way, and matters as much:
+without it a vault upload lands in storage and never appears in the vault,
+because the vault lists `documents` rows rather than storage objects. Creating
+a *policy* on `storage.objects` is permitted for the pooler role and a trigger
+on `auth.users` was too, but a trigger on `storage.objects` has not been proven
+on a real project — the bootstrap says which of the two it skipped.
 
 Paste that file into the **Supabase SQL editor** and run it, then run
 `db:bootstrap` again. Note that a file is applied as one transaction, so one
