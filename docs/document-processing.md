@@ -1,10 +1,5 @@
 # Document Processing Pipeline
 
-> **The job system is Trigger.dev, not BullMQ.** FF-1368 moved every job
-> across; the file paths below point at their new homes. The queue and
-> worker mechanics in the diagrams are historical — a BullMQ queue is now a
-> task's `queue`/`retry` options, and a cron is a `schedules.task`. Tracked
-> as FF-1445.
 ## Overview
 
 The Document Processing Pipeline automatically processes files uploaded to the Vault, extracting content, classifying documents using AI, and generating searchable metadata. The system is designed with **graceful degradation** - documents always reach a usable state even if AI classification fails, and users can retry processing at any time.
@@ -17,7 +12,7 @@ The Document Processing Pipeline automatically processes files uploaded to the V
 - **🔁 Retry Functionality**: Users can reprocess failed or unclassified documents with one click
 - **🖼️ HEIC Conversion**: Automatically converts HEIC/HEIF images to JPEG for compatibility
 - **🏷️ Tag Embeddings**: Generates semantic embeddings for document tags for better search
-- **🔐 Job Deduplication**: Prevents duplicate processing using deterministic job IDs
+- **🔐 Idempotency**: One processing run per stored file, however often it is uploaded
 - **📊 Status Tracking**: Real-time visual feedback for processing, failed, and completed states
 
 ## Architecture
@@ -46,7 +41,7 @@ graph TB
         Embeddings[(document_tag_embeddings)]
     end
     
-    subgraph worker [Worker - BullMQ]
+    subgraph jobs [Trigger.dev tasks]
         ProcessDoc[process-document]
         ClassifyDoc[classify-document]
         ClassifyImg[classify-image]
@@ -134,27 +129,27 @@ sequenceDiagram
     participant User
     participant Storage as Supabase Storage
     participant DB as Database
-    participant Queue as BullMQ
+    participant Trigger as Trigger.dev
     participant Process as process-document
     participant Classify as classify-document/image
     participant Embed as embed-document-tags
     
     User->>Storage: Upload file
     Storage->>DB: Create document (pending)
-    Storage->>Queue: Trigger process-document
+    Storage->>Trigger: Trigger process-document
     
-    Queue->>Process: Execute job
+    Trigger->>Process: Run task
     
     alt PDF/Text Document
         Process->>Process: Extract text content
-        Process->>Queue: Trigger classify-document
-        Queue->>Classify: Execute classification
+        Process->>Trigger: Trigger classify-document
+        Trigger->>Classify: Run classification
         Classify->>Classify: AI classification (with timeout)
         
         alt AI Success
             Classify->>DB: Update title, summary, tags
             Classify->>DB: Set status = completed
-            Classify->>Queue: Trigger embed-document-tags
+            Classify->>Trigger: Trigger embed-document-tags
         else AI Failure (graceful)
             Classify->>DB: Set status = completed (title=null)
             Note over Classify,DB: User can still access file
@@ -162,21 +157,21 @@ sequenceDiagram
         
     else Image
         Process->>Process: Convert HEIC if needed
-        Process->>Queue: Trigger classify-image
-        Queue->>Classify: Execute classification
+        Process->>Trigger: Trigger classify-image
+        Trigger->>Classify: Run classification
         Classify->>Classify: Vision AI classification
         
         alt AI Success
             Classify->>DB: Update title, summary, content
             Classify->>DB: Set status = completed
-            Classify->>Queue: Trigger embed-document-tags
+            Classify->>Trigger: Trigger embed-document-tags
         else AI Failure (graceful)
             Classify->>DB: Set status = completed (title=null)
         end
     end
     
     opt Tags exist
-        Queue->>Embed: Execute embedding
+        Trigger->>Embed: Run embedding
         Embed->>DB: Upsert tags and embeddings
     end
 ```
@@ -185,43 +180,59 @@ sequenceDiagram
 
 ### Job Hierarchy
 
-| Job | Parent | Purpose | Timeout |
-|-----|--------|---------|---------|
-| `process-document` | - | Orchestrates document processing | 10 min |
-| `classify-document` | process-document | AI text classification | 90 sec |
-| `classify-image` | process-document | AI vision classification | 90 sec + 60 sec download |
-| `embed-document-tags` | classify-* | Generate tag embeddings | 30 sec |
+Every task below runs with `maxDuration: 660` (11 minutes) — the hard limit on
+a single run, carried over from the 11 minute lock the BullMQ documents queue
+held. The internal cap is what the work itself is allowed, enforced by
+`withTimeout` inside the processor.
 
-### Job Deduplication
+| Task | Parent | Purpose | Run limit | Internal cap |
+|------|--------|---------|-----------|--------------|
+| `process-document` | - | Orchestrates document processing | 11 min | 10 min content extraction |
+| `classify-document` | process-document | AI text classification | 11 min | 90 sec AI call |
+| `classify-image` | process-document | AI vision classification | 11 min | 90 sec AI call + 60 sec download |
+| `embed-document-tags` | classify-* | Generate tag embeddings | 11 min | 30 sec embedding |
 
-Jobs use deterministic IDs to prevent duplicate processing:
+A run limit is a hard kill, where the BullMQ lock it replaced only decided when
+a job was *suspected* of having stalled. The generous 11 minutes is deliberate:
+it is the ceiling, not the expectation.
+
+### Idempotency
+
+Two of the four dispatches carry an idempotency key. Trigger returns the
+existing run rather than starting a second one while the key is live:
 
 ```typescript
-// Pattern: {action}_{teamId}_{identifier}
-jobId: `process-doc_${teamId}_${filePath.join("/")}`
-jobId: `classify-doc_${teamId}_${fileName}`
-jobId: `classify-img_${teamId}_${fileName}`
-jobId: `embed-tags_${teamId}_${documentId}`
+// One processing run per stored file
+{ idempotencyKey: `process-doc_${teamId}_${filePath.join("/")}`, idempotencyKeyTTL: "24h" }
+
+// One embedding run per document
+{ idempotencyKey: `embed-tags_${teamId}_${documentId}`, idempotencyKeyTTL: "24h" }
 ```
 
-**Benefits:**
-- Prevents race conditions when same file triggers multiple uploads
-- Safe to retry - duplicate jobs are rejected by BullMQ
-- Traceable job lineage in logs
+The 24 hour window matches how long BullMQ used to retain a completed job,
+which is what the old deterministic job ids relied on.
 
-### Queue Configuration
+**The other two are deliberately not deduplicated.** `classify-document` and
+`classify-image` are only ever triggered by `process-document`, which is itself
+already deduplicated, so a second key there would buy nothing. Neither is
+**reprocessing**: `reprocessDocument` passes no key at all, because a retry is
+meant to be a fresh run — the old code had to defeat its own deduplication by
+appending `Date.now()` to the job id to get the same effect.
+
+### Task Configuration
+
+There is no queue to configure any more; each task carries its own settings:
 
 ```typescript
-const documentsQueueConfig = {
-  name: "documents",
-  concurrency: 10,            // Conservative for memory + API rate limits
-  lockDuration: 660_000,      // 11 minutes (> process timeout)
-  stalledInterval: 720_000,   // 12 minutes (> lock duration)
-  limiter: {
-    max: 20,                  // 20 jobs/second max - prevents API burst
-    duration: 1000,
-  },
-};
+export const processDocument = schemaTask({
+  id: "process-document",
+  schema: processDocumentSchema,
+  maxDuration: 660,                 // 11 minutes, a hard limit on one run
+  queue: { concurrencyLimit: 10 },  // conservative for memory + API rate limits
+  retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
+  run: /* ... */,
+  onFailure: /* mark the document failed once attempts are exhausted */,
+});
 
 // Sharp memory optimization (in image-processing.ts)
 sharp.cache({ memory: 256, files: 20, items: 100 }); // 256MB cache limit
@@ -231,11 +242,15 @@ sharp.concurrency(2); // Limit internal parallelism
 const MAX_HEIC_FILE_SIZE = 15 * 1024 * 1024; // 15MB - larger files skip AI
 ```
 
-**Why concurrency of 10?**
+All four document tasks use the same numbers.
+
+**Why a concurrency limit of 10?**
 - HEIC conversion is memory-intensive (~50-100MB per 12MP image)
 - AI classification (Gemini) has rate limits - avoid 429 errors
-- Matches other API-heavy queues (customers: 5, teams: 5, accounting: 10)
-- With 4GB worker memory, 10 concurrent jobs has plenty of headroom
+- Matches the other API-heavy tasks (enrich-customer: 5, delete-team: 5, accounting: 10)
+
+Note the free Trigger.dev plan allows 20 concurrent runs across *every* task, so
+10 is a share of that budget rather than a ceiling reached in practice.
 
 ## Error Handling
 
@@ -281,21 +296,37 @@ flowchart TD
 
 ### Failure Handling
 
+What the BullMQ queue's `onFailed` handler did is now split between the task's
+`run` and its `onFailure` hook:
+
 ```typescript
-// In documents.config.ts - onFailed handler
-onFailed: async (job, err) => {
-  // Handle unsupported file types (not a failure)
-  if (err instanceof UnsupportedFileTypeError) {
-    await markAsCompleted(job, filename);
-    return;
+run: async (payload, { ctx }) => {
+  try {
+    return await handleJob(processor, "process-document", payload, ctx);
+  } catch (error) {
+    // A file type we cannot read is not a failure: the file is stored and
+    // downloadable, so title it and complete it rather than retrying.
+    if (error instanceof UnsupportedFileTypeError) {
+      await markDocumentUnsupported({ pathTokens, teamId, error });
+      return;
+    }
+    throw toTaskError(error);
   }
-  
-  // Only mark failed on final attempt
-  if (job.attemptsMade >= job.opts.attempts) {
-    await markAsFailed(job);
-  }
-}
+},
+
+// Runs once the run has definitively failed — after every attempt, not each one.
+onFailure: async ({ payload }) => {
+  await markDocumentFailed({ pathTokens: payload.filePath, teamId: payload.teamId });
+},
 ```
+
+`onFailure` fires only when the run is finished failing, so the "only on the
+final attempt" check the old handler needed is gone. `embed-document-tags` has
+no `onFailure` at all — see [the design note below](#why-fire-and-forget-for-embed-document-tags).
+
+Both helpers live in [`packages/jobs/src/utils/document-status.ts`](../packages/jobs/src/utils/document-status.ts)
+and open their own database connection, because a lifecycle hook runs outside
+the middleware that gives a run its own.
 
 ## Reprocessing Flow
 
@@ -307,7 +338,7 @@ sequenceDiagram
     participant UI as VaultItem/DataTable
     participant API as reprocessDocument
     participant DB as Database
-    participant Queue as BullMQ
+    participant Trigger as Trigger.dev
     
     User->>UI: Click "Retry" button
     UI->>UI: Set isReprocessing = true
@@ -322,15 +353,15 @@ sequenceDiagram
         API-->>UI: { skipped: true }
     else Supported
         API->>DB: Set status = pending
-        API->>Queue: Trigger process-document
+        API->>Trigger: Trigger process-document (no idempotency key)
         API-->>UI: { success: true, jobId }
     end
     
     UI->>UI: Show skeleton (isReprocessing || isPending)
     
-    Note over Queue: Job processes...
+    Note over Trigger: Task runs...
     
-    Queue->>DB: Update document
+    Trigger->>DB: Update document
     DB-->>UI: React Query invalidation
     UI->>UI: Clear isReprocessing
     UI->>UI: Show result
@@ -513,9 +544,8 @@ try {
 ```typescript
 // timeout.ts - Centralized timeout constants
 export const TIMEOUTS = {
-  DOCUMENT_PROCESSING: 600_000,  // 10 minutes - full pipeline
+  DOCUMENT_PROCESSING: 600_000,  // 10 minutes - content extraction
   AI_CLASSIFICATION: 90_000,     // 90 seconds - AI calls
-  CLASSIFICATION_JOB_WAIT: 180_000, // 3 minutes - parent waiting for child
   FILE_DOWNLOAD: 60_000,         // 1 minute - storage downloads
   FILE_UPLOAD: 60_000,           // 1 minute - storage uploads
   EMBEDDING: 30_000,             // 30 seconds - embedding generation
@@ -534,12 +564,14 @@ const result = await withTimeout(
 );
 ```
 
-**Timeout Hierarchy:**
-```
-CLASSIFICATION_JOB_WAIT (180s) > AI_CLASSIFICATION (90s) + FILE_DOWNLOAD (60s)
-```
+**These bound the work, not the run.** A task's `maxDuration` bounds the run;
+the constants above bound individual calls inside it, so a hung model or a slow
+download fails with a useful message instead of burning the whole 11 minutes.
 
-This ensures parent jobs don't timeout while child jobs are still valid.
+`process-document` waits on classification with `triggerAndWait`, and that wait
+is bounded by the child's own `maxDuration`. There is no separate constant for
+it — the old `CLASSIFICATION_JOB_WAIT` existed because BullMQ's wait needed a
+timeout of its own, and keeping the two in step was a standing hazard.
 
 ## Key Files Reference
 
@@ -558,7 +590,7 @@ This ensures parent jobs don't timeout while child jobs are still valid.
 | [`packages/jobs/src/utils/document-update.ts`](../packages/jobs/src/utils/document-update.ts) | Document update with retry for race conditions |
 | [`packages/jobs/src/utils/error-classification.ts`](../packages/jobs/src/utils/error-classification.ts) | Error categorization and retry strategies |
 | [`packages/jobs/src/utils/timeout.ts`](../packages/jobs/src/utils/timeout.ts) | Timeout constants and wrapper utility |
-| [`packages/documents/src/classifier.ts`](../packages/documents/src/classifier.ts) | AI classification implementation |
+| [`packages/documents/src/classifier/classifier.ts`](../packages/documents/src/classifier/classifier.ts) | AI classification implementation |
 
 ## Design Decisions
 
@@ -580,14 +612,20 @@ We distinguish between:
 
 Soft failures still result in a usable document. The UI shows these with an amber indicator and "Retry classification" button, differentiating them from hard failures (red indicator, "Retry processing" button).
 
-### Why use deterministic job IDs?
+### Why an idempotency key on the upload path?
 
-Without deduplication, the same file could be processed multiple times due to:
+Without one, the same file could be processed several times:
 - Supabase storage trigger retry
 - User clicking retry rapidly
 - Network issues causing duplicate API calls
 
-Deterministic IDs (`process-doc:${teamId}:${path}`) ensure BullMQ rejects duplicate jobs automatically.
+`process-doc_${teamId}_${path}` with a 24 hour TTL means Trigger returns the
+run already in flight instead of starting a second one.
+
+Reprocessing deliberately omits it. A retry is a request for a *fresh* run, and
+the previous key would still be live — under BullMQ the same problem was solved
+by appending `Date.now()` to the job id, which meant that path never
+deduplicated anything at all.
 
 ### Why 10-minute stale threshold?
 
