@@ -27,6 +27,8 @@ create extension if not exists vector;
 create extension if not exists pg_trgm;
 -- gen_random_bytes, which the id generators below are built on.
 create extension if not exists pgcrypto;
+-- unaccent(), which slugify() in 40-functions.sql is built on.
+create extension if not exists unaccent;
 
 -- The `private` schema holds helpers that policies call but the API never
 -- exposes through PostgREST.

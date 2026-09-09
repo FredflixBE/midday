@@ -589,3 +589,250 @@ describe.skipIf(SKIP)("supabase/30-auth-user.sql", () => {
     expect(rows[0]!.n).toBe(0);
   });
 });
+
+/**
+ * supabase/40-functions.sql. These are called from raw SQL in
+ * packages/db/src/queries, so nothing typechecks them — a wrong column name
+ * or argument order is a 500 on whichever page reaches it first. The
+ * assertions are on what the callers actually read back.
+ */
+describe.skipIf(SKIP)("supabase/40-functions.sql", () => {
+  let client: Client;
+
+  const TEAM = "ffffffff-0000-0000-0000-000000000001";
+  const OTHER_TEAM = "ffffffff-0000-0000-0000-000000000002";
+  const USER = "ffffffff-0000-0000-0000-000000000003";
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DATABASE_URL });
+    await client.connect();
+
+    await client.query(
+      "insert into auth.users (id, email) values ($1, 'fn@example.test') on conflict do nothing",
+      [USER],
+    );
+    await client.query(
+      `insert into teams (id, name) values ($1, 'Functions Team'), ($2, 'Other Team')
+       on conflict do nothing`,
+      [TEAM, OTHER_TEAM],
+    );
+
+    await client.query(
+      `insert into transactions (team_id, date, name, method, amount, currency, internal_id)
+       values ($1, '2026-02-01', 'Acme Hosting invoice', 'payment', -42, 'EUR', 'fn-1'),
+              ($2, '2026-02-01', 'Acme Hosting invoice', 'payment', -42, 'EUR', 'fn-2')`,
+      [TEAM, OTHER_TEAM],
+    );
+    await client.query(
+      `insert into customers (id, team_id, name, email)
+       values (gen_random_uuid(), $1, 'Acme Industries', 'hi@acme.test')`,
+      [TEAM],
+    );
+    await client.query(
+      `insert into documents (team_id, name, title, body)
+       values ($1, 'acme-contract.pdf', 'Acme service contract', 'terms and conditions'),
+              ($1, 'acme-contract-2.pdf', 'Acme service contract addendum', 'more terms'),
+              -- documents.fts is generated from title || body and is NOT NULL,
+              -- so even a placeholder needs both.
+              ($1, 'folder/.folderPlaceholder', 'placeholder', 'placeholder')`,
+      [TEAM],
+    );
+  });
+
+  afterAll(async () => {
+    await client.query(
+      "delete from transactions where internal_id like 'fn-%'",
+    );
+    await client.query("delete from documents where team_id = $1", [TEAM]);
+    await client.query("delete from customers where team_id = $1", [TEAM]);
+    await client.query("delete from teams where id in ($1, $2)", [
+      TEAM,
+      OTHER_TEAM,
+    ]);
+    await client.query("delete from auth.users where id = $1", [USER]);
+    await client.end();
+  });
+
+  test("global_search with no term returns what is most recent", async () => {
+    // The palette prefetches with an empty term on every page load, so this
+    // is the call that has to work before anyone types anything.
+    const { rows } = await client.query(
+      "select * from global_search('', $1, 'english', 30, 5, 0.01)",
+      [TEAM],
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(new Set(rows.map((r) => r.type))).toContain("transaction");
+  });
+
+  test("global_search finds a transaction by name and keeps teams apart", async () => {
+    const { rows } = await client.query(
+      "select id, type, title, data from global_search('Acme Hosting', $1, 'english', 30, 5, 0.01)",
+      [TEAM],
+    );
+
+    const transactions = rows.filter((r) => r.type === "transaction");
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0]!.title).toBe("Acme Hosting invoice");
+    // The fields search.tsx reads for a transaction result.
+    expect(transactions[0]!.data).toMatchObject({
+      name: "Acme Hosting invoice",
+      currency: "EUR",
+    });
+  });
+
+  test("global_search reaches customers and documents too", async () => {
+    const { rows } = await client.query(
+      "select type, title from global_search('Acme', $1, 'english', 30, 5, 0.01)",
+      [TEAM],
+    );
+
+    const types = new Set(rows.map((r) => r.type));
+    expect(types).toContain("customer");
+    expect(types).toContain("vault");
+  });
+
+  test("global_search does not offer folder placeholders as documents", async () => {
+    const { rows } = await client.query(
+      "select title from global_search('', $1, 'english', 50, 20, 0.01) where type = 'vault'",
+      [TEAM],
+    );
+
+    expect(rows.map((r) => r.title)).not.toContain("folder/.folderPlaceholder");
+  });
+
+  test("global_search survives punctuation a user might type", async () => {
+    // websearch_to_tsquery rather than to_tsquery, which raises on this.
+    const attempt = client.query(
+      "select * from global_search($1, $2, 'english', 30, 5, 0.01)",
+      ["acme & | ! (hosting", TEAM],
+    );
+
+    await expect(attempt).resolves.toBeDefined();
+  });
+
+  test("global_semantic_search filters by type and date", async () => {
+    const { rows } = await client.query(
+      `select type, title from global_semantic_search(
+         $1, null, '2026-01-01', '2026-12-31', ARRAY['transactions'],
+         null, null, null, null, null, 'english', null, null, 20, 5)`,
+      [TEAM],
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+    expect(new Set(rows.map((r) => r.type))).toEqual(new Set(["transaction"]));
+  });
+
+  test("match_similar_documents_by_title finds the near-duplicate title", async () => {
+    const { rows: source } = await client.query<{ id: string }>(
+      "select id from documents where title = 'Acme service contract' and team_id = $1",
+      [TEAM],
+    );
+
+    const { rows } = await client.query(
+      "select id, title, title_similarity from match_similar_documents_by_title($1, $2, 0.3, 10)",
+      [source[0]!.id, TEAM],
+    );
+
+    expect(rows.map((r) => r.title)).toEqual([
+      "Acme service contract addendum",
+    ]);
+    expect(Number(rows[0]!.title_similarity)).toBeGreaterThan(0.3);
+  });
+
+  test("get_team_bank_accounts_balances returns what the widget reads", async () => {
+    await client.query(
+      `insert into bank_accounts (team_id, created_by, account_id, name, currency, balance, enabled)
+       values ($1, $2, 'fn-acct', 'Main account', 'EUR', 1234.56, true)`,
+      [TEAM, USER],
+    );
+
+    const { rows } = await client.query<{
+      name: string;
+      currency: string;
+      balance: string;
+      logo_url: string | null;
+    }>(
+      "select id, name, currency, balance, logo_url from get_team_bank_accounts_balances($1)",
+      [TEAM],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      name: "Main account",
+      currency: "EUR",
+      logo_url: null,
+    });
+    expect(Number(rows[0]!.balance)).toBe(1234.56);
+
+    await client.query(
+      "delete from bank_accounts where account_id = 'fn-acct'",
+    );
+  });
+
+  test("get_bank_account_currencies lists each currency once", async () => {
+    await client.query(
+      `insert into bank_accounts (team_id, created_by, account_id, name, currency, enabled)
+       values ($1, $2, 'fn-a', 'A', 'EUR', true),
+              ($1, $2, 'fn-b', 'B', 'EUR', true),
+              ($1, $2, 'fn-c', 'C', 'USD', true)`,
+      [TEAM, USER],
+    );
+
+    const { rows } = await client.query(
+      "select currency from get_bank_account_currencies($1)",
+      [TEAM],
+    );
+
+    expect(rows.map((r) => r.currency)).toEqual(["EUR", "USD"]);
+
+    await client.query(
+      "delete from bank_accounts where account_id like 'fn-%'",
+    );
+  });
+
+  test("slugify makes a category slug out of an accented name", async () => {
+    const { rows } = await client.query<{ slug: string }>(
+      "select slugify($1) as slug",
+      ["Café & Restaurant"],
+    );
+
+    expect(rows[0]!.slug).toBe("cafe-restaurant");
+  });
+
+  test("tracker project totals add up the entries", async () => {
+    const project = "ffffffff-0000-0000-0000-00000000000a";
+    await client.query(
+      `insert into tracker_projects (id, team_id, name, rate, currency, status)
+       values ($1, $2, 'Billable work', 100, 'EUR', 'in_progress')`,
+      [project, TEAM],
+    );
+    await client.query(
+      `insert into tracker_entries (team_id, project_id, assigned_id, duration, date)
+       values ($1, $2, $3, 3600, '2026-02-01'), ($1, $2, $3, 1800, '2026-02-02')`,
+      [TEAM, project, USER],
+    );
+
+    const { rows } = await client.query<{
+      seconds: number;
+      amount: string;
+      users: unknown[];
+    }>(
+      `select total_duration(p) as seconds,
+              get_project_total_amount(p) as amount,
+              get_assigned_users_for_project(p) as users
+         from tracker_projects p where p.id = $1`,
+      [project],
+    );
+
+    expect(Number(rows[0]!.seconds)).toBe(5400);
+    // 1.5 hours at 100/hour.
+    expect(Number(rows[0]!.amount)).toBe(150);
+    expect(rows[0]!.users).toHaveLength(1);
+
+    await client.query("delete from tracker_entries where project_id = $1", [
+      project,
+    ]);
+    await client.query("delete from tracker_projects where id = $1", [project]);
+  });
+});
