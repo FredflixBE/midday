@@ -1,0 +1,64 @@
+# Keep the free Supabase project awake.
+#
+# Free projects pause after 7 days without API activity, and a paused project
+# takes a manual restore to come back. One user on holiday is enough to reach
+# that, and the Trigger.dev schedules do not help: they talk to Postgres
+# directly through the pooler, which is not the API.
+#
+# This is deliberately not a Trigger.dev task, though the ticket proposed one.
+# It has to keep running when nothing else is, which is exactly when a job
+# platform's free plan is the least reliable thing to depend on — and it would
+# spend one of the ten schedules that plan allows.
+#
+# Watch out: GitHub disables a scheduled workflow after 60 days with no commit
+# to the repository. It emails first, and the button to re-enable it is on the
+# Actions tab. A quiet repository is precisely when this matters, so if the
+# fork goes dormant for a season, check that this is still enabled.
+name: Supabase keepalive
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC. Weekly against a 7-day timer leaves no margin at all,
+    # so this runs twice a week.
+    - cron: "0 6 * * 1"
+    - cron: "0 6 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    name: Touch the API
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Make one authenticated REST call and one storage call
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SECRET_KEY" ]; then
+            echo "::notice title=Keepalive skipped::SUPABASE_URL or SUPABASE_SECRET_KEY is not set on this repository."
+            exit 0
+          fi
+
+          # Two surfaces, because pausing is decided per project but the
+          # cheapest insurance is to touch more than one of them. Both are
+          # authenticated with the secret key, so neither depends on what RLS
+          # allows anonymously.
+          #
+          # --fail turns a 4xx or 5xx into a non-zero exit: a keepalive that
+          # reports success while the project is unreachable is worse than
+          # none, because it is the thing you would trust.
+          for path in "/rest/v1/teams?select=id&limit=1" "/storage/v1/bucket"; do
+            echo "GET ${path%%\?*}"
+            curl --fail --silent --show-error --location \
+              --max-time 30 --retry 3 --retry-delay 10 \
+              -H "apikey: $SUPABASE_SECRET_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SECRET_KEY" \
+              -o /dev/null \
+              "$SUPABASE_URL$path"
+          done
+
+          echo "The project answered. It will not pause this week."
