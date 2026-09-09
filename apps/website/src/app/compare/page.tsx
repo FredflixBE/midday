@@ -104,9 +104,6 @@ export default function ComparePage() {
               <Button asChild className="btn-inverse h-11 px-6">
                 <a href="https://app.midday.ai/">Start your free trial</a>
               </Button>
-              <Button asChild variant="outline" className="h-11 px-6">
-                <Link href="/pricing">View pricing</Link>
-              </Button>
             </div>
           </div>
         </div>

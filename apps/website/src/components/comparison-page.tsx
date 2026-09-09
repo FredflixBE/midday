@@ -3,7 +3,6 @@
 import { track } from "@midday/events/client";
 import { LogEvents } from "@midday/events/events";
 import { Button } from "@midday/ui/button";
-import Link from "next/link";
 import type { Competitor } from "@/data/competitors";
 import { middayDifferentiators } from "@/data/competitors";
 import { ComparisonHero } from "./sections/comparison-hero";
@@ -214,13 +213,6 @@ export function ComparisonPage({ competitor }: Props) {
                   >
                     Start your free trial
                   </a>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="bg-background h-11 px-6"
-                >
-                  <Link href="/pricing">View pricing</Link>
                 </Button>
               </div>
             </div>
