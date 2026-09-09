@@ -14,9 +14,7 @@ const getInstitutionsSchema = z.object({
   q: z.string().optional(),
   countryCode: z.string(),
   limit: z.number().optional().default(50),
-  excludeProviders: z
-    .array(z.enum(["gocardless", "plaid", "teller", "enablebanking"]))
-    .optional(),
+  excludeProviders: z.array(z.enum(["gocardless", "enablebanking"])).optional(),
 });
 
 const getInstitutionByIdSchema = z.object({

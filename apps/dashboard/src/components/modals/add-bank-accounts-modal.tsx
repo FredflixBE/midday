@@ -51,7 +51,7 @@ type ExistingAccount = NonNullable<
 
 type Props = {
   connectionId: string;
-  provider: "gocardless" | "plaid" | "teller" | "enablebanking";
+  provider: "gocardless" | "enablebanking";
   accessToken: string | null;
   referenceId: string | null;
   enrollmentId: string | null;
@@ -87,8 +87,6 @@ export function AddBankAccountsModal({
   const t = useI18n();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const id = provider === "teller" ? enrollmentId : referenceId;
-
   const {
     data: providerData,
     isLoading,
@@ -96,7 +94,7 @@ export function AddBankAccountsModal({
   } = useQuery({
     ...trpc.banking.getProviderAccounts.queryOptions({
       provider,
-      id: id ?? undefined,
+      id: referenceId ?? undefined,
       accessToken: accessToken ?? undefined,
       institutionId: institutionId ?? undefined,
     }),

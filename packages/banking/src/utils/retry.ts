@@ -86,13 +86,7 @@ function isRateLimitError(error: unknown): boolean {
     (error as any)?.status ??
     (error as any)?.statusCode;
 
-  if (status === 429) return true;
-
-  // Plaid uses error_type instead of HTTP status in some cases
-  const errorType =
-    (error as any)?.response?.data?.error_type ?? (error as any)?.error_type;
-
-  return errorType === "RATE_LIMIT_EXCEEDED";
+  return status === 429;
 }
 
 /**

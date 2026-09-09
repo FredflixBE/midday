@@ -124,8 +124,7 @@ export function BankAccount({ data, provider }: Props) {
     creditLimit,
   } = data;
 
-  // Determine if this is a US or EU account based on provider
-  const isUSAccount = provider === "teller" || provider === "plaid";
+  // Determine if this is an EU account based on provider
   const isEUAccount = provider === "gocardless" || provider === "enablebanking";
   const isCreditAccount = type === "credit";
 
@@ -351,73 +350,6 @@ export function BankAccount({ data, provider }: Props) {
       {(hasRoutingInfo || bic || (showSensitive && hasIbanOrAccountNumber)) && (
         <div className="border-t border-border pt-3 mt-1">
           <div className="flex flex-col gap-2 text-sm">
-            {/* US Account Details */}
-            {isUSAccount && (
-              <>
-                {routingNumber && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#878787]">Routing</span>
-                    <div className="flex items-center gap-1">
-                      <span className="font-mono text-xs">{routingNumber}</span>
-                      <CopyButton
-                        value={routingNumber}
-                        label="Routing number"
-                      />
-                    </div>
-                  </div>
-                )}
-                {wireRoutingNumber && wireRoutingNumber !== routingNumber && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#878787]">Wire</span>
-                    <div className="flex items-center gap-1">
-                      <span className="font-mono text-xs">
-                        {wireRoutingNumber}
-                      </span>
-                      <CopyButton
-                        value={wireRoutingNumber}
-                        label="Wire routing number"
-                      />
-                    </div>
-                  </div>
-                )}
-                {(hasRoutingInfo || details?.accountNumber) && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#878787]">Account</span>
-                    <div className="flex items-center gap-1">
-                      {isLoadingDetails ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : details?.accountNumber ? (
-                        <>
-                          <MaskedValue
-                            value={details.accountNumber}
-                            revealed={showSensitive}
-                          />
-                          <CopyButton
-                            value={details.accountNumber}
-                            label="Account number"
-                          />
-                        </>
-                      ) : (
-                        <span className="text-xs text-[#878787]">—</span>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={() => setShowSensitive(!showSensitive)}
-                      >
-                        {showSensitive ? (
-                          <EyeOff className="size-3" />
-                        ) : (
-                          <Eye className="size-3" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
             {/* UK Sort Code */}
             {sortCode && (
               <div className="flex items-center justify-between">

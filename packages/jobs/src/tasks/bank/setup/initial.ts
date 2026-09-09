@@ -38,8 +38,7 @@ export const initialBankSetup = schemaTask({
       .unwrap();
 
     // And run once more to ensure all transactions are fetched on the providers side
-    // GoCardLess, Teller and Plaid can take up to 3 minutes to fetch all transactions
-    // For Teller and Plaid we also listen on the webhook to fetch any new transactions
+    // GoCardLess can take up to 3 minutes to fetch all transactions
     await syncConnection.trigger(
       {
         connectionId,

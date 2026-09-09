@@ -1,15 +1,12 @@
 "use client";
 
-import { track } from "@midday/events/client";
-import { LogEvents } from "@midday/events/events";
 import { Button } from "@midday/ui/button";
 import { Input } from "@midday/ui/input";
 import { Skeleton } from "@midday/ui/skeleton";
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { usePlaidLink } from "react-plaid-link";
-import { useDebounceValue, useScript } from "usehooks-ts";
+import { useRef } from "react";
+import { useDebounceValue } from "usehooks-ts";
 import { useConnectParams } from "@/hooks/use-connect-params";
 import { useTRPC } from "@/trpc/client";
 import { BankLogo } from "./bank-logo";
@@ -49,10 +46,6 @@ function formatProvider(provider: string) {
       return "Enable Banking";
     case "gocardless":
       return "GoCardLess";
-    case "plaid":
-      return "Plaid";
-    case "teller":
-      return "Teller";
   }
 }
 
@@ -62,7 +55,6 @@ type SearchResultProps = {
   logo: string | null;
   provider: string;
   availableHistory: number;
-  openPlaid: () => void;
   type?: "personal" | "business";
   redirectPath?: string;
   countryCode?: string;
@@ -74,7 +66,6 @@ function SearchResult({
   logo,
   provider,
   availableHistory,
-  openPlaid,
   type,
   redirectPath,
   countryCode,
@@ -101,7 +92,6 @@ function SearchResult({
       <ConnectBankProvider
         id={id}
         provider={provider}
-        openPlaid={openPlaid}
         availableHistory={availableHistory}
         redirectPath={redirectPath}
         countryCode={countryCode}
@@ -132,7 +122,6 @@ export function BankSearchContent({
 }: BankSearchContentProps) {
   const trpc = useTRPC();
   const router = useRouter();
-  const [plaidToken, setPlaidToken] = useState<string | undefined>();
   const teamCountryCode = defaultCountryCode || "";
 
   const {
@@ -140,59 +129,6 @@ export function BankSearchContent({
     search: query,
     setParams,
   } = useConnectParams(teamCountryCode);
-
-  const createPlaidLink = useMutation(
-    trpc.banking.plaidLink.mutationOptions({
-      onSuccess: (result) => {
-        if (result.data.link_token) {
-          setPlaidToken(result.data.link_token);
-        }
-      },
-    }),
-  );
-
-  const exchangeToken = useMutation(
-    trpc.banking.plaidExchange.mutationOptions(),
-  );
-
-  useScript("https://cdn.teller.io/connect/connect.js", {
-    removeOnUnmount: false,
-  });
-
-  const { open: openPlaid } = usePlaidLink({
-    token: plaidToken,
-    publicKey: "",
-    env: process.env.NEXT_PUBLIC_PLAID_ENVIRONMENT!,
-    clientName: "Midday",
-    product: ["transactions"],
-    onSuccess: async (public_token, metadata) => {
-      const result = await exchangeToken.mutateAsync({
-        token: public_token,
-      });
-
-      setParams({
-        step: "account",
-        provider: "plaid",
-        token: result.data.access_token,
-        ref: result.data.item_id,
-        institution_id: metadata.institution?.institution_id,
-      });
-      track({
-        event: LogEvents.ConnectBankAuthorized.name,
-        channel: LogEvents.ConnectBankAuthorized.channel,
-        provider: "plaid",
-      });
-    },
-    onExit: () => {
-      setParams({ step: "connect" });
-
-      track({
-        event: LogEvents.ConnectBankCanceled.name,
-        channel: LogEvents.ConnectBankCanceled.channel,
-        provider: "plaid",
-      });
-    },
-  });
 
   const [debouncedQuery] = useDebounceValue(query ?? "", 200);
 
@@ -208,12 +144,6 @@ export function BankSearchContent({
     ),
     placeholderData: keepPreviousData,
   });
-
-  useEffect(() => {
-    if (enabled && (countryCode === "US" || countryCode === "CA")) {
-      createPlaidLink.mutate();
-    }
-  }, [enabled, countryCode]);
 
   return (
     <div>
@@ -264,10 +194,6 @@ export function BankSearchContent({
                     : 0
                 }
                 type={institution?.type ?? undefined}
-                openPlaid={() => {
-                  setParams({ step: null });
-                  openPlaid();
-                }}
                 redirectPath={redirectPath}
                 countryCode={countryCode}
               />

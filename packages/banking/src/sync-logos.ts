@@ -1,3 +1,4 @@
+import { isR2Configured } from "./env";
 import type { InstitutionRecord } from "./institutions";
 import { logoExists, uploadLogo } from "./utils/storage";
 
@@ -44,7 +45,7 @@ function inferContentType(key: string): string {
 
 /**
  * Download logo data from source.
- * Handles URLs, data URIs, and raw base64 strings (Plaid returns raw base64).
+ * Handles URLs, data URIs, and raw base64 strings.
  */
 async function downloadLogo(
   sourceUrl: string,
@@ -59,7 +60,7 @@ async function downloadLogo(
     return { buffer, contentType };
   }
 
-  // Handle raw base64 (Plaid returns base64-encoded PNGs without prefix)
+  // Handle raw base64 without a data: prefix
   if (sourceUrl.startsWith("iVBOR")) {
     // PNG base64 header
     const buffer = Buffer.from(sourceUrl, "base64");
@@ -91,11 +92,18 @@ async function downloadLogo(
  *
  * Processes in batches with configurable concurrency and delay
  * between batches to avoid overwhelming providers or R2.
+ *
+ * A no-op when R2 is not configured: the dashboard then falls back to the
+ * provider's own logo URL.
  */
 export async function syncInstitutionLogos(
   institutions: InstitutionRecord[],
   options: SyncLogosOptions = {},
 ): Promise<SyncLogosResult> {
+  if (!isR2Configured()) {
+    return { uploaded: 0, skipped: institutions.length, failed: 0 };
+  }
+
   const { concurrency = 10, delayMs = 200 } = options;
 
   // Deduplicate by logo CDN URL (e.g. EnableBanking personal/business share a logo)

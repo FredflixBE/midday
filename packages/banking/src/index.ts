@@ -1,7 +1,6 @@
+import { isGoCardlessConfigured } from "./env";
 import { EnableBankingProvider } from "./providers/enablebanking/enablebanking-provider";
 import { GoCardLessProvider } from "./providers/gocardless/gocardless-provider";
-import { PlaidProvider } from "./providers/plaid/plaid-provider";
-import { TellerProvider } from "./providers/teller/teller-provider";
 import type {
   DeleteAccountsRequest,
   DeleteConnectionRequest,
@@ -18,11 +17,7 @@ import { logger } from "./utils/logger";
 export class Provider {
   #name: string;
 
-  #provider:
-    | PlaidProvider
-    | TellerProvider
-    | GoCardLessProvider
-    | EnableBankingProvider;
+  #provider: GoCardLessProvider | EnableBankingProvider;
 
   constructor(params: ProviderParams) {
     this.#name = params.provider;
@@ -30,12 +25,6 @@ export class Provider {
     switch (params.provider) {
       case "gocardless":
         this.#provider = new GoCardLessProvider();
-        break;
-      case "teller":
-        this.#provider = new TellerProvider();
-        break;
-      case "plaid":
-        this.#provider = new PlaidProvider();
         break;
       case "enablebanking":
         this.#provider = new EnableBankingProvider();
@@ -47,34 +36,25 @@ export class Provider {
     }
   }
 
+  /**
+   * Health of every configured provider. GoCardless is optional; when it is
+   * not configured it is reported as healthy so an unused provider never
+   * takes the service's readiness down.
+   */
   async getHealthCheck(): Promise<GetHealthCheckResponse> {
-    const teller = new TellerProvider();
-    const plaid = new PlaidProvider();
-    const gocardless = new GoCardLessProvider();
     const enablebanking = new EnableBankingProvider();
 
     try {
-      const [
-        isPlaidHealthy,
-        isGocardlessHealthy,
-        isTellerHealthy,
-        isEnableBankingHealthy,
-      ] = await Promise.all([
-        plaid.getHealthCheck(),
-        gocardless.getHealthCheck(),
-        teller.getHealthCheck(),
+      const [isGocardlessHealthy, isEnableBankingHealthy] = await Promise.all([
+        isGoCardlessConfigured()
+          ? new GoCardLessProvider().getHealthCheck()
+          : Promise.resolve(true),
         enablebanking.getHealthCheck(),
       ]);
 
       return {
-        plaid: {
-          healthy: isPlaidHealthy,
-        },
         gocardless: {
           healthy: isGocardlessHealthy,
-        },
-        teller: {
-          healthy: isTellerHealthy,
         },
         enablebanking: {
           healthy: isEnableBankingHealthy,
@@ -135,6 +115,7 @@ export class Provider {
   }
 }
 
+export { isGoCardlessConfigured, isR2Configured } from "./env";
 export type {
   FetchInstitutionsResult,
   InstitutionRecord,
@@ -142,8 +123,6 @@ export type {
 export { fetchAllInstitutions } from "./institutions";
 export { EnableBankingApi } from "./providers/enablebanking/enablebanking-api";
 export { GoCardLessApi } from "./providers/gocardless/gocardless-api";
-export { PlaidApi } from "./providers/plaid/plaid-api";
-export { TellerApi } from "./providers/teller/teller-api";
 export { syncInstitutionLogos } from "./sync-logos";
 // Re-export types, provider APIs, and institution sync
 export type * from "./types";

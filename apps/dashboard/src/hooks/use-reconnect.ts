@@ -10,7 +10,7 @@ import { reconnectConnectionAction } from "@/actions/transactions/reconnect-conn
 import { useSyncStatus } from "@/hooks/use-sync-status";
 import { useTRPC } from "@/trpc/client";
 
-type Provider = "gocardless" | "plaid" | "teller" | "enablebanking";
+type Provider = "gocardless" | "enablebanking";
 
 type UseReconnectOptions = {
   connectionId: string;
@@ -29,7 +29,6 @@ type UseReconnectReturn = {
  *
  * Handles:
  * - URL param detection for OAuth providers (GoCardless, EnableBanking)
- * - Direct trigger for embedded SDK providers (Teller)
  * - Job status tracking via useSyncStatus
  * - Toast notifications (syncing, success, error)
  * - Query invalidation on completion
@@ -190,7 +189,7 @@ export function useReconnect({
     }
   }, [params.step, params.id, connectionId, provider]);
 
-  // Trigger reconnect manually (for Teller which uses embedded SDK)
+  // Trigger reconnect manually (for providers with an embedded SDK)
   const triggerReconnect = useCallback(() => {
     reconnectConnection.execute({
       connectionId,

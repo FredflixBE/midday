@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-export const providerSchema = z.enum([
-  "gocardless",
-  "teller",
-  "plaid",
-  "enablebanking",
-]);
+export const providerSchema = z.enum(["gocardless", "enablebanking"]);
 
 export const accountTypeSchema = z.enum([
   "depository",
@@ -16,17 +11,6 @@ export const accountTypeSchema = z.enum([
 ]);
 
 // Auth schemas
-export const plaidLinkSchema = z
-  .object({
-    language: z.string().optional(),
-    accessToken: z.string().optional(),
-  })
-  .optional();
-
-export const plaidExchangeSchema = z.object({
-  token: z.string(),
-});
-
 export const gocardlessLinkSchema = z.object({
   institutionId: z.string(),
   agreement: z.string(),

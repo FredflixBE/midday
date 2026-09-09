@@ -1,9 +1,15 @@
 import { S3Client } from "bun";
-import { env } from "../env";
+import { env, isR2Configured } from "../env";
 
 let _client: S3Client | null = null;
 
 function getR2Client(): S3Client {
+  if (!isR2Configured()) {
+    throw new Error(
+      "R2 logo storage is not configured: set R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME",
+    );
+  }
+
   if (!_client) {
     _client = new S3Client({
       endpoint: env.R2_ENDPOINT,
