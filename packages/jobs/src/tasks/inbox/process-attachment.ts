@@ -1,5 +1,14 @@
 import { getDb } from "@jobs/init";
-import { processAttachmentSchema } from "@jobs/schema";
+import { BaseProcessor } from "@jobs/processors/base";
+import { runProcessor } from "@jobs/processors/run";
+import type { JobContext } from "@jobs/processors/types";
+import {
+  type ProcessAttachmentPayload,
+  processAttachmentSchema,
+} from "@jobs/schemas/inbox";
+import { NonRetryableError } from "@jobs/utils/error-classification";
+import { convertHeicToJpeg } from "@jobs/utils/image-processing";
+import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
 import {
   createInbox,
   getInboxByFilePath,
@@ -10,160 +19,327 @@ import {
 } from "@midday/db/queries";
 import { DocumentClient } from "@midday/documents";
 import { createClient } from "@midday/supabase/job";
-import { logger, schemaTask, tasks } from "@trigger.dev/sdk";
-import { convertHeic } from "../document/convert-heic";
+import { schemaTask } from "@trigger.dev/sdk";
 import { processDocument } from "../document/process-document";
+import { batchProcessMatching } from "./batch-process-matching";
 
-export const processAttachment = schemaTask({
-  id: "process-attachment",
-  schema: processAttachmentSchema,
-  maxDuration: 120,
-  retry: {
-    maxAttempts: 3,
-    minTimeoutInMs: 5000,
-    maxTimeoutInMs: 60000,
-    factor: 2,
-    randomize: true,
-  },
-  queue: {
-    concurrencyLimit: 50,
-  },
-  run: async ({
-    teamId,
-    mimetype,
-    size,
-    filePath,
-    referenceId,
-    website,
-    senderEmail,
-    inboxAccountId,
-  }) => {
+export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentPayload> {
+  async process(job: JobContext<ProcessAttachmentPayload>): Promise<void> {
+    const processStartTime = Date.now();
+    const {
+      teamId,
+      mimetype,
+      size,
+      filePath,
+      referenceId,
+      website,
+      senderEmail,
+      inboxAccountId,
+    } = job.data;
     const supabase = createClient();
-    const filename = filePath.at(-1);
+    const db = getDb();
 
-    // Check if inbox item already exists (for retry scenarios or manual uploads)
-    let inboxData = await getInboxByFilePath(getDb(), {
+    const fileName = filePath.join("/");
+    const filename = filePath.at(-1);
+    let processedMimetype = mimetype;
+
+    this.logger.info("Starting process-attachment job", {
+      jobId: job.id,
+      fileName,
+      teamId,
+      mimetype,
+      size,
+      referenceId,
+      inboxAccountId,
+    });
+
+    // Edge case: Validate filename exists
+    if (!filename || filename.trim().length === 0) {
+      throw new Error("Invalid file path: filename is missing");
+    }
+
+    // Edge case: Validate file size is reasonable
+    if (size <= 0) {
+      throw new Error(`Invalid file size: ${size} bytes`);
+    }
+
+    // Check if inbox item already exists FIRST (for retry scenarios or manual uploads)
+    const inboxCheckStartTime = Date.now();
+    this.logger.info("Checking for existing inbox item", {
+      jobId: job.id,
+      filePath: fileName,
+      teamId,
+    });
+
+    let inboxData = await getInboxByFilePath(db, {
       filePath,
       teamId,
     });
 
-    logger.info("Processing attachment", {
-      filePath: filePath.join("/"),
+    const inboxCheckDuration = Date.now() - inboxCheckStartTime;
+    this.logger.info("Inbox item check completed", {
+      jobId: job.id,
+      filePath: fileName,
       existingItem: !!inboxData,
       existingStatus: inboxData?.status,
       teamId,
-      mimetype,
+      duration: `${inboxCheckDuration}ms`,
     });
 
-    // Convert HEIC to JPEG if needed (do this early so we can update contentType immediately)
-    let effectiveMimetype = mimetype;
+    // Convert HEIC to JPEG if needed (do this after inbox check so we can update contentType immediately)
     if (mimetype === "image/heic") {
-      logger.info("Converting HEIC to JPEG", { filePath: filePath.join("/") });
-      await convertHeic.triggerAndWait({ filePath });
-      effectiveMimetype = "image/jpeg";
+      const heicStartTime = Date.now();
+      this.logger.info("Converting HEIC to JPEG", {
+        filePath: fileName,
+        jobId: job.id,
+      });
+
+      const { data } = await withTimeout(
+        supabase.storage.from("vault").download(fileName),
+        TIMEOUTS.FILE_DOWNLOAD,
+        `File download timed out after ${TIMEOUTS.FILE_DOWNLOAD}ms`,
+      );
+
+      if (!data) {
+        throw new NonRetryableError("File not found", undefined, "validation");
+      }
+
+      const buffer = await data.arrayBuffer();
+
+      // Convert HEIC to JPEG using shared utility
+      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger);
+
+      // Upload the converted image
+      const { data: uploadedData } = await withTimeout(
+        supabase.storage.from("vault").upload(fileName, image, {
+          contentType: "image/jpeg",
+          upsert: true,
+        }),
+        TIMEOUTS.FILE_UPLOAD,
+        `File upload timed out after ${TIMEOUTS.FILE_UPLOAD}ms`,
+      );
+
+      if (!uploadedData) {
+        throw new Error("Failed to upload converted image");
+      }
+
+      processedMimetype = "image/jpeg";
+      const heicDuration = Date.now() - heicStartTime;
+      this.logger.info("HEIC conversion completed", {
+        filePath: fileName,
+        jobId: job.id,
+        duration: `${heicDuration}ms`,
+      });
 
       // Update contentType immediately if item exists (so frontend can show image sooner)
       if (inboxData && inboxData.contentType === "image/heic") {
-        await updateInbox(getDb(), {
+        await updateInbox(db, {
           id: inboxData.id,
           teamId,
           contentType: "image/jpeg",
         });
-        logger.info("Updated contentType to jpeg", { inboxId: inboxData.id });
+        this.logger.info("Updated contentType to jpeg", {
+          inboxId: inboxData.id,
+          jobId: job.id,
+        });
       }
     }
 
     // Create inbox item if it doesn't exist (for non-manual uploads)
     // or update existing item status if it was created manually
     if (!inboxData) {
-      logger.info("Creating new inbox item", { filePath: filePath.join("/") });
-      inboxData = await createInbox(getDb(), {
+      this.logger.info("Creating new inbox item", {
+        filePath: fileName,
+        referenceId,
+      });
+      const createdData = await createInbox(db, {
         // NOTE: If we can't parse the name using OCR this will be the fallback name
         displayName: filename ?? "Unknown",
         teamId,
         filePath,
         fileName: filename ?? "Unknown",
-        contentType: effectiveMimetype,
+        contentType: processedMimetype, // Use processed mimetype (jpeg if converted from heic)
         size,
         referenceId,
         website,
         senderEmail,
         inboxAccountId,
-        status: "processing",
+        status: "processing", // Set as processing when created by job
       });
-    } else if (
-      inboxData.status === "processing" ||
-      inboxData.status === "new"
-    ) {
-      // Check if item is stuck (processing for more than 5 minutes)
-      const STUCK_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
-      const createdAt = inboxData.createdAt
-        ? new Date(inboxData.createdAt).getTime()
-        : null;
-      const now = Date.now();
-      const isStuck = createdAt && now - createdAt > STUCK_THRESHOLD_MS;
 
-      if (isStuck) {
-        logger.warn("Found stuck inbox item, recovering", {
-          inboxId: inboxData.id,
-          filePath: filePath.join("/"),
-          status: inboxData.status,
-          ageMinutes: createdAt ? Math.round((now - createdAt) / 60000) : null,
-        });
-      } else {
-        logger.info("Found existing inbox item in processing status", {
-          inboxId: inboxData.id,
-          filePath: filePath.join("/"),
-          status: inboxData.status,
-        });
+      // Check if this was a duplicate (createInbox returns existing item on conflict)
+      // We compare the filePath to see if this is a different job trying to create the same item
+      if (createdData) {
+        const existingFilePath = createdData.filePath?.join("/");
+        const currentFilePath = filePath.join("/");
+
+        // If the filePath is different, this is a duplicate from a different upload
+        if (existingFilePath && existingFilePath !== currentFilePath) {
+          this.logger.info(
+            "Found existing inbox item with different filePath, skipping duplicate",
+            {
+              inboxId: createdData.id,
+              status: createdData.status,
+              referenceId,
+              existingFilePath,
+              currentFilePath,
+            },
+          );
+          return;
+        }
+
+        // If the item is already processed (not new/processing), skip
+        if (
+          createdData.status !== "processing" &&
+          createdData.status !== "new"
+        ) {
+          this.logger.info(
+            "Found existing inbox item via referenceId conflict, skipping duplicate",
+            {
+              inboxId: createdData.id,
+              status: createdData.status,
+              referenceId,
+              filePath: fileName,
+            },
+          );
+          return;
+        }
       }
+
+      inboxData = createdData;
+    } else if (inboxData.status === "processing") {
+      this.logger.info(
+        "Found existing inbox item already in processing status",
+        {
+          inboxId: inboxData.id,
+          filePath: fileName,
+        },
+      );
     } else {
-      logger.info("Found existing inbox item with status", {
+      this.logger.info("Found existing inbox item with status", {
         inboxId: inboxData.id,
         status: inboxData.status,
-        filePath: filePath.join("/"),
+        filePath: fileName,
       });
     }
 
     if (!inboxData) {
-      throw Error("Inbox data not found");
+      throw new Error("Inbox data not found");
     }
 
-    const { data } = await supabase.storage
-      .from("vault")
-      .createSignedUrl(filePath.join("/"), 60);
+    // Create signed URL and fetch team data in parallel (they don't depend on each other)
+    const preProcessingStartTime = Date.now();
+    this.logger.info(
+      "Starting parallel pre-processing (signed URL + team data)",
+      {
+        jobId: job.id,
+        inboxId: inboxData.id,
+        fileName,
+        teamId,
+      },
+    );
 
-    if (!data) {
-      throw Error("File not found");
+    const [signedUrlResult, teamData] = await Promise.all([
+      // Create signed URL for document processing
+      // Use 10 minutes expiration to ensure URL doesn't expire during processing
+      // (document processing timeout is 120s, plus buffer for retries and multiple passes)
+      (async () => {
+        const signedUrlStartTime = Date.now();
+        const { data: signedUrlData } = await withTimeout(
+          supabase.storage.from("vault").createSignedUrl(fileName, 600),
+          TIMEOUTS.EXTERNAL_API,
+          `Signed URL creation timed out after ${TIMEOUTS.EXTERNAL_API}ms`,
+        );
+        const signedUrlDuration = Date.now() - signedUrlStartTime;
+        this.logger.info("Signed URL created", {
+          jobId: job.id,
+          inboxId: inboxData.id,
+          duration: `${signedUrlDuration}ms`,
+          expirationSeconds: 600,
+        });
+        return signedUrlData;
+      })(),
+      // Fetch team data to provide context for OCR extraction
+      (async () => {
+        const teamDataStartTime = Date.now();
+        const teamDataResult = await getTeamById(db, teamId);
+        const teamDataDuration = Date.now() - teamDataStartTime;
+        this.logger.info("Team data fetched", {
+          jobId: job.id,
+          inboxId: inboxData.id,
+          teamName: teamDataResult?.name,
+          duration: `${teamDataDuration}ms`,
+        });
+        return teamDataResult;
+      })(),
+    ]);
+
+    const preProcessingDuration = Date.now() - preProcessingStartTime;
+    this.logger.info("Parallel pre-processing completed", {
+      jobId: job.id,
+      inboxId: inboxData.id,
+      duration: `${preProcessingDuration}ms`,
+    });
+
+    if (!signedUrlResult) {
+      throw new NonRetryableError("File not found", undefined, "validation");
     }
 
     try {
-      // Fetch team data to provide context for OCR extraction
-      const teamData = await getTeamById(getDb(), teamId);
-
       const document = new DocumentClient();
 
-      logger.info("Starting document processing", {
+      const docProcessingStartTime = Date.now();
+      this.logger.info("Starting document processing (OCR/LLM extraction)", {
+        jobId: job.id,
         inboxId: inboxData.id,
-        mimetype: effectiveMimetype,
-        originalMimetype: mimetype,
+        mimetype: processedMimetype,
         referenceId,
         teamName: teamData?.name,
       });
 
-      const result = await document.getInvoiceOrReceipt({
-        documentUrl: data?.signedUrl,
-        mimetype: effectiveMimetype, // Use effective mimetype (jpeg if converted from heic)
-        companyName: teamData?.name,
-      });
+      // Process document with timeout
+      const result = await withTimeout(
+        document.getInvoiceOrReceipt({
+          documentUrl: signedUrlResult.signedUrl,
+          mimetype: processedMimetype,
+          companyName: teamData?.name,
+        }),
+        TIMEOUTS.DOCUMENT_PROCESSING,
+        `Document processing timed out after ${TIMEOUTS.DOCUMENT_PROCESSING}ms`,
+      );
 
-      logger.info("Document processing completed", {
+      const docProcessingDuration = Date.now() - docProcessingStartTime;
+      this.logger.info("Document processing completed", {
+        jobId: job.id,
         inboxId: inboxData.id,
         resultType: result.type,
+        documentType: result.document_type,
         hasAmount: !!result.amount,
+        duration: `${docProcessingDuration}ms`,
       });
 
-      await updateInboxWithProcessedData(getDb(), {
+      // Check if document is classified as "other" (non-financial document)
+      if (result.document_type === "other") {
+        await updateInboxWithProcessedData(db, {
+          id: inboxData.id,
+          displayName: result.name ?? inboxData.displayName ?? undefined,
+          type: "other",
+          status: "other",
+        });
+
+        this.logger.info(
+          "Document classified as other (non-financial), skipping matching",
+          {
+            jobId: job.id,
+            inboxId: inboxData.id,
+            fileName,
+          },
+        );
+
+        return; // Skip embedding and transaction matching for non-financial documents
+      }
+
+      await updateInboxWithProcessedData(db, {
         id: inboxData.id,
         amount: result.amount ?? undefined,
         currency: result.currency ?? undefined,
@@ -180,47 +356,137 @@ export const processAttachment = schemaTask({
 
       // Group related inbox items after storing invoice number
       try {
-        await groupRelatedInboxItems(getDb(), {
+        await groupRelatedInboxItems(db, {
           inboxId: inboxData.id,
           teamId,
         });
       } catch (error) {
-        logger.error("Failed to group related inbox items", {
+        this.logger.error("Failed to group related inbox items", {
           inboxId: inboxData.id,
           error: error instanceof Error ? error.message : "Unknown error",
         });
         // Don't fail the entire process if grouping fails
       }
 
-      // NOTE: Process documents and images for classification
-      await processDocument.trigger({
-        mimetype: effectiveMimetype, // Use effective mimetype (jpeg if converted from heic)
-        filePath,
-        teamId,
-      });
-
-      // Trigger matching immediately (no embedding dependency in V2).
-      await tasks.trigger("batch-process-matching", {
-        teamId,
-        inboxIds: [inboxData.id],
-      });
-
-      logger.info("Triggered efficient inbox matching", {
+      // Trigger document processing and matching (no inbox embedding dependency).
+      const parallelJobsStartTime = Date.now();
+      this.logger.info("Triggering process-document + matching jobs", {
+        jobId: job.id,
         inboxId: inboxData.id,
         teamId,
       });
+
+      // Trigger document processing (non-blocking, can run in parallel)
+      const documentJobPromise = processDocument
+        .trigger(
+          {
+            mimetype: processedMimetype,
+            filePath,
+            teamId,
+          },
+          {
+            // Was a BullMQ job id: one processing run per stored file.
+            idempotencyKey: `process-doc_${teamId}_${filePath.join("/")}`,
+            idempotencyKeyTTL: "24h",
+          },
+        )
+        .then((result) => {
+          this.logger.info("Triggered process-document job", {
+            jobId: job.id,
+            inboxId: inboxData.id,
+            triggeredJobId: result.id,
+            triggeredJobName: "process-document",
+          });
+          return result;
+        })
+        .catch((error) => {
+          this.logger.warn(
+            "Failed to trigger document processing (non-critical)",
+            {
+              jobId: job.id,
+              inboxId: inboxData.id,
+              error: error instanceof Error ? error.message : "Unknown error",
+            },
+          );
+          // Don't fail the entire process if document processing fails
+          return null;
+        });
+
+      try {
+        const matchingJobResult = await batchProcessMatching.trigger({
+          teamId,
+          inboxIds: [inboxData.id],
+        });
+        this.logger.info("Triggered batch-process-matching", {
+          jobId: job.id,
+          inboxId: inboxData.id,
+          matchingJobId: matchingJobResult.id,
+          triggeredJobName: "batch-process-matching",
+        });
+      } catch (error) {
+        this.logger.error("Failed to trigger batch-process-matching job", {
+          jobId: job.id,
+          inboxId: inboxData.id,
+          error: error instanceof Error ? error.message : "Unknown error",
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
+        try {
+          await updateInboxWithProcessedData(db, {
+            id: inboxData.id,
+            status: "pending",
+          });
+          this.logger.info(
+            "Updated inbox status to pending after matching job failed",
+            {
+              jobId: job.id,
+              inboxId: inboxData.id,
+            },
+          );
+        } catch (updateError) {
+          this.logger.error(
+            "Failed to update inbox status after matching job failure",
+            {
+              jobId: job.id,
+              inboxId: inboxData.id,
+              error:
+                updateError instanceof Error
+                  ? updateError.message
+                  : "Unknown error",
+            },
+          );
+        }
+        // Don't throw - allow document processing to continue.
+      }
+
+      // Wait for document processing to complete (non-blocking, but log completion)
+      const documentJobResult = await Promise.allSettled([documentJobPromise]);
+      const parallelJobsDuration = Date.now() - parallelJobsStartTime;
+      this.logger.info("Parallel jobs completed", {
+        jobId: job.id,
+        inboxId: inboxData.id,
+        documentJobStatus: documentJobResult[0]?.status,
+        duration: `${parallelJobsDuration}ms`,
+      });
+
+      const totalDuration = Date.now() - processStartTime;
+      this.logger.info("process-attachment job completed successfully", {
+        jobId: job.id,
+        inboxId: inboxData.id,
+        teamId,
+        totalDuration: `${totalDuration}ms`,
+      });
     } catch (error) {
-      logger.error("Document processing failed", {
+      this.logger.error("Document processing failed", {
         inboxId: inboxData.id,
         error: error instanceof Error ? error.message : "Unknown error",
         referenceId,
-        mimetype: effectiveMimetype,
+        mimetype: processedMimetype,
         originalMimetype: mimetype,
       });
 
       // Re-throw timeout errors to trigger retry
       if (error instanceof Error && error.name === "AbortError") {
-        logger.warn(
+        this.logger.warn(
           "Document processing failed with retryable error, will retry",
           {
             inboxId: inboxData.id,
@@ -233,7 +499,7 @@ export const processAttachment = schemaTask({
       }
 
       // For non-retryable errors, mark as pending with fallback name
-      logger.info(
+      this.logger.info(
         "Document processing failed, marking as pending with fallback name",
         {
           inboxId: inboxData.id,
@@ -243,11 +509,33 @@ export const processAttachment = schemaTask({
         },
       );
 
-      await updateInbox(getDb(), {
+      await updateInbox(db, {
         id: inboxData.id,
         teamId,
         status: "pending",
       });
+
+      throw error;
     }
+  }
+}
+
+const processor = new ProcessAttachmentProcessor();
+
+export const processAttachment = schemaTask({
+  id: "process-attachment",
+  schema: processAttachmentSchema,
+  // Carried over from the inbox queue: 11 minutes, because OCR extraction runs
+  // multiple passes and each is allowed 10.
+  maxDuration: 660,
+  queue: { concurrencyLimit: 50 },
+  retry: {
+    maxAttempts: 3,
+    minTimeoutInMs: 5000,
+    maxTimeoutInMs: 60000,
+    factor: 2,
+    randomize: true,
   },
+  run: (payload, { ctx }) =>
+    runProcessor(processor, "process-attachment", payload, ctx),
 });
