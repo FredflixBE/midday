@@ -3,17 +3,20 @@ import { createAdminClient } from "@api/services/supabase";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getTeamByInboxId } from "@midday/db/queries";
 import { getAllowedAttachments } from "@midday/documents";
-import { getInboxIdFromEmail, inboxWebhookPostSchema } from "@midday/inbox";
+import {
+  getInboxForwardingDomain,
+  getInboxIdFromEmail,
+  inboxWebhookPostSchema,
+} from "@midday/inbox";
 import { logger } from "@midday/logger";
+import { getEmailFrom } from "@midday/utils/email-from";
 import { getResend } from "@midday/utils/resend";
 import { basicAuth } from "hono/basic-auth";
 import { HTTPException } from "hono/http-exception";
 import { nanoid } from "nanoid";
 import {
   ALLOWED_FORWARDING_EMAILS,
-  FORWARD_FROM_EMAIL,
   filterAttachments,
-  POSTMARK_IP_RANGE,
   triggerProcessingJobs,
   type UploadResult,
   uploadAttachment,
@@ -21,60 +24,32 @@ import {
 
 const app = new OpenAPIHono<Context>();
 
-// HTTP Basic Authentication
-// Postmark supports basic auth by including credentials in the webhook URL:
+// HTTP Basic Authentication. An inbound email provider supports this by
+// putting credentials in the webhook URL:
 // https://username:password@domain.com/webhook/inbox
-if (process.env.INBOX_WEBHOOK_USERNAME && process.env.INBOX_WEBHOOK_PASSWORD) {
+//
+// This is the only thing standing between the internet and this route — the
+// old defence was an allowlist of Postmark's four IPs, which is wrong for any
+// other provider and is not a substitute for authentication. Without
+// credentials the route refuses every request rather than running open.
+const webhookUsername = process.env.INBOX_WEBHOOK_USERNAME;
+const webhookPassword = process.env.INBOX_WEBHOOK_PASSWORD;
+
+if (webhookUsername && webhookPassword) {
   app.use(
     "*",
-    basicAuth({
-      username: process.env.INBOX_WEBHOOK_USERNAME,
-      password: process.env.INBOX_WEBHOOK_PASSWORD,
-    }),
+    basicAuth({ username: webhookUsername, password: webhookPassword }),
   );
-}
-
-// IP address validation
-app.use("*", async (c, next) => {
-  if (process.env.NODE_ENV === "development") {
-    await next();
-    return;
-  }
-
-  const clientIp = c.get("clientIp");
-
-  logger.info("Inbox webhook IP validation", {
-    clientIp,
-    path: c.req.path,
-    method: c.req.method,
-  });
-
-  if (!clientIp) {
-    logger.warn("Inbox webhook IP validation failed - no client IP in context");
-    throw new HTTPException(403, { message: "Invalid IP address" });
-  }
-
-  const isValidIp = POSTMARK_IP_RANGE.includes(
-    clientIp as (typeof POSTMARK_IP_RANGE)[number],
-  );
-
-  if (!isValidIp) {
+} else {
+  app.use("*", () => {
     logger.warn(
-      "Inbox webhook IP validation failed - IP not in allowed range",
-      {
-        receivedIp: clientIp,
-        allowedIps: POSTMARK_IP_RANGE,
-      },
+      "Inbox webhook called without INBOX_WEBHOOK_USERNAME/PASSWORD configured",
     );
-    throw new HTTPException(403, { message: "Invalid IP address" });
-  }
-
-  logger.info("Inbox webhook IP validation successful", {
-    validatedIp: clientIp,
+    throw new HTTPException(503, {
+      message: "Inbox webhook is not configured",
+    });
   });
-
-  await next();
-});
+}
 
 app.openapi(
   createRoute({
@@ -167,9 +142,10 @@ app.openapi(
       HtmlBody,
     } = parsedBody.data;
 
+    const forwardingDomain = getInboxForwardingDomain();
     const inboxId = getInboxIdFromEmail(OriginalRecipient);
 
-    if (!inboxId) {
+    if (!inboxId || !OriginalRecipient.endsWith(`@${forwardingDomain}`)) {
       throw new HTTPException(400, {
         message: "Invalid OriginalRecipient email",
       });
@@ -182,8 +158,8 @@ app.openapi(
       attachmentCount: Attachments?.length ?? 0,
     });
 
-    // Ignore emails from our own domain to fix infinite loop
-    if (FromFull.Email === FORWARD_FROM_EMAIL) {
+    // Ignore emails we sent ourselves, to fix an infinite loop
+    if (FromFull.Email.endsWith(`@${forwardingDomain}`)) {
       logger.info("Ignoring email from own domain", {
         messageId: MessageID,
         inboxId,
@@ -227,7 +203,7 @@ app.openapi(
         });
 
         await getResend().emails.send({
-          from: `${FromFull?.Name} <${FORWARD_FROM_EMAIL}>`,
+          from: getEmailFrom(FromFull?.Name),
           to: teamData.email,
           subject: Subject ?? FromFull?.Name,
           text: TextBody,

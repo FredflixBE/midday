@@ -9,6 +9,12 @@ export function InboxEmailSettings() {
   const { data: user } = useUserQuery();
   const inboxEmail = getInboxEmail(user?.team?.inboxId ?? "");
 
+  // No forwarding domain configured: there is no address to show, and
+  // receipts arrive by mailbox sync or upload instead.
+  if (!inboxEmail) {
+    return null;
+  }
+
   return (
     <Card>
       <CardHeader>

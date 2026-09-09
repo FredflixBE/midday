@@ -45,7 +45,9 @@ export const transactionsCreated: NotificationHandler = {
       emailType: "owners",
       subject: t("transactions.subject"),
       user,
-      replyTo: getInboxEmail(team.inboxId),
+      // Replying to the notification files the receipt, but only when this
+      // instance actually has a forwarding address.
+      replyTo: getInboxEmail(team.inboxId) ?? undefined,
       data: {
         transactions: data.transactions,
         teamName: team.name,

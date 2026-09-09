@@ -5,14 +5,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { nanoid } from "nanoid";
 
 // Constants
-export const POSTMARK_IP_RANGE = [
-  "3.134.147.250",
-  "50.31.156.6",
-  "50.31.156.77",
-  "18.217.206.57",
-] as const;
-
-export const FORWARD_FROM_EMAIL = "inbox@midday.ai";
 export const ALLOWED_FORWARDING_EMAILS = [
   "forwarding-noreply@google.com",
 ] as const;
