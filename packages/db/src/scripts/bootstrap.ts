@@ -9,9 +9,13 @@
  *   2. drizzle-kit push   tables, columns, indexes, enums.
  *   3. policies           push creates every policy without its USING
  *                         expression, so they are re-created from schema.ts.
- *   4. 10-storage.sql     buckets and their policies.
- *   5. 20-realtime.sql    publication membership and the activities policy.
- *   6. verification       the part you paste into the ticket.
+ *   4. 10-storage.sql     the three buckets.
+ *   5. 11-storage-policies.sql
+ *                         who may reach into them. Supabase owns
+ *                         storage.objects, so this one often cannot be applied
+ *                         from here; it is reported, not fatal.
+ *   6. 20-realtime.sql    publication membership and the activities policy.
+ *   7. verification       the part you paste into the ticket.
  *
  * The verification is the real gate, because `drizzle-kit push` exits 0 even
  * when statements inside it failed.
@@ -176,6 +180,24 @@ async function applyFile(client: Client, file: string) {
   console.log(`  applied ${file}`);
 }
 
+/**
+ * Applies a file that the connection may not be allowed to apply. Returns
+ * false on a privilege error, which is a fact to report rather than a crash;
+ * anything else still throws.
+ */
+async function tryApplyFile(client: Client, file: string): Promise<boolean> {
+  try {
+    await applyFile(client, file);
+    return true;
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code !== "42501") throw error;
+
+    console.log(`  skipped ${file} — ${(error as Error).message}`);
+    return false;
+  }
+}
+
 function runPush(): Promise<void> {
   return new Promise((done, fail) => {
     const child = spawn("bunx", ["drizzle-kit", "push", "--force"], {
@@ -229,9 +251,16 @@ async function main(): Promise<number> {
       console.error(
         "drops what does not match the schema. Use db:migrate on a live database.",
       );
+      console.error("");
       console.error(
-        "Set ALLOW_NON_EMPTY=true only if you are certain. Nothing has been changed.",
+        "If a previous run stopped part-way, this is how to continue it — every",
       );
+      console.error(
+        "step is idempotent, so re-running is safe while the project has no data:",
+      );
+      console.error("  ALLOW_NON_EMPTY=true bun run db:bootstrap");
+      console.error("");
+      console.error("Nothing has been changed.");
       return 2;
     }
 
@@ -245,10 +274,16 @@ async function main(): Promise<number> {
     const applied = await applyPolicies(client);
     console.log(`  applied ${applied} policies`);
 
-    console.log("4. storage buckets and their policies");
+    console.log("4. storage buckets");
     await applyFile(client, "10-storage.sql");
 
-    console.log("5. realtime publication");
+    console.log("5. storage policies");
+    const storagePolicies = await tryApplyFile(
+      client,
+      "11-storage-policies.sql",
+    );
+
+    console.log("6. realtime publication");
     await applyFile(client, "20-realtime.sql");
 
     console.log("\nVerification\n");
@@ -259,6 +294,22 @@ async function main(): Promise<number> {
       if (problem) failed++;
       console.log(
         `  ${problem ? "FAIL" : "ok  "}  ${check.what}${problem ? ` — ${problem}` : ""}`,
+      );
+    }
+
+    if (!storagePolicies) {
+      console.log("");
+      console.log(
+        "The storage policies could not be applied from here: Supabase owns",
+      );
+      console.log(
+        "storage.objects, and Postgres wants the table's owner to create a policy.",
+      );
+      console.log(
+        "Paste packages/db/supabase/11-storage-policies.sql into the Supabase SQL",
+      );
+      console.log(
+        "editor, or use Storage > Policies in the dashboard, then run this again.",
       );
     }
 

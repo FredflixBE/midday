@@ -77,6 +77,12 @@ CREATE TABLE IF NOT EXISTS storage.objects (
   updated_at timestamptz DEFAULT now()
 );
 
+-- Supabase ships storage.objects with row level security already on, and owned
+-- by supabase_storage_admin. Enabling it here is what makes the bucket
+-- policies mean anything locally; 11-storage-policies.sql cannot do it,
+-- because on a real project that ALTER needs the owner.
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
 -- Splits a path and returns everything but the file name, so element 1 is the
 -- first folder: the team id for vault, the team or user id for avatars.
 CREATE OR REPLACE FUNCTION storage.foldername(name text) RETURNS text[]

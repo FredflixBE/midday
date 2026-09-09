@@ -67,8 +67,9 @@ Five steps, in an order that matters:
 | 1 | `packages/db/supabase/00-bootstrap.sql` | Extensions, the `private` schema, and the functions the schema *calls*: `inbox.fts` is a stored column computed by `generate_inbox_fts`, and `teams.inbox_id` and `user_invites.code` default to `generate_inbox()` and `nanoid()`. These have to exist before the tables that use them. |
 | 2 | `drizzle-kit push` | Tables, columns, indexes, enums, from `packages/db/src/schema.ts`. |
 | 3 | policies | Row level security, read out of `schema.ts`. Separate because `drizzle-kit push` creates every policy **without** its `USING` expression, and a policy with no `USING` grants nothing. |
-| 4 | `packages/db/supabase/10-storage.sql` | The `vault`, `avatars` and `apps` buckets and their policies. |
-| 5 | `packages/db/supabase/20-realtime.sql` | Publication membership for the tables the dashboard subscribes to. |
+| 4 | `packages/db/supabase/10-storage.sql` | The `vault`, `avatars` and `apps` buckets. |
+| 5 | `packages/db/supabase/11-storage-policies.sql` | Who may reach into them. Supabase owns `storage.objects`, so the pooler role cannot create policies on it — the script reports this and carries on, and the file goes into the Supabase SQL editor instead. |
+| 6 | `packages/db/supabase/20-realtime.sql` | Publication membership for the tables the dashboard subscribes to. |
 
 Then it runs fourteen checks and prints a pass/fail line for each. **The checks
 are the real result**, because `drizzle-kit push` exits 0 even when statements
