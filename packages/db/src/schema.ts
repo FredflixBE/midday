@@ -3870,6 +3870,15 @@ export const activities = pgTable(
       foreignColumns: [users.id],
       name: "activities_user_id_fkey",
     }).onDelete("set null"),
+    // A notification belongs to one user, and the dashboard subscribes to
+    // this table with user_id=eq.<id>. Realtime only delivers rows the
+    // subscriber may select, so without this the subscription is silent.
+    pgPolicy("Activities can be selected by the user they belong to", {
+      as: "permissive",
+      for: "select",
+      to: ["public"],
+      using: sql`(user_id = auth.uid())`,
+    }),
   ],
 );
 

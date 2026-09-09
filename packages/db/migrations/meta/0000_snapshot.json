@@ -1,5 +1,5 @@
 {
-  "id": "679771e1-3126-4b5a-832f-e96a75022631",
+  "id": "f2248b69-7541-49b5-a211-e82c9ce8bb79",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -443,7 +443,15 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "Activities can be selected by the user they belong to": {
+          "name": "Activities can be selected by the user they belong to",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": ["public"],
+          "using": "(user_id = auth.uid())"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },

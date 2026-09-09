@@ -358,3 +358,98 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
     ]);
   });
 });
+
+/**
+ * supabase/20-realtime.sql. A subscription to a table outside the
+ * supabase_realtime publication never errors — it just stays quiet — and
+ * realtime only delivers rows the subscriber is allowed to select, so both
+ * halves are checked here.
+ */
+describe.skipIf(SKIP)("supabase/20-realtime.sql", () => {
+  let client: Client;
+
+  const TEAM = "dddddddd-0000-0000-0000-000000000001";
+  const OWNER = "dddddddd-0000-0000-0000-000000000002";
+  const OTHER = "dddddddd-0000-0000-0000-000000000003";
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DATABASE_URL });
+    await client.connect();
+
+    for (const id of [OWNER, OTHER]) {
+      await client.query(
+        "insert into auth.users (id) values ($1) on conflict do nothing",
+        [id],
+      );
+      await client.query(
+        "insert into users (id, email) values ($1, $2) on conflict do nothing",
+        [id, `${id}@example.test`],
+      );
+    }
+    await client.query(
+      "insert into teams (id, name) values ($1, 'Realtime Team') on conflict do nothing",
+      [TEAM],
+    );
+
+    for (const id of [OWNER, OTHER]) {
+      await client.query(
+        `insert into activities (team_id, user_id, type, source, metadata)
+         values ($1, $2, 'transactions_created', 'system', '{}'::jsonb)`,
+        [TEAM, id],
+      );
+    }
+  });
+
+  afterAll(async () => {
+    await client.query("delete from activities where team_id = $1", [TEAM]);
+    await client.query("delete from users where id in ($1, $2)", [
+      OWNER,
+      OTHER,
+    ]);
+    await client.query("delete from teams where id = $1", [TEAM]);
+    await client.query("delete from auth.users where id in ($1, $2)", [
+      OWNER,
+      OTHER,
+    ]);
+    await client.end();
+  });
+
+  test("publishes every table the dashboard subscribes to", async () => {
+    const { rows } = await client.query<{ tablename: string }>(
+      `select tablename from pg_publication_tables
+        where pubname = 'supabase_realtime' and schemaname = 'public'
+        order by tablename`,
+    );
+
+    // The five in apps/dashboard's useRealtime call sites, plus insights
+    // from migration 0018.
+    expect(rows.map((r) => r.tablename)).toEqual([
+      "activities",
+      "customers",
+      "documents",
+      "inbox",
+      "insights",
+      "transactions",
+    ]);
+  });
+
+  test("a user is notified of their own activities and not someone else's", async () => {
+    await client.query("begin");
+    try {
+      await client.query("set local role authenticated");
+      await client.query(
+        "select set_config('request.jwt.claim.sub', $1, true)",
+        [OWNER],
+      );
+
+      const { rows } = await client.query<{ user_id: string }>(
+        "select user_id from activities where team_id = $1",
+        [TEAM],
+      );
+
+      expect(rows.map((r) => r.user_id)).toEqual([OWNER]);
+    } finally {
+      await client.query("rollback");
+    }
+  });
+});
