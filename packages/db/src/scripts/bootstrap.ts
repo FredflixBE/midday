@@ -17,7 +17,10 @@
  *   6. 20-realtime.sql    publication membership and the activities policy.
  *   7. 30-auth-user.sql   the trigger that gives a new sign-in a users row.
  *   8. 40-functions.sql   the functions the application calls at runtime.
- *   9. verification       the part you paste into the ticket.
+ *   9. stamp              record the journal as applied, because step 2 built
+ *                         the state the migrations describe without running
+ *                         them — otherwise db:migrate would replay them.
+ *  10. verification       the part you paste into the ticket.
  *
  * The verification is the real gate, because `drizzle-kit push` exits 0 even
  * when statements inside it failed.
@@ -31,11 +34,15 @@ import { resolve } from "node:path";
 import { Client } from "pg";
 import { applyPolicies } from "./apply-policies";
 import { applySqlFile, sslFor } from "./apply-sql";
+import { readJournal, stampMigrations } from "./migrations";
 import { KNOWN_POLICIES_WITHOUT_EXPRESSION } from "./policies";
 import { PUBLISHED_TABLES } from "./realtime-tables";
 
 const PACKAGE_ROOT = resolve(__dirname, "../..");
 const SUPABASE_DIR = resolve(PACKAGE_ROOT, "supabase");
+
+/** The newest migration this schema already contains, by definition. */
+const LAST_MIGRATION = readJournal().at(-1);
 
 type Check = {
   what: string;
@@ -210,6 +217,20 @@ const CHECKS: Check[] = [
     },
   },
   {
+    // Without this db:migrate would replay the base migration over a schema
+    // the push already built, and fail on the first CREATE TABLE.
+    what: "db:migrate has nothing left to apply",
+    sql: "select coalesce(max(created_at), -1)::text as latest from drizzle.__drizzle_migrations",
+    verdict: (rows) => {
+      const latest = Number(rows[0]?.latest ?? -1);
+      const want = LAST_MIGRATION?.when ?? -1;
+
+      return latest >= want
+        ? ""
+        : `journal ends at ${LAST_MIGRATION?.tag ?? "nothing"}, the database records ${latest === -1 ? "no migration" : latest}`;
+    },
+  },
+  {
     what: "the API roles can reach the schema",
     sql: `select has_table_privilege('authenticated', 'public.transactions', 'SELECT') as ok`,
     verdict: (rows) =>
@@ -344,6 +365,12 @@ async function main(): Promise<number> {
 
     console.log("8. the functions the app calls at runtime");
     await applyFile(client, "40-functions.sql");
+
+    console.log("9. recording the migrations this schema already contains");
+    const stamped = await stampMigrations(client);
+    console.log(
+      `  stamped ${stamped} migration${stamped === 1 ? "" : "s"} as applied`,
+    );
 
     console.log("\nVerification\n");
     let failed = 0;

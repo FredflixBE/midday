@@ -9,7 +9,8 @@
       "!**/.turbo",
       "!**/.next",
       "!**/.react-email",
-      "!**/.wrangler"
+      "!**/.wrangler",
+      "!**/packages/db/migrations/meta"
     ]
   },
   "css": {

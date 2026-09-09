@@ -22,8 +22,10 @@
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
     "typecheck": "turbo typecheck",
+    "db:generate": "bun run --cwd packages/db generate",
     "db:migrate": "bun run --cwd packages/db migrate",
-    "db:bootstrap": "bun run --cwd packages/db bootstrap"
+    "db:bootstrap": "bun run --cwd packages/db bootstrap",
+    "db:stamp": "bun run --cwd packages/db stamp"
   },
   "packageManager": "bun@1.3.11",
   "catalog": {

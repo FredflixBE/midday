@@ -89,12 +89,30 @@ deliberately never fall back to that variable: they only ever reach
 `bun run db:migrate` applies pending files from `packages/db/migrations`, and is
 what CI runs on push to `main`.
 
-> **`db:migrate` does not work yet, and the `DATABASE_SESSION_POOLER`
-> repository secret must stay unset until it does.** `migrations/meta/_journal.json`
-> lists one migration whose `.sql` file does not exist, while the 39 real files
-> on disk are listed nowhere — so the command exits 1 without applying anything.
-> It fails safely (loudly, changing nothing), and the CI job skips entirely
-> while the secret is unset. Tracked in FF-1430.
+`migrations/0000_base_schema.sql` is the whole schema as one file, generated
+from `schema.ts`. The bootstrap records it as applied rather than running it,
+because step 2 has already built what it describes. To change the schema: edit
+`packages/db/src/schema.ts`, run `bun run db:generate`, read the SQL it wrote,
+and commit the `.sql`, the snapshot and the journal together. See
+[packages/db/migrations/README.md](packages/db/migrations/README.md).
+
+The 39 hand-written migrations that predate the base migration are in
+`packages/db/migrations/archive/`. Nothing runs them; the base migration
+contains everything they did.
+
+**Before setting the `DATABASE_SESSION_POOLER` repository secret, stamp the
+project once.** The Frankfurt project was built by an earlier bootstrap, so it
+has the schema but no record of it, and the first `db:migrate` would try to
+create everything again:
+
+```bash
+DATABASE_SESSION_POOLER='<session pooler URL>' bun run db:stamp
+```
+
+That prints the journal and changes nothing. Re-run it with
+`--through <tag>`, naming the last migration the project already contains, and
+`db:migrate` picks up from there. See
+[packages/db/migrations/README.md](packages/db/migrations/README.md).
 
 ## Environment variables
 
@@ -229,7 +247,7 @@ scheduled processors run unless `SYNC_INSTITUTIONS_ENABLED`,
 
 | Secret | Purpose |
 | --- | --- |
-| `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice. **Leave it unset** until the migration journal is fixed — see [Keeping it current](#keeping-it-current). |
+| `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice — which is what it did for as long as `db:migrate` was broken. |
 
 ## Local development
 
