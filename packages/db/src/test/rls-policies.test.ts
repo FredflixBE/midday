@@ -16,6 +16,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "pg";
+import { asRole } from "./helpers/as-role";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SKIP = !TEST_DATABASE_URL;
@@ -29,37 +30,6 @@ const INVITEE_EMAIL = "invitee@example.test";
 
 describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
   let client: Client;
-
-  /**
-   * Runs fn as `authenticated` carrying this user's claims, in a transaction
-   * that is always rolled back. Both claim forms are set because the policies
-   * use both: auth.uid() reads request.jwt.claim.sub, auth.jwt() reads
-   * request.jwt.claims.
-   */
-  async function asUser<T>(
-    user: { id: string; email?: string } | null,
-    fn: () => Promise<T>,
-  ): Promise<T> {
-    await client.query("begin");
-    try {
-      await client.query(
-        user ? "set local role authenticated" : "set local role anon",
-      );
-      if (user) {
-        await client.query(
-          "select set_config('request.jwt.claim.sub', $1, true)",
-          [user.id],
-        );
-        await client.query(
-          "select set_config('request.jwt.claims', $1, true)",
-          [JSON.stringify({ sub: user.id, email: user.email ?? null })],
-        );
-      }
-      return await fn();
-    } finally {
-      await client.query("rollback");
-    }
-  }
 
   async function ids(sql: string, params: unknown[] = []) {
     const { rows } = await client.query<{ id: string }>(sql, params);
@@ -199,7 +169,7 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
     // Production's policy was USING (true): every authenticated user could
     // read every membership row in the database, including which people are
     // on which other team.
-    const seen = await asUser({ id: MEMBER }, () =>
+    const seen = await asRole(client, { id: MEMBER }, () =>
       ids("select team_id as id from users_on_team"),
     );
 
@@ -207,7 +177,7 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
   });
 
   test("a member reads their own team and not another", async () => {
-    const seen = await asUser({ id: MEMBER }, () =>
+    const seen = await asRole(client, { id: MEMBER }, () =>
       ids("select id from teams"),
     );
 
@@ -218,8 +188,10 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
     // Reaches private.get_invites_for_authenticated_user(), which the
     // bootstrap did not have until this change — creating the policy would
     // have failed outright without it.
-    const seen = await asUser({ id: INVITEE, email: INVITEE_EMAIL }, () =>
-      ids("select id from teams"),
+    const seen = await asRole(
+      client,
+      { id: INVITEE, email: INVITEE_EMAIL },
+      () => ids("select id from teams"),
     );
 
     expect(seen).toEqual([TEAM]);
@@ -227,10 +199,10 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
 
   test("team-scoped tables are readable by their own team only", async () => {
     for (const table of ["apps", "bank_accounts"]) {
-      const mine = await asUser({ id: MEMBER }, () =>
+      const mine = await asRole(client, { id: MEMBER }, () =>
         ids(`select team_id as id from ${table}`),
       );
-      const theirs = await asUser({ id: STRANGER }, () =>
+      const theirs = await asRole(client, { id: STRANGER }, () =>
         ids(`select team_id as id from ${table}`),
       );
 
@@ -243,7 +215,7 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
     // The dump put the team expression in WITH CHECK and left USING out, which
     // makes no row selectable for update: verbatim, this policy updated zero
     // rows. The USING is the completion.
-    const updated = await asUser({ id: MEMBER }, async () => {
+    const updated = await asRole(client, { id: MEMBER }, async () => {
       const { rowCount } = await client.query(
         "update tracker_entries set description = 'after' where team_id = $1",
         [TEAM],
@@ -255,7 +227,7 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
   });
 
   test("a stranger cannot update another team's tracker entry", async () => {
-    const updated = await asUser({ id: STRANGER }, async () => {
+    const updated = await asRole(client, { id: STRANGER }, async () => {
       const { rowCount } = await client.query(
         "update tracker_entries set description = 'stolen' where team_id = $1",
         [TEAM],
@@ -267,7 +239,7 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
   });
 
   test("a user manages only their own insight status", async () => {
-    const mine = await asUser({ id: MEMBER }, () =>
+    const mine = await asRole(client, { id: MEMBER }, () =>
       ids("select user_id as id from insight_user_status"),
     );
 
@@ -276,7 +248,9 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
 
   test("anon reads none of it", async () => {
     for (const table of ["teams", "users_on_team", "apps", "bank_accounts"]) {
-      const seen = await asUser(null, () => ids(`select id from ${table}`));
+      const seen = await asRole(client, null, () =>
+        ids(`select id from ${table}`),
+      );
 
       expect(seen).toEqual([]);
     }

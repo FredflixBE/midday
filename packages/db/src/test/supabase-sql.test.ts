@@ -14,38 +14,13 @@ import { resolve } from "node:path";
 import { Client } from "pg";
 import { applySqlFiles } from "../scripts/apply-sql";
 import { PUBLISHED_TABLES } from "../scripts/realtime-tables";
+import { asRole } from "./helpers/as-role";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SKIP = !TEST_DATABASE_URL;
 
 const SUPABASE_DIR = resolve(__dirname, "../../supabase");
 const BOOTSTRAP_SQL = resolve(SUPABASE_DIR, "00-bootstrap.sql");
-
-/**
- * Runs fn with the database role and JWT claim a request would carry, inside a
- * transaction that is rolled back afterwards. Pass no user to act as `anon`.
- */
-async function asRole<T>(
-  client: Client,
-  userId: string | null,
-  fn: () => Promise<T>,
-): Promise<T> {
-  await client.query("begin");
-  try {
-    await client.query(
-      userId ? "set local role authenticated" : "set local role anon",
-    );
-    if (userId) {
-      await client.query(
-        "select set_config('request.jwt.claim.sub', $1, true)",
-        [userId],
-      );
-    }
-    return await fn();
-  } finally {
-    await client.query("rollback");
-  }
-}
 
 describe.skipIf(SKIP)("supabase/00-bootstrap.sql", () => {
   let client: Client;
@@ -287,7 +262,7 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
   });
 
   test("a team member can upload into their own team's vault folder", async () => {
-    await asRole(client, MEMBER_OF_A, async () => {
+    await asRole(client, { id: MEMBER_OF_A }, async () => {
       const { rowCount } = await client.query(
         "insert into storage.objects (bucket_id, name) values ('vault', $1)",
         [`${TEAM_A}/transactions/tx-1/receipt.pdf`],
@@ -297,7 +272,7 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
   });
 
   test("a team member cannot upload into another team's vault folder", async () => {
-    await asRole(client, MEMBER_OF_A, async () => {
+    await asRole(client, { id: MEMBER_OF_A }, async () => {
       const attempt = client.query(
         "insert into storage.objects (bucket_id, name) values ('vault', $1)",
         [`${TEAM_B}/transactions/tx-1/receipt.pdf`],
@@ -312,7 +287,7 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
       [`${TEAM_B}/secret.pdf`],
     );
 
-    const visible = await asRole(client, MEMBER_OF_A, async () => {
+    const visible = await asRole(client, { id: MEMBER_OF_A }, async () => {
       const { rows } = await client.query(
         "select name from storage.objects where bucket_id = 'vault'",
       );
@@ -327,7 +302,7 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
   });
 
   test("a user can upload an avatar into their own folder", async () => {
-    await asRole(client, MEMBER_OF_A, async () => {
+    await asRole(client, { id: MEMBER_OF_A }, async () => {
       const { rowCount } = await client.query(
         "insert into storage.objects (bucket_id, name) values ('avatars', $1)",
         [`${MEMBER_OF_A}/me.png`],
@@ -337,7 +312,7 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
   });
 
   test("a user cannot upload an avatar into someone else's folder", async () => {
-    await asRole(client, MEMBER_OF_A, async () => {
+    await asRole(client, { id: MEMBER_OF_A }, async () => {
       const attempt = client.query(
         "insert into storage.objects (bucket_id, name) values ('avatars', $1)",
         [`${TEAM_B}/logo.png`],
@@ -347,7 +322,7 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
   });
 
   test("app images go under logos or screenshots, and nowhere else", async () => {
-    await asRole(client, MEMBER_OF_A, async () => {
+    await asRole(client, { id: MEMBER_OF_A }, async () => {
       const { rowCount } = await client.query(
         "insert into storage.objects (bucket_id, name) values ('apps', 'logos/abc.png')",
       );
@@ -388,7 +363,7 @@ describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
       [`${TEAM_A}/logo.png`],
     );
 
-    const asMember = await asRole(client, MEMBER_OF_A, async () => {
+    const asMember = await asRole(client, { id: MEMBER_OF_A }, async () => {
       const { rows } = await client.query(
         "select name from storage.objects where bucket_id = 'avatars'",
       );
@@ -501,7 +476,7 @@ describe.skipIf(SKIP)("supabase/20-realtime.sql", () => {
       );
     }
 
-    const visible = await asRole(client, OWNER, async () => {
+    const visible = await asRole(client, { id: OWNER }, async () => {
       const { rows } = await client.query<{ name: string }>(
         "select name from transactions where internal_id like 'ff1395-%'",
       );
@@ -518,7 +493,7 @@ describe.skipIf(SKIP)("supabase/20-realtime.sql", () => {
   });
 
   test("a user is notified of their own activities and not someone else's", async () => {
-    const visible = await asRole(client, OWNER, async () => {
+    const visible = await asRole(client, { id: OWNER }, async () => {
       const { rows } = await client.query<{ user_id: string }>(
         "select user_id from activities where team_id = $1",
         [TEAM],
