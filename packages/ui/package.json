@@ -96,8 +96,7 @@
     "./animations/widgets": "./src/components/animations/widgets-animation.tsx",
     "./iphone-mock": "./src/components/iphone-mock.tsx",
     "./chat-demo-rail": "./src/components/chat-demo-rail.tsx",
-    "./animations/chat-demo": "./src/components/animations/chat-demo-animation.tsx",
-    "./animations/chat-demo-autoplay": "./src/components/animations/chat-demo-autoplay.tsx"
+    "./animations/chat-demo": "./src/components/animations/chat-demo-animation.tsx"
   },
   "dependencies": {
     "@midday/utils": "workspace:*",
