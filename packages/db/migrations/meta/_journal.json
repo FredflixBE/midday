@@ -8,6 +8,13 @@
       "when": 1788987077961,
       "tag": "0000_base_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788987562233,
+      "tag": "0001_restore_policy_expressions",
+      "breakpoints": true
     }
   ]
 }

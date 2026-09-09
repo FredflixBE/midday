@@ -49,6 +49,21 @@ as $$
    where user_id = auth.uid()
 $$;
 
+-- The teams the calling user has been invited to but has not joined yet.
+-- What lets an invited user see the team on the invite screen, before there
+-- is a users_on_team row for them. Same shape and same reason as above.
+create or replace function private.get_invites_for_authenticated_user()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select team_id
+    from user_invites
+   where email = auth.jwt() ->> 'email'
+$$;
+
 -- Policies run as the request's role, so those roles need to reach the
 -- schema and the function. The roles only exist on Supabase.
 do $$
@@ -56,6 +71,8 @@ begin
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
     grant usage on schema private to authenticated, anon, service_role;
     grant execute on function private.get_teams_for_authenticated_user()
+      to authenticated, anon, service_role;
+    grant execute on function private.get_invites_for_authenticated_user()
       to authenticated, anon, service_role;
   end if;
 end
