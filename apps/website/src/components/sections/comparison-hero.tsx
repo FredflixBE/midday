@@ -3,7 +3,6 @@
 import { track } from "@midday/events/client";
 import { LogEvents } from "@midday/events/events";
 import { Button } from "@midday/ui/button";
-import Link from "next/link";
 import type { Competitor } from "@/data/competitors";
 
 interface Differentiator {
@@ -56,9 +55,6 @@ export function ComparisonHero({
             >
               Get started now
             </a>
-          </Button>
-          <Button asChild variant="outline" className="h-11 px-6">
-            <Link href="/pricing">View pricing</Link>
           </Button>
         </div>
 
