@@ -5,10 +5,10 @@
 # at the end links only by luck. A rule that lives in prose depends on whoever
 # opens the PR having read it, which is why this is a check.
 #
-# Deliberately its own workflow rather than a job in production.yml or
-# staging.yml: those run the full build, and adding `edited` there would re-run
-# it every time someone touches a description. This is title-only and finishes
-# in seconds.
+# Deliberately its own workflow rather than a job in ci.yml: that one runs the
+# full typecheck, lint and test pass, and adding `edited` there would re-run it
+# every time someone touches a description. This is title-only and finishes in
+# seconds.
 #
 # This repository has a single trunk (`main` is both the working and the
 # release trunk in fredflix.json), so there is no release pull request to

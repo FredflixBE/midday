@@ -1,0 +1,86 @@
+# Plain CI for the fork: no deploys, no vendor runners.
+#
+# Deploys are not this workflow's job. Dokploy builds the api and dashboard
+# images from GitHub on its own, and the Trigger.dev deploy lives in its own
+# workflow (job-system epic). What this file guarantees is that `main` only
+# ever contains code that typechecks, lints and passes its tests, and that the
+# database schema is applied before anything built from that push can run.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# One run per ref. A newer push to a PR cancels the older run; pushes to main
+# queue instead, because a cancelled migrate job is worse than a slow one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Apply the schema first. Only on push to main — pull requests never touch
+  # the database. Dokploy deploys from the same push, so this job must not
+  # wait on anything: the schema has to be in place before the new code is.
+  # ---------------------------------------------------------------------------
+  migrate:
+    name: Migrate database
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: ci-migrate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Apply pending migrations
+        env:
+          DATABASE_SESSION_POOLER: ${{ secrets.DATABASE_SESSION_POOLER }}
+        run: |
+          if [ -z "$DATABASE_SESSION_POOLER" ]; then
+            echo "::notice title=Migrate skipped::DATABASE_SESSION_POOLER is not set on this repository; nothing to migrate against."
+            exit 0
+          fi
+          bun run db:migrate
+
+  # ---------------------------------------------------------------------------
+  # Typecheck, lint and test the whole graph. Turbo only runs `test` in
+  # packages that define a test script, so there is nothing to filter here.
+  # ---------------------------------------------------------------------------
+  check:
+    name: Typecheck, lint and test
+    # On main this runs after migrate; on pull requests migrate is skipped and
+    # this runs alone. `always()` keeps it from being skipped along with migrate.
+    needs: [migrate]
+    if: >-
+      always() &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Build type dependencies
+        run: bunx turbo build --filter=workbench
+
+      - name: Typecheck
+        run: bunx turbo typecheck
+
+      - name: Lint
+        run: bunx turbo lint
+
+      - name: Test
+        run: bunx turbo test --continue
