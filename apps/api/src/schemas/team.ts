@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { isAllowedAssetUrl } from "@midday/utils/asset-hosts";
 
 export const teamResponseSchema = z.object({
   id: z.string().uuid().openapi({
@@ -69,24 +70,6 @@ export const getTeamByIdSchema = z.object({
     }),
 });
 
-/**
- * Validates that a URL is hosted on a trusted midday.ai domain.
- * Prevents SSRF by checking the hostname, not just URL contents.
- */
-function isValidMiddayUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const hostname = parsed.hostname.toLowerCase();
-    return (
-      hostname === "cdn.midday.ai" ||
-      hostname === "midday.ai" ||
-      hostname.endsWith(".midday.ai")
-    );
-  } catch {
-    return false;
-  }
-}
-
 export const updateTeamByIdSchema = z.object({
   name: z.string().min(2).max(32).optional().openapi({
     description:
@@ -100,14 +83,15 @@ export const updateTeamByIdSchema = z.object({
   logoUrl: z
     .string()
     .url()
-    .refine(isValidMiddayUrl, {
-      message: "logoUrl must be hosted on midday.ai domain",
+    .refine(isAllowedAssetUrl, {
+      message: "logoUrl must be hosted on this instance's storage or CDN",
     })
     .optional()
     .openapi({
       description:
-        "URL to the team's logo image. Must be hosted on midday.ai domain",
-      example: "https://cdn.midday.ai/logos/acme-corp.png",
+        "URL to the team's logo image. Must be hosted on this instance's storage or CDN",
+      example:
+        "https://abcdef.supabase.co/storage/v1/object/public/avatars/acme-corp.png",
     }),
   baseCurrency: z.string().optional().openapi({
     description:
