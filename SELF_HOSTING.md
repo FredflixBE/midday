@@ -35,8 +35,8 @@ assumes the previous ones landed.
    epic). After it the repo builds and typechecks without Polar, OpenPanel,
    Sentry, Plaid, Teller, Railway, read replicas, or the messaging bots.
 2. **FF-1369 Fresh Supabase project.** Create the project in Frankfurt,
-   configure auth, apply the schema once with the bootstrap script from FF-1395,
-   and keep it current with `bun run db:migrate` (what CI runs on `main`).
+   configure auth, then apply the schema once with `bun run db:bootstrap`
+   (see [Building the database](#building-the-database)).
 3. **FF-1371 Accounts and DNS.** The external services: Google Cloud OAuth
    clients, Enable Banking application, Resend, Trigger.dev, DNS records.
 4. **FF-1370 Make the code self-hostable.** Remove every hardcoded `midday.ai`
@@ -45,6 +45,56 @@ assumes the previous ones landed.
    delete the BullMQ worker.
 6. **FF-1372 Deploy and go-live on Dokploy.** The two Dokploy applications,
    env vars, domains, and the go-live checklist.
+
+## Building the database
+
+A new Supabase project gets its schema from `bun run db:bootstrap`, run once
+against an empty project:
+
+```bash
+DATABASE_SESSION_POOLER='<session pooler URL>' bun run db:bootstrap
+```
+
+It refuses to run if `public` already has tables, because it pushes with
+`--force`, which drops whatever does not match the schema. That guard is the
+difference between building a project and emptying one; override it with
+`ALLOW_NON_EMPTY=true` only when you are sure.
+
+Five steps, in an order that matters:
+
+| | | |
+| --- | --- | --- |
+| 1 | `packages/db/supabase/00-bootstrap.sql` | Extensions, the `private` schema, and the functions the schema *calls*: `inbox.fts` is a stored column computed by `generate_inbox_fts`, and `teams.inbox_id` and `user_invites.code` default to `generate_inbox()` and `nanoid()`. These have to exist before the tables that use them. |
+| 2 | `drizzle-kit push` | Tables, columns, indexes, enums, from `packages/db/src/schema.ts`. |
+| 3 | policies | Row level security, read out of `schema.ts`. Separate because `drizzle-kit push` creates every policy **without** its `USING` expression, and a policy with no `USING` grants nothing. |
+| 4 | `packages/db/supabase/10-storage.sql` | The `vault`, `avatars` and `apps` buckets. |
+| 5 | `packages/db/supabase/11-storage-policies.sql` | Who may reach into them. Separate because `storage.objects` belongs to Supabase, which narrows what may be done to it. If a project refuses the file, the script reports it and carries on. |
+| 6 | `packages/db/supabase/20-realtime.sql` | Publication membership for the tables the dashboard subscribes to. |
+
+Then it runs fourteen checks and prints a pass/fail line for each. **The checks
+are the real result**, because `drizzle-kit push` exits 0 even when statements
+inside it failed. A non-zero exit means at least one check failed; nothing is
+half-applied that a second run will not fix, since every step is idempotent.
+
+Note that `bun run` loads `packages/db/.env`, which already sets
+`DATABASE_SESSION_POOLER` to the Supabase project — so the command above
+targets Frankfurt whether or not you pass the variable yourself. The script
+prints which database and host it is about to build before it touches
+anything; read that line. The helper scripts under `packages/db/src/scripts`
+deliberately never fall back to that variable: they only ever reach
+`TEST_DATABASE_URL`, defaulting to the test container.
+
+### Keeping it current
+
+`bun run db:migrate` applies pending files from `packages/db/migrations`, and is
+what CI runs on push to `main`.
+
+> **`db:migrate` does not work yet, and the `DATABASE_SESSION_POOLER`
+> repository secret must stay unset until it does.** `migrations/meta/_journal.json`
+> lists one migration whose `.sql` file does not exist, while the 39 real files
+> on disk are listed nowhere — so the command exits 1 without applying anything.
+> It fails safely (loudly, changing nothing), and the CI job skips entirely
+> while the secret is unset. Tracked in FF-1430.
 
 ## Environment variables
 
@@ -155,7 +205,7 @@ scheduled processors run unless `SYNC_INSTITUTIONS_ENABLED`,
 
 | Secret | Purpose |
 | --- | --- |
-| `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice. |
+| `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice. **Leave it unset** until the migration journal is fixed — see [Keeping it current](#keeping-it-current). |
 
 ## Local development
 
