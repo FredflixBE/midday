@@ -19,6 +19,28 @@ BEGIN
 END
 $$;
 
+-- 00-bootstrap.sql grants these roles USAGE on the `private` schema and
+-- EXECUTE on its functions, but only `if exists (select 1 from pg_roles ...)`
+-- — and on a real Supabase project the roles are there long before it runs.
+-- Here they are not: this file creates them, and it is applied *after*
+-- 00-bootstrap.sql, so that guard skips every grant. Re-issuing them is what
+-- makes the test database match what a real project has. Verified: without
+-- this, `has_schema_privilege('authenticated', 'private', 'USAGE')` is false
+-- on a fresh cluster.
+--
+-- Nothing fails today without it — a policy binds its function at CREATE
+-- POLICY time and PUBLIC holds EXECUTE — but a test database that differs
+-- from production is a test database that can hide the next difference.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'private') THEN
+    GRANT USAGE ON SCHEMA private TO anon, authenticated, service_role;
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA private
+      TO anon, authenticated, service_role;
+  END IF;
+END
+$$;
+
 -- Supabase grants the API roles access to whatever is created in `public`,
 -- through default privileges on the role that creates it. drizzle-kit pushes
 -- as that role, so its tables arrive already granted. Setting the same default

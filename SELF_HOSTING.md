@@ -18,7 +18,7 @@ one Postgres, one region, and a handful of external services you own.
 | Email | Resend | Transactional email only. |
 | Login | Google OAuth through Supabase Auth | Plus an internal Google OAuth client with Gmail scopes for inbox sync. |
 | Desktop app (`apps/desktop`) | Built locally on a Mac | No updater. See `apps/desktop/README.md`. |
-| CI | GitHub Actions, `ubuntu-latest` | `ci.yml` typechecks, lints and tests; on push to `main` it first applies schema migrations. `trigger-deploy.yml` ships the jobs. Dokploy deploys the API and dashboard on the same push. |
+| CI | GitHub Actions, `ubuntu-latest` | `ci.yml` typechecks, lints and tests; on a pull request it also builds the database from empty in a Postgres service container, both ways; on push to `main` it first applies schema migrations. `trigger-deploy.yml` ships the jobs. Dokploy deploys the API and dashboard on the same push. |
 
 Every Dockerfile uses the repository root as build context; the root
 `.dockerignore` keeps the context small. The images work from a plain checkout:
