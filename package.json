@@ -17,7 +17,7 @@
     "build:dashboard": "turbo build --filter=@midday/dashboard",
     "dev:desktop": "turbo dev --filter=@midday/desktop",
     "cli": "bun run packages/cli/bin/midday.ts",
-    "jobs:dashboard": "turbo jobs --filter=@midday/jobs",
+    "jobs:dev": "bun run --cwd packages/jobs dev",
     "format": "biome format --write .",
     "lint": "turbo lint",
     "lint:fix": "turbo lint:fix",
