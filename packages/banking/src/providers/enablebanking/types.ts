@@ -56,7 +56,7 @@ export type Institution = {
 export type TransformInstitution = {
   id: string;
   name: string;
-  logo: string;
+  logo: string | null;
   provider: "enablebanking";
 };
 

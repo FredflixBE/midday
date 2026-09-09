@@ -235,7 +235,7 @@ export const bankingRouter = createTRPCRouter({
 
   getProviderAccounts: protectedOrInternalProcedure
     .input(getProviderAccountsSchema)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx: { db } }) => {
       const api = new Provider({ provider: input.provider });
 
       try {
@@ -245,8 +245,32 @@ export const bankingRouter = createTRPCRouter({
           institutionId: input.institutionId,
         });
 
+        // Enable Banking's account payload carries no logo, only the
+        // institution's name and country. The institutions table has the
+        // provider's own logo URL, so fill it in here rather than saving a
+        // connection with no logo.
+        const missingLogo = data.some((account) => !account.institution.logo);
+        const institution =
+          missingLogo && input.institutionId
+            ? await getInstitutionById(db, { id: input.institutionId })
+            : null;
+
+        const withLogos = institution?.logo
+          ? data.map((account) =>
+              account.institution.logo
+                ? account
+                : {
+                    ...account,
+                    institution: {
+                      ...account.institution,
+                      logo: institution.logo,
+                    },
+                  },
+            )
+          : data;
+
         // Sort accounts by balance descending (highest first) for display
-        const sorted = [...data].sort(
+        const sorted = [...withLogos].sort(
           (a, b) => b.balance.amount - a.balance.amount,
         );
 

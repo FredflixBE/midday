@@ -95,7 +95,7 @@ exports[`Transform accounts 1`] = `
   "id": "b11e5627-cac8-41c9-a74a-2b88438fe07d",
   "institution": {
     "id": "PLEO_PLEODK00",
-    "logo": "https://cdn-engine.midday.ai/PLEO_PLEODK00.png",
+    "logo": "https://cdn-logos.gocardless.com/ais/PLEO_PLEODK00.png",
     "name": "Pleo",
     "provider": "gocardless",
   },
@@ -128,7 +128,7 @@ exports[`Transform credit card account (CARD type) 1`] = `
   "id": "credit-card-account-123",
   "institution": {
     "id": "BANK_CREDIT",
-    "logo": "https://cdn-engine.midday.ai/BANK_CREDIT.png",
+    "logo": "https://example.com/logo.png",
     "name": "Test Bank",
     "provider": "gocardless",
   },

@@ -8,7 +8,6 @@ import type {
 } from "../../types";
 import type { AccountType } from "../../utils/account";
 import { isValidCurrency } from "../../utils/currency";
-import { getLogoURL } from "../../utils/logo";
 import type {
   GetAccountDetailsResponse,
   GetBalancesResponse,
@@ -29,7 +28,7 @@ export const transformInstitution = (
 ): TransformInstitution => ({
   id: hashInstitutionId(institution.name, institution.country),
   name: institution.name,
-  logo: getLogoURL(institution.name, "png"),
+  logo: institution.logo ?? null,
   provider: "enablebanking",
 });
 
@@ -121,7 +120,8 @@ export const transformAccount = (
         account.institution.country,
       ),
       name: account.institution.name,
-      logo: getLogoURL(account.institution.name, "png"),
+      // The account payload carries no logo; the institutions table has it.
+      logo: null,
       provider: "enablebanking",
     },
     balance: {
