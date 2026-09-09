@@ -6,7 +6,7 @@ What `drizzle-kit push` cannot create, and what it creates wrongly.
 | --- | --- |
 | `00-bootstrap.sql` | Extensions, the `private` schema, and the functions the schema *calls* — before the tables that call them exist. |
 | `10-storage.sql` | The `vault`, `avatars` and `apps` buckets. |
-| `11-storage-policies.sql` | Who may reach into them. **Needs a privileged connection** — see below. |
+| `11-storage-policies.sql` | Who may reach into them. Separate because `storage.objects` belongs to Supabase. |
 | `20-realtime.sql` | Publication membership, and the `activities` read policy. |
 
 All are idempotent, and `bun run db:bootstrap` applies them in order with
@@ -33,23 +33,22 @@ it, and neither should the paste.
 even if you pass nothing. Before it changes anything the script prints the
 database and host it is about to build — read that line first.
 
-### The storage policies need the dashboard
+### If the storage policies are skipped
 
-On Supabase, `storage.objects` is owned by `supabase_storage_admin`, and
-Postgres requires a table's owner to create a policy on it. The `postgres`
-role behind the session pooler is not a member of that role, so
-`db:bootstrap` cannot apply `11-storage-policies.sql`. It says so and carries
-on rather than failing:
+`storage.objects` belongs to Supabase (`supabase_storage_admin` owns it), so
+what may be done to it is narrower than for our own tables. Creating policies
+on it is allowed; owning operations are not. If a project ever refuses the
+file anyway, the script says so and carries on rather than failing:
 
 ```
 5. storage policies
-  skipped 11-storage-policies.sql — must be owner of table objects
+  skipped 11-storage-policies.sql — permission denied for schema storage
 ```
 
-Paste that file into the **Supabase SQL editor** and run it. If that also
-refuses, use **Storage > Policies** in the dashboard, which always has the
-rights. Then run `db:bootstrap` again — everything is idempotent — and the
-`every bucket has a policy for all four commands` check will pass.
+Paste that file into the **Supabase SQL editor** and run it, then run
+`db:bootstrap` again. Note that a file is applied as one transaction, so one
+refused statement takes the whole file with it — the message names the reason,
+and it is the statement, not the file, that needs looking at.
 
 ### If it refuses to start
 

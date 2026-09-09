@@ -68,7 +68,7 @@ Five steps, in an order that matters:
 | 2 | `drizzle-kit push` | Tables, columns, indexes, enums, from `packages/db/src/schema.ts`. |
 | 3 | policies | Row level security, read out of `schema.ts`. Separate because `drizzle-kit push` creates every policy **without** its `USING` expression, and a policy with no `USING` grants nothing. |
 | 4 | `packages/db/supabase/10-storage.sql` | The `vault`, `avatars` and `apps` buckets. |
-| 5 | `packages/db/supabase/11-storage-policies.sql` | Who may reach into them. Supabase owns `storage.objects`, so the pooler role cannot create policies on it — the script reports this and carries on, and the file goes into the Supabase SQL editor instead. |
+| 5 | `packages/db/supabase/11-storage-policies.sql` | Who may reach into them. Separate because `storage.objects` belongs to Supabase, which narrows what may be done to it. If a project refuses the file, the script reports it and carries on. |
 | 6 | `packages/db/supabase/20-realtime.sql` | Publication membership for the tables the dashboard subscribes to. |
 
 Then it runs fourteen checks and prints a pass/fail line for each. **The checks

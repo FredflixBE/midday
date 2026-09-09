@@ -1,14 +1,14 @@
 -- 11-storage-policies.sql — who may reach into each bucket.
 --
--- SEPARATE FROM 10-storage.sql BECAUSE OF WHO MAY RUN IT. On Supabase,
--- storage.objects is owned by supabase_storage_admin; Postgres requires table
--- ownership to CREATE POLICY, and the `postgres` role the session pooler
--- gives you is not a member of that role. So `bun run db:bootstrap` cannot
--- apply this file and will tell you so — paste it into the Supabase SQL
--- editor instead, or use Storage > Policies in the dashboard.
+-- Separate from 10-storage.sql because storage.objects belongs to Supabase
+-- (supabase_storage_admin owns it), so what may be done to it is narrower than
+-- what may be done to a bucket row. Creating policies on it is allowed; owning
+-- operations are not, which is why there is no ALTER TABLE ... ENABLE ROW
+-- LEVEL SECURITY here — Supabase has it on already, and the statement would
+-- need the owner.
 --
--- RLS is already enabled on storage.objects by Supabase, so there is no
--- ALTER TABLE here; that too would need ownership.
+-- If a project ever does refuse this file, db:bootstrap reports it and carries
+-- on rather than failing, and it can be pasted into the Supabase SQL editor.
 --
 -- Idempotent: every policy is dropped and recreated.
 --
@@ -179,32 +179,18 @@ create policy "App images can be deleted by signed-in users"
   );
 
 -- ---------------------------------------------------------------------------
--- Folder placeholders
+-- Folder placeholders — deliberately not recreated
 -- ---------------------------------------------------------------------------
--- Recovered from line 8 of the dump named above, so a fresh project matches
--- what the old one had. Note that it is not wired to anything: no dump in the
--- history creates a trigger that calls it, and the constant naming the file it
--- looks for (EMPTY_FOLDER_PLACEHOLDER_FILE_NAME, packages/supabase) is
--- exported but never imported. It is here to be faithful, not because
--- something calls it — see the note on FF-1393.
-create or replace function storage.handle_empty_folder_placeholder()
-returns trigger
-language plpgsql
-as $$
-declare
-  name_tokens text[];
-  modified_name text;
-begin
-  name_tokens := string_to_array(new.name, '/');
-
-  if name_tokens[array_length(name_tokens, 1)] = '.emptyFolderPlaceholder' then
-    name_tokens[array_length(name_tokens, 1)] := '.folderPlaceholder';
-    modified_name := array_to_string(name_tokens, '/');
-
-    insert into storage.objects (bucket_id, name, owner, owner_id)
-    values (new.bucket_id, modified_name, new.owner, new.owner_id);
-  end if;
-
-  return new;
-end;
-$$;
+-- The old database had storage.handle_empty_folder_placeholder(), recovered
+-- from line 8 of the dump named above. It is not here, for two reasons that
+-- point the same way.
+--
+-- It cannot be: creating a function in the storage schema needs CREATE on that
+-- schema, which the pooler role does not have — and because a file is applied
+-- as one transaction, that single statement failing took all twelve policies
+-- above down with it.
+--
+-- And it need not be: nothing calls it. No dump in the history creates a
+-- trigger for it, and EMPTY_FOLDER_PLACEHOLDER_FILE_NAME in packages/supabase
+-- is exported and never imported. Reproducing a function that nothing invokes,
+-- in a schema we cannot write to, is fidelity for its own sake. See FF-1393.
