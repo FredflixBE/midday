@@ -99,13 +99,24 @@ create policy "Vault files can be deleted by the team that owns them"
 -- logo, [userId, file] for a user's own avatar. A writer must own one or the
 -- other.
 --
--- Reads are open because the bucket is public: getPublicUrl() hands out an
--- unsigned URL that Supabase serves without consulting these policies, so
--- restricting select here would only break listing while protecting nothing.
+-- Reads are restricted to the same owners, as the historical policy had them.
+-- Rendering does not go through here: getPublicUrl() builds an unsigned URL
+-- that Supabase serves without consulting these policies, and nothing in the
+-- app lists this bucket. So this costs nothing and keeps one signed-in user
+-- from enumerating every team's files.
 drop policy if exists "Avatars are readable by anyone" on storage.objects;
-create policy "Avatars are readable by anyone"
-  on storage.objects for select to public
-  using (bucket_id = 'avatars');
+drop policy if exists "Avatars are readable in a team or own folder" on storage.objects;
+create policy "Avatars are readable in a team or own folder"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'avatars'
+    and (
+      (storage.foldername(name))[1] in (
+        select private.get_teams_for_authenticated_user()::text
+      )
+      or (storage.foldername(name))[1] = auth.uid()::text
+    )
+  );
 
 drop policy if exists "Avatars can be uploaded to a team or own folder" on storage.objects;
 create policy "Avatars can be uploaded to a team or own folder"

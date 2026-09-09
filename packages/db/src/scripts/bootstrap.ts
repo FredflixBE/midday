@@ -1,0 +1,289 @@
+/**
+ * `bun run db:bootstrap` — build a fresh Supabase project's schema, once.
+ *
+ * Order matters and is not arbitrary:
+ *
+ *   1. 00-bootstrap.sql   inbox.fts is a stored column calling
+ *                         generate_inbox_fts, so the function has to exist
+ *                         before the table does.
+ *   2. drizzle-kit push   tables, columns, indexes, enums.
+ *   3. policies           push creates every policy without its USING
+ *                         expression, so they are re-created from schema.ts.
+ *   4. 10-storage.sql     buckets and their policies.
+ *   5. 20-realtime.sql    publication membership and the activities policy.
+ *   6. verification       the part you paste into the ticket.
+ *
+ * The verification is the real gate, because `drizzle-kit push` exits 0 even
+ * when statements inside it failed.
+ *
+ * This is for an empty project. `db:migrate` is what keeps an existing one up
+ * to date.
+ */
+
+import { spawn } from "node:child_process";
+import { resolve } from "node:path";
+import { Client } from "pg";
+import { applyPolicies } from "./apply-policies";
+import { applySqlFile, sslFor } from "./apply-sql";
+import { KNOWN_POLICIES_WITHOUT_EXPRESSION } from "./policies";
+import { PUBLISHED_TABLES } from "./realtime-tables";
+
+const PACKAGE_ROOT = resolve(__dirname, "../..");
+const SUPABASE_DIR = resolve(PACKAGE_ROOT, "supabase");
+
+type Check = {
+  what: string;
+  sql: string;
+  /** Given the rows, either "" for a pass or why it failed. */
+  verdict: (rows: Record<string, unknown>[]) => string;
+};
+
+const CHECKS: Check[] = [
+  {
+    what: "vector and pg_trgm extensions installed",
+    sql: "select extname from pg_extension where extname in ('vector','pg_trgm') order by extname",
+    verdict: (rows) =>
+      rows.length === 2
+        ? ""
+        : `found ${rows.map((r) => r.extname).join(", ") || "neither"}`,
+  },
+  {
+    what: "private.get_teams_for_authenticated_user() exists, security definer",
+    sql: `select p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'private' and p.proname = 'get_teams_for_authenticated_user'`,
+    verdict: (rows) =>
+      rows.length === 0
+        ? "missing"
+        : rows[0]!.prosecdef === true
+          ? ""
+          : "exists but is not SECURITY DEFINER",
+  },
+  {
+    what: "inbox full-text functions exist",
+    sql: `select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and proname in ('generate_inbox_fts','extract_product_names')`,
+    verdict: (rows) => (rows.length >= 2 ? "" : `found ${rows.length} of 2`),
+  },
+  {
+    what: "inbox.fts is a stored generated column",
+    sql: `select is_generated from information_schema.columns
+           where table_name = 'inbox' and column_name = 'fts'`,
+    verdict: (rows) =>
+      rows[0]?.is_generated === "ALWAYS"
+        ? ""
+        : "not generated — the push did not use the function",
+  },
+  {
+    what: "id generators exist, so a second team and invite can be created",
+    sql: `select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and proname in ('generate_inbox','nanoid','nanoid_optimized')`,
+    verdict: (rows) => (rows.length >= 3 ? "" : `found ${rows.length} of 3`),
+  },
+  {
+    what: "teams.inbox_id defaults to a call, not a literal",
+    sql: `select column_default from information_schema.columns
+           where table_name = 'teams' and column_name = 'inbox_id'`,
+    verdict: (rows) =>
+      rows[0]?.column_default === "generate_inbox(10)"
+        ? ""
+        : `default is ${JSON.stringify(rows[0]?.column_default)} — every team would share it`,
+  },
+  {
+    what: "no public table named auth.users",
+    sql: "select tablename from pg_tables where schemaname = 'public' and tablename = 'auth.users'",
+    verdict: (rows) =>
+      rows.length === 0 ? "" : "push created a table shadowing Supabase's",
+  },
+  {
+    what: "users.id references auth.users, on delete cascade",
+    sql: `select confrelid::regclass::text as refs, confdeltype from pg_constraint where conname = 'users_id_fkey'`,
+    verdict: (rows) =>
+      rows[0]?.refs === "auth.users" && rows[0]?.confdeltype === "c"
+        ? ""
+        : `references ${rows[0]?.refs ?? "nothing"}`,
+  },
+  {
+    what: "buckets vault, avatars and apps exist, only vault private",
+    sql: "select id, public from storage.buckets where id in ('vault','avatars','apps') order by id",
+    verdict: (rows) => {
+      if (rows.length !== 3) return `found ${rows.length} of 3`;
+      const vault = rows.find((r) => r.id === "vault");
+      return vault?.public === false ? "" : "vault is public";
+    },
+  },
+  {
+    // Counting policies would pass on twelve for one bucket, so name them.
+    what: "every bucket has a policy for all four commands",
+    sql: `select
+             case
+               when coalesce(qual, with_check) like '%''vault''%' then 'vault'
+               when coalesce(qual, with_check) like '%''avatars''%' then 'avatars'
+               when coalesce(qual, with_check) like '%''apps''%' then 'apps'
+             end as bucket,
+             cmd
+           from pg_policies
+          where schemaname = 'storage' and tablename = 'objects'`,
+    verdict: (rows) => {
+      const missing = ["vault", "avatars", "apps"].flatMap((bucket) => {
+        const commands = new Set(
+          rows.filter((r) => r.bucket === bucket).map((r) => r.cmd),
+        );
+        return ["SELECT", "INSERT", "UPDATE", "DELETE"]
+          .filter((cmd) => !commands.has(cmd))
+          .map((cmd) => `${bucket} ${cmd}`);
+      });
+      return missing.length === 0 ? "" : `no policy for ${missing.join(", ")}`;
+    },
+  },
+  {
+    what: "realtime publishes the six tables the dashboard watches",
+    sql: `select tablename from pg_publication_tables
+           where pubname = 'supabase_realtime' and schemaname = 'public' order by tablename`,
+    verdict: (rows) => {
+      const have = rows.map((r) => String(r.tablename));
+      const missing = PUBLISHED_TABLES.filter((t) => !have.includes(t));
+      return missing.length === 0 ? "" : `missing ${missing.join(", ")}`;
+    },
+  },
+  {
+    what: "row level security is on for activities",
+    sql: "select relrowsecurity from pg_class where relname = 'activities' and relnamespace = 'public'::regnamespace",
+    verdict: (rows) => (rows[0]?.relrowsecurity === true ? "" : "RLS is off"),
+  },
+  {
+    what: "policy expressions survived the push",
+    // The one that catches drizzle-kit push having created empty policies:
+    // step 3 should have replaced every one it could.
+    sql: `select count(*)::int as n from pg_policies
+           where schemaname = 'public' and qual is null and with_check is null`,
+    verdict: (rows) =>
+      Number(rows[0]?.n ?? 0) <= KNOWN_POLICIES_WITHOUT_EXPRESSION
+        ? ""
+        : `${rows[0]?.n} policies grant nothing — expected at most the ${KNOWN_POLICIES_WITHOUT_EXPRESSION} of FF-1429`,
+  },
+  {
+    what: "the API roles can reach the schema",
+    sql: `select has_table_privilege('authenticated', 'public.transactions', 'SELECT') as ok`,
+    verdict: (rows) =>
+      rows[0]?.ok === true
+        ? ""
+        : "authenticated has no SELECT on public.transactions",
+  },
+];
+
+async function applyFile(client: Client, file: string) {
+  await applySqlFile(client, resolve(SUPABASE_DIR, file));
+  console.log(`  applied ${file}`);
+}
+
+function runPush(): Promise<void> {
+  return new Promise((done, fail) => {
+    const child = spawn("bunx", ["drizzle-kit", "push", "--force"], {
+      cwd: PACKAGE_ROOT,
+      stdio: ["ignore", "ignore", "inherit"],
+      env: process.env,
+    });
+    child.on("error", fail);
+    // The exit code is not trusted either way: push has been seen to exit 0
+    // with failed statements. The checks at the end are what decide.
+    child.on("close", () => done());
+  });
+}
+
+/** Returns the process exit code. */
+async function main(): Promise<number> {
+  const url = process.env.DATABASE_SESSION_POOLER;
+
+  if (!url) {
+    console.error(
+      "DATABASE_SESSION_POOLER is not set. It is the session pooler URL from",
+    );
+    console.error(
+      "Supabase > Project Settings > Database. Nothing has been changed.",
+    );
+    return 2;
+  }
+
+  const client = new Client({ connectionString: url, ssl: sslFor(url) });
+  await client.connect();
+
+  try {
+    // Never print the URL: it carries the database password.
+    const { rows: where } = await client.query<{ db: string; host: string }>(
+      "select current_database() as db, coalesce(inet_server_addr()::text, 'local') as host",
+    );
+    console.log(`Bootstrapping ${where[0]?.db} at ${where[0]?.host}\n`);
+
+    const { rows: existing } = await client.query<{ n: number }>(
+      "select count(*)::int as n from pg_tables where schemaname = 'public'",
+    );
+
+    if (
+      Number(existing[0]?.n ?? 0) > 0 &&
+      process.env.ALLOW_NON_EMPTY !== "true"
+    ) {
+      console.error(`public already has ${existing[0]?.n} tables.`);
+      console.error(
+        "db:bootstrap is for an empty project, and it pushes with --force, which",
+      );
+      console.error(
+        "drops what does not match the schema. Use db:migrate on a live database.",
+      );
+      console.error(
+        "Set ALLOW_NON_EMPTY=true only if you are certain. Nothing has been changed.",
+      );
+      return 2;
+    }
+
+    console.log("1. functions, extensions and the private schema");
+    await applyFile(client, "00-bootstrap.sql");
+
+    console.log("2. tables, columns and indexes (drizzle-kit push)");
+    await runPush();
+
+    console.log("3. row level security policies, from schema.ts");
+    const applied = await applyPolicies(client);
+    console.log(`  applied ${applied} policies`);
+
+    console.log("4. storage buckets and their policies");
+    await applyFile(client, "10-storage.sql");
+
+    console.log("5. realtime publication");
+    await applyFile(client, "20-realtime.sql");
+
+    console.log("\nVerification\n");
+    let failed = 0;
+    for (const check of CHECKS) {
+      const { rows } = await client.query(check.sql);
+      const problem = check.verdict(rows as Record<string, unknown>[]);
+      if (problem) failed++;
+      console.log(
+        `  ${problem ? "FAIL" : "ok  "}  ${check.what}${problem ? ` — ${problem}` : ""}`,
+      );
+    }
+
+    console.log("");
+    if (failed > 0) {
+      console.error(`${failed} of ${CHECKS.length} checks failed.`);
+      return 1;
+    }
+
+    console.log(
+      `All ${CHECKS.length} checks passed. Paste this output into FF-1395.`,
+    );
+    return 0;
+  } finally {
+    await client.end();
+  }
+}
+
+if (require.main === module) {
+  main()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+}
