@@ -1,10 +1,10 @@
 import { onboardTeamSchema } from "@jobs/schema";
 import { shouldSendEmail } from "@jobs/utils/check-team-plan";
-import { resend } from "@jobs/utils/resend";
 import { TrialActivationEmail } from "@midday/email/emails/trial-activation";
 import { WelcomeEmail } from "@midday/email/emails/welcome";
 import { render } from "@midday/email/render";
 import { createClient } from "@midday/supabase/job";
+import { getResend } from "@midday/utils/resend";
 import { logger, schemaTask, wait } from "@trigger.dev/sdk";
 
 export const onboardTeam = schemaTask({
@@ -30,15 +30,19 @@ export const onboardTeam = schemaTask({
 
     const [firstName, lastName] = user.full_name.split(" ") ?? [];
 
-    await resend.contacts.create({
-      email: user.email,
-      firstName,
-      lastName,
-      unsubscribed: false,
-      audienceId: process.env.RESEND_AUDIENCE_ID!,
-    });
+    const audienceId = process.env.RESEND_AUDIENCE_ID;
 
-    await resend.emails.send({
+    if (audienceId) {
+      await getResend().contacts.create({
+        email: user.email,
+        firstName,
+        lastName,
+        unsubscribed: false,
+        audienceId,
+      });
+    }
+
+    await getResend().emails.send({
       to: user.email,
       subject: "Welcome to Midday",
       from: "Pontus from Midday <pontus@midday.ai>",
@@ -64,7 +68,7 @@ export const onboardTeam = schemaTask({
         .eq("team_id", user.team_id);
 
       if (!count || count === 0) {
-        await resend.emails.send({
+        await getResend().emails.send({
           from: "Pontus from Midday <pontus@midday.ai>",
           to: user.email,
           subject: "Connect your bank to see the full picture",

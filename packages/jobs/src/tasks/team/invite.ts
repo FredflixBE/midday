@@ -1,8 +1,8 @@
-import { resend } from "@jobs/utils/resend";
 import { InviteEmail } from "@midday/email/emails/invite";
 import { getI18n } from "@midday/email/locales";
 import { render } from "@midday/email/render";
 import { inviteTeamMembersSchema } from "@midday/jobs/schema";
+import { getResend } from "@midday/utils/resend";
 import { schemaTask } from "@trigger.dev/sdk";
 import { nanoid } from "nanoid";
 
@@ -40,6 +40,6 @@ export const inviteTeamMembers = schemaTask({
 
     const htmlEmails = await Promise.all(emails);
 
-    await resend.batch.send(htmlEmails);
+    await getResend().batch.send(htmlEmails);
   },
 });

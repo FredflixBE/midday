@@ -1,5 +1,6 @@
 import { getDb } from "@jobs/init";
 import { inbox } from "@midday/db/schema";
+import { isFlagEnabled } from "@midday/utils/flags";
 import { logger, schedules } from "@trigger.dev/sdk";
 import { subDays } from "date-fns";
 import { and, eq, lt, sql } from "drizzle-orm";
@@ -9,7 +10,12 @@ export const noMatchScheduler = schedules.task({
   cron: "0 2 * * *",
   maxDuration: 300,
   run: async () => {
-    if (process.env.TRIGGER_ENVIRONMENT !== "production") return;
+    if (!isFlagEnabled("NO_MATCH_SCHEDULER_ENABLED")) {
+      logger.info(
+        "Skipping no-match scheduler: NO_MATCH_SCHEDULER_ENABLED is off",
+      );
+      return;
+    }
 
     const db = getDb();
 

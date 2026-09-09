@@ -1,5 +1,4 @@
 import { updateUserSchema } from "@api/schemas/users";
-import { resend } from "@api/services/resend";
 import { createAdminClient } from "@api/services/supabase";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import { teamCache } from "@midday/cache/team-cache";
@@ -11,8 +10,23 @@ import {
   updateUser,
 } from "@midday/db/queries";
 import { generateFileKey } from "@midday/encryption";
+import { getResend, isResendConfigured } from "@midday/utils/resend";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+
+/**
+ * Drops the user from the Resend audience when both the key and the audience
+ * are configured; a self-hosted instance without either still deletes the user.
+ */
+function removeFromResendAudience(email: string) {
+  const audienceId = process.env.RESEND_AUDIENCE_ID;
+
+  if (!isResendConfigured() || !audienceId) {
+    return Promise.resolve();
+  }
+
+  return getResend().contacts.remove({ email, audienceId });
+}
 
 export const userRouter = createTRPCRouter({
   me: protectedProcedure.query(async ({ ctx: { db, session } }) => {
@@ -72,10 +86,7 @@ export const userRouter = createTRPCRouter({
     const [data] = await Promise.all([
       deleteUser(db, session.user.id),
       supabaseAdmin.auth.admin.deleteUser(session.user.id),
-      resend.contacts.remove({
-        email: session.user.email!,
-        audienceId: process.env.RESEND_AUDIENCE_ID!,
-      }),
+      removeFromResendAudience(session.user.email!),
     ]);
 
     return data;
