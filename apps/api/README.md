@@ -7,18 +7,12 @@ The API requires the following environment variables:
 #### Redis Configuration
 ```bash
 # Local development (Docker):
-REDIS_URL=redis://localhost:6379
-REDIS_QUEUE_URL=redis://localhost:6379
 
 # Production:
-# REDIS_URL=rediss://:password@...:6379 (cache)
-# REDIS_QUEUE_URL=redis://...:6379 (self-hosted Redis - BullMQ queue)
 ```
 
 Two separate Redis instances are used:
 
-- **`REDIS_URL`** — Redis for caching.
-- **`REDIS_QUEUE_URL`** — Redis for BullMQ job queues. BullMQ requires persistent TCP connections with blocking operations, so this must be a plain Redis server rather than an HTTP-based one.
 
 #### Local Development Setup
 
@@ -29,7 +23,6 @@ Two separate Redis instances are used:
 
 2. **Set environment variable:**
    ```bash
-   export REDIS_URL=redis://localhost:6379
    ```
 
 #### Database Configuration

@@ -15,10 +15,8 @@
     "./user-cache": "./src/user-cache.ts",
     "./team-cache": "./src/team-cache.ts",
     "./team-permissions-cache": "./src/team-permissions-cache.ts",
-    "./redis-client": "./src/redis-client.ts",
-    "./shared-redis": "./src/shared-redis.ts",
-    "./health": "./src/health.ts",
     "./banking-cache": "./src/banking-cache.ts",
-    "./connectors-cache": "./src/connectors-cache.ts"
+    "./connectors-cache": "./src/connectors-cache.ts",
+    "./memory-cache": "./src/memory-cache.ts"
   }
 }
