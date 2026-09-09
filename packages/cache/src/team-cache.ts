@@ -1,8 +1,8 @@
-import { RedisCache } from "./redis-client";
+import { MemoryCache } from "./memory-cache";
 import { teamPermissionsCache } from "./team-permissions-cache";
 
-// Redis-based cache to check if a user has access to a team, shared across all server instances
-const cache = new RedisCache("team", 30 * 60); // 30 minutes TTL
+// In-process cache of whether a user has access to a team.
+const cache = new MemoryCache("team", 30 * 60); // 30 minutes TTL
 
 export const teamCache = {
   get: (key: string): Promise<boolean | undefined> => cache.get<boolean>(key),

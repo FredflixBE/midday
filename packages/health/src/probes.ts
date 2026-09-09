@@ -8,7 +8,6 @@
  */
 
 import { isGoCardlessConfigured, Provider } from "@midday/banking";
-import { checkHealth as checkCacheHealth } from "@midday/cache/health";
 import { checkHealth as checkDbHealth } from "@midday/db/utils/health";
 import type { Dependency } from "./registry";
 
@@ -25,20 +24,6 @@ export function databaseProbe(): Dependency {
     timeoutMs: 3_000,
     probe: async () => {
       await checkDbHealth();
-      return true;
-    },
-  };
-}
-
-/** Redis cache: PING via the existing @midday/cache health utility */
-export function redisCacheProbe(): Dependency {
-  return {
-    name: "redis_cache",
-    tier: 1,
-    cacheTtlMs: 30_000,
-    timeoutMs: 3_000,
-    probe: async () => {
-      await checkCacheHealth();
       return true;
     },
   };
@@ -67,28 +52,6 @@ export function supabaseProbe(): Dependency {
         signal: AbortSignal.timeout(3_000),
       });
       return res.ok;
-    },
-  };
-}
-
-/** Redis queue: PING using Bun's RedisClient */
-export function redisQueueProbe(): Dependency {
-  const { RedisClient } = require("bun");
-
-  return {
-    name: "redis_queue",
-    tier: 1,
-    cacheTtlMs: 30_000,
-    timeoutMs: 3_000,
-    probe: async () => {
-      const url = process.env.REDIS_QUEUE_URL;
-      if (!url) throw new Error("REDIS_QUEUE_URL not set");
-
-      const client = new RedisClient(url, { connectionTimeout: 3000 });
-      await client.connect();
-      await client.send("PING", []);
-      client.close();
-      return true;
     },
   };
 }
@@ -352,8 +315,6 @@ export function apiDependencies(): Dependency[] {
   return [
     // Tier 1 — Core
     databaseProbe(),
-    redisCacheProbe(),
-    redisQueueProbe(),
     supabaseProbe(),
     // Tier 2 — Important
     ...(isGoCardlessConfigured() ? [gocardlessProbe()] : []),
@@ -371,24 +332,5 @@ export function apiDependencies(): Dependency[] {
     googleAiProbe(),
     mistralProbe(),
     plainProbe(),
-  ];
-}
-
-/** Dependencies used by the Worker service */
-export function workerDependencies(): Dependency[] {
-  return [
-    // Tier 1 — Core
-    databaseProbe(),
-    redisQueueProbe(),
-    supabaseProbe(),
-    // Tier 2 — Important
-    ...(isGoCardlessConfigured() ? [gocardlessProbe()] : []),
-    enableBankingProbe(),
-    resendProbe(),
-    openaiProbe(),
-    // Tier 4 — Optional
-    googleAiProbe(),
-    mistralProbe(),
-    exaProbe(),
   ];
 }

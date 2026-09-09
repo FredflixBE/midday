@@ -108,9 +108,9 @@ export function extractActiveConnections(toolkits: ToolkitItem[]) {
  * Resolve the Composio meta-tools (COMPOSIO_SEARCH_TOOLS, etc.) for a user.
  * Returns an empty object when Composio is not configured or unavailable.
  *
- * Cached in-memory with LRU eviction (tools contain functions that can't be
- * serialised to Redis). Invalidated alongside the toolkit cache on
- * connect/disconnect.
+ * Cached here rather than in the shared cache, because tools contain
+ * functions that cannot be serialised. Invalidated alongside the toolkit
+ * cache on connect/disconnect.
  */
 
 const toolsCache = new LRUCache<string, Record<string, unknown>>({

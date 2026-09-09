@@ -12,9 +12,8 @@ one Postgres, one region, and a handful of external services you own.
 | Database, auth, storage, realtime | Supabase (Frankfurt) | One project. The API and jobs connect through the session pooler (`DATABASE_URL`). |
 | API (`apps/api`) | Dokploy on the VPS, built from `apps/api/Dockerfile` | Port 8080, health `/health`, domain `api.midday.fredflix.be`. |
 | Dashboard (`apps/dashboard`) | Dokploy on the VPS, built from `apps/dashboard/Dockerfile` | Port 3000, health `/api/health`, domain `midday.fredflix.be`. `NEXT_PUBLIC_*` values are build arguments. |
-| Background jobs (`packages/jobs`) | Trigger.dev (free plan) | Deployed by its own workflow (see the job-system epic). |
-| Worker (`apps/worker`) | Dokploy, `apps/worker/Dockerfile` | Only until every job has moved to Trigger.dev (FF-1368); then it is deleted. |
-| Redis | On the VPS | Cache (`REDIS_URL`) and BullMQ queue (`REDIS_QUEUE_URL`); one instance is fine. |
+| Background jobs (`packages/jobs`) | Trigger.dev (free plan) | Every background job. Deployed by `.github/workflows/trigger-deploy.yml`. Ten schedules, which is the whole free-plan budget — see `packages/jobs/README.md`. |
+| Redis | Not deployed | Nothing needs it. The Slack chat bot would (`REDIS_URL`, thread state), and Slack is on hold. |
 | Bank data | Enable Banking (required), GoCardless (optional) | Plaid and Teller are gone. Institution logos are served from the provider's own URL; there is no object store. |
 | Email | Resend | Transactional email only. |
 | Login | Google OAuth through Supabase Auth | Plus an internal Google OAuth client with Gmail scopes for inbox sync. |
@@ -42,7 +41,8 @@ assumes the previous ones landed.
 4. **FF-1370 Make the code self-hostable.** Remove every hardcoded `midday.ai`
    dependency and the remaining startup blockers.
 5. **FF-1368 One job system.** Move every background job to Trigger.dev and
-   delete the BullMQ worker.
+   delete the BullMQ worker. (Done: there is no `apps/worker`, no
+   `packages/job-client` and no Redis.)
 6. **FF-1372 Deploy and go-live on Dokploy.** The two Dokploy applications,
    env vars, domains, and the go-live checklist.
 
@@ -121,7 +121,6 @@ One example file per deployable, containing only variables that still exist:
 - `apps/api/.env.example`
 - `apps/dashboard/.env.example`
 - `packages/jobs/.env.example`
-- `apps/worker/.env.example` (until FF-1368)
 
 Copy the example to `.env` next to it for local development. In Dokploy, paste
 the API values as environment, and split the dashboard file: every
@@ -156,8 +155,8 @@ same value everywhere the name appears.
 | Variable | Used by | Purpose |
 | --- | --- | --- |
 | `MIDDAY_ENCRYPTION_KEY` | api, jobs | Encrypts provider tokens at rest. 64 hex characters. |
-| `INTERNAL_API_KEY` | api, jobs, worker | Service-to-service calls into the API. |
-| `INVOICE_JWT_SECRET` | api, dashboard, worker | Signs public invoice links. |
+| `INTERNAL_API_KEY` | api, jobs | Service-to-service calls into the API. |
+| `INVOICE_JWT_SECRET` | api, dashboard | Signs public invoice links. |
 | `FILE_KEY_SECRET` | api, dashboard | Signs file download keys. |
 | `WEBHOOK_SECRET_KEY` | dashboard | Verifies the Supabase registration webhook. |
 | `MIDDAY_CACHE_API_SECRET` | dashboard | Protects the cache revalidation route. |
@@ -178,7 +177,6 @@ same value everywhere the name appears.
 | `DATABASE_URL` | yes | Supabase > Database > session pooler, port 5432. |
 | `DATABASE_SESSION_POOLER` | yes | Same value; used by drizzle-kit and the CI migrate job (as a repository secret). |
 | `DB_POOL_MAX` | no | Pool size outside development (default 10). |
-| `REDIS_URL`, `REDIS_QUEUE_URL` | yes | The VPS Redis. |
 | `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel; the redirect URL points at the API. The API does not start without these. |
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
@@ -214,7 +212,6 @@ Runtime environment:
 | --- | --- | --- |
 | `API_INTERNAL_URL` | no | Private URL of the API container for server-side requests. |
 | `SUPABASE_SECRET_KEY` | yes | Supabase project settings > API. |
-| `REDIS_URL` | yes | The VPS Redis. |
 | `INVOICE_JWT_SECRET`, `FILE_KEY_SECRET`, `WEBHOOK_SECRET_KEY`, `MIDDAY_CACHE_API_SECRET`, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | yes | Shared secrets above. |
 | `OPENAI_API_KEY` | yes | OpenAI. |
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`, `AZURE_DOCUMENT_INTELLIGENCE_KEY` | no | Azure Document Intelligence. |
@@ -232,17 +229,9 @@ Runtime environment:
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. `packages/jobs/README.md` lists every schedule and its cron. |
+| `TRIGGER_PROJECT_ID` | yes | Read by `trigger.config.ts`, and a repository secret for the deploy workflow. |
 | `INSIGHTS_ENABLED` | no | Weekly insight emails, off unless exactly `true`. No schedule is registered for the dispatcher, so this alone starts nothing. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
-
-### Worker (`apps/worker`, until FF-1368)
-
-Same database, Supabase, Redis, banking, Resend, URL and AI values as the API, plus
-`PORT=8080` and `INSIGHTS_ENABLED` (`true` to send weekly insight emails). The
-scheduled processors run unless `SYNC_INSTITUTIONS_ENABLED`,
-`RATES_SCHEDULER_ENABLED` or `NO_MATCH_SCHEDULER_ENABLED` is set to `false`;
-`WORKER_ENV=staging` makes the invoice processors log instead of act. See
-`apps/worker/.env.example`.
 
 ### Repository secrets (GitHub Actions)
 

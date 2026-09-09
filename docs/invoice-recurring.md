@@ -1,5 +1,10 @@
 # Invoice Recurring System
 
+> **The job system is Trigger.dev, not BullMQ.** FF-1368 moved every job
+> across; the file paths below point at their new homes. The queue and
+> worker mechanics in the diagrams are historical — a BullMQ queue is now a
+> task's `queue`/`retry` options, and a cron is a `schedules.task`. Tracked
+> as FF-1445.
 ## Overview
 
 The recurring invoice system automates the generation and delivery of invoices on a scheduled basis. Unlike one-time invoices (created manually) or scheduled invoices (sent once at a future date), recurring invoices represent an ongoing series that generates new invoices automatically based on a defined frequency until an end condition is met.
@@ -328,8 +333,8 @@ When creating a recurring series from a draft invoice:
 | [`apps/dashboard/src/components/sheets/edit-recurring-sheet.tsx`](../apps/dashboard/src/components/sheets/edit-recurring-sheet.tsx) | Sheet for editing existing recurring series |
 | [`apps/api/src/trpc/routers/invoice-recurring.ts`](../apps/api/src/trpc/routers/invoice-recurring.ts) | tRPC router with all API endpoints |
 | [`apps/api/src/schemas/invoice-recurring.ts`](../apps/api/src/schemas/invoice-recurring.ts) | Zod validation schemas |
-| [`apps/worker/src/processors/invoices/generate-recurring.ts`](../apps/worker/src/processors/invoices/generate-recurring.ts) | Scheduled job that generates invoices |
-| [`apps/worker/src/processors/invoices/upcoming-notification.ts`](../apps/worker/src/processors/invoices/upcoming-notification.ts) | 24-hour advance notification scheduler |
+| [`packages/jobs/src/tasks/invoice/generate-recurring.ts`](../packages/jobs/src/tasks/invoice/generate-recurring.ts) | Scheduled job that generates invoices |
+| [`packages/jobs/src/tasks/invoice/upcoming-notification.ts`](../packages/jobs/src/tasks/invoice/upcoming-notification.ts) | 24-hour advance notification scheduler |
 | [`packages/db/src/queries/invoice-recurring.ts`](../packages/db/src/queries/invoice-recurring.ts) | Database queries (CRUD, state transitions) |
 | [`packages/db/src/utils/invoice-recurring.ts`](../packages/db/src/utils/invoice-recurring.ts) | Date calculation utilities |
 | [`packages/invoice/src/utils/recurring.ts`](../packages/invoice/src/utils/recurring.ts) | Shared utilities (labels, preview calculations, date handling) |
@@ -460,7 +465,7 @@ const dayOfMonth = issueDate.getUTCDate();
 | [`apps/dashboard/src/components/customer-details.tsx`](../apps/dashboard/src/components/customer-details.tsx) | Customer invoice list with `TZDate` |
 | [`apps/dashboard/src/components/select-attachment.tsx`](../apps/dashboard/src/components/select-attachment.tsx) | Invoice attachment display with `TZDate` |
 | [`apps/dashboard/src/utils/format.ts`](../apps/dashboard/src/utils/format.ts) | `getDueDateStatus()` with UTC comparison |
-| [`apps/worker/src/processors/invoices/generate-recurring.ts`](../apps/worker/src/processors/invoices/generate-recurring.ts) | Server-side generation using `getStartOfDayUTC()` |
+| [`packages/jobs/src/tasks/invoice/generate-recurring.ts`](../packages/jobs/src/tasks/invoice/generate-recurring.ts) | Server-side generation using `getStartOfDayUTC()` |
 
 ## Design Decisions
 

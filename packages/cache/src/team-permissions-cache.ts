@@ -1,7 +1,7 @@
-import { RedisCache } from "./redis-client";
+import { MemoryCache } from "./memory-cache";
 
-// Redis-based cache for team permissions shared across all server instances
-const cache = new RedisCache("team-permissions", 30 * 60); // 30 minutes TTL
+// In-process cache for team permissions
+const cache = new MemoryCache("team-permissions", 30 * 60); // 30 minutes TTL
 
 export const teamPermissionsCache = {
   get: (key: string): Promise<string | undefined> => cache.get<string>(key),

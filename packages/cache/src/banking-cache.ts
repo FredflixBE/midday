@@ -1,4 +1,4 @@
-import { RedisCache } from "./redis-client";
+import { MemoryCache } from "./memory-cache";
 
 // Shared TTL constants for banking provider caching
 export const CacheTTL = {
@@ -7,8 +7,8 @@ export const CacheTTL = {
   TWENTY_FOUR_HOURS: 86400,
 } as const;
 
-// Redis-based cache for banking provider data (tokens, institutions, etc.)
-const cache = new RedisCache("banking", 30 * 60); // 30 minutes default TTL
+// In-process cache for banking provider data (tokens, institutions, etc.)
+const cache = new MemoryCache("banking", 30 * 60); // 30 minutes default TTL
 
 export const bankingCache = {
   get: (key: string): Promise<any | undefined> => cache.get(key),

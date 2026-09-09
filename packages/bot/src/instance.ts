@@ -1,7 +1,23 @@
 import { createSlackAdapter } from "@chat-adapter/slack";
 import { createRedisState } from "@chat-adapter/state-redis";
-import { resolveRedisUrl } from "@midday/cache/shared-redis";
 import { Chat } from "chat";
+
+/**
+ * The Slack chat adapter keeps thread state in Redis. Nothing else in this
+ * fork needs Redis any more, so the URL is read here rather than shared, and
+ * is only required if you actually turn the Slack bot on.
+ */
+function resolveRedisUrl(): string {
+  const url = process.env.REDIS_URL;
+
+  if (!url) {
+    throw new Error(
+      "The Slack bot needs Redis for thread state: set REDIS_URL, or leave SLACK_SIGNING_SECRET unset to keep the bot off",
+    );
+  }
+
+  return url;
+}
 
 export function createMiddayBot() {
   return new Chat({

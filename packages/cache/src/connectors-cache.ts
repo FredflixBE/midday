@@ -1,6 +1,6 @@
-import { RedisCache } from "./redis-client";
+import { MemoryCache } from "./memory-cache";
 
-const cache = new RedisCache("connectors", 86400); // 24h default TTL
+const cache = new MemoryCache("connectors", 86400); // 24h default TTL
 
 export const connectorsCache = {
   get: <T>(key: string): Promise<T | undefined> => cache.get<T>(key),

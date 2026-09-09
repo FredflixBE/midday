@@ -1,5 +1,10 @@
 # Document Processing Pipeline
 
+> **The job system is Trigger.dev, not BullMQ.** FF-1368 moved every job
+> across; the file paths below point at their new homes. The queue and
+> worker mechanics in the diagrams are historical — a BullMQ queue is now a
+> task's `queue`/`retry` options, and a cron is a `schedules.task`. Tracked
+> as FF-1445.
 ## Overview
 
 The Document Processing Pipeline automatically processes files uploaded to the Vault, extracting content, classifying documents using AI, and generating searchable metadata. The system is designed with **graceful degradation** - documents always reach a usable state even if AI classification fails, and users can retry processing at any time.
@@ -544,15 +549,15 @@ This ensures parent jobs don't timeout while child jobs are still valid.
 | [`apps/dashboard/src/components/tables/vault/columns.tsx`](../apps/dashboard/src/components/tables/vault/columns.tsx) | Table columns with status styling and dropdown retry |
 | [`apps/dashboard/src/components/tables/vault/data-table.tsx`](../apps/dashboard/src/components/tables/vault/data-table.tsx) | Table with reprocess mutation |
 | [`apps/api/src/trpc/routers/documents.ts`](../apps/api/src/trpc/routers/documents.ts) | tRPC router with reprocessDocument endpoint |
-| [`apps/worker/src/processors/documents/process-document.ts`](../apps/worker/src/processors/documents/process-document.ts) | Main orchestrator job |
-| [`apps/worker/src/processors/documents/classify-document.ts`](../apps/worker/src/processors/documents/classify-document.ts) | AI text classification with graceful degradation |
-| [`apps/worker/src/processors/documents/classify-image.ts`](../apps/worker/src/processors/documents/classify-image.ts) | AI vision classification with graceful degradation |
-| [`apps/worker/src/processors/documents/embed-document-tags.ts`](../apps/worker/src/processors/documents/embed-document-tags.ts) | Tag embedding generation |
-| [`apps/worker/src/queues/documents.config.ts`](../apps/worker/src/queues/documents.config.ts) | Queue configuration and failure handlers |
-| [`apps/worker/src/utils/image-processing.ts`](../apps/worker/src/utils/image-processing.ts) | Image resize and HEIC conversion utilities |
-| [`apps/worker/src/utils/document-update.ts`](../apps/worker/src/utils/document-update.ts) | Document update with retry for race conditions |
-| [`apps/worker/src/utils/error-classification.ts`](../apps/worker/src/utils/error-classification.ts) | Error categorization and retry strategies |
-| [`apps/worker/src/utils/timeout.ts`](../apps/worker/src/utils/timeout.ts) | Timeout constants and wrapper utility |
+| [`packages/jobs/src/tasks/document/process-document.ts`](../packages/jobs/src/tasks/document/process-document.ts) | Main orchestrator job |
+| [`packages/jobs/src/tasks/document/classify-document.ts`](../packages/jobs/src/tasks/document/classify-document.ts) | AI text classification with graceful degradation |
+| [`packages/jobs/src/tasks/document/classify-image.ts`](../packages/jobs/src/tasks/document/classify-image.ts) | AI vision classification with graceful degradation |
+| [`packages/jobs/src/tasks/document/embed-document-tags.ts`](../packages/jobs/src/tasks/document/embed-document-tags.ts) | Tag embedding generation |
+| [`packages/jobs/src/utils/document-status.ts`](../packages/jobs/src/utils/document-status.ts) | Failure handlers (queue options now live on each task) |
+| [`packages/jobs/src/utils/image-processing.ts`](../packages/jobs/src/utils/image-processing.ts) | Image resize and HEIC conversion utilities |
+| [`packages/jobs/src/utils/document-update.ts`](../packages/jobs/src/utils/document-update.ts) | Document update with retry for race conditions |
+| [`packages/jobs/src/utils/error-classification.ts`](../packages/jobs/src/utils/error-classification.ts) | Error categorization and retry strategies |
+| [`packages/jobs/src/utils/timeout.ts`](../packages/jobs/src/utils/timeout.ts) | Timeout constants and wrapper utility |
 | [`packages/documents/src/classifier.ts`](../packages/documents/src/classifier.ts) | AI classification implementation |
 
 ## Design Decisions

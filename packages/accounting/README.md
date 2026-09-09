@@ -1,5 +1,10 @@
 # Accounting Integration Package
 
+> **The job system is Trigger.dev, not BullMQ.** FF-1368 moved every job
+> across; the file paths below point at their new homes. The queue and
+> worker mechanics in the diagrams are historical — a BullMQ queue is now a
+> task's `queue`/`retry` options, and a cron is a `schedules.task`. Tracked
+> as FF-1445.
 Technical documentation for Midday's accounting software integrations (Xero, QuickBooks, Fortnox).
 
 ## Table of Contents
@@ -120,16 +125,13 @@ packages/accounting/
 ├── package.json
 └── tsconfig.json
 
-apps/worker/src/
-├── processors/accounting/
-│   ├── index.ts              # Processor exports
+packages/jobs/src/
+├── tasks/accounting/
 │   ├── base.ts               # Shared processor logic
-│   ├── sync-attachments.ts   # Attachment upload processor
-│   └── export-transactions.ts# Manual export processor
-├── queues/
-│   └── accounting.config.ts  # BullMQ queue configuration
+│   ├── sync-attachments.ts   # Attachment upload task
+│   └── export-transactions.ts# Manual export task
 ├── schemas/
-│   └── accounting.ts         # Zod schemas for job payloads
+│   └── accounting.ts         # Zod schemas for task payloads
 └── utils/
     └── accounting-auth.ts    # Token refresh utilities
 ```

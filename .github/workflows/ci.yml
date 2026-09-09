@@ -73,9 +73,6 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      - name: Build type dependencies
-        run: bunx turbo build --filter=workbench
-
       - name: Typecheck
         run: bunx turbo typecheck
 
