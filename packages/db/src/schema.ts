@@ -518,16 +518,19 @@ export const transactions = pgTable(
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Transactions can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Transactions can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -1827,6 +1830,7 @@ export const documents = pgTable(
       as: "permissive",
       for: "all",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Documents can be updated by a member of the team", {
       as: "permissive",
@@ -2577,11 +2581,13 @@ export const inbox = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Inbox can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -3870,6 +3876,15 @@ export const activities = pgTable(
       foreignColumns: [users.id],
       name: "activities_user_id_fkey",
     }).onDelete("set null"),
+    // A notification belongs to one user, and the dashboard subscribes to
+    // this table with user_id=eq.<id>. Realtime only delivers rows the
+    // subscriber may select, so without this the subscription is silent.
+    pgPolicy("Activities can be selected by the user they belong to", {
+      as: "permissive",
+      for: "select",
+      to: ["public"],
+      using: sql`(user_id = auth.uid())`,
+    }),
   ],
 );
 
@@ -4179,6 +4194,7 @@ export const insights = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );

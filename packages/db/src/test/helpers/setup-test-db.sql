@@ -19,6 +19,15 @@ BEGIN
 END
 $$;
 
+-- Supabase grants the API roles access to whatever is created in `public`,
+-- through default privileges on the role that creates it. drizzle-kit pushes
+-- as that role, so its tables arrive already granted. Setting the same default
+-- here, before the push, is what makes RLS — rather than a missing GRANT —
+-- decide what a request can see.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON TABLES TO anon, authenticated, service_role;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
 -- Supabase Auth's schema. Only the users table and only the columns the app
 -- schema references: public.users.id is a foreign key onto auth.users.id.
 CREATE SCHEMA IF NOT EXISTS auth;

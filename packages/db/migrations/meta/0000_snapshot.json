@@ -1,5 +1,5 @@
 {
-  "id": "679771e1-3126-4b5a-832f-e96a75022631",
+  "id": "1e5ca310-c49c-4999-b60f-c13683483b5c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -443,7 +443,15 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
+      "policies": {
+        "Activities can be selected by the user they belong to": {
+          "name": "Activities can be selected by the user they belong to",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": ["public"],
+          "using": "(user_id = auth.uid())"
+        }
+      },
       "checkConstraints": {},
       "isRLSEnabled": false
     },
@@ -2308,7 +2316,8 @@
           "name": "Documents can be selected by a member of the team",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": ["public"]
+          "to": ["public"],
+          "using": "(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))"
         },
         "Documents can be updated by a member of the team": {
           "name": "Documents can be updated by a member of the team",
@@ -2817,13 +2826,15 @@
           "name": "Inbox can be selected by a member of the team",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": ["public"]
+          "to": ["public"],
+          "using": "(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))"
         },
         "Inbox can be updated by a member of the team": {
           "name": "Inbox can be updated by a member of the team",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": ["public"]
+          "to": ["public"],
+          "using": "(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))"
         }
       },
       "checkConstraints": {},
@@ -3374,7 +3385,8 @@
           "name": "Team members can view their insights",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": ["public"]
+          "to": ["public"],
+          "using": "(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))"
         }
       },
       "checkConstraints": {},
@@ -9161,19 +9173,22 @@
           "name": "Transactions can be deleted by a member of the team",
           "as": "PERMISSIVE",
           "for": "DELETE",
-          "to": ["public"]
+          "to": ["public"],
+          "using": "(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))"
         },
         "Transactions can be selected by a member of the team": {
           "name": "Transactions can be selected by a member of the team",
           "as": "PERMISSIVE",
           "for": "SELECT",
-          "to": ["public"]
+          "to": ["public"],
+          "using": "(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))"
         },
         "Transactions can be updated by a member of the team": {
           "name": "Transactions can be updated by a member of the team",
           "as": "PERMISSIVE",
           "for": "UPDATE",
-          "to": ["public"]
+          "to": ["public"],
+          "using": "(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))"
         }
       },
       "checkConstraints": {},
