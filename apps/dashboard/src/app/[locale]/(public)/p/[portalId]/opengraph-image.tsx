@@ -1,6 +1,7 @@
 import { formatAmount } from "@midday/utils/format";
 import { ImageResponse } from "next/og";
 import { getQueryClient, trpc } from "@/trpc/server";
+import { getOgSansFont } from "@/utils/og-fonts";
 
 export const contentType = "image/png";
 
@@ -24,9 +25,7 @@ export default async function Image({ params }: Props) {
 
   const { customer, summary } = data;
 
-  const hedvigSansFont = fetch(
-    "https://cdn.midday.ai/fonts/HedvigSans/HedvigLettersSans-Regular.ttf",
-  ).then((res) => res.arrayBuffer());
+  const hedvigSansFont = getOgSansFont();
 
   return new ImageResponse(
     <div

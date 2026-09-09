@@ -21,5 +21,4 @@ export default {
 2. Add the MCP server to Cursor
 3. When you first use a Midday tool, sign in and select a team`,
   images: [],
-  installUrl: "https://midday.ai/mcp/cursor",
 };

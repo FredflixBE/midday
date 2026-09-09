@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@midday/utils": "workspace:*",
     "@slack/bolt": "^4.6.0",
     "@slack/web-api": "^7.15.0",
     "@supabase/supabase-js": "^2.101.1",
@@ -30,6 +31,7 @@
     "./slack-client": "./src/slack/server/client.ts",
     "./xero": "./src/xero/config.ts",
     "./quickbooks": "./src/quick-books/config.ts",
-    "./fortnox": "./src/fortnox/config.ts"
+    "./fortnox": "./src/fortnox/config.ts",
+    "./mcp-url": "./src/mcp-url.ts"
   }
 }

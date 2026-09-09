@@ -4,6 +4,7 @@ import {
   ensureBotInChannel,
 } from "@midday/app-store/slack/server";
 import { logger } from "@midday/logger";
+import { getAppUrl } from "@midday/utils/envs";
 
 /**
  * Returns the welcome message content for Slack
@@ -47,7 +48,7 @@ export function getWelcomeMessage(isPrivateChannel = false) {
           text: "⚙️ Notification Settings",
           emoji: true,
         },
-        url: "https://app.midday.ai/apps?app=slack&settings=true",
+        url: `${getAppUrl()}/apps?app=slack&settings=true`,
         action_id: "view_settings",
       },
     ],

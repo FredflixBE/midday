@@ -20,5 +20,4 @@ export default {
 2. Add the MCP server configuration to Perplexity
 3. Add your Midday API key and start asking questions`,
   images: [],
-  installUrl: "https://midday.ai/mcp/perplexity",
 };

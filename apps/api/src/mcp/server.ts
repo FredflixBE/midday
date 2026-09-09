@@ -1,3 +1,4 @@
+import { getAppUrl } from "@midday/utils/envs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerMcpApps } from "./apps";
 import { registerPrompts } from "./prompts";
@@ -91,13 +92,9 @@ export function createMcpServer(ctx: McpContext): McpServer {
       title: "Midday",
       description:
         "Financial operating system for small businesses — transactions, invoices, time tracking, and reports",
-      websiteUrl: "https://midday.ai",
-      icons: [
-        {
-          src: "https://midday.ai/images/midday-icon.svg",
-          mimeType: "image/svg+xml",
-        },
-      ],
+      // This instance, not Midday's. The icon it used to advertise lives on
+      // midday.ai and has no self-hosted equivalent, so there is none.
+      websiteUrl: getAppUrl(),
     },
     {
       instructions: getServerInstructions(ctx),

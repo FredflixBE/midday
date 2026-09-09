@@ -8,9 +8,11 @@ process.env.SUPABASE_SECRET_KEY =
   process.env.SUPABASE_SECRET_KEY || "test-service-key";
 process.env.DATABASE_URL =
   process.env.DATABASE_URL || "postgres://test:test@localhost:5432/test";
-process.env.MIDDAY_DASHBOARD_URL =
-  process.env.MIDDAY_DASHBOARD_URL || "https://app.midday.ai";
+process.env.DASHBOARD_URL = process.env.DASHBOARD_URL || "https://midday.test";
+process.env.API_URL = process.env.API_URL || "https://api.midday.test";
 process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || "re_test_key";
+process.env.EMAIL_FROM =
+  process.env.EMAIL_FROM || "Midday <midday@midday.test>";
 process.env.RESEND_AUDIENCE_ID =
   process.env.RESEND_AUDIENCE_ID || "aud_test_resend_audience";
 process.env.FILE_KEY_SECRET = process.env.FILE_KEY_SECRET || "test-secret";
@@ -23,10 +25,6 @@ process.env.ENABLE_BANKING_KEY_CONTENT =
   process.env.ENABLE_BANKING_KEY_CONTENT || "test";
 process.env.ENABLEBANKING_REDIRECT_URL =
   process.env.ENABLEBANKING_REDIRECT_URL || "https://test.midday.ai/callback";
-process.env.R2_ENDPOINT = process.env.R2_ENDPOINT || "https://test.r2.dev";
-process.env.R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || "test";
-process.env.R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY || "test";
-process.env.R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "test";
 process.env.STRIPE_CONNECT_CLIENT_ID =
   process.env.STRIPE_CONNECT_CLIENT_ID || "ca_test_connect_client";
 process.env.STRIPE_SECRET_KEY =

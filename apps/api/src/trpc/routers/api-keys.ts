@@ -8,6 +8,7 @@ import {
 } from "@midday/db/queries";
 import { ApiKeyCreatedEmail } from "@midday/email/emails/api-key-created";
 import { logger } from "@midday/logger";
+import { getEmailFrom } from "@midday/utils/email-from";
 import { getResend } from "@midday/utils/resend";
 
 export const apiKeysRouter = createTRPCRouter({
@@ -33,7 +34,7 @@ export const apiKeysRouter = createTRPCRouter({
         try {
           // We don't need to await this, it will be sent in the background
           getResend().emails.send({
-            from: "Middaybot <middaybot@midday.ai>",
+            from: getEmailFrom(),
             to: session.user.email!,
             subject: "New API Key Created",
             react: ApiKeyCreatedEmail({

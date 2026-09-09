@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import { isValidTimezone } from "@midday/location/timezones";
+import { isAllowedAssetUrl } from "@midday/utils/asset-hosts";
 
 export const updateUserSchema = z.object({
   fullName: z.string().min(2).max(32).optional().openapi({
@@ -13,14 +14,15 @@ export const updateUserSchema = z.object({
   avatarUrl: z
     .string()
     .url()
-    .refine((url) => url.includes("midday.ai"), {
-      message: "avatarUrl must be a midday.ai domain URL",
+    .refine(isAllowedAssetUrl, {
+      message: "avatarUrl must be hosted on this instance's storage or CDN",
     })
     .optional()
     .openapi({
       description:
-        "URL to the user's avatar image. Must be hosted on midday.ai domain",
-      example: "https://cdn.midday.ai/avatars/jane-doe.jpg",
+        "URL to the user's avatar image. Must be hosted on this instance's storage or CDN",
+      example:
+        "https://abcdef.supabase.co/storage/v1/object/public/avatars/jane-doe.jpg",
     }),
   locale: z.string().optional().openapi({
     description:

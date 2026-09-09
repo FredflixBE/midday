@@ -41,6 +41,7 @@ import { addDays, parseISO } from "date-fns";
 import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 import { useAppOAuth } from "@/hooks/use-app-oauth";
+import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useTRPC } from "@/trpc/client";
 import { SelectCurrency } from "../select-currency";
 
@@ -146,6 +147,8 @@ export function SettingsMenu() {
   const paymentTermsDays = watch("template.paymentTermsDays");
 
   // Stripe Connect status
+  const { stripe: stripeAvailable } = useFeatureAvailability();
+
   const { data: stripeStatus } = useQuery(
     trpc.invoicePayments.stripeStatus.queryOptions(),
   );
@@ -640,51 +643,54 @@ export function SettingsMenu() {
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
-          {/* Payments → sub-menu */}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Icons.CurrencyOutline className="mr-2 size-4" />
-              <span className="text-xs">Payments</span>
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="w-44">
-              {stripeStatus?.connected ? (
-                <>
-                  <DropdownMenuCheckboxItem
-                    className="text-xs"
-                    checked={paymentEnabled === true}
-                    onCheckedChange={(checked) => {
-                      setValue("template.paymentEnabled", checked, {
-                        shouldValidate: true,
-                        shouldDirty: true,
-                      });
-                      updateTemplateMutation.mutate({
-                        id: templateId,
-                        paymentEnabled: checked,
-                      });
-                    }}
-                    onSelect={(event) => event.preventDefault()}
-                  >
-                    Accept payments
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuSeparator />
+          {/* Payments → sub-menu. Hidden when this instance has no Stripe
+              keys: connecting would only fail. */}
+          {stripeAvailable && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Icons.CurrencyOutline className="mr-2 size-4" />
+                <span className="text-xs">Payments</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-44">
+                {stripeStatus?.connected ? (
+                  <>
+                    <DropdownMenuCheckboxItem
+                      className="text-xs"
+                      checked={paymentEnabled === true}
+                      onCheckedChange={(checked) => {
+                        setValue("template.paymentEnabled", checked, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                        updateTemplateMutation.mutate({
+                          id: templateId,
+                          paymentEnabled: checked,
+                        });
+                      }}
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      Accept payments
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setDisconnectDialogOpen(true)}
+                      className="text-xs cursor-pointer text-destructive focus:text-destructive"
+                    >
+                      Disconnect Stripe
+                    </DropdownMenuItem>
+                  </>
+                ) : (
                   <DropdownMenuItem
-                    onClick={() => setDisconnectDialogOpen(true)}
-                    className="text-xs cursor-pointer text-destructive focus:text-destructive"
+                    onClick={() => stripeOAuth.connect()}
+                    className="text-xs cursor-pointer"
+                    disabled={stripeOAuth.isLoading}
                   >
-                    Disconnect Stripe
+                    {stripeOAuth.isLoading ? "Connecting..." : "Connect Stripe"}
                   </DropdownMenuItem>
-                </>
-              ) : (
-                <DropdownMenuItem
-                  onClick={() => stripeOAuth.connect()}
-                  className="text-xs cursor-pointer"
-                  disabled={stripeOAuth.isLoading}
-                >
-                  {stripeOAuth.isLoading ? "Connecting..." : "Connect Stripe"}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
 
           {templateId && (
             <>

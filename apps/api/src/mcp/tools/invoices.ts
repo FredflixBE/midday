@@ -33,6 +33,7 @@ import { DEFAULT_TEMPLATE, PdfTemplate, renderToStream } from "@midday/invoice";
 import { calculateTotal } from "@midday/invoice/calculate";
 import { transformCustomerToContent } from "@midday/invoice/utils";
 import { triggerJob } from "@midday/job-client";
+import { isAllowedAssetUrl } from "@midday/utils/asset-hosts";
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { addDays } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -59,17 +60,13 @@ import {
   withErrorHandling,
 } from "../utils";
 
-function isAllowedLogoUrl(url: string): boolean {
-  return url.startsWith("https://service.midday.ai/");
-}
-
 async function embedLogoAsDataUrl(
   invoice: Record<string, any>,
 ): Promise<Record<string, any>> {
   const logoUrl = invoice.template?.logoUrl;
   if (!logoUrl || typeof logoUrl !== "string") return invoice;
   if (logoUrl.startsWith("data:")) return invoice;
-  if (!isAllowedLogoUrl(logoUrl)) return invoice;
+  if (!isAllowedAssetUrl(logoUrl)) return invoice;
 
   try {
     const res = await fetch(logoUrl, {

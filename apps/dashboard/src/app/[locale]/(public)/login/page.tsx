@@ -4,7 +4,6 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { userAgent } from "next/server";
 import { LoginAccordion } from "@/components/login-accordion";
-import { LoginVideoBackground } from "@/components/login-video-background";
 import { OAuthSignIn } from "@/components/oauth-sign-in";
 import { OTPSignIn } from "@/components/otp-sign-in";
 import { Cookies } from "@/utils/constants";
@@ -143,11 +142,9 @@ export default async function Page() {
         </nav>
       </div>
 
-      {/* Left Side - Video Background */}
-      <LoginVideoBackground />
-
-      {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 lg:p-12 pb-2">
+      {/* Login Form. The promo panel that used to sit beside it played a
+          video and testimonials from Midday's CDN. */}
+      <div className="w-full flex flex-col justify-center items-center p-8 lg:p-12 pb-2">
         <div className="w-full max-w-md flex flex-col h-full">
           <div className="space-y-8 flex-1 flex flex-col justify-center">
             {/* Header */}

@@ -4,6 +4,7 @@ import {
   updateAppSettingsSchema,
 } from "@api/schemas/apps";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
+import { getFeatureAvailability } from "@api/utils/availability";
 import {
   createPlatformLinkToken,
   disconnectApp,
@@ -17,6 +18,12 @@ export const appsRouter = createTRPCRouter({
   get: protectedProcedure.query(async ({ ctx: { db, teamId } }) => {
     return getApps(db, teamId!);
   }),
+
+  /**
+   * Which optional features this deployment has credentials for, so the
+   * dashboard can leave out a card whose connect button would only fail.
+   */
+  availability: protectedProcedure.query(() => getFeatureAvailability()),
 
   disconnect: protectedProcedure
     .input(disconnectAppSchema)

@@ -33,6 +33,7 @@ import { calculateTotal } from "@midday/invoice/calculate";
 import { transformCustomerToContent } from "@midday/invoice/utils";
 import { decodeJobId, getQueue, triggerJob } from "@midday/job-client";
 import { createLoggerWithContext } from "@midday/logger";
+import { getAppUrl } from "@midday/utils/envs";
 import { addDays } from "date-fns";
 import { HTTPException } from "hono/http-exception";
 import { v4 as uuidv4 } from "uuid";
@@ -120,14 +121,10 @@ app.openapi(
         return {
           ...invoiceWithoutToken,
           ...calculatedAmounts,
-          pdfUrl:
-            token && process.env.MIDDAY_DASHBOARD_URL
-              ? `${process.env.MIDDAY_DASHBOARD_URL}/api/download/invoice?token=${token}`
-              : null,
-          previewUrl:
-            token && process.env.MIDDAY_DASHBOARD_URL
-              ? `${process.env.MIDDAY_DASHBOARD_URL}/i/${token}`
-              : null,
+          pdfUrl: token
+            ? `${getAppUrl()}/api/download/invoice?token=${token}`
+            : null,
+          previewUrl: token ? `${getAppUrl()}/i/${token}` : null,
         };
       }),
     };
@@ -299,14 +296,10 @@ app.openapi(
       bottomBlock: result.bottomBlock
         ? JSON.stringify(result.bottomBlock)
         : null,
-      pdfUrl:
-        token && process.env.MIDDAY_DASHBOARD_URL
-          ? `${process.env.MIDDAY_DASHBOARD_URL}/api/download/invoice?token=${token}`
-          : null,
-      previewUrl:
-        token && process.env.MIDDAY_DASHBOARD_URL
-          ? `${process.env.MIDDAY_DASHBOARD_URL}/i/${token}`
-          : null,
+      pdfUrl: token
+        ? `${getAppUrl()}/api/download/invoice?token=${token}`
+        : null,
+      previewUrl: token ? `${getAppUrl()}/i/${token}` : null,
     };
 
     return c.json(validateResponse(response, invoiceResponseSchema));
@@ -613,14 +606,10 @@ app.openapi(
       bottomBlock: result.bottomBlock
         ? JSON.stringify(result.bottomBlock)
         : null,
-      pdfUrl:
-        token && process.env.MIDDAY_DASHBOARD_URL
-          ? `${process.env.MIDDAY_DASHBOARD_URL}/api/download/invoice?token=${token}`
-          : null,
-      previewUrl:
-        token && process.env.MIDDAY_DASHBOARD_URL
-          ? `${process.env.MIDDAY_DASHBOARD_URL}/i/${token}`
-          : null,
+      pdfUrl: token
+        ? `${getAppUrl()}/api/download/invoice?token=${token}`
+        : null,
+      previewUrl: token ? `${getAppUrl()}/i/${token}` : null,
     };
 
     return c.json(validateResponse(response, draftInvoiceResponseSchema), 201);
@@ -699,14 +688,10 @@ app.openapi(
       bottomBlock: result.bottomBlock
         ? JSON.stringify(result.bottomBlock)
         : null,
-      pdfUrl:
-        token && process.env.MIDDAY_DASHBOARD_URL
-          ? `${process.env.MIDDAY_DASHBOARD_URL}/api/download/invoice?token=${token}`
-          : null,
-      previewUrl:
-        token && process.env.MIDDAY_DASHBOARD_URL
-          ? `${process.env.MIDDAY_DASHBOARD_URL}/i/${token}`
-          : null,
+      pdfUrl: token
+        ? `${getAppUrl()}/api/download/invoice?token=${token}`
+        : null,
+      previewUrl: token ? `${getAppUrl()}/i/${token}` : null,
     };
 
     return c.json(validateResponse(response, updateInvoiceResponseSchema));

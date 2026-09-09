@@ -21,5 +21,4 @@ export default {
 2. Use your Midday API key for authentication
 3. Create Zaps using Midday's 50+ tools`,
   images: [],
-  installUrl: "https://midday.ai/mcp/zapier",
 };

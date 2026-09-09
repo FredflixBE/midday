@@ -2,6 +2,7 @@ import { InviteEmail } from "@midday/email/emails/invite";
 import { getI18n } from "@midday/email/locales";
 import { render } from "@midday/email/render";
 import { inviteTeamMembersSchema } from "@midday/jobs/schema";
+import { getEmailFrom } from "@midday/utils/email-from";
 import { getResend } from "@midday/utils/resend";
 import { schemaTask } from "@trigger.dev/sdk";
 import { nanoid } from "nanoid";
@@ -17,7 +18,7 @@ export const inviteTeamMembers = schemaTask({
     const { t } = getI18n({ locale });
 
     const emails = invites?.map(async (invite) => ({
-      from: "Midday <middaybot@midday.ai>",
+      from: getEmailFrom(),
       to: [invite.email],
       subject: t("invite.subject", {
         invitedByName: invite.invitedByName,

@@ -9,6 +9,11 @@ const config = {
   // "Failed to find Server Action" errors when requests hit different replicas.
   generateBuildId: () => process.env.GIT_COMMIT_SHA || crypto.randomUUID(),
   deploymentId: process.env.GIT_COMMIT_SHA,
+  // The OG image routes read the vendored fonts from disk at render time;
+  // without this the standalone build does not carry them.
+  outputFileTracingIncludes: {
+    "/**": ["./src/assets/fonts/**"],
+  },
   experimental: {
     optimizePackageImports: [
       "lucide-react",
@@ -22,8 +27,6 @@ const config = {
     ],
   },
   images: {
-    loader: "custom",
-    loaderFile: "./image-loader.ts",
     qualities: [80, 100],
     remotePatterns: [
       {

@@ -14,14 +14,15 @@ import {
   WindsurfMcpLogo,
   ZapierMcpLogo,
 } from "@midday/app-store/logos";
+import { AssistantQuestionAnimation } from "@midday/ui/animations/assistant-question";
 import { BulkReconciliationAnimation } from "@midday/ui/animations/bulk-reconciliation";
+import { DashboardAnimation } from "@midday/ui/animations/dashboard";
 import { ReceiptAttachmentAnimation } from "@midday/ui/animations/receipt-attachment";
 import { WidgetsAnimation } from "@midday/ui/animations/widgets";
 import { Icons } from "@midday/ui/icons";
 import { SubmitButton } from "@midday/ui/submit-button";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { parseAsString, useQueryStates } from "nuqs";
@@ -30,7 +31,6 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { AppDetailSheet } from "@/components/sheets/app-detail-sheet";
 import { useOnboardingStep } from "@/hooks/use-onboarding-step";
 import { useTRPC } from "@/trpc/client";
-import { ChatDemoWithRail } from "./chat-demo-with-rail";
 import {
   type BankSyncState,
   type InboxSyncState,
@@ -54,6 +54,8 @@ type StepConfig = {
   canGoBack?: boolean;
 };
 
+// The two illustrations this used to load were SVGs on Midday's CDN. The
+// bundled dashboard animation says the same thing without the dependency.
 function DashboardImageAnimation() {
   return (
     <motion.div
@@ -63,24 +65,7 @@ function DashboardImageAnimation() {
       className="flex items-center justify-center overflow-visible"
       style={{ width: "100%", height: "100%", transformOrigin: "center" }}
     >
-      <Image
-        src="https://cdn.midday.ai/web/dashboard-light.svg"
-        alt="Dashboard illustration"
-        width={2400}
-        height={1800}
-        className="h-auto transform -rotate-[2deg] dark:hidden"
-        style={{ width: "140%", minWidth: "1400px" }}
-        priority
-      />
-      <Image
-        src="https://cdn.midday.ai/web/dashboard-dark.svg"
-        alt="Dashboard illustration"
-        width={2400}
-        height={1800}
-        className="h-auto transform -rotate-[2deg] hidden dark:block"
-        style={{ width: "140%", minWidth: "1400px" }}
-        priority
-      />
+      <DashboardAnimation onComplete={undefined} />
     </motion.div>
   );
 }
@@ -388,10 +373,12 @@ export function OnboardingPage({
         navigation: "next",
         canGoBack: true,
       },
-      // Step 7 — Connect chat platforms (Slack)
+      // Step 7 — Connect chat platforms (Slack).
+      // The illustration used to be an iMessage demo streamed from
+      // cdn.midday.ai, for a bot FF-1380 deleted.
       {
         key: "connect-chat",
-        animation: <ChatDemoWithRail />,
+        animation: <AssistantQuestionAnimation />,
         content: <ConnectChatStep />,
         navigation: "skip",
         canGoBack: true,

@@ -21,5 +21,4 @@ export default {
 2. Add Midday as an MCP server with your API key
 3. Use Midday tools in your Copilot workflows`,
   images: [],
-  installUrl: "https://midday.ai/mcp/copilot",
 };

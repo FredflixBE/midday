@@ -21,5 +21,4 @@ export default {
 2. Add your Midday API key to OpenCode's MCP configuration
 3. Restart OpenCode and ask about your Midday data`,
   images: [],
-  installUrl: "https://midday.ai/mcp/opencode",
 };

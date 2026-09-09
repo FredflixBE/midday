@@ -14,6 +14,7 @@ import {
   getShortLinkByShortId,
 } from "@midday/db/queries";
 import { signedUrl } from "@midday/supabase/storage";
+import { getAppUrl } from "@midday/utils/envs";
 
 export const shortLinksRouter = createTRPCRouter({
   createForUrl: protectedProcedure
@@ -32,7 +33,7 @@ export const shortLinksRouter = createTRPCRouter({
 
       return {
         ...result,
-        shortUrl: `${process.env.MIDDAY_DASHBOARD_URL}/s/${result.shortId}`,
+        shortUrl: `${getAppUrl()}/s/${result.shortId}`,
       };
     }),
 
@@ -85,7 +86,7 @@ export const shortLinksRouter = createTRPCRouter({
 
       return {
         ...result,
-        shortUrl: `${process.env.MIDDAY_DASHBOARD_URL}/s/${result.shortId}`,
+        shortUrl: `${getAppUrl()}/s/${result.shortId}`,
         originalUrl: response.data.signedUrl,
       };
     }),

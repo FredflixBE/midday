@@ -70,7 +70,7 @@ describe("tRPC: invoicePayments.getConnectUrl", () => {
     const result = await caller.getConnectUrl();
 
     expect(result).toBe(
-      `${process.env.MIDDAY_API_URL ?? "https://api.midday.ai"}/invoice-payments/connect-stripe`,
+      `${process.env.API_URL}/invoice-payments/connect-stripe`,
     );
   });
 

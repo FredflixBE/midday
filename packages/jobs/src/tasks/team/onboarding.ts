@@ -1,11 +1,10 @@
 import { onboardTeamSchema } from "@jobs/schema";
-import { shouldSendEmail } from "@jobs/utils/check-team-plan";
-import { TrialActivationEmail } from "@midday/email/emails/trial-activation";
 import { WelcomeEmail } from "@midday/email/emails/welcome";
 import { render } from "@midday/email/render";
 import { createClient } from "@midday/supabase/job";
+import { getEmailFrom } from "@midday/utils/email-from";
 import { getResend } from "@midday/utils/resend";
-import { logger, schemaTask, wait } from "@trigger.dev/sdk";
+import { schemaTask } from "@trigger.dev/sdk";
 
 export const onboardTeam = schemaTask({
   id: "onboard-team",
@@ -45,38 +44,12 @@ export const onboardTeam = schemaTask({
     await getResend().emails.send({
       to: user.email,
       subject: "Welcome to Midday",
-      from: "Pontus from Midday <pontus@midday.ai>",
+      from: getEmailFrom(),
       html: await render(
         WelcomeEmail({
           fullName: user.full_name,
         }),
       ),
     });
-
-    if (!user.team_id) {
-      logger.info("User has no team, skipping onboarding");
-      return;
-    }
-
-    // Day 3: Activation nudge — encourage bank connection
-    await wait.for({ days: 3 });
-
-    if (await shouldSendEmail(user.team_id)) {
-      const { count } = await supabase
-        .from("bank_connections")
-        .select("id", { count: "exact", head: true })
-        .eq("team_id", user.team_id);
-
-      if (!count || count === 0) {
-        await getResend().emails.send({
-          from: "Pontus from Midday <pontus@midday.ai>",
-          to: user.email,
-          subject: "Connect your bank to see the full picture",
-          html: await render(
-            TrialActivationEmail({ fullName: user.full_name }),
-          ),
-        });
-      }
-    }
   },
 });

@@ -15,7 +15,7 @@ one Postgres, one region, and a handful of external services you own.
 | Background jobs (`packages/jobs`) | Trigger.dev (free plan) | Deployed by its own workflow (see the job-system epic). |
 | Worker (`apps/worker`) | Dokploy, `apps/worker/Dockerfile` | Only until every job has moved to Trigger.dev (FF-1368); then it is deleted. |
 | Redis | On the VPS | Cache (`REDIS_URL`) and BullMQ queue (`REDIS_QUEUE_URL`); one instance is fine. |
-| Bank data | Enable Banking (required), GoCardless (optional) | Plaid and Teller are gone. |
+| Bank data | Enable Banking (required), GoCardless (optional) | Plaid and Teller are gone. Institution logos are served from the provider's own URL; there is no object store. |
 | Email | Resend | Transactional email only. |
 | Login | Google OAuth through Supabase Auth | Plus an internal Google OAuth client with Gmail scopes for inbox sync. |
 | Desktop app (`apps/desktop`) | Built locally on a Mac | No updater. See `apps/desktop/README.md`. |
@@ -110,6 +110,26 @@ the API values as environment, and split the dashboard file: every
 `NEXT_PUBLIC_*` line is a build argument, the rest is environment. In
 Trigger.dev, set the jobs values on the project.
 
+### URLs
+
+Every URL this deployment needs comes from four variables, read in one place
+(`packages/utils/src/envs.ts`):
+
+| Variable | Meaning |
+| --- | --- |
+| `DASHBOARD_URL` | Public URL of the dashboard. The dashboard itself sets `NEXT_PUBLIC_URL` to the same value. |
+| `API_URL` | Public URL of the API. The dashboard sets `NEXT_PUBLIC_API_URL` to the same value. |
+| `EMAIL_ASSETS_URL` | Optional. Where the images in emails are served from; defaults to `DASHBOARD_URL`. |
+| `CDN_URL` | Optional. Static asset host; defaults to `DASHBOARD_URL`. |
+
+There is no hosted fallback. With `NODE_ENV=production` and no `DASHBOARD_URL`,
+the API fails at startup rather than quietly emailing your customers links to
+somebody else's instance. Outside production the local ports (`:3001`, `:3003`)
+stand in, so a plain `bun run dev` needs nothing set.
+
+The `midday` CLI is configured separately, with `MIDDAY_API_URL` and
+`MIDDAY_DASHBOARD_URL`; it is distributed on its own and has no defaults either.
+
 ### Shared secrets
 
 Generate each with `openssl rand -hex 32` unless stated otherwise, and use the
@@ -124,7 +144,7 @@ same value everywhere the name appears.
 | `WEBHOOK_SECRET_KEY` | dashboard | Verifies the Supabase registration webhook. |
 | `MIDDAY_CACHE_API_SECRET` | dashboard | Protects the cache revalidation route. |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | dashboard | `openssl rand -base64 32`. Must be identical across replicas. |
-| `INBOX_WEBHOOK_USERNAME` / `INBOX_WEBHOOK_PASSWORD` | api | Basic auth on the inbound inbox email webhook. |
+| `INBOX_WEBHOOK_USERNAME` / `INBOX_WEBHOOK_PASSWORD` | api | Basic auth on the inbound inbox email webhook. The route refuses every request without them. |
 
 ### API (`apps/api`)
 
@@ -132,8 +152,9 @@ same value everywhere the name appears.
 | --- | --- | --- |
 | `NODE_ENV`, `LOG_LEVEL`, `LOG_PRETTY` | yes | `production`, `info`, `false` in Dokploy. |
 | `PORT` | no | Defaults to 3000; the Dockerfile sets 8080. |
-| `MIDDAY_DASHBOARD_URL`, `DASHBOARD_URL`, `ALLOWED_API_ORIGINS` | yes | The dashboard's public URL (`https://midday.fredflix.be`). |
-| `MIDDAY_API_URL`, `API_URL` | yes | The API's public URL (`https://api.midday.fredflix.be`). OAuth redirect URLs below are built from it. |
+| `DASHBOARD_URL`, `ALLOWED_API_ORIGINS` | yes | The dashboard's public URL (`https://midday.fredflix.be`). The API throws at startup if `DASHBOARD_URL` is unset in production. |
+| `API_URL` | yes | The API's public URL (`https://api.midday.fredflix.be`). OAuth redirect URLs, the OpenAPI document and the MCP metadata are built from it. |
+| `EMAIL_ASSETS_URL`, `CDN_URL` | no | Where email images and static assets are served from. Both default to `DASHBOARD_URL`. |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | yes | Supabase project settings > API. |
 | `SUPABASE_JWT_SECRET` | no | Legacy HS256 fallback; drop once the legacy JWT secret is revoked. |
 | `DATABASE_URL` | yes | Supabase > Database > session pooler, port 5432. |
@@ -142,8 +163,10 @@ same value everywhere the name appears.
 | `REDIS_URL`, `REDIS_QUEUE_URL` | yes | The VPS Redis. |
 | `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel; the redirect URL points at the API. The API does not start without these. |
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
-| `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | no | Cloudflare R2 bucket for institution logos. Leave empty to serve provider logo URLs directly. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
+| `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | The address email is sent from, e.g. `Midday <midday@fredflix.be>`. Its domain must be verified with Resend or every message fails DKIM. Invoices go out under the team's name from this address. |
+| `INBOX_FORWARDING_DOMAIN` | no | Domain receipts may be forwarded to, e.g. `inbox.fredflix.be`. Requires an inbound email provider posting to `/webhooks/inbox`. Unset means that route is not mounted and the dashboard hides the address; Gmail sync and manual upload are unaffected. Set `NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN` to the same value for the dashboard. |
+| `ALLOWED_ASSET_HOSTS` | no | Extra hostnames the renderer may fetch a logo or avatar from, comma-separated. The Supabase storage host and your own `CDN_URL`, `DASHBOARD_URL` and `API_URL` are always allowed. |
 | `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY` | yes / yes / no | The assistant, embeddings, and document OCR. |
 | `COMPOSIO_API_KEY` | no | AI tool connectors. |
 | `PLAIN_API_KEY` | no | Plain support tickets; the API only probes it for health. |
@@ -162,7 +185,7 @@ Build arguments (inlined by `next build`; changing one needs a rebuild):
 | --- | --- | --- |
 | `NEXT_PUBLIC_URL` | yes | `https://midday.fredflix.be` |
 | `NEXT_PUBLIC_API_URL` | yes | `https://api.midday.fredflix.be` |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_ID` | yes | Supabase project settings > API. |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes | Supabase project settings > API. Resumable uploads derive their endpoint from the URL. |
 | `NEXT_PUBLIC_DESKTOP_SCHEME` | yes | `midday` for the production desktop build (`midday-dev` for `tauri:dev`). |
 | `NEXT_PUBLIC_GOOGLE_API_KEY` | no | Google Maps key for address autocomplete. |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | no | Stripe Connect. |
@@ -187,14 +210,15 @@ Runtime environment:
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Supabase session pooler. |
 | `MIDDAY_ENCRYPTION_KEY`, `INTERNAL_API_KEY` | yes | Shared secrets above. |
-| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. |
+| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
+| `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
 
 ### Worker (`apps/worker`, until FF-1368)
 
-Same database, Supabase, Redis, banking, Resend and AI values as the API, plus
+Same database, Supabase, Redis, banking, Resend, URL and AI values as the API, plus
 `PORT=8080` and `INSIGHTS_ENABLED` (`true` to send weekly insight emails). The
 scheduled processors run unless `SYNC_INSTITUTIONS_ENABLED`,
 `RATES_SCHEDULER_ENABLED` or `NO_MATCH_SCHEDULER_ENABLED` is set to `false`;

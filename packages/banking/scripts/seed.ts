@@ -9,7 +9,7 @@
  *   bun run src/scripts/seed-institutions.ts
  */
 
-import { fetchAllInstitutions, syncInstitutionLogos } from "@midday/banking";
+import { fetchAllInstitutions } from "@midday/banking";
 import { db } from "@midday/db/client";
 import { upsertInstitutions } from "@midday/db/queries";
 
@@ -29,17 +29,7 @@ async function main() {
     return;
   }
 
-  // 2. Sync logos to R2 (batched, concurrency 10)
-  console.log("Syncing logos to R2...");
-  const logoResult = await syncInstitutionLogos(institutions, {
-    concurrency: 10,
-  });
-
-  console.log(
-    `Logos: ${logoResult.uploaded} uploaded, ${logoResult.skipped} skipped, ${logoResult.failed} failed.\n`,
-  );
-
-  // 3. Upsert institutions to DB
+  // 2. Upsert institutions to DB
   console.log("Upserting institutions to database...");
   const upserted = await upsertInstitutions(db, institutions);
 

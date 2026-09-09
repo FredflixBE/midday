@@ -8,6 +8,7 @@ import { ChatProvider } from "@/components/chat/chat-context";
 import { ChatTitle } from "@/components/chat/chat-title";
 import { ChatView } from "@/components/chat/chat-view";
 import { NewChatButton } from "@/components/chat/new-chat-button";
+import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 import { AskMidday } from "./ask-midday";
 import { McpBanner } from "./mcp-banner";
@@ -19,8 +20,11 @@ import { WidgetCards } from "./widget-cards";
 export function OverviewView() {
   const [assistant, setAssistant] = useQueryState("assistant", parseAsBoolean);
   const { setParams: setInvoiceParams } = useInvoiceParams();
+  // Without an OpenAI key every chat request fails, so the assistant is not
+  // offered at all on this instance.
+  const { assistant: assistantAvailable } = useFeatureAvailability();
 
-  const isChat = assistant === true;
+  const isChat = assistant === true && assistantAvailable;
 
   const openChat = useCallback(() => {
     setAssistant(true);
@@ -57,8 +61,12 @@ export function OverviewView() {
               <WelcomeSummary />
             </Suspense>
           </div>
-          <AskMidday onChatOpen={openChat} />
-          <QuickActions onChatOpen={openChat} />
+          {assistantAvailable && (
+            <>
+              <AskMidday onChatOpen={openChat} />
+              <QuickActions onChatOpen={openChat} />
+            </>
+          )}
           <Suspense fallback={<WidgetCardsSkeleton />}>
             <WidgetCards />
           </Suspense>

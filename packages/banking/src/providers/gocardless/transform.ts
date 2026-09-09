@@ -8,7 +8,6 @@ import type {
 } from "../../types";
 import type { AccountType } from "../../utils/account";
 import { isValidCurrency } from "../../utils/currency";
-import { getFileExtension, getLogoURL } from "../../utils/logo";
 import type {
   GetRequisitionResponse,
   Institution,
@@ -324,7 +323,7 @@ export const transformInstitution = (
 ): TransformInstitution => ({
   id: institution.id,
   name: institution.name,
-  logo: getLogoURL(institution.id, getFileExtension(institution.logo)),
+  logo: institution.logo ?? null,
   provider: "gocardless" as const,
 });
 

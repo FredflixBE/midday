@@ -46,12 +46,37 @@ export function decryptOAuthState(
   }
 }
 
-export function getInboxEmail(inboxId: string) {
-  if (process.env.NODE_ENV !== "production") {
-    return `${inboxId}@inbox.staging.midday.ai`;
+/**
+ * The domain receipts can be forwarded to, e.g. "inbox.example.com".
+ *
+ * Forwarding needs an inbound email provider pointed at this API's webhook,
+ * which a self-hosted instance may well not have. When the variable is unset
+ * the feature is off end to end: no address is shown, and the webhook route
+ * is not mounted. Receipts still arrive by mailbox sync and manual upload.
+ */
+export function getInboxForwardingDomain(): string | null {
+  // Both names, because the dashboard renders the address in the browser and
+  // Next only exposes NEXT_PUBLIC_ variables there. Set the same value in both.
+  const domain =
+    process.env.INBOX_FORWARDING_DOMAIN ||
+    process.env.NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN;
+
+  return domain?.trim().replace(/^@/, "") || null;
+}
+
+export function isInboxForwardingEnabled(): boolean {
+  return getInboxForwardingDomain() !== null;
+}
+
+/** The forwarding address for a team, or null when forwarding is off. */
+export function getInboxEmail(inboxId: string): string | null {
+  const domain = getInboxForwardingDomain();
+
+  if (!domain || !inboxId) {
+    return null;
   }
 
-  return `${inboxId}@inbox.midday.ai`;
+  return `${inboxId}@${domain}`;
 }
 
 /**
