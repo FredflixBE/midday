@@ -5,10 +5,33 @@ import { CURATED_TOOLKIT_SLUGS } from "@midday/connectors";
 import { logger } from "@midday/logger";
 import { LRUCache } from "lru-cache";
 
-export const composio = new Composio({
-  apiKey: process.env.COMPOSIO_API_KEY,
-  provider: new VercelProvider(),
-});
+export function isComposioConfigured(): boolean {
+  return Boolean(process.env.COMPOSIO_API_KEY);
+}
+
+let instance: Composio<VercelProvider> | null = null;
+
+/**
+ * The Composio client, created on first use. The SDK refuses to construct
+ * without an API key, and Composio is optional on a self-host, so it must
+ * not be built at import.
+ */
+export function getComposio(): Composio<VercelProvider> {
+  if (!isComposioConfigured()) {
+    throw new Error(
+      "Composio is not configured: set COMPOSIO_API_KEY to enable AI tool connectors",
+    );
+  }
+
+  if (!instance) {
+    instance = new Composio({
+      apiKey: process.env.COMPOSIO_API_KEY,
+      provider: new VercelProvider(),
+    });
+  }
+
+  return instance;
+}
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 
@@ -53,7 +76,7 @@ export async function getUserToolkits(userId: string): Promise<ToolkitItem[]> {
     `toolkits:${userId}`,
     TOOLKIT_CACHE_TTL,
     async () => {
-      const session = await composio.create(userId);
+      const session = await getComposio().create(userId);
       const { items } = await session.toolkits({
         toolkits: [...CURATED_TOOLKIT_SLUGS],
         limit: 50,
@@ -104,7 +127,7 @@ export async function getComposioTools(
   if (cached) return cached;
 
   try {
-    const session = await composio.create(userId, {
+    const session = await getComposio().create(userId, {
       manageConnections: false,
       workbench: { enable: false },
     });

@@ -31,10 +31,10 @@ import { expandScopes } from "@api/utils/scopes";
 import type { SlackAdapter } from "@chat-adapter/slack";
 import {
   type BotPlatform,
-  bot,
   formatInboxResultMessage,
   formatNotificationContextForPrompt,
   formatProcessedUploadSummary,
+  getBot,
   getPlatformInstructions,
   isSupportedInboxUploadMediaType,
   type NotificationContext,
@@ -82,6 +82,9 @@ export function registerMiddayBotRuntime() {
     return;
   }
 
+  // Resolve the bot before flipping the guard: if Slack is not configured
+  // getBot() throws, and a later call must be able to register.
+  const bot = getBot();
   registered = true;
 
   bot.onNewMention(async (thread, message) => {
@@ -672,7 +675,7 @@ async function updateSlackSuggestedPrompts(
   threadTs: string,
 ) {
   try {
-    const slack = bot.getAdapter("slack") as SlackAdapter;
+    const slack = getBot().getAdapter("slack") as SlackAdapter;
     await slack.setSuggestedPrompts(channelId, threadTs, [
       {
         title: "How's my business doing?",
