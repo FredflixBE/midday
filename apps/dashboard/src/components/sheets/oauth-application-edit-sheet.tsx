@@ -10,7 +10,7 @@ import { Icons } from "@midday/ui/icons";
 import { ScrollArea } from "@midday/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
 import { useToast } from "@midday/ui/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useCopyToClipboard } from "usehooks-ts";
 import { OAuthApplicationForm } from "@/components/forms/oauth-application-form";
@@ -24,7 +24,6 @@ export function OAuthApplicationEditSheet() {
   const { toast } = useToast();
   const [, copy] = useCopyToClipboard();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const queryClient = useQueryClient();
   const { setParams, applicationId, editApplication } =
     useOAuthApplicationParams();
 
@@ -39,80 +38,12 @@ export function OAuthApplicationEditSheet() {
     ),
   );
 
-  const submitForReviewMutation = useMutation(
-    trpc.oauthApplications.updateApprovalStatus.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.oauthApplications.list.queryKey(),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.oauthApplications.get.queryKey(),
-        });
-        toast({
-          title: "Submitted for review",
-          description:
-            "Your application has been submitted for review and will be visible once approved.",
-          variant: "success",
-        });
-      },
-      onError: (error) => {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to submit for review",
-        });
-      },
-    }),
-  );
-
-  const makeDraftMutation = useMutation(
-    trpc.oauthApplications.updateApprovalStatus.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.oauthApplications.list.queryKey(),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.oauthApplications.get.queryKey(),
-        });
-        toast({
-          title: "Application moved to draft",
-          description:
-            "Your application has been moved back to draft status and removed from review.",
-          variant: "success",
-        });
-      },
-      onError: (error) => {
-        toast({
-          title: "Error",
-          description: error.message || "Failed to move to draft",
-        });
-      },
-    }),
-  );
-
   const handleCopyClientId = () => {
     if (application?.clientId) {
       copy(application.clientId);
       toast({
         title: "Client ID copied to clipboard",
         variant: "success",
-      });
-    }
-  };
-
-  const handleSubmitForReview = () => {
-    if (applicationId) {
-      submitForReviewMutation.mutate({
-        id: applicationId,
-        status: "pending",
-      });
-    }
-  };
-
-  const handleMakeDraft = () => {
-    if (applicationId) {
-      makeDraftMutation.mutate({
-        id: applicationId,
-        status: "draft",
       });
     }
   };
@@ -139,26 +70,6 @@ export function OAuthApplicationEditSheet() {
                   <DropdownMenuItem onClick={handleCopyClientId}>
                     Copy Client ID
                   </DropdownMenuItem>
-                  {application?.status === "draft" && (
-                    <DropdownMenuItem
-                      onClick={handleSubmitForReview}
-                      disabled={submitForReviewMutation.isPending}
-                    >
-                      {submitForReviewMutation.isPending
-                        ? "Submitting..."
-                        : "Submit for review"}
-                    </DropdownMenuItem>
-                  )}
-                  {application?.status === "pending" && (
-                    <DropdownMenuItem
-                      onClick={handleMakeDraft}
-                      disabled={makeDraftMutation.isPending}
-                    >
-                      {makeDraftMutation.isPending
-                        ? "Cancelling review..."
-                        : "Cancel review"}
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => setShowDeleteModal(true)}

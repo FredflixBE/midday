@@ -6,14 +6,7 @@ import {
   TooltipTrigger,
 } from "@midday/ui/tooltip";
 
-type InboxSource =
-  | "gmail"
-  | "outlook"
-  | "slack"
-  | "whatsapp"
-  | "telegram"
-  | "sendblue"
-  | null;
+type InboxSource = "gmail" | "outlook" | "slack" | null;
 
 function getInboxSource(data: {
   inboxAccount?: { provider?: string } | null;
@@ -27,13 +20,10 @@ function getInboxSource(data: {
     return "outlook";
   }
 
-  // Check meta.source (for other sources like Slack, WhatsApp)
+  // Check meta.source (for other sources like Slack)
   if (data.meta && typeof data.meta === "object" && "source" in data.meta) {
     const source = (data.meta as Record<string, unknown>).source;
     if (source === "slack") return "slack";
-    if (source === "whatsapp") return "whatsapp";
-    if (source === "telegram") return "telegram";
-    if (source === "sendblue") return "sendblue";
   }
 
   return null;
@@ -56,18 +46,6 @@ const sourceConfigs: Record<Exclude<InboxSource, null>, SourceIconConfig> = {
   slack: {
     icon: Icons.Slack,
     tooltip: "Shared via Slack",
-  },
-  whatsapp: {
-    icon: Icons.WhatsApp,
-    tooltip: "Shared via WhatsApp",
-  },
-  telegram: {
-    icon: Icons.Telegram,
-    tooltip: "Shared via Telegram",
-  },
-  sendblue: {
-    icon: Icons.IMessage,
-    tooltip: "Shared via iMessage",
   },
 };
 
@@ -98,11 +76,7 @@ export function InboxSourceIcon({
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex cursor-default">
-              {source === "whatsapp" ? (
-                <Icon className="w-3.5 h-3.5 text-[#25D366]" />
-              ) : (
-                <Icon className="w-4 h-4" />
-              )}
+              <Icon className="w-4 h-4" />
             </span>
           </TooltipTrigger>
           <TooltipContent className="text-xs px-3 py-1.5">

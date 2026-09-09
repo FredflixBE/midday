@@ -11,8 +11,6 @@ import {
 import {
   buildWelcomeMessage,
   mapPlatformLinkError,
-  PlatformSetupFailedError,
-  resolvePlatformLinkCode,
 } from "@api/bot/platform-resolver";
 import {
   consumeResolvedConversation,
@@ -44,12 +42,6 @@ import {
 } from "@midday/bot";
 import { db } from "@midday/db/client";
 import {
-  TelegramAlreadyConnectedToAnotherTeamError,
-  WhatsAppAlreadyConnectedToAnotherTeamError,
-} from "@midday/db/errors";
-import {
-  addTelegramConnection,
-  addWhatsAppConnection,
   consumePlatformLinkToken,
   createOrUpdatePlatformIdentity,
   getAppBySlackTeamId,
@@ -62,16 +54,10 @@ import { createLoggerWithContext } from "@midday/logger";
 import type { ModelMessage } from "ai";
 import type { Attachment, Message, Thread } from "chat";
 import { toAiMessages } from "chat";
-import type { SendblueAdapter } from "chat-adapter-sendblue";
 
 const logger = createLoggerWithContext("bot-runtime");
 
-const ALLOWED_ATTACHMENT_HOSTS = new Set([
-  "files.slack.com",
-  "api.telegram.org",
-  "lookaside.fbsbx.com",
-  "media.sendblue.co",
-]);
+const ALLOWED_ATTACHMENT_HOSTS = new Set(["files.slack.com"]);
 
 function isSafeAttachmentUrl(raw: string): boolean {
   try {
@@ -306,12 +292,7 @@ async function resolveConversation(
   const externalUserId = getMessageAuthorId(message);
 
   const isLinkCodeMessage =
-    platform === "slack" ||
-    platform === "telegram" ||
-    platform === "whatsapp" ||
-    platform === "sendblue"
-      ? !!extractConnectionToken(platform, message?.text)
-      : false;
+    platform === "slack" ? !!extractConnectionToken(message?.text) : false;
 
   if (
     !isLinkCodeMessage &&
@@ -324,20 +305,8 @@ async function resolveConversation(
     };
   }
 
-  if (platform === "whatsapp") {
-    return resolveWhatsAppConversation(thread, message);
-  }
-
-  if (platform === "telegram") {
-    return resolveTelegramConversation(thread, message);
-  }
-
   if (platform === "slack") {
     return resolveSlackConversation(thread, message);
-  }
-
-  if (platform === "sendblue") {
-    return resolveSendblueConversation(thread, message);
   }
 
   return null;
@@ -351,12 +320,7 @@ async function hydrateResolvedConversationIdentity(params: {
 }) {
   const { thread, message, platform, resolved } = params;
 
-  if (
-    platform !== "slack" &&
-    platform !== "telegram" &&
-    platform !== "whatsapp" &&
-    platform !== "sendblue"
-  ) {
+  if (platform !== "slack") {
     return null;
   }
 
@@ -409,126 +373,6 @@ async function hydrateResolvedConversationIdentity(params: {
   return connectedConversation;
 }
 
-function resolveWhatsAppConversation(
-  thread: Thread<BotThreadState>,
-  message: Message,
-) {
-  return resolvePlatformLinkCode(thread, message, {
-    provider: "whatsapp",
-    displayName: "WhatsApp number",
-    buildIdentityFields: ({ message: msg }) => ({
-      metadata: {
-        displayName:
-          msg?.author?.fullName || msg?.author?.userName || undefined,
-      },
-    }),
-    afterConnect: async ({ token, externalUserId, message: msg }) => {
-      const app = await addWhatsAppConnection(db, {
-        teamId: token.teamId,
-        phoneNumber: externalUserId,
-        displayName:
-          msg?.author?.fullName || msg?.author?.userName || undefined,
-        createdBy: token.userId,
-      });
-      if (!app) {
-        throw new PlatformSetupFailedError();
-      }
-    },
-    platformErrors: [
-      {
-        errorClass: WhatsAppAlreadyConnectedToAnotherTeamError,
-        message:
-          "This WhatsApp number is already connected to another Midday workspace.",
-      },
-    ],
-    welcomeMessage: (name) => buildWelcomeMessage(name, "whatsapp"),
-    invalidCodeMessage:
-      "That WhatsApp link code is invalid or expired. Open Midday and generate a new one.",
-    promptConnectMessage:
-      "Connect WhatsApp from Midday first, then send the prefilled connection message here.",
-  });
-}
-
-function resolveSendblueConversation(
-  thread: Thread<BotThreadState>,
-  message: Message,
-) {
-  return resolvePlatformLinkCode(thread, message, {
-    provider: "sendblue",
-    displayName: "phone number",
-    buildIdentityFields: ({ message: msg }) => ({
-      metadata: {
-        displayName:
-          msg?.author?.fullName || msg?.author?.userName || undefined,
-      },
-    }),
-    afterConnect: async ({ thread: t }) => {
-      try {
-        await (t.adapter as SendblueAdapter).sendMediaMessage(
-          t.id,
-          "https://cdn.midday.ai/midday-contact.vcf",
-        );
-      } catch {
-        // Contact card is best-effort
-      }
-    },
-    welcomeMessage: (name) => buildWelcomeMessage(name, "sendblue"),
-    invalidCodeMessage:
-      "That iMessage link code is invalid or expired. Open Midday and generate a new one.",
-    promptConnectMessage:
-      "Connect iMessage from Midday first, then send the connection code here.",
-  });
-}
-
-function resolveTelegramConversation(
-  thread: Thread<BotThreadState>,
-  message: Message,
-) {
-  return resolvePlatformLinkCode(thread, message, {
-    provider: "telegram",
-    displayName: "Telegram account",
-    buildIdentityFields: ({ message: msg, thread: t }) => ({
-      externalChannelId: String(t.channelId),
-      metadata: {
-        username: msg?.author?.userName || undefined,
-        displayName:
-          msg?.author?.fullName || msg?.author?.userName || undefined,
-      },
-    }),
-    afterConnect: async ({
-      token,
-      externalUserId,
-      message: msg,
-      thread: t,
-    }) => {
-      const app = await addTelegramConnection(db, {
-        teamId: token.teamId,
-        userId: externalUserId,
-        chatId: String(t.channelId),
-        username: msg?.author?.userName || undefined,
-        displayName:
-          msg?.author?.fullName || msg?.author?.userName || undefined,
-        createdBy: token.userId,
-      });
-      if (!app) {
-        throw new PlatformSetupFailedError();
-      }
-    },
-    platformErrors: [
-      {
-        errorClass: TelegramAlreadyConnectedToAnotherTeamError,
-        message:
-          "This Telegram account is already connected to another Midday workspace.",
-      },
-    ],
-    welcomeMessage: (name) => buildWelcomeMessage(name, "telegram"),
-    invalidCodeMessage:
-      "That Telegram link code is invalid or expired. Open Midday and generate a new one.",
-    promptConnectMessage:
-      "Open Telegram from Midday to connect this chat, then come back here.",
-  });
-}
-
 async function resolveSlackConversation(
   thread: Thread<BotThreadState>,
   message: Message,
@@ -549,7 +393,7 @@ async function resolveSlackConversation(
     externalTeamId: slackTeamId,
   });
 
-  const code = extractConnectionToken("slack", message?.text);
+  const code = extractConnectionToken(message?.text);
 
   if (
     thread.isDM &&
@@ -635,7 +479,7 @@ async function resolveSlackConversation(
           externalUserId: slackUserId,
         });
 
-        await thread.post(buildWelcomeMessage(team?.name ?? "Midday", "slack"));
+        await thread.post(buildWelcomeMessage(team?.name ?? "Midday"));
 
         return consumeResolvedConversation({
           connected: true as const,
@@ -655,7 +499,7 @@ async function resolveSlackConversation(
 
     if (
       !(thread.isDM && existingIdentity?.teamId && existingIdentity.userId) &&
-      isExplicitConnectionAttempt("slack", message?.text)
+      isExplicitConnectionAttempt(message?.text)
     ) {
       await thread.post(
         "That Slack link code is invalid or expired. Open Midday and generate a new one.",
@@ -815,12 +659,7 @@ function getSlackTeamId(message: Message) {
   return raw?.team || raw?.team_id || raw?.teamId;
 }
 
-const SUPPORTED_PLATFORMS = new Set<BotPlatform>([
-  "whatsapp",
-  "telegram",
-  "slack",
-  "sendblue",
-]);
+const SUPPORTED_PLATFORMS = new Set<BotPlatform>(["slack"]);
 
 function normalizePlatform(platformName: string): BotPlatform | null {
   return SUPPORTED_PLATFORMS.has(platformName as BotPlatform)

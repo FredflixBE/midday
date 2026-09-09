@@ -177,7 +177,7 @@ export class NotificationProcessor extends BaseProcessor<NotificationPayload> {
           { sendEmail: true },
         );
 
-        // Send to external providers (Slack, WhatsApp)
+        // Send to external providers (Slack)
         await sendToProviders(db, payload.teamId, "invoice_paid", {
           invoiceId: payload.invoiceId,
           invoiceNumber: payload.invoiceNumber,

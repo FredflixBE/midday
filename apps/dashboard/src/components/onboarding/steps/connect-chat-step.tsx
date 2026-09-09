@@ -1,16 +1,7 @@
 "use client";
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@midday/ui/accordion";
 import { motion } from "framer-motion";
-import { ConnectIMessage } from "@/components/inbox/connect-imessage";
 import { ConnectSlack } from "@/components/inbox/connect-slack";
-import { ConnectTelegram } from "@/components/inbox/connect-telegram";
-import { ConnectWhatsApp } from "@/components/inbox/connect-whatsapp";
 
 export function ConnectChatStep() {
   return (
@@ -31,7 +22,7 @@ export function ConnectChatStep() {
         className="text-sm text-muted-foreground leading-relaxed"
       >
         Send invoices, match receipts, and check your numbers — right from
-        iMessage, WhatsApp, or any messaging app.
+        Slack.
       </motion.p>
 
       <motion.ul
@@ -90,24 +81,7 @@ export function ConnectChatStep() {
         transition={{ duration: 0.4, delay: 0.7 }}
         className="!mt-6"
       >
-        <div className="flex gap-2">
-          <ConnectIMessage />
-          <ConnectWhatsApp />
-        </div>
-
-        <Accordion type="single" collapsible className="border-t pt-2 mt-4">
-          <AccordionItem value="more-options" className="border-0">
-            <AccordionTrigger className="justify-center space-x-2 flex text-sm">
-              <span>More options</span>
-            </AccordionTrigger>
-            <AccordionContent className="mt-4">
-              <div className="flex flex-col space-y-4">
-                <ConnectSlack />
-                <ConnectTelegram />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <ConnectSlack />
       </motion.div>
 
       <p className="text-[11px] text-muted-foreground text-center pt-4">

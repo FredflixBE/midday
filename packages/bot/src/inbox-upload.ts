@@ -12,12 +12,7 @@ import { createClient } from "@midday/supabase/job";
 import { getExtensionFromMimeType } from "@midday/utils";
 import { nanoid } from "nanoid";
 
-export type InboxUploadPlatform =
-  | "dashboard"
-  | "whatsapp"
-  | "telegram"
-  | "slack"
-  | "sendblue";
+export type InboxUploadPlatform = "dashboard" | "slack";
 
 export type ProcessInboxUploadParams = {
   db: Database;

@@ -388,7 +388,7 @@ export function OnboardingPage({
         navigation: "next",
         canGoBack: true,
       },
-      // Step 7 — Connect chat platforms (iMessage, WhatsApp, Slack, Telegram)
+      // Step 7 — Connect chat platforms (Slack)
       {
         key: "connect-chat",
         animation: <ChatDemoWithRail />,
