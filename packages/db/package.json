@@ -21,7 +21,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "typecheck": "tsc --noEmit",
-    "bootstrap": "bun run src/scripts/bootstrap.ts"
+    "bootstrap": "bun run src/scripts/bootstrap.ts",
+    "stamp": "bun run src/scripts/stamp.ts"
   },
   "exports": {
     "./client": "./src/client.ts",

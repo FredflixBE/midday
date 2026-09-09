@@ -15,6 +15,27 @@ of it, so it writes the journal into `drizzle.__drizzle_migrations` itself.
 Without that, the first `db:migrate` on a fresh project would try to
 `CREATE TABLE` over tables the push had just made.
 
+## A project that was built before any of this existed
+
+`db:bootstrap` records the journal for a project it builds itself. A project
+built by an earlier bootstrap has the schema but an empty
+`drizzle.__drizzle_migrations`, so the first `db:migrate` would try to
+`CREATE TABLE` over all of it and fail.
+
+`bun run db:stamp` is the one-time fix. Run it with no arguments first — it
+prints the journal and what is already recorded, and changes nothing:
+
+```bash
+DATABASE_SESSION_POOLER='<session pooler URL>' bun run db:stamp
+DATABASE_SESSION_POOLER='<session pooler URL>' bun run db:stamp --through 0000_base_schema
+```
+
+**Naming the right tag is the whole decision.** Stamping past what the database
+actually contains skips a migration it needs, silently and permanently, which
+is why there is no default. A project built by the FF-1369 bootstrap was pushed
+from the `schema.ts` of that moment: that is the base migration and nothing
+after it. Everything later stays pending and `db:migrate` applies it.
+
 ## Changing the schema
 
 1. Edit `src/schema.ts`.

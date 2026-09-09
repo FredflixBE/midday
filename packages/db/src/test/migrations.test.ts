@@ -60,14 +60,23 @@ describe("the migration journal", () => {
 });
 
 describe("the archived migrations", () => {
-  test("are still there, and out of the journal's way", () => {
-    // They predate the base migration and are superseded by it. Kept so the
-    // history of what upstream changed stays readable in the tree; drizzle
-    // never looks in a subdirectory.
-    const archived = readdirSync(resolve(MIGRATIONS_DIR, "archive")).filter(
-      (name) => name.endsWith(".sql"),
-    );
+  const archived = readdirSync(resolve(MIGRATIONS_DIR, "archive")).filter(
+    (name) => name.endsWith(".sql"),
+  );
 
-    expect(archived.length).toBe(39);
+  test("are still there", () => {
+    // They predate the base migration and are superseded by it. Kept so the
+    // history of what upstream changed stays readable in the tree.
+    expect(archived.length).toBeGreaterThan(0);
+  });
+
+  test("are out of the journal's way", () => {
+    // The point of moving them: drizzle reads the journal, and the journal
+    // must not name anything down here. Asserting the count instead would
+    // fail on any legitimate change to the archive and say nothing about
+    // this.
+    const listed = new Set(entries.map((entry) => `${entry.tag}.sql`));
+
+    expect(archived.filter((name) => listed.has(name))).toEqual([]);
   });
 });

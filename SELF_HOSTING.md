@@ -100,6 +100,20 @@ The 39 hand-written migrations that predate the base migration are in
 `packages/db/migrations/archive/`. Nothing runs them; the base migration
 contains everything they did.
 
+**Before setting the `DATABASE_SESSION_POOLER` repository secret, stamp the
+project once.** The Frankfurt project was built by an earlier bootstrap, so it
+has the schema but no record of it, and the first `db:migrate` would try to
+create everything again:
+
+```bash
+DATABASE_SESSION_POOLER='<session pooler URL>' bun run db:stamp
+```
+
+That prints the journal and changes nothing. Re-run it with
+`--through <tag>`, naming the last migration the project already contains, and
+`db:migrate` picks up from there. See
+[packages/db/migrations/README.md](packages/db/migrations/README.md).
+
 ## Environment variables
 
 One example file per deployable, containing only variables that still exist:

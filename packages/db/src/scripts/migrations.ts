@@ -54,8 +54,9 @@ export function migrationHash(
 }
 
 /**
- * Records every migration in the journal as already applied, without running
- * it. Returns how many rows it added — 0 when the table already knew.
+ * Records migrations as already applied, without running them — the whole
+ * journal by default, or just the entries passed in. Returns how many rows it
+ * added, so 0 when the table already knew.
  *
  * Safe to run twice: a migration is matched by its hash, so re-running adds
  * nothing, and a *changed* migration file would be recorded again rather than
@@ -63,8 +64,11 @@ export function migrationHash(
  */
 export async function stampMigrations(
   client: Client,
-  dir: string = MIGRATIONS_DIR,
+  options: { dir?: string; entries?: JournalEntry[] } = {},
 ): Promise<number> {
+  const dir = options.dir ?? MIGRATIONS_DIR;
+  const entries = options.entries ?? readJournal(dir);
+
   await client.query("create schema if not exists drizzle");
   await client.query(`create table if not exists drizzle.__drizzle_migrations (
       id SERIAL PRIMARY KEY,
@@ -74,7 +78,7 @@ export async function stampMigrations(
 
   let stamped = 0;
 
-  for (const entry of readJournal(dir)) {
+  for (const entry of entries) {
     const { rowCount } = await client.query(
       `insert into drizzle.__drizzle_migrations (hash, created_at)
        select $1, $2
