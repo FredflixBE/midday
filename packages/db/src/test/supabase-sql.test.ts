@@ -186,3 +186,175 @@ describe.skipIf(SKIP)("drizzle-kit push", () => {
     expect(rows[0]!.is_generated).toBe("ALWAYS");
   });
 });
+
+/**
+ * The bucket policies from supabase/10-storage.sql, exercised as the roles
+ * they are written for. Each case runs inside a transaction that sets the
+ * role and the JWT claim Supabase's auth.uid() reads, then rolls back.
+ */
+describe.skipIf(SKIP)("supabase/10-storage.sql", () => {
+  let client: Client;
+
+  const TEAM_A = "aaaaaaaa-0000-0000-0000-000000000001";
+  const TEAM_B = "bbbbbbbb-0000-0000-0000-000000000002";
+  const MEMBER_OF_A = "cccccccc-0000-0000-0000-000000000003";
+
+  /** Runs fn as an authenticated user, then undoes whatever it did. */
+  async function asUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+    await client.query("begin");
+    try {
+      await client.query("set local role authenticated");
+      await client.query(
+        "select set_config('request.jwt.claim.sub', $1, true)",
+        [userId],
+      );
+      return await fn();
+    } finally {
+      await client.query("rollback");
+    }
+  }
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DATABASE_URL });
+    await client.connect();
+
+    await client.query(
+      "insert into auth.users (id) values ($1) on conflict do nothing",
+      [MEMBER_OF_A],
+    );
+    await client.query(
+      "insert into teams (id, name) values ($1, 'Team A'), ($2, 'Team B') on conflict do nothing",
+      [TEAM_A, TEAM_B],
+    );
+    await client.query(
+      "insert into users (id, email) values ($1, 'member-a@example.test') on conflict do nothing",
+      [MEMBER_OF_A],
+    );
+    await client.query(
+      "insert into users_on_team (user_id, team_id, role) values ($1, $2, 'owner') on conflict do nothing",
+      [MEMBER_OF_A, TEAM_A],
+    );
+  });
+
+  afterAll(async () => {
+    await client.query("delete from users_on_team where user_id = $1", [
+      MEMBER_OF_A,
+    ]);
+    await client.query("delete from users where id = $1", [MEMBER_OF_A]);
+    await client.query("delete from teams where id in ($1, $2)", [
+      TEAM_A,
+      TEAM_B,
+    ]);
+    await client.query("delete from auth.users where id = $1", [MEMBER_OF_A]);
+    await client.end();
+  });
+
+  test("creates the three buckets, with only vault private", async () => {
+    const { rows } = await client.query<{ id: string; public: boolean }>(
+      "select id, public from storage.buckets order by id",
+    );
+
+    expect(rows).toEqual([
+      { id: "apps", public: true },
+      { id: "avatars", public: true },
+      { id: "vault", public: false },
+    ]);
+  });
+
+  test("a team member can upload into their own team's vault folder", async () => {
+    await asUser(MEMBER_OF_A, async () => {
+      const { rowCount } = await client.query(
+        "insert into storage.objects (bucket_id, name) values ('vault', $1)",
+        [`${TEAM_A}/transactions/tx-1/receipt.pdf`],
+      );
+      expect(rowCount).toBe(1);
+    });
+  });
+
+  test("a team member cannot upload into another team's vault folder", async () => {
+    await asUser(MEMBER_OF_A, async () => {
+      const attempt = client.query(
+        "insert into storage.objects (bucket_id, name) values ('vault', $1)",
+        [`${TEAM_B}/transactions/tx-1/receipt.pdf`],
+      );
+      await expect(attempt).rejects.toThrow(/row-level security/i);
+    });
+  });
+
+  test("a team member cannot read another team's vault files", async () => {
+    await client.query(
+      "insert into storage.objects (bucket_id, name) values ('vault', $1)",
+      [`${TEAM_B}/secret.pdf`],
+    );
+
+    const visible = await asUser(MEMBER_OF_A, async () => {
+      const { rows } = await client.query(
+        "select name from storage.objects where bucket_id = 'vault'",
+      );
+      return rows.map((r) => r.name);
+    });
+
+    expect(visible).not.toContain(`${TEAM_B}/secret.pdf`);
+
+    await client.query("delete from storage.objects where name = $1", [
+      `${TEAM_B}/secret.pdf`,
+    ]);
+  });
+
+  test("a user can upload an avatar into their own folder", async () => {
+    await asUser(MEMBER_OF_A, async () => {
+      const { rowCount } = await client.query(
+        "insert into storage.objects (bucket_id, name) values ('avatars', $1)",
+        [`${MEMBER_OF_A}/me.png`],
+      );
+      expect(rowCount).toBe(1);
+    });
+  });
+
+  test("a user cannot upload an avatar into someone else's folder", async () => {
+    await asUser(MEMBER_OF_A, async () => {
+      const attempt = client.query(
+        "insert into storage.objects (bucket_id, name) values ('avatars', $1)",
+        [`${TEAM_B}/logo.png`],
+      );
+      await expect(attempt).rejects.toThrow(/row-level security/i);
+    });
+  });
+
+  test("app images go under logos or screenshots, and nowhere else", async () => {
+    await asUser(MEMBER_OF_A, async () => {
+      const { rowCount } = await client.query(
+        "insert into storage.objects (bucket_id, name) values ('apps', 'logos/abc.png')",
+      );
+      expect(rowCount).toBe(1);
+
+      const attempt = client.query(
+        "insert into storage.objects (bucket_id, name) values ('apps', 'elsewhere/abc.png')",
+      );
+      await expect(attempt).rejects.toThrow(/row-level security/i);
+    });
+  });
+
+  test("public bucket images are readable without signing in", async () => {
+    await client.query(
+      "insert into storage.objects (bucket_id, name) values ('avatars', $1)",
+      [`${TEAM_A}/logo.png`],
+    );
+
+    await client.query("begin");
+    try {
+      await client.query("set local role anon");
+      const { rows } = await client.query(
+        "select name from storage.objects where bucket_id = 'avatars' and name = $1",
+        [`${TEAM_A}/logo.png`],
+      );
+      expect(rows).toHaveLength(1);
+    } finally {
+      await client.query("rollback");
+    }
+
+    await client.query("delete from storage.objects where name = $1", [
+      `${TEAM_A}/logo.png`,
+    ]);
+  });
+});
