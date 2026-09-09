@@ -11,7 +11,7 @@ import {
   oauthTokenEndpointRequestSchema,
   oauthTokenResponseSchema,
 } from "@api/schemas/oauth-flow";
-import { resend } from "@api/services/resend";
+import { getResend } from "@api/services/resend";
 import { verifyAccessToken } from "@api/utils/auth";
 import { validateClientCredentials } from "@api/utils/oauth";
 import { validateResponse } from "@api/utils/validate-response";
@@ -406,7 +406,7 @@ app.openapi(
             }),
           );
 
-          await resend.emails.send({
+          await getResend().emails.send({
             from: "Midday <middaybot@midday.ai>",
             to: session.user.email,
             subject: "An app has been added to your team",

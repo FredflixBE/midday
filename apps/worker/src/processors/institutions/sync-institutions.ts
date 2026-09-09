@@ -4,9 +4,9 @@ import {
   markInstitutionsRemoved,
   upsertInstitutions,
 } from "@midday/db/queries";
+import { isFlagEnabled } from "@midday/utils/flags";
 import type { Job } from "bullmq";
 import { getDb } from "../../utils/db";
-import { isProduction } from "../../utils/env";
 import { BaseProcessor } from "../base";
 
 type SyncInstitutionsPayload = Record<string, never>;
@@ -25,9 +25,9 @@ export class SyncInstitutionsProcessor extends BaseProcessor<SyncInstitutionsPay
   async process(
     _job: Job<SyncInstitutionsPayload>,
   ): Promise<{ upserted: number; removed: number }> {
-    if (!isProduction()) {
+    if (!isFlagEnabled("SYNC_INSTITUTIONS_ENABLED")) {
       this.logger.info(
-        "Skipping institution sync in non-production environment",
+        "Skipping institution sync: SYNC_INSTITUTIONS_ENABLED is off",
       );
       return { upserted: 0, removed: 0 };
     }

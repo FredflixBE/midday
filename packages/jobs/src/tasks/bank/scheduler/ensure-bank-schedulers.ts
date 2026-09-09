@@ -1,6 +1,7 @@
 import { getDb } from "@jobs/init";
 import { generateCronTag } from "@jobs/utils/generate-cron-tag";
 import { getTeamsWithBankConnections } from "@midday/db/queries";
+import { isFlagEnabled } from "@midday/utils/flags";
 import { logger, schedules } from "@trigger.dev/sdk";
 import { bankSyncScheduler } from "./bank-scheduler";
 
@@ -38,7 +39,12 @@ export const ensureBankSchedulers = schedules.task({
   cron: "0 3 * * *",
   maxDuration: 300,
   run: async () => {
-    if (process.env.TRIGGER_ENVIRONMENT !== "production") return;
+    if (!isFlagEnabled("BANK_SYNC_SCHEDULER_ENABLED")) {
+      logger.info(
+        "Skipping bank scheduler registration: BANK_SYNC_SCHEDULER_ENABLED is off",
+      );
+      return;
+    }
 
     const db = getDb();
 

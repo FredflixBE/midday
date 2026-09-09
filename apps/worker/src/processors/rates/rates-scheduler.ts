@@ -1,9 +1,9 @@
 import { upsertExchangeRates } from "@midday/db/queries";
 import { trpc } from "@midday/trpc";
+import { isFlagEnabled } from "@midday/utils/flags";
 import type { Job } from "bullmq";
 import type { RatesSchedulerPayload } from "../../schemas/rates";
 import { getDb } from "../../utils/db";
-import { isProduction } from "../../utils/env";
 import { BaseProcessor } from "../base";
 
 /**
@@ -15,10 +15,9 @@ export class RatesSchedulerProcessor extends BaseProcessor<RatesSchedulerPayload
     totalProcessed: number;
     batchesProcessed: number;
   }> {
-    // Only run in production
-    if (!isProduction()) {
+    if (!isFlagEnabled("RATES_SCHEDULER_ENABLED")) {
       this.logger.info(
-        "Skipping rates scheduler in non-production environment",
+        "Skipping rates scheduler: RATES_SCHEDULER_ENABLED is off",
       );
       return { totalProcessed: 0, batchesProcessed: 0 };
     }

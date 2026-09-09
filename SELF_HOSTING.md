@@ -93,7 +93,7 @@ same value everywhere the name appears.
 | `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel; the redirect URL points at the API. The API does not start without these. |
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
 | `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | no | Cloudflare R2 bucket for institution logos. Leave empty to serve provider logo URLs directly. |
-| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | yes / no | Resend; the audience receives new sign-ups. |
+| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
 | `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY` | yes / yes / no | The assistant, embeddings, and document OCR. |
 | `COMPOSIO_API_KEY` | no | AI tool connectors. |
 | `PLAIN_API_KEY` | no | Plain support tickets; the API only probes it for health. |
@@ -139,14 +139,18 @@ Runtime environment:
 | `DATABASE_URL` | yes | Supabase session pooler. |
 | `MIDDAY_ENCRYPTION_KEY`, `INTERNAL_API_KEY` | yes | Shared secrets above. |
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. |
-| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | yes / no | Resend, for the onboarding emails. |
+| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
+| `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
 
 ### Worker (`apps/worker`, until FF-1368)
 
 Same database, Supabase, Redis, banking, Resend and AI values as the API, plus
-`WORKER_ENV=production`, `PORT=8080`, and `INSIGHTS_ENABLED` (`true` to send
-weekly insight emails). See `apps/worker/.env.example`.
+`PORT=8080` and `INSIGHTS_ENABLED` (`true` to send weekly insight emails). The
+scheduled processors run unless `SYNC_INSTITUTIONS_ENABLED`,
+`RATES_SCHEDULER_ENABLED` or `NO_MATCH_SCHEDULER_ENABLED` is set to `false`;
+`WORKER_ENV=staging` makes the invoice processors log instead of act. See
+`apps/worker/.env.example`.
 
 ### Repository secrets (GitHub Actions)
 

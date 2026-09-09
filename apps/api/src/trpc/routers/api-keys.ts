@@ -1,5 +1,5 @@
 import { deleteApiKeySchema, upsertApiKeySchema } from "@api/schemas/api-keys";
-import { resend } from "@api/services/resend";
+import { getResend } from "@api/services/resend";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import { apiKeyCache } from "@midday/cache/api-key-cache";
 import {
@@ -32,7 +32,7 @@ export const apiKeysRouter = createTRPCRouter({
       if (data) {
         try {
           // We don't need to await this, it will be sent in the background
-          resend.emails.send({
+          getResend().emails.send({
             from: "Middaybot <middaybot@midday.ai>",
             to: session.user.email!,
             subject: "New API Key Created",

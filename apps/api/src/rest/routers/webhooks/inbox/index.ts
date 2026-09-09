@@ -1,5 +1,5 @@
 import type { Context } from "@api/rest/types";
-import { resend } from "@api/services/resend";
+import { getResend } from "@api/services/resend";
 import { createAdminClient } from "@api/services/supabase";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getTeamByInboxId } from "@midday/db/queries";
@@ -226,7 +226,7 @@ app.openapi(
           messageId: MessageID,
         });
 
-        await resend.emails.send({
+        await getResend().emails.send({
           from: `${FromFull?.Name} <${FORWARD_FROM_EMAIL}>`,
           to: teamData.email,
           subject: Subject ?? FromFull?.Name,

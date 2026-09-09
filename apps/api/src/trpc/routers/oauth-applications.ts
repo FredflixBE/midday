@@ -8,7 +8,7 @@ import {
   updateOAuthApplicationSchema,
 } from "@api/schemas/oauth-applications";
 import { revokeUserApplicationAccessSchema } from "@api/schemas/oauth-flow";
-import { resend } from "@api/services/resend";
+import { getResend } from "@api/services/resend";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import {
   claimDCRApplication,
@@ -193,7 +193,7 @@ export const oauthApplicationsRouter = createTRPCRouter({
               }),
             );
 
-            await resend.emails.send({
+            await getResend().emails.send({
               from: "Midday <middaybot@midday.ai>",
               to: session.user.email,
               subject: "An app has been added to your team",

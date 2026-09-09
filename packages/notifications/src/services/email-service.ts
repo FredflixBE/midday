@@ -14,10 +14,30 @@ import { type CreateEmailOptions, Resend } from "resend";
 import type { EmailInput } from "../base";
 
 export class EmailService {
-  private client: Resend;
+  #client: Resend | null = null;
 
-  constructor(private db: Database) {
-    this.client = new Resend(process.env.RESEND_API_KEY!);
+  constructor(private db: Database) {}
+
+  /**
+   * Built on first send so the service can be constructed without
+   * RESEND_API_KEY; the send itself fails with a clear message instead.
+   */
+  private get client(): Resend {
+    if (this.#client) {
+      return this.#client;
+    }
+
+    const apiKey = process.env.RESEND_API_KEY;
+
+    if (!apiKey) {
+      throw new Error(
+        "RESEND_API_KEY is not set: email notifications are unavailable on this instance",
+      );
+    }
+
+    this.#client = new Resend(apiKey);
+
+    return this.#client;
   }
 
   async sendBulk(emails: EmailInput[], notificationType: string) {

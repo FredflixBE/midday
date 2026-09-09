@@ -1,9 +1,9 @@
 import { updateInboxStatusToNoMatch } from "@midday/db/queries";
+import { isFlagEnabled } from "@midday/utils/flags";
 import type { Job } from "bullmq";
 import { subDays } from "date-fns";
 import type { NoMatchSchedulerPayload } from "../../schemas/inbox";
 import { getDb } from "../../utils/db";
-import { isProduction } from "../../utils/env";
 import { BaseProcessor } from "../base";
 
 /**
@@ -18,10 +18,9 @@ export class NoMatchSchedulerProcessor extends BaseProcessor<NoMatchSchedulerPay
     updatedCount: number;
     cutoffDate: string;
   }> {
-    // Only run in production
-    if (!isProduction()) {
+    if (!isFlagEnabled("NO_MATCH_SCHEDULER_ENABLED")) {
       this.logger.info(
-        "Skipping no-match scheduler in non-production environment",
+        "Skipping no-match scheduler: NO_MATCH_SCHEDULER_ENABLED is off",
       );
       return { updatedCount: 0, cutoffDate: new Date().toISOString() };
     }

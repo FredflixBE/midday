@@ -1,5 +1,6 @@
 import { triggerBatch } from "@jobs/utils/trigger-batch";
 import { createClient } from "@midday/supabase/job";
+import { isFlagEnabled } from "@midday/utils/flags";
 import { logger, schedules } from "@trigger.dev/sdk/v3";
 import { checkInvoiceStatus } from "../operations/check-status";
 
@@ -7,8 +8,12 @@ export const invoiceScheduler = schedules.task({
   id: "invoice-scheduler",
   cron: "0 0,12 * * *",
   run: async () => {
-    // Only run in production (Set in Trigger.dev)
-    if (process.env.TRIGGER_ENVIRONMENT !== "production") return;
+    if (!isFlagEnabled("INVOICE_SCHEDULER_ENABLED")) {
+      logger.info(
+        "Skipping invoice scheduler: INVOICE_SCHEDULER_ENABLED is off",
+      );
+      return;
+    }
 
     const supabase = createClient();
 

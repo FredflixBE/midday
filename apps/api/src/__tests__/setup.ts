@@ -1259,14 +1259,15 @@ mock.module("@api/services/supabase", () => ({
 }));
 
 mock.module("@api/services/resend", () => ({
-  resend: {
+  isResendConfigured: () => true,
+  getResend: () => ({
     emails: {
       send: (...args: unknown[]) => mocks.resendEmailsSend(...args),
     },
     contacts: {
       remove: (...args: unknown[]) => mocks.resendContactsRemove(...args),
     },
-  },
+  }),
 }));
 
 // Mock @api/utils/auth - needed by tRPC init

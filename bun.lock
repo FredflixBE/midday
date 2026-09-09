@@ -568,6 +568,7 @@
         "@midday/notifications": "workspace:*",
         "@midday/supabase": "workspace:*",
         "@midday/trpc": "workspace:*",
+        "@midday/utils": "workspace:*",
         "@sindresorhus/slugify": "catalog:",
         "@zip.js/zip.js": "^2.8.23",
         "ai": "catalog:",

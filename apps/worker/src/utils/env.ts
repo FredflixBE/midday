@@ -4,14 +4,6 @@
  */
 
 /**
- * Check if the worker is running in production environment
- * Checks WORKER_ENV
- */
-export function isProduction(): boolean {
-  return process.env.WORKER_ENV === "production";
-}
-
-/**
  * Check if the worker is running in staging environment
  */
 export function isStaging(): boolean {
@@ -20,8 +12,9 @@ export function isStaging(): boolean {
 
 /**
  * Check if the worker is running in a non-production environment
- * Useful for skipping scheduled tasks or enabling debug features
+ * Used for debug logging only; scheduled tasks are gated by explicit
+ * *_ENABLED flags instead (see @midday/utils/flags).
  */
 export function isDevelopment(): boolean {
-  return !isProduction();
+  return process.env.NODE_ENV !== "production";
 }

@@ -1,4 +1,5 @@
 import { createClient } from "@midday/supabase/job";
+import { isFlagEnabled } from "@midday/utils/flags";
 import { logger, schedules } from "@trigger.dev/sdk";
 import { syncConnection } from "../sync/connection";
 
@@ -8,8 +9,10 @@ export const bankSyncScheduler = schedules.task({
   id: "bank-sync-scheduler",
   maxDuration: 120,
   run: async (payload) => {
-    // Only run in production (Set in Trigger.dev)
-    if (process.env.TRIGGER_ENVIRONMENT !== "production") return;
+    if (!isFlagEnabled("BANK_SYNC_SCHEDULER_ENABLED")) {
+      logger.info("Skipping bank sync: BANK_SYNC_SCHEDULER_ENABLED is off");
+      return;
+    }
 
     const supabase = createClient();
 
