@@ -26,6 +26,10 @@ Without that, the first `db:migrate` on a fresh project would try to
    `generate` diffs against it and emits nothing.
 5. `bun run db:migrate` applies it.
 
+`meta/` is excluded from biome in the root `biome.json`. drizzle-kit writes
+those files and would keep rewriting them, so formatting them here would leave
+a lint failure behind every `db:generate` — a trap rather than a standard.
+
 ## Why the base migration is generated rather than assembled
 
 The 39 files in `archive/` are the history: hand-written migrations that were
