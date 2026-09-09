@@ -224,7 +224,13 @@ Runtime environment:
 | Variable | Required | Where it comes from |
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Supabase session pooler. |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | yes | Nearly every job reads or writes the `vault` bucket. |
+| `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | `@midday/banking` validates these on load, so an unset value stops the institution sync at startup rather than at runtime. |
 | `MIDDAY_ENCRYPTION_KEY`, `INTERNAL_API_KEY` | yes | Shared secrets above. |
+| `INVOICE_JWT_SECRET` | for invoicing | Signs the public invoice links in invoice emails. Same value as the API. |
+| `GMAIL_*` / `OUTLOOK_*` | for inbox sync | Same OAuth client as the API. |
+| `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | for accounting export | Token refresh needs the client credentials. |
+| `MISTRAL_API_KEY`, `OPENAI_API_KEY` | no | Document OCR fallback; Slack receipt summaries. |
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
