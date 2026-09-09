@@ -9,6 +9,7 @@ import {
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
 import { Sheet, SheetContent } from "@midday/ui/sheet";
+import { getEmailUrl } from "@midday/utils/envs";
 import { format } from "date-fns";
 import { useCallback, useEffect, useRef } from "react";
 import { useFormContext } from "react-hook-form";
@@ -232,7 +233,7 @@ export function EmailPreview() {
             <div className="flex items-start gap-3">
               <div className="size-10 rounded-full bg-white dark:bg-[#1a1a1a] border border-border flex items-center justify-center flex-shrink-0">
                 <img
-                  src="https://midday.ai/email/logo.png"
+                  src={`${getEmailUrl()}/email/logo.png`}
                   alt="Midday"
                   className="size-6 dark:invert dark:brightness-100"
                 />
@@ -262,7 +263,7 @@ export function EmailPreview() {
                   />
                 ) : (
                   <img
-                    src="https://midday.ai/email/logo.png"
+                    src={`${getEmailUrl()}/email/logo.png`}
                     alt="Midday"
                     className="h-10 w-10 dark:invert dark:brightness-100"
                   />

@@ -14,6 +14,7 @@ import { DocumentClient } from "@midday/documents";
 import { triggerJob } from "@midday/job-client";
 import { createClient } from "@midday/supabase/job";
 import { getExtensionFromMimeType } from "@midday/utils";
+import { getAppUrl } from "@midday/utils/envs";
 import { generateText } from "ai";
 import type { Job } from "bullmq";
 import { format, parseISO } from "date-fns";
@@ -471,7 +472,7 @@ Focus on what was purchased (e.g., "office supplies", "software subscription", "
                   text: "View in Midday",
                   emoji: true,
                 },
-                url: `https://app.midday.ai/inbox?inboxId=${encodeURIComponent(updatedInbox.id)}`,
+                url: `${getAppUrl()}/inbox?inboxId=${encodeURIComponent(updatedInbox.id)}`,
                 action_id: "view_receipt",
               },
             ],
