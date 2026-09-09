@@ -20,6 +20,7 @@
     "validate-golden": "bun run src/test/validate-golden-dataset.ts",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "verify:migrations": "bun run src/scripts/verify-base-migration.ts",
     "typecheck": "tsc --noEmit",
     "bootstrap": "bun run src/scripts/bootstrap.ts",
     "stamp": "bun run src/scripts/stamp.ts"

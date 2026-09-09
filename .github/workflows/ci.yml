@@ -55,6 +55,65 @@ jobs:
           bun run db:migrate
 
   # ---------------------------------------------------------------------------
+  # Build a database from empty, both ways, and run the tests that need one.
+  #
+  # `check` below runs without TEST_DATABASE_URL, and every database-backed
+  # test skips itself when that is unset — so the tests that prove a fresh
+  # project can be built at all only ever ran when someone remembered to run
+  # them by hand. This is the job that runs them.
+  #
+  # Pull requests only. It costs a service container and about a minute, and
+  # the thing it protects is a schema change, which arrives in a pull request.
+  # A push to main that changed the schema was already checked as one.
+  # ---------------------------------------------------------------------------
+  schema:
+    name: Build the database from empty
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        # The same image docker-compose.test.yml pins: the schema has vector
+        # columns, so plain postgres will not do.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: midday_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5433/midday_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      # The same path a real project takes: bootstrap SQL, push, policies,
+      # storage, realtime, the auth trigger, the runtime functions and the
+      # document triggers.
+      - name: Build it the way db:bootstrap does
+        run: bun run --cwd packages/db test:e2e:setup
+
+      # The other way in, which the bootstrap never exercises: the migration
+      # files, against a database that starts empty.
+      - name: Build it again from the migrations alone
+        run: bun run --cwd packages/db verify:migrations
+
+      # With TEST_DATABASE_URL set these no longer skip: what the SQL files
+      # actually do, and what the RLS policies actually allow.
+      - name: Test against it
+        run: bun run --cwd packages/db test
+
+  # ---------------------------------------------------------------------------
   # Typecheck, lint and test the whole graph. Turbo only runs `test` in
   # packages that define a test script, so there is nothing to filter here.
   # ---------------------------------------------------------------------------
