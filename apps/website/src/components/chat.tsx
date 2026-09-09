@@ -11,7 +11,6 @@ import { motion } from "motion/react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FeaturesGridSection } from "./sections/features-grid-section";
-import { PricingSection } from "./sections/pricing-section";
 import { TestimonialsSection } from "./sections/testimonials-section";
 import { TextMorph } from "./text-morph";
 
@@ -586,8 +585,6 @@ export function Chat() {
       <div className="max-w-[1400px] mx-auto">
         <div className="h-px w-full border-t border-border" />
       </div>
-
-      <PricingSection />
     </div>
   );
 }

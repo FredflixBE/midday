@@ -10,7 +10,6 @@ import { AudioSummarySection } from "./sections/audio-summary-section";
 import { FeaturesGridSection } from "./sections/features-grid-section";
 import { IntegrationsSection } from "./sections/integrations-section";
 import { PreAccountingSection } from "./sections/pre-accounting-section";
-import { PricingSection } from "./sections/pricing-section";
 import { TestimonialsSection } from "./sections/testimonials-section";
 import { TimeSavingsSection } from "./sections/time-savings-section";
 
@@ -368,7 +367,6 @@ export function Insights() {
       </div>
 
       {/* Pricing Section */}
-      <PricingSection />
     </div>
   );
 }

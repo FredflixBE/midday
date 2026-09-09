@@ -66,7 +66,6 @@ We are working on the documentation to get started with Midday for local develop
 - Github Actions (CI/CD)
 - GoCardLess (Bank connection EU)
 - OpenPanel (Events and Analytics)
-- Polar (Payment processing)
 - Typesense (Search)
 - Gemini
 - OpenAI

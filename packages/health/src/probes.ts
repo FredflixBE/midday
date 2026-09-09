@@ -175,29 +175,6 @@ export function resendProbe(): Dependency {
   };
 }
 
-/** Polar: GET /v1/products (lightweight authenticated check) */
-export function polarProbe(): Dependency {
-  return {
-    name: "polar",
-    tier: 2,
-    cacheTtlMs: 60_000,
-    timeoutMs: 5_000,
-    probe: async () => {
-      const token = process.env.POLAR_ACCESS_TOKEN;
-      if (!token) return false;
-      const baseUrl =
-        process.env.POLAR_ENVIRONMENT === "sandbox"
-          ? "https://sandbox-api.polar.sh"
-          : "https://api.polar.sh";
-      const res = await fetch(`${baseUrl}/v1/products?limit=1`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-      return res.ok;
-    },
-  };
-}
-
 /** Trigger.dev: API reachability check */
 export function triggerDevProbe(): Dependency {
   return {
@@ -382,7 +359,6 @@ export function apiDependencies(): Dependency[] {
     ...(isGoCardlessConfigured() ? [gocardlessProbe()] : []),
     enableBankingProbe(),
     stripeProbe(),
-    polarProbe(),
     resendProbe(),
     triggerDevProbe(),
     openaiProbe(),

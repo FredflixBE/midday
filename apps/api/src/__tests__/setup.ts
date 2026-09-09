@@ -652,12 +652,6 @@ export const mocks = {
     }),
   ) as MockFn,
 
-  // Polar (billing)
-  polarSubscriptionsList: mock(() =>
-    Promise.resolve({ result: { items: [] as unknown[] } }),
-  ) as MockFn,
-  polarSubscriptionsUpdate: mock(() => Promise.resolve({})) as MockFn,
-
   // Notifications (activities)
   getActivities: mock(() =>
     Promise.resolve({
@@ -1299,38 +1293,6 @@ mock.module("@api/services/resend", () => ({
 }));
 
 // Mock @api/utils/auth - needed by tRPC init
-mock.module("@api/utils/polar", () => ({
-  api: {
-    checkouts: {
-      create: mock(() =>
-        Promise.resolve({ url: "https://polar.test/checkout" }),
-      ),
-    },
-    customers: {
-      getExternal: mock(() => Promise.resolve({ id: "polar-customer-id" })),
-      create: mock(() => Promise.resolve({ id: "polar-customer-id" })),
-      list: mock(() =>
-        Promise.resolve({ result: { items: [{ id: "polar-customer-id" }] } }),
-      ),
-    },
-    orders: {
-      list: mock(() => Promise.reject(new Error("polar not configured"))),
-      get: mock(() => Promise.reject(new Error("polar not configured"))),
-      generateInvoice: mock(() => Promise.resolve({})),
-      invoice: mock(() => Promise.reject(new Error("polar not configured"))),
-    },
-    customerSessions: {
-      create: mock(() =>
-        Promise.resolve({ customerPortalUrl: "https://polar.test/portal" }),
-      ),
-    },
-    subscriptions: {
-      list: mocks.polarSubscriptionsList,
-      update: mocks.polarSubscriptionsUpdate,
-    },
-  },
-}));
-
 mock.module("@api/utils/auth", () => ({
   verifyAccessToken: mock(async () => ({
     user: {

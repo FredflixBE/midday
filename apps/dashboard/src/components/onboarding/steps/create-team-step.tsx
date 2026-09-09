@@ -109,10 +109,7 @@ export function CreateTeamStep({
           duration: 6000,
           title: "Unable to create team",
           variant: "info",
-          description:
-            error.data?.code === "FORBIDDEN"
-              ? "All existing teams must be on a paid plan before creating another."
-              : "Something went wrong. Please try again.",
+          description: "Something went wrong. Please try again.",
         });
       },
     }),

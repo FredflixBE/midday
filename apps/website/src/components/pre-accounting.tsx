@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { MaterialIcon } from "./homepage/icon-mapping";
 import { FeaturesGridSection } from "./sections/features-grid-section";
-import { PricingSection } from "./sections/pricing-section";
 
 const howItWorksSteps = [
   {
@@ -609,7 +608,6 @@ export function PreAccounting() {
       </div>
 
       {/* Pricing Section */}
-      <PricingSection />
     </div>
   );
 }

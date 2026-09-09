@@ -87,7 +87,6 @@ const items = [
     name: "Settings",
     children: [
       { path: "/settings", name: "General" },
-      { path: "/settings/billing", name: "Billing" },
       { path: "/settings/accounts", name: "Bank Connections" },
       { path: "/settings/members", name: "Members" },
       { path: "/settings/notifications", name: "Notifications" },
