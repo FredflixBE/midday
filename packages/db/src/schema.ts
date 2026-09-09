@@ -11,6 +11,7 @@ import {
   jsonb,
   pgEnum,
   pgPolicy,
+  pgSchema,
   pgTable,
   primaryKey,
   smallint,
@@ -437,14 +438,14 @@ export const transactions = pgTable(
     ),
     index("idx_transactions_team_id_date_name").using(
       "btree",
-      table.teamId.asc().nullsLast().op("date_ops"),
+      table.teamId.asc().nullsLast().op("uuid_ops"),
       table.date.asc().nullsLast().op("date_ops"),
-      table.name.asc().nullsLast().op("uuid_ops"),
+      table.name.asc().nullsLast().op("text_ops"),
     ),
     index("idx_transactions_team_id_name").using(
       "btree",
       table.teamId.asc().nullsLast().op("uuid_ops"),
-      table.name.asc().nullsLast().op("uuid_ops"),
+      table.name.asc().nullsLast().op("text_ops"),
     ),
     index("idx_trgm_name").using(
       "gist",
@@ -466,10 +467,10 @@ export const transactions = pgTable(
       "transactions_team_id_date_currency_bank_account_id_category_idx",
     ).using(
       "btree",
-      table.teamId.asc().nullsLast().op("enum_ops"),
+      table.teamId.asc().nullsLast().op("uuid_ops"),
       table.date.asc().nullsLast().op("date_ops"),
       table.currency.asc().nullsLast().op("text_ops"),
-      table.bankAccountId.asc().nullsLast().op("date_ops"),
+      table.bankAccountId.asc().nullsLast().op("uuid_ops"),
     ),
     index("transactions_team_id_idx").using(
       "btree",
@@ -1462,7 +1463,9 @@ export const userInvites = pgTable(
     teamId: uuid("team_id"),
     email: text(),
     role: teamRolesEnum(),
-    code: text().default("nanoid(24)"),
+    // As above: quoted, this hands every invite the literal code
+    // "nanoid(24)" — guessable, and UNIQUE, so only one invite could exist.
+    code: text().default(sql`nanoid(24)`),
     invitedBy: uuid("invited_by"),
   },
   (table) => [
@@ -1660,7 +1663,10 @@ export const teams = pgTable(
       .notNull(),
     name: text(),
     logoUrl: text("logo_url"),
-    inboxId: text("inbox_id").default("generate_inbox(10)"),
+    // A call, not a literal. Introspection quoted it, which made every team
+    // share the string "generate_inbox(10)" — and inbox_id is UNIQUE, so a
+    // fresh project would take exactly one team.
+    inboxId: text("inbox_id").default(sql`generate_inbox(10)`),
     email: text(),
     inboxEmail: text("inbox_email"),
     inboxForwarding: boolean("inbox_forwarding").default(true),
@@ -1757,7 +1763,7 @@ export const documents = pgTable(
     ),
     index("documents_team_id_parent_id_idx").using(
       "btree",
-      table.teamId.asc().nullsLast().op("text_ops"),
+      table.teamId.asc().nullsLast().op("uuid_ops"),
       table.parentId.asc().nullsLast().op("text_ops"),
     ),
     // Composite index for common query pattern: teamId + createdAt DESC
@@ -2346,9 +2352,13 @@ export const users = pgTable(
       "btree",
       table.teamId.asc().nullsLast().op("uuid_ops"),
     ),
+    // An app user exists only for an authenticated user, and goes when it
+    // goes. Introspection wrote this as users.id -> users.id, which every row
+    // satisfies trivially, because it could not resolve auth.users while that
+    // table was mistyped as a public one.
     foreignKey({
       columns: [table.id],
-      foreignColumns: [table.id],
+      foreignColumns: [usersInAuth.id],
       name: "users_id_fkey",
     }).onDelete("cascade"),
     foreignKey({
@@ -2876,8 +2886,20 @@ export const transactionCategories = pgTable(
   ],
 );
 
-export const usersInAuth = pgTable(
-  "auth.users",
+/**
+ * Supabase Auth owns this table. It is declared in the "auth" schema so the
+ * users.id foreign key below can reference it truthfully; drizzle-kit's
+ * schemaFilter defaults to ["public"], so push and the snapshot leave it
+ * alone rather than trying to manage Supabase's own table.
+ *
+ * Declared as pgTable("auth.users", ...) it was a table literally named
+ * "auth.users" in public, whose "users_pkey" constraint collided with the
+ * real users table on a fresh push.
+ */
+export const authSchema = pgSchema("auth");
+
+export const usersInAuth = authSchema.table(
+  "users",
   {
     instanceId: uuid("instance_id"),
     id: uuid("id").notNull(),
