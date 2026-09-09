@@ -2895,10 +2895,18 @@ export const transactionCategories = pgTable(
  * Declared as pgTable("auth.users", ...) it was a table literally named
  * "auth.users" in public, whose "users_pkey" constraint collided with the
  * real users table on a fresh push.
+ *
+ * Deliberately not exported, and with no relations() of its own. The runtime
+ * client is built from `import * as schema`, so anything exported here joins
+ * the namespace the relational query builder infers from — and a table in
+ * another schema confuses that inference, silently changing what
+ * db.query.users.findFirst({ with: { … } }) is typed as. The foreign key on
+ * users is the only thing that needs this table, and a foreign key resolves
+ * at definition, not through the namespace.
  */
-export const authSchema = pgSchema("auth");
+const authSchema = pgSchema("auth");
 
-export const usersInAuth = authSchema.table(
+const usersInAuth = authSchema.table(
   "users",
   {
     instanceId: uuid("instance_id"),
@@ -3316,10 +3324,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   oauthApplications: many(oauthApplications),
   oauthAuthorizationCodes: many(oauthAuthorizationCodes),
   oauthAccessTokens: many(oauthAccessTokens),
-  usersInAuth: one(usersInAuth, {
-    fields: [users.id],
-    references: [usersInAuth.id],
-  }),
   team: one(teams, {
     fields: [users.teamId],
     references: [teams.id],
@@ -3699,10 +3703,6 @@ export const transactionEnrichmentsRelations = relations(
     }),
   }),
 );
-
-export const usersInAuthRelations = relations(usersInAuth, ({ many }) => ({
-  users: many(users),
-}));
 
 export const inboxRelations = relations(inbox, ({ one }) => ({
   transactionAttachment: one(transactionAttachments, {
