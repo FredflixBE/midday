@@ -10,6 +10,11 @@ FROM turbo-cli AS builder
 WORKDIR /app
 # Copy all files
 COPY . .
+# Optional git SHA stamp. CI writes .git-commit-sha before the build; a plain
+# checkout (Dokploy) has none, so fall back to the GIT_COMMIT_SHA build arg or
+# an empty file. The entrypoint exports it as GIT_COMMIT_SHA at runtime.
+ARG GIT_COMMIT_SHA=""
+RUN [ -f .git-commit-sha ] || printf '%s' "$GIT_COMMIT_SHA" > .git-commit-sha
 # Prune dashboard workspace
 RUN turbo prune @midday/dashboard --docker
 
@@ -27,7 +32,7 @@ RUN bun install
 # Copy full source from pruned workspace
 COPY --from=builder /app/out/full/ .
 
-# Build-time NEXT_PUBLIC_ env vars (passed as build args)
+# Build-time NEXT_PUBLIC_ env vars (passed as build args; see apps/dashboard/.env.example)
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_SUPABASE_ID
@@ -42,8 +47,7 @@ ARG NEXT_PUBLIC_DESKTOP_SCHEME
 ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 ENV NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 
-# Git SHA stamped by CI (echo "$GITHUB_SHA" > .git-commit-sha) before the image build.
-# The file lives at repo root, so the builder stage has it after COPY . .
+# Git SHA stamp written by the builder stage (see above); may be empty.
 COPY --from=builder /app/.git-commit-sha /tmp/git-sha.txt
 
 ENV CI=true
