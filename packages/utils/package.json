@@ -16,6 +16,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./asset-hosts": "./src/asset-hosts.ts",
     "./email-from": "./src/email-from.ts",
     "./envs": "./src/envs.ts",
     "./flags": "./src/flags.ts",

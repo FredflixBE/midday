@@ -11,6 +11,7 @@ import { CaretSortIcon } from "@radix-ui/react-icons";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getUrl } from "@/utils/environment";
 import { CopyInput } from "./copy-input";
 
 export function EnrollMFA() {
@@ -58,7 +59,9 @@ export function EnrollMFA() {
     async function enroll() {
       const { data, error } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        issuer: "app.midday.ai",
+        // Baked into the authenticator secret at enrollment: it has to name
+        // this instance, not Midday's.
+        issuer: new URL(getUrl()).host,
       });
 
       if (error || !data) {
