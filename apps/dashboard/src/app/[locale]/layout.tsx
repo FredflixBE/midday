@@ -16,41 +16,19 @@ export const metadata: Metadata = {
   title: "Midday | Run your business smarter",
   description:
     "Automate financial tasks, stay organized, and make informed decisions effortlessly.",
+  // No social preview images: this dashboard sits behind a login, and the
+  // ones here were JPEGs on Midday's CDN. Everything else resolves against
+  // metadataBase above.
   twitter: {
     title: "Midday | Run your business smarter",
     description:
       "Automate financial tasks, stay organized, and make informed decisions effortlessly.",
-    images: [
-      {
-        url: "https://cdn.midday.ai/opengraph-image-v1.jpg",
-        width: 800,
-        height: 600,
-      },
-      {
-        url: "https://cdn.midday.ai/opengraph-image-v1.jpg",
-        width: 1800,
-        height: 1600,
-      },
-    ],
   },
   openGraph: {
     title: "Midday | Run your business smarter",
     description:
       "Automate financial tasks, stay organized, and make informed decisions effortlessly.",
-    url: "https://app.midday.ai",
     siteName: "Midday",
-    images: [
-      {
-        url: "https://cdn.midday.ai/opengraph-image-v1.jpg",
-        width: 800,
-        height: 600,
-      },
-      {
-        url: "https://cdn.midday.ai/opengraph-image-v1.jpg",
-        width: 1800,
-        height: 1600,
-      },
-    ],
     locale: "en_US",
     type: "website",
   },

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ImageResponse } from "next/og";
 import { getChartDisplayName } from "@/components/metrics/utils/chart-types";
 import { getQueryClient, trpc } from "@/trpc/server";
+import { getOgSansFont, getOgSerifFont } from "@/utils/og-fonts";
 
 export const contentType = "image/png";
 
@@ -32,13 +33,9 @@ export default async function Image({ params }: Props) {
     notFound();
   }
 
-  const hedvigSerifFont = fetch(
-    "https://cdn.midday.ai/fonts/HedvigSerif/HedvigLettersSerif-Regular.ttf?c=1",
-  ).then((res) => res.arrayBuffer());
+  const hedvigSerifFont = getOgSerifFont();
 
-  const hedvigSansFont = fetch(
-    "https://cdn.midday.ai/fonts/HedvigSans/HedvigLettersSans-Regular.ttf",
-  ).then((res) => res.arrayBuffer());
+  const hedvigSansFont = getOgSansFont();
 
   const chartName = getChartDisplayName(report.type as any);
   const fromDate = parseISO(report.from!);

@@ -2,6 +2,7 @@ import { isValidLogoUrl, OgTemplate } from "@midday/invoice";
 import { ImageResponse } from "next/og";
 import { getQueryClient, trpc } from "@/trpc/server";
 import { getWebsiteLogo } from "@/utils/logos";
+import { getOgSansFont } from "@/utils/og-fonts";
 
 export const contentType = "image/png";
 
@@ -23,9 +24,7 @@ export default async function Image({ params }: Props) {
     return new Response("Not found", { status: 404 });
   }
 
-  const hedvigSansFont = fetch(
-    "https://cdn.midday.ai/fonts/HedvigSans/HedvigLettersSans-Regular.ttf",
-  ).then((res) => res.arrayBuffer());
+  const hedvigSansFont = getOgSansFont();
 
   const logoUrl = getWebsiteLogo(invoice.customer?.website);
 
