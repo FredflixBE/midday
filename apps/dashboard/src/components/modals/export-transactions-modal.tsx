@@ -103,7 +103,8 @@ export function ExportTransactionsModal({
   const totalCount = transactionIds.length;
 
   const { status: jobStatus } = useJobStatus({
-    jobId: exportData?.runId,
+    runId: exportData?.runId,
+    accessToken: exportData?.accessToken,
     enabled: !!exportData?.runId && isOpen,
   });
 
@@ -163,7 +164,11 @@ export function ExportTransactionsModal({
     trpc.transactions.export.mutationOptions({
       onSuccess: (data) => {
         if (data?.id) {
-          setExportData({ runId: data.id, exportType: "file" });
+          setExportData({
+            runId: data.id,
+            accessToken: data.publicAccessToken,
+            exportType: "file",
+          });
           setRowSelection("review", {});
           // Close modal immediately - toast will show progress
           onOpenChange(false);

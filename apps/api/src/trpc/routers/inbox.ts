@@ -36,9 +36,14 @@ import {
   unmatchTransaction,
   updateInbox,
 } from "@midday/db/queries";
-import { triggerJob } from "@midday/job-client";
+import type {
+  BatchProcessMatchingPayload,
+  ProcessAttachmentPayload,
+} from "@midday/jobs/schemas/inbox";
+import type { NotificationInput } from "@midday/jobs/schemas/notifications";
 import { logger } from "@midday/logger";
 import { remove } from "@midday/supabase/storage";
+import { tasks } from "@trigger.dev/sdk";
 
 export const inboxRouter = createTRPCRouter({
   get: protectedProcedure
@@ -143,20 +148,16 @@ export const inboxRouter = createTRPCRouter({
     .mutation(async ({ ctx: { teamId }, input }) => {
       const jobResults = await Promise.all(
         input.map((item) =>
-          triggerJob(
-            "process-attachment",
-            {
-              filePath: item.filePath,
-              mimetype: item.mimetype,
-              size: item.size,
-              teamId: teamId!,
-              referenceId: item.referenceId,
-              website: item.website,
-              senderEmail: item.senderEmail,
-              inboxAccountId: item.inboxAccountId,
-            },
-            "inbox",
-          ),
+          tasks.trigger("process-attachment", {
+            filePath: item.filePath,
+            mimetype: item.mimetype,
+            size: item.size,
+            teamId: teamId!,
+            referenceId: item.referenceId,
+            website: item.website,
+            senderEmail: item.senderEmail,
+            inboxAccountId: item.inboxAccountId,
+          } satisfies ProcessAttachmentPayload),
         ),
       );
 
@@ -164,16 +165,12 @@ export const inboxRouter = createTRPCRouter({
       // This is a non-critical operation, so we don't await it
       if (input.length > 0) {
         try {
-          await triggerJob(
-            "notification",
-            {
-              type: "inbox_new",
-              teamId: teamId!,
-              totalCount: input.length,
-              inboxType: "upload",
-            },
-            "notifications",
-          );
+          await tasks.trigger("notification", {
+            type: "inbox_new",
+            teamId: teamId!,
+            totalCount: input.length,
+            inboxType: "upload",
+          } satisfies NotificationInput);
         } catch (error) {
           // Don't fail the entire process if notification fails
           logger.warn("Failed to trigger inbox_new notification", {
@@ -262,14 +259,10 @@ export const inboxRouter = createTRPCRouter({
   retryMatching: protectedProcedure
     .input(retryMatchingSchema)
     .mutation(async ({ ctx: { teamId }, input }) => {
-      const result = await triggerJob(
-        "batch-process-matching",
-        {
-          teamId: teamId!,
-          inboxIds: [input.id],
-        },
-        "inbox",
-      );
+      const result = await tasks.trigger("batch-process-matching", {
+        teamId: teamId!,
+        inboxIds: [input.id],
+      } satisfies BatchProcessMatchingPayload);
 
       return { jobId: result.id };
     }),

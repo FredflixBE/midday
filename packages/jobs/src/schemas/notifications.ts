@@ -196,6 +196,15 @@ export const notificationPayloadSchema = z.discriminatedUnion("type", [
 
 export type NotificationPayload = z.infer<typeof notificationPayloadSchema>;
 
+/**
+ * What a caller has to supply.
+ *
+ * `inbox_new` defaults `source`, so the parsed payload has a field the
+ * dispatcher does not need to pass. Callers should `satisfies` this; the task
+ * body reads {@link NotificationPayload}.
+ */
+export type NotificationInput = z.input<typeof notificationPayloadSchema>;
+
 // Individual type exports for type narrowing
 export type InsightReadyNotification = z.infer<
   typeof insightReadyNotificationSchema

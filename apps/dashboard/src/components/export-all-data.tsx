@@ -20,7 +20,11 @@ export function ExportAllData() {
   const mutation = useMutation(
     trpc.team.exportAllData.mutationOptions({
       onSuccess: (data) => {
-        setExportData({ runId: data.id, exportType: "team-data" });
+        setExportData({
+          runId: data.id,
+          accessToken: data.publicAccessToken,
+          exportType: "team-data",
+        });
       },
     }),
   );

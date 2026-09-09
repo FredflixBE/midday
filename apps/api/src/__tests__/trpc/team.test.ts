@@ -377,8 +377,8 @@ describe("tRPC: team.delete", () => {
         memberUserIds: ["test-user-id"],
       }),
     );
-    mocks.triggerJob.mockReset();
-    mocks.triggerJob.mockImplementation(() => ({ id: "job-del" }));
+    mocks.triggerTask.mockReset();
+    mocks.triggerTask.mockImplementation(() => ({ id: "job-del" }));
   });
 
   test("deletes team after access checks and calls deleteTeam", async () => {
@@ -397,13 +397,12 @@ describe("tRPC: team.delete", () => {
     expect(mocks.getBankConnections).toHaveBeenCalledWith(expect.anything(), {
       teamId: deleteTeamId,
     });
-    expect(mocks.triggerJob).toHaveBeenCalledWith(
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
       "delete-team",
       expect.objectContaining({
         teamId: deleteTeamId,
         connections: [],
       }),
-      "teams",
     );
     expect(mocks.deleteTeam).toHaveBeenCalledWith(
       expect.anything(),

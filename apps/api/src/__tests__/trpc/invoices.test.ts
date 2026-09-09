@@ -275,8 +275,8 @@ describe("tRPC: invoice.draft", () => {
 describe("tRPC: invoice.create", () => {
   beforeEach(() => {
     mocks.updateInvoice.mockReset();
-    mocks.triggerJob.mockReset();
-    mocks.triggerJob.mockImplementation(() => ({ id: "job-123" }));
+    mocks.triggerTask.mockReset();
+    mocks.triggerTask.mockImplementation(() => ({ id: "job-123" }));
     mocks.updateInvoice.mockImplementation(() => ({
       id: INVOICE_ID,
       invoiceNumber: "INV-100",
@@ -300,13 +300,12 @@ describe("tRPC: invoice.create", () => {
         userId: "test-user-id",
       }),
     );
-    expect(mocks.triggerJob).toHaveBeenCalledWith(
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
       "generate-invoice",
       expect.objectContaining({
         invoiceId: INVOICE_ID,
         deliveryType: "create",
       }),
-      "invoices",
     );
   });
 });

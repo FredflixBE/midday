@@ -24,6 +24,7 @@
     "@midday/logger": "workspace:*",
     "@midday/supabase": "workspace:*",
     "@midday/utils": "workspace:*",
+    "@trigger.dev/sdk": "catalog:",
     "chat": "^4.23.0",
     "nanoid": "catalog:"
   },

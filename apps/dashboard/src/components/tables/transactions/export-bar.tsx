@@ -116,6 +116,7 @@ export function ExportBar() {
           hasShownErrorRef.current = false; // Reset error flag for new export
           setExportData({
             runId: data.id,
+            accessToken: data.publicAccessToken,
             exportType: "accounting",
             providerName:
               PROVIDER_NAMES[activeProvider?.app_id ?? ""] ??
@@ -148,7 +149,8 @@ export function ExportBar() {
     result: jobResult,
     queryError,
   } = useJobStatus({
-    jobId: exportData?.runId,
+    runId: exportData?.runId,
+    accessToken: exportData?.accessToken,
     enabled: !!exportData?.runId && exportData?.exportType === "accounting",
   });
 

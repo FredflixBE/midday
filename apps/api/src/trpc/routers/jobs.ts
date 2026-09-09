@@ -1,6 +1,6 @@
 import { getJobStatusSchema } from "@api/schemas/jobs";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
-import { getJobStatus } from "@midday/job-client";
+import { getRunStatus } from "@api/utils/jobs";
 import { TRPCError } from "@trpc/server";
 
 export const jobsRouter = createTRPCRouter({
@@ -15,7 +15,7 @@ export const jobsRouter = createTRPCRouter({
       }
 
       try {
-        const status = await getJobStatus(input.jobId, { teamId });
+        const status = await getRunStatus(input.jobId, { teamId });
 
         return status;
       } catch (error) {

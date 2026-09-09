@@ -8,6 +8,7 @@ import {
   updateInvoiceRecurringSchema,
 } from "@api/schemas/invoice-recurring";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
+import { cancelScheduledRun } from "@api/utils/jobs";
 import {
   createInvoiceRecurring,
   deleteInvoiceRecurring,
@@ -22,7 +23,6 @@ import {
 } from "@midday/db/queries";
 import { calculateNextScheduledDate } from "@midday/db/utils/invoice-recurring";
 import { isDateInFutureUTC } from "@midday/invoice/recurring";
-import { decodeJobId, getQueue } from "@midday/job-client";
 import { createLoggerWithContext } from "@midday/logger";
 import { Notifications } from "@midday/notifications";
 import { TRPCError } from "@trpc/server";
@@ -536,8 +536,7 @@ export const invoiceRecurringRouter = createTRPCRouter({
         const jobIdsToRemove: string[] = [];
         for (const invoice of scheduledInvoices) {
           if (invoice.scheduledJobId) {
-            const { jobId: rawJobId } = decodeJobId(invoice.scheduledJobId);
-            jobIdsToRemove.push(rawJobId);
+            jobIdsToRemove.push(invoice.scheduledJobId);
           }
         }
 
@@ -554,14 +553,8 @@ export const invoiceRecurringRouter = createTRPCRouter({
         return { recurring, jobIdsToRemove };
       });
 
-      // Remove BullMQ jobs AFTER the transaction has committed successfully
-      const queue = getQueue("invoices");
-      await Promise.all(
-        result.jobIdsToRemove.map(async (jobId) => {
-          const job = await queue.getJob(jobId);
-          if (job) await job.remove();
-        }),
-      );
+      // Cancel the scheduled runs AFTER the transaction has committed
+      await Promise.all(result.jobIdsToRemove.map(cancelScheduledRun));
 
       return { id: result.recurring.id };
     }),
@@ -606,8 +599,7 @@ export const invoiceRecurringRouter = createTRPCRouter({
         const jobIdsToRemove: string[] = [];
         for (const invoice of scheduledInvoices) {
           if (invoice.scheduledJobId) {
-            const { jobId: rawJobId } = decodeJobId(invoice.scheduledJobId);
-            jobIdsToRemove.push(rawJobId);
+            jobIdsToRemove.push(invoice.scheduledJobId);
           }
         }
 
@@ -624,14 +616,8 @@ export const invoiceRecurringRouter = createTRPCRouter({
         return { recurring, jobIdsToRemove };
       });
 
-      // Remove BullMQ jobs AFTER the transaction has committed successfully
-      const queue = getQueue("invoices");
-      await Promise.all(
-        result.jobIdsToRemove.map(async (jobId) => {
-          const job = await queue.getJob(jobId);
-          if (job) await job.remove();
-        }),
-      );
+      // Cancel the scheduled runs AFTER the transaction has committed
+      await Promise.all(result.jobIdsToRemove.map(cancelScheduledRun));
 
       return result.recurring;
     }),

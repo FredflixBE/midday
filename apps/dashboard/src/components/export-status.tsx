@@ -86,7 +86,8 @@ export function ExportStatus() {
   const [toastId, setToastId] = useState<string | null>(null);
   const { exportData, setExportData } = useExportStore();
   const { status, progress, result, queryError } = useJobStatus({
-    jobId: exportData?.runId,
+    runId: exportData?.runId,
+    accessToken: exportData?.accessToken,
     enabled: !!exportData?.runId,
   });
 

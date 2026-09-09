@@ -14,6 +14,7 @@ import {
   updateInvoiceRequestSchema,
   updateInvoiceResponseSchema,
 } from "@api/schemas/invoice";
+import { cancelScheduledRun } from "@api/utils/jobs";
 import { validateResponse } from "@api/utils/validate-response";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
@@ -31,9 +32,13 @@ import {
 } from "@midday/db/queries";
 import { calculateTotal } from "@midday/invoice/calculate";
 import { transformCustomerToContent } from "@midday/invoice/utils";
-import { decodeJobId, getQueue, triggerJob } from "@midday/job-client";
+import type {
+  GenerateInvoicePayload,
+  ScheduleInvoicePayload,
+} from "@midday/jobs/schemas/invoices";
 import { createLoggerWithContext } from "@midday/logger";
 import { getAppUrl } from "@midday/utils/envs";
+import { tasks } from "@trigger.dev/sdk";
 import { addDays } from "date-fns";
 import { HTTPException } from "hono/http-exception";
 import { v4 as uuidv4 } from "uuid";
@@ -489,14 +494,10 @@ app.openapi(
       }
 
       // Trigger invoice generation (and sending if create_and_send)
-      await triggerJob(
-        "generate-invoice",
-        {
-          invoiceId: result.id,
-          deliveryType: input.deliveryType,
-        },
-        "invoices",
-      );
+      await tasks.trigger("generate-invoice", {
+        invoiceId: result.id,
+        deliveryType: input.deliveryType,
+      } satisfies GenerateInvoicePayload);
     } else if (input.deliveryType === "scheduled") {
       // Handle scheduled invoices
       if (!input.scheduledAt) {
@@ -515,24 +516,16 @@ app.openapi(
         });
       }
 
-      // Calculate delay in milliseconds from now
-      const delayMs = scheduledDate.getTime() - now.getTime();
-
-      // Create a scheduled job with delay
-      const scheduledRun = await triggerJob(
+      // Create a run that starts at the scheduled time
+      const scheduledRun = await tasks.trigger(
         "schedule-invoice",
-        {
-          invoiceId: result.id,
-        },
-        "invoices",
-        {
-          delay: delayMs,
-        },
+        { invoiceId: result.id } satisfies ScheduleInvoicePayload,
+        { delay: scheduledDate },
       );
 
       if (!scheduledRun?.id) {
         throw new HTTPException(500, {
-          message: "Failed to create scheduled job - no job ID returned",
+          message: "Failed to create scheduled run - no run id returned",
         });
       }
 
@@ -547,20 +540,8 @@ app.openapi(
       });
 
       if (!updatedInvoice) {
-        // Clean up the orphaned job before throwing
-        try {
-          const queue = getQueue("invoices");
-          const { jobId: rawJobId } = decodeJobId(scheduledRun.id);
-          const job = await queue.getJob(rawJobId);
-          if (job) {
-            await job.remove();
-          }
-        } catch {
-          // Best effort cleanup - log but don't fail on cleanup errors
-          logger.error("Failed to clean up orphaned scheduled job", {
-            jobId: scheduledRun.id,
-          });
-        }
+        // Clean up the orphaned run before throwing
+        await cancelScheduledRun(scheduledRun.id);
 
         throw new HTTPException(404, {
           message: "Invoice not found",
@@ -570,20 +551,18 @@ app.openapi(
       finalResult = updatedInvoice;
 
       // Send notification (fire and forget)
-      triggerJob(
-        "notification",
-        {
+      tasks
+        .trigger("notification", {
           type: "invoice_scheduled",
           teamId,
           invoiceId: result.id,
           invoiceNumber: finalResult.invoiceNumber!,
           scheduledAt: input.scheduledAt,
           customerName: finalResult.customerName ?? undefined,
-        },
-        "notifications",
-      ).catch(() => {
-        // Ignore notification errors - invoice was scheduled successfully
-      });
+        })
+        .catch(() => {
+          // Ignore notification errors - invoice was scheduled successfully
+        });
     }
 
     // Add PDF download and preview URLs and serialize objects like tRPC does with superjson

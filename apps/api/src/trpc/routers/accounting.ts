@@ -5,6 +5,7 @@ import {
   getSyncStatusSchema,
 } from "@api/schemas/accounting";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
+import { toTriggeredRun } from "@api/utils/jobs";
 import {
   type AccountingProviderConfig,
   getAccountingProvider,
@@ -17,7 +18,8 @@ import {
   getAppByAppId,
   getApps,
 } from "@midday/db/queries";
-import { triggerJob } from "@midday/job-client";
+import type { AccountingExportPayload } from "@midday/jobs/schemas/accounting";
+import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 
 export const accountingRouter = createTRPCRouter({
@@ -46,15 +48,13 @@ export const accountingRouter = createTRPCRouter({
         });
       }
 
-      const result = await triggerJob(
-        "export-to-accounting",
-        {
+      const result = toTriggeredRun(
+        await tasks.trigger("export-to-accounting", {
           teamId,
           userId: session.user.id,
           providerId,
           transactionIds,
-        },
-        "accounting",
+        } satisfies AccountingExportPayload),
       );
 
       return result;

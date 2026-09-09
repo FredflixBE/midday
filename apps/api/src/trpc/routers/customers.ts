@@ -26,8 +26,9 @@ import {
   updateCustomerEnrichmentStatus,
   upsertCustomer,
 } from "@midday/db/queries";
-import { triggerJob } from "@midday/job-client";
+import type { EnrichCustomerPayload } from "@midday/jobs/schemas/customers";
 import { createLoggerWithContext } from "@midday/logger";
+import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 
 const logger = createLoggerWithContext("trpc:customers");
@@ -84,15 +85,10 @@ export const customersRouter = createTRPCRouter({
             status: "pending",
           });
 
-          await triggerJob(
-            "enrich-customer",
-            {
-              customerId: customer.id,
-              teamId: teamId!,
-            },
-            "customers",
-            { attempts: 1 },
-          );
+          await tasks.trigger("enrich-customer", {
+            customerId: customer.id,
+            teamId: teamId!,
+          } satisfies EnrichCustomerPayload);
         } catch (error) {
           // Log but don't fail the customer creation
           logger.error("Failed to trigger customer enrichment", {
@@ -147,15 +143,10 @@ export const customersRouter = createTRPCRouter({
         status: "pending",
       });
 
-      await triggerJob(
-        "enrich-customer",
-        {
-          customerId: customer.id,
-          teamId: teamId!,
-        },
-        "customers",
-        { attempts: 1 },
-      );
+      await tasks.trigger("enrich-customer", {
+        customerId: customer.id,
+        teamId: teamId!,
+      } satisfies EnrichCustomerPayload);
 
       return { queued: true };
     }),

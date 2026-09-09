@@ -2,7 +2,6 @@ import {
   connectInboxAccountSchema,
   deleteInboxAccountSchema,
   exchangeCodeForAccountSchema,
-  // initialSetupInboxAccountSchema,
   syncInboxAccountSchema,
 } from "@api/schemas/inbox-accounts";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
@@ -117,18 +116,4 @@ export const inboxAccountsRouter = createTRPCRouter({
 
       return event;
     }),
-
-  // initialSetup: protectedProcedure
-  //   .input(initialSetupInboxAccountSchema)
-  //   .mutation(async ({ input }) => {
-  //     const job = await triggerJob(
-  //       "initial-setup",
-  //       {
-  //         inboxAccountId: input.inboxAccountId,
-  //       },
-  //       "inbox-provider",
-  //     );
-
-  //     return { id: job.id };
-  //   }),
 });

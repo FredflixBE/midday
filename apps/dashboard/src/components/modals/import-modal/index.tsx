@@ -1,4 +1,6 @@
-"use client";
+import type { TriggeredRun } from "@midday/jobs/run-status";
+
+("use client");
 
 import { uniqueCurrencies } from "@midday/location/currencies";
 import { AnimatedSizeContainer } from "@midday/ui/animated-size-container";
@@ -36,7 +38,7 @@ export function ImportModal() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const invalidateTransactionQueries = useInvalidateTransactionQueries();
-  const [jobId, setJobId] = useState<string | undefined>();
+  const [run, setRun] = useState<TriggeredRun | undefined>();
   const [isImporting, setIsImporting] = useState(false);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stepTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,16 +70,16 @@ export function ImportModal() {
   const isOpen = params.step === "import";
 
   const { status, progressStep, progress, result } = useJobStatus({
-    jobId,
-    enabled: !!jobId && isOpen,
-    refetchInterval: 300,
+    runId: run?.id,
+    accessToken: run?.publicAccessToken,
+    enabled: !!run && isOpen,
   });
 
   const importTransactions = useMutation(
     trpc.transactions.import.mutationOptions({
       onSuccess: (data) => {
         if (data?.id) {
-          setJobId(data.id);
+          setRun(data);
         } else {
           setIsImporting(false);
           toast({
@@ -89,7 +91,7 @@ export function ImportModal() {
       },
       onError: () => {
         setIsImporting(false);
-        setJobId(undefined);
+        setRun(undefined);
 
         toast({
           duration: 3500,
@@ -137,7 +139,7 @@ export function ImportModal() {
     setFileColumns(null);
     setFirstRows(null);
     setPageNumber(0);
-    setJobId(undefined);
+    setRun(undefined);
     reset();
   };
 
@@ -162,7 +164,7 @@ export function ImportModal() {
   useEffect(() => {
     if (status === "failed") {
       setIsImporting(false);
-      setJobId(undefined);
+      setRun(undefined);
 
       toast({
         duration: 3500,

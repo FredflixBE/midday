@@ -1,87 +1,51 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useTRPC } from "@/trpc/client";
+import { readRunProgress, toJobStatus } from "@midday/jobs/run-status";
+import { useRealtimeRun } from "@trigger.dev/react-hooks";
+
+export type { JobStatus } from "@midday/jobs/run-status";
 
 type UseJobStatusProps = {
-  /** Composite job ID (e.g., "accounting:21") containing queue info */
-  jobId?: string;
+  /** The Trigger.dev run id returned by the mutation that started the job. */
+  runId?: string;
+  /**
+   * The run-scoped public token returned alongside it. Without this the
+   * subscription cannot be opened, which is what keeps one team's run id from
+   * being useful to anyone else.
+   */
+  accessToken?: string;
   enabled?: boolean;
-  refetchInterval?:
-    | number
-    | false
-    | ((query: {
-        state: {
-          data?: {
-            status?: string;
-            progress?: number;
-            progressStep?: string;
-          };
-        };
-      }) => number | false);
 };
 
 /**
- * Hook for polling job status by composite ID
- * Automatically stops polling when job is completed or failed
+ * Follow a job's progress over a live subscription.
+ *
+ * This used to poll `jobs.getStatus` once a second for as long as a job ran.
+ * The shape it returns is unchanged; only where the numbers come from is —
+ * progress and step are written into run metadata by the shared processor
+ * base, and arrive here as the job reports them rather than on a timer.
  */
 export function useJobStatus({
-  jobId,
+  runId,
+  accessToken,
   enabled = true,
-  refetchInterval,
 }: UseJobStatusProps = {}) {
-  const trpc = useTRPC();
+  const subscribed = enabled && !!runId && !!accessToken;
 
-  const shouldPoll = enabled && !!jobId;
-
-  // Default refetch interval: poll every 1 second, stop when completed or failed
-  const defaultRefetchInterval = (query: {
-    state: {
-      data?: {
-        status?: string;
-        progress?: number;
-        progressStep?: string;
-      };
-      status: string;
-    };
-  }) => {
-    const status = query.state.data?.status;
-    // Stop polling when completed or failed, otherwise poll every second
-    if (status === "completed" || status === "failed") {
-      return false;
-    }
-    // Also stop if the query itself errored (job not found, access denied, etc.)
-    if (query.state.status === "error") {
-      return false;
-    }
-    // Continue polling if status is active, waiting, delayed, or unknown
-    return 1000;
-  };
-
-  const {
-    data: jobStatus,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    ...trpc.jobs.getStatus.queryOptions({ jobId: jobId! }),
-    enabled: shouldPoll,
-    refetchInterval: refetchInterval ?? defaultRefetchInterval,
-    // Ensure we refetch on mount and window focus
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
-    // Don't retry on errors - stop polling instead
-    retry: false,
+  const { run, error } = useRealtimeRun(runId, {
+    enabled: subscribed,
+    accessToken,
   });
 
+  const { progress, step } = readRunProgress(run?.metadata);
+
   return {
-    status: jobStatus?.status,
-    progress: jobStatus?.progress,
-    progressStep: jobStatus?.progressStep,
-    result: jobStatus?.result,
-    error: jobStatus?.error,
-    isLoading,
+    status: toJobStatus(run?.status),
+    progress,
+    progressStep: step,
+    result: run?.output,
+    error: run?.error?.message,
+    isLoading: subscribed && !run && !error,
     queryError: error,
-    refetch,
   };
 }

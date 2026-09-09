@@ -18,6 +18,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "@api/trpc/init";
+import { cancelScheduledRun } from "@api/utils/jobs";
 import { parseInputValue } from "@api/utils/parse";
 import { UTCDate } from "@date-fns/utc";
 import {
@@ -47,8 +48,13 @@ import {
 import { DEFAULT_TEMPLATE } from "@midday/invoice";
 import { verify } from "@midday/invoice/token";
 import { transformCustomerToContent } from "@midday/invoice/utils";
-import { decodeJobId, getQueue, triggerJob } from "@midday/job-client";
+import type {
+  GenerateInvoicePayload,
+  ScheduleInvoicePayload,
+  SendInvoiceReminderPayload,
+} from "@midday/jobs/schemas/invoices";
 import { createLoggerWithContext } from "@midday/logger";
+import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 import { addDays, format, parseISO } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -477,47 +483,25 @@ export const invoiceRouter = createTRPCRouter({
         let scheduledJobId: string | null = null;
 
         try {
-          // Calculate delay in milliseconds from now
-          const delayMs = scheduledDate.getTime() - now.getTime();
-
-          // Create the new scheduled job FIRST to ensure we don't lose the job if creation fails
-          const scheduledRun = await triggerJob(
+          // Create the new scheduled run FIRST so a transient failure cannot
+          // leave the invoice with nothing scheduled at all.
+          const scheduledRun = await tasks.trigger(
             "schedule-invoice",
-            {
-              invoiceId: input.id,
-            },
-            "invoices",
-            {
-              delay: delayMs,
-            },
+            { invoiceId: input.id } satisfies ScheduleInvoicePayload,
+            { delay: scheduledDate },
           );
 
           if (!scheduledRun?.id) {
-            throw new Error(
-              "Failed to create scheduled job - no job ID returned",
-            );
+            throw new Error("Failed to create scheduled run - no run id");
           }
 
           scheduledJobId = scheduledRun.id;
 
-          // Only remove the old job AFTER successfully creating the new one
-          // This ensures we never lose the scheduled job even if there are transient failures
+          // Only cancel the old run once the new one exists. If the cancel
+          // fails the old run still stops on its own: it checks that the
+          // invoice still points at it before sending anything.
           if (existingInvoice?.scheduledJobId) {
-            const queue = getQueue("invoices");
-            // Decode composite ID (format: "invoices:123") to get raw job ID for BullMQ
-            const { jobId: rawJobId } = decodeJobId(
-              existingInvoice.scheduledJobId,
-            );
-            const existingJob = await queue.getJob(rawJobId);
-            if (existingJob) {
-              await existingJob.remove().catch((err) => {
-                // Log but don't fail - the old job will eventually be cleaned up or run (harmlessly)
-                // since we've already created the new job and will update the invoice
-                logger.error("Failed to remove old scheduled job", {
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              });
-            }
+            await cancelScheduledRun(existingInvoice.scheduledJobId);
           }
         } catch (error) {
           throw new TRPCError({
@@ -543,19 +527,8 @@ export const invoiceRouter = createTRPCRouter({
         });
 
         if (!data) {
-          // Clean up the orphaned job before throwing
-          try {
-            const queue = getQueue("invoices");
-            const { jobId: rawJobId } = decodeJobId(scheduledJobId);
-            const job = await queue.getJob(rawJobId);
-            if (job) {
-              await job.remove();
-            }
-          } catch (err) {
-            logger.error("Failed to clean up orphaned scheduled job", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
+          // Clean up the orphaned run before throwing
+          await cancelScheduledRun(scheduledJobId);
 
           throw new TRPCError({
             code: "NOT_FOUND",
@@ -564,20 +537,18 @@ export const invoiceRouter = createTRPCRouter({
         }
 
         // Fire and forget notification - don't block the response
-        triggerJob(
-          "notification",
-          {
+        tasks
+          .trigger("notification", {
             type: "invoice_scheduled",
             teamId: teamId!,
             invoiceId: input.id,
             invoiceNumber: data.invoiceNumber!,
             scheduledAt: input.scheduledAt,
             customerName: data.customerName ?? undefined,
-          },
-          "notifications",
-        ).catch(() => {
-          // Ignore notification errors - invoice was scheduled successfully
-        });
+          })
+          .catch(() => {
+            // Ignore notification errors - invoice was scheduled successfully
+          });
 
         return data;
       }
@@ -596,14 +567,10 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
-      await triggerJob(
-        "generate-invoice",
-        {
-          invoiceId: data.id,
-          deliveryType: input.deliveryType,
-        },
-        "invoices",
-      );
+      await tasks.trigger("generate-invoice", {
+        invoiceId: data.id,
+        deliveryType: input.deliveryType,
+      } satisfies GenerateInvoicePayload);
 
       return data;
     }),
@@ -611,13 +578,9 @@ export const invoiceRouter = createTRPCRouter({
   remind: protectedProcedure
     .input(remindInvoiceSchema)
     .mutation(async ({ input, ctx: { db, teamId } }) => {
-      await triggerJob(
-        "send-invoice-reminder",
-        {
-          invoiceId: input.id,
-        },
-        "invoices",
-      );
+      await tasks.trigger("send-invoice-reminder", {
+        invoiceId: input.id,
+      } satisfies SendInvoiceReminderPayload);
 
       return updateInvoice(db, {
         id: input.id,
@@ -666,25 +629,18 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
-      // Calculate new delay
-      const delayMs = scheduledDate.getTime() - now.getTime();
-
-      // Create new scheduled job FIRST to ensure we don't lose the job if creation fails
-      const scheduledRun = await triggerJob(
+      // Create the new scheduled run FIRST so a transient failure cannot
+      // leave the invoice with nothing scheduled at all.
+      const scheduledRun = await tasks.trigger(
         "schedule-invoice",
-        {
-          invoiceId: input.id,
-        },
-        "invoices",
-        {
-          delay: delayMs,
-        },
+        { invoiceId: input.id } satisfies ScheduleInvoicePayload,
+        { delay: scheduledDate },
       );
 
       if (!scheduledRun?.id) {
         throw new TRPCError({
           code: "SERVICE_UNAVAILABLE",
-          message: "Failed to create scheduled job",
+          message: "Failed to create scheduled run",
         });
       }
 
@@ -697,17 +653,8 @@ export const invoiceRouter = createTRPCRouter({
       });
 
       if (!updatedInvoice) {
-        // Database update failed - clean up the newly created job to avoid orphans
-        const queue = getQueue("invoices");
-        const { jobId: newRawJobId } = decodeJobId(scheduledRun.id);
-        const newJob = await queue.getJob(newRawJobId);
-        if (newJob) {
-          await newJob.remove().catch((err) => {
-            logger.error("Failed to clean up orphaned scheduled job", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          });
-        }
+        // Database update failed - cancel the new run to avoid an orphan
+        await cancelScheduledRun(scheduledRun.id);
 
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -715,21 +662,10 @@ export const invoiceRouter = createTRPCRouter({
         });
       }
 
-      // Only remove the old job AFTER successfully creating the new one and updating the database
-      // This ensures we never lose the scheduled job even if there are transient failures
-      const queue = getQueue("invoices");
-      // Decode composite ID (format: "invoices:123") to get raw job ID for BullMQ
-      const { jobId: rawJobId } = decodeJobId(invoice.scheduledJobId);
-      const existingJob = await queue.getJob(rawJobId);
-      if (existingJob) {
-        await existingJob.remove().catch((err) => {
-          // Log but don't fail - the old job will be detected as stale by the processor
-          // since it verifies job.id matches invoice.scheduledJobId before processing
-          logger.error("Failed to remove old scheduled job", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-      }
+      // Only cancel the old run once the new one exists and the invoice points
+      // at it. A failed cancel is survivable: the old run checks that the
+      // invoice still names it before sending anything.
+      await cancelScheduledRun(invoice.scheduledJobId);
 
       return updatedInvoice;
     }),
@@ -751,14 +687,7 @@ export const invoiceRouter = createTRPCRouter({
       }
 
       if (invoice.scheduledJobId) {
-        // Cancel the scheduled job by removing it from the queue
-        const queue = getQueue("invoices");
-        // Decode composite ID (format: "invoices:123") to get raw job ID for BullMQ
-        const { jobId: rawJobId } = decodeJobId(invoice.scheduledJobId);
-        const job = await queue.getJob(rawJobId);
-        if (job) {
-          await job.remove();
-        }
+        await cancelScheduledRun(invoice.scheduledJobId);
       }
 
       // Update the invoice status back to draft and clear scheduling fields

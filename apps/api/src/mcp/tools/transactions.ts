@@ -6,6 +6,7 @@ import {
   updateTransactionSchema,
   updateTransactionsSchema,
 } from "@api/schemas/transactions";
+import { getRunStatus } from "@api/utils/jobs";
 import type { AccountingProviderConfig } from "@midday/accounting";
 import { getOrgName } from "@midday/accounting";
 import {
@@ -20,11 +21,9 @@ import {
   updateTransaction,
   updateTransactions,
 } from "@midday/db/queries";
-import {
-  getJobStatus,
-  triggerJob,
-  triggerJobAndWait,
-} from "@midday/job-client";
+import type { AccountingExportPayload } from "@midday/jobs/schemas/accounting";
+import type { ExportTransactionsPayload } from "@midday/jobs/schemas/transactions";
+import { runs, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import {
   mcpTransactionDetailSchema,
@@ -44,6 +43,12 @@ import {
   truncateListResponse,
   withErrorHandling,
 } from "../utils";
+
+/**
+ * How long an inline MCP export waits before handing back a job id instead.
+ * Matches the timeout the BullMQ `triggerJobAndWait` call used.
+ */
+const SYNC_EXPORT_TIMEOUT_MS = 120_000;
 
 export const registerTransactionTools: RegisterTools = (server, ctx) => {
   const { db, teamId, userId, userEmail } = ctx;
@@ -686,19 +691,49 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
               sendCopyToMe: params.sendCopyToMe ?? false,
               accountantEmail: params.accountantEmail,
             },
-          };
+          } satisfies ExportTransactionsPayload;
 
           const SYNC_THRESHOLD = 500;
 
           if (transactionIds!.length <= SYNC_THRESHOLD) {
-            const { result } = await triggerJobAndWait(
+            // Small exports answer inline: start the run, then wait for it.
+            const handle = await tasks.trigger(
               "export-transactions",
               jobPayload,
-              "transactions",
-              { timeout: 120_000 },
             );
 
-            const jobResult = result as
+            // `runs.poll` has no deadline of its own and the task may run for
+            // half an hour, so bound the wait — an MCP caller is a person
+            // holding a chat open. Past the deadline this answers like a large
+            // export: here is the id, poll it.
+            const completed = await Promise.race([
+              runs.poll(handle.id, { pollIntervalMs: 1000 }),
+              new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), SYNC_EXPORT_TIMEOUT_MS),
+              ),
+            ]);
+
+            if (!completed) {
+              const response = {
+                message:
+                  "Export is taking longer than expected and is still running. Poll export_job_status with the jobId for the download URL.",
+                jobId: handle.id,
+                transactionCount: transactionIds!.length,
+              };
+
+              return {
+                content: [{ type: "text", text: JSON.stringify(response) }],
+                structuredContent: response,
+              };
+            }
+
+            if (completed.status !== "COMPLETED") {
+              throw new Error(
+                `Export did not complete: ${completed.error?.message ?? completed.status}`,
+              );
+            }
+
+            const jobResult = completed.output as
               | { fullPath?: string; fileName?: string; totalItems?: number }
               | undefined;
 
@@ -719,10 +754,9 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
             };
           }
 
-          const triggerResult = await triggerJob(
+          const triggerResult = await tasks.trigger(
             "export-transactions",
             jobPayload,
-            "transactions",
           );
 
           const response = {
@@ -790,16 +824,12 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
             };
           }
 
-          const result = await triggerJob(
-            "export-to-accounting",
-            {
-              teamId,
-              userId,
-              providerId: params.providerId,
-              transactionIds: params.transactionIds,
-            },
-            "accounting",
-          );
+          const result = await tasks.trigger("export-to-accounting", {
+            teamId,
+            userId,
+            providerId: params.providerId,
+            transactionIds: params.transactionIds,
+          } satisfies AccountingExportPayload);
 
           const config = app.config as AccountingProviderConfig;
           const orgName = getOrgName(config) ?? params.providerId;
@@ -850,7 +880,7 @@ export const registerTransactionTools: RegisterTools = (server, ctx) => {
       },
       async ({ jobId }) => {
         try {
-          const status = await getJobStatus(jobId, { teamId });
+          const status = await getRunStatus(jobId, { teamId });
           const response: Record<string, unknown> = { ...status };
 
           if (

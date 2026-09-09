@@ -437,8 +437,8 @@ export const mocks = {
     }),
   ) as MockFn,
 
-  // Job client (tRPC jobs router)
-  getJobStatus: mock(() =>
+  // Background jobs (Trigger.dev)
+  getRunStatus: mock(() =>
     Promise.resolve({ status: "completed" as const }),
   ) as MockFn,
 
@@ -742,7 +742,10 @@ export const mocks = {
 
   // Other commonly used queries
   validateAccessToken: mock(() => null) as MockFn,
-  triggerJob: mock(() => ({ id: "job-123" })) as MockFn,
+  triggerTask: mock(() => ({
+    id: "job-123",
+    publicAccessToken: "public-token",
+  })) as MockFn,
   signedUrl: mock(() => ({
     data: { signedUrl: "https://example.com/signed" },
     error: null,
@@ -1147,15 +1150,15 @@ mock.module("@midday/supabase/storage", () => ({
   ),
 }));
 
-// Mock @midday/job-client
-mock.module("@midday/job-client", () => ({
-  triggerJob: mocks.triggerJob,
-  getJobStatus: mocks.getJobStatus,
-  getQueue: mock(() => ({
-    getJob: mock(() => null),
-    getJobs: mock(() => []),
-  })),
-  decodeJobId: mock((id: string) => ({ id, queue: "default" })),
+// Mock the API's Trigger.dev helpers. Bun replaces the whole module, so every
+// export the routers use has to appear here or importing them fails outright.
+mock.module("@api/utils/jobs", () => ({
+  getRunStatus: mocks.getRunStatus,
+  cancelScheduledRun: mock(() => Promise.resolve()),
+  toTriggeredRun: (handle: { id: string; publicAccessToken: string }) => ({
+    id: handle.id,
+    publicAccessToken: handle.publicAccessToken,
+  }),
 }));
 
 mock.module("@midday/notifications", () => ({
@@ -1179,7 +1182,12 @@ mock.module("@midday/documents/embed", () => ({
 
 mock.module("@trigger.dev/sdk", () => ({
   tasks: {
-    trigger: mock(() => Promise.resolve({ id: "evt_trigger_test" })),
+    trigger: mocks.triggerTask,
+  },
+  runs: {
+    retrieve: mock(() => Promise.resolve({ status: "COMPLETED" })),
+    poll: mock(() => Promise.resolve({ status: "COMPLETED", output: {} })),
+    cancel: mock(() => Promise.resolve()),
   },
   schedules: {
     del: mock(() => Promise.resolve()),

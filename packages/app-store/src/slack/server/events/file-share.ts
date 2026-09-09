@@ -1,5 +1,5 @@
-import { triggerJob } from "@midday/job-client";
 import type { FileShareMessageEvent } from "@slack/web-api";
+import { tasks } from "@trigger.dev/sdk";
 
 export async function fileShare(
   event: FileShareMessageEvent,
@@ -17,24 +17,20 @@ export async function fileShare(
     // Trigger jobs for each file
     await Promise.all(
       files.map((file) =>
-        triggerJob(
-          "slack-upload",
-          {
-            teamId,
-            token,
-            channelId: event.channel,
-            threadId: event.thread_ts,
-            messageTs: event.ts, // Message timestamp for reactions
-            file: {
-              id: file.id,
-              name: file.name!,
-              mimetype: file.mimetype ?? "application/octet-stream",
-              size: file.size ?? 0,
-              url: file.url!,
-            },
+        tasks.trigger("slack-upload", {
+          teamId,
+          token,
+          channelId: event.channel,
+          threadId: event.thread_ts,
+          messageTs: event.ts, // Message timestamp for reactions
+          file: {
+            id: file.id,
+            name: file.name!,
+            mimetype: file.mimetype ?? "application/octet-stream",
+            size: file.size ?? 0,
+            url: file.url!,
           },
-          "inbox",
-        ),
+        }),
       ),
     );
   }
