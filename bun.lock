@@ -636,6 +636,7 @@
         "@midday/db": "workspace:*",
         "@midday/email": "workspace:*",
         "@midday/inbox": "workspace:*",
+        "@midday/utils": "workspace:*",
         "nanoid": "catalog:",
         "resend": "catalog:",
         "zod": "catalog:",
@@ -750,6 +751,9 @@
     "packages/utils": {
       "name": "@midday/utils",
       "version": "1.0.0",
+      "dependencies": {
+        "resend": "catalog:",
+      },
       "devDependencies": {
         "typescript": "catalog:",
       },

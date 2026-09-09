@@ -125,7 +125,6 @@ Runtime environment:
 | `SUPABASE_SECRET_KEY` | yes | Supabase project settings > API. |
 | `REDIS_URL` | yes | The VPS Redis. |
 | `INVOICE_JWT_SECRET`, `FILE_KEY_SECRET`, `WEBHOOK_SECRET_KEY`, `MIDDAY_CACHE_API_SECRET`, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | yes | Shared secrets above. |
-| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | yes / no | Resend. |
 | `OPENAI_API_KEY` | yes | OpenAI. |
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`, `AZURE_DOCUMENT_INTELLIGENCE_KEY` | no | Azure Document Intelligence. |
 | `PLAIN_API_KEY` | no | Plain support tickets. |

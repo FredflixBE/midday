@@ -9,36 +9,13 @@ import TransactionsEmail from "@midday/email/emails/transactions";
 import TransactionsExportedEmail from "@midday/email/emails/transactions-exported";
 import UpcomingInvoicesEmail from "@midday/email/emails/upcoming-invoices";
 import { render } from "@midday/email/render";
+import { getResend } from "@midday/utils/resend";
 import { nanoid } from "nanoid";
-import { type CreateEmailOptions, Resend } from "resend";
+import type { CreateEmailOptions } from "resend";
 import type { EmailInput } from "../base";
 
 export class EmailService {
-  #client: Resend | null = null;
-
   constructor(private db: Database) {}
-
-  /**
-   * Built on first send so the service can be constructed without
-   * RESEND_API_KEY; the send itself fails with a clear message instead.
-   */
-  private get client(): Resend {
-    if (this.#client) {
-      return this.#client;
-    }
-
-    const apiKey = process.env.RESEND_API_KEY;
-
-    if (!apiKey) {
-      throw new Error(
-        "RESEND_API_KEY is not set: email notifications are unavailable on this instance",
-      );
-    }
-
-    this.#client = new Resend(apiKey);
-
-    return this.#client;
-  }
 
   async sendBulk(emails: EmailInput[], notificationType: string) {
     if (emails.length === 0) {
@@ -78,7 +55,7 @@ export class EmailService {
         // Send emails individually when attachments are present
         for (const payload of emailPayloads) {
           try {
-            const response = await this.client.emails.send(payload);
+            const response = await getResend().emails.send(payload);
             if (response.error) {
               console.error("Failed to send email:", response.error);
               failed++;
@@ -92,7 +69,7 @@ export class EmailService {
         }
       } else {
         // Use batch send when no attachments
-        const response = await this.client.batch.send(emailPayloads);
+        const response = await getResend().batch.send(emailPayloads);
 
         if (response.error) {
           console.error("Failed to send emails:", response.error);

@@ -8,7 +8,6 @@ import {
   updateOAuthApplicationSchema,
 } from "@api/schemas/oauth-applications";
 import { revokeUserApplicationAccessSchema } from "@api/schemas/oauth-flow";
-import { getResend } from "@api/services/resend";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import {
   claimDCRApplication,
@@ -28,6 +27,7 @@ import {
 import { AppInstalledEmail } from "@midday/email/emails/app-installed";
 import { render } from "@midday/email/render";
 import { createLoggerWithContext } from "@midday/logger";
+import { getResend } from "@midday/utils/resend";
 
 const logger = createLoggerWithContext("trpc:oauth-applications");
 

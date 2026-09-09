@@ -11,7 +11,6 @@ import {
   oauthTokenEndpointRequestSchema,
   oauthTokenResponseSchema,
 } from "@api/schemas/oauth-flow";
-import { getResend } from "@api/services/resend";
 import { verifyAccessToken } from "@api/utils/auth";
 import { validateClientCredentials } from "@api/utils/oauth";
 import { validateResponse } from "@api/utils/validate-response";
@@ -31,6 +30,7 @@ import {
 import { AppInstalledEmail } from "@midday/email/emails/app-installed";
 import { render } from "@midday/email/render";
 import { createLoggerWithContext } from "@midday/logger";
+import { getResend } from "@midday/utils/resend";
 import { HTTPException } from "hono/http-exception";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";

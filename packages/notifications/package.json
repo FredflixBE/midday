@@ -17,6 +17,7 @@
     "@midday/db": "workspace:*",
     "@midday/email": "workspace:*",
     "@midday/inbox": "workspace:*",
+    "@midday/utils": "workspace:*",
     "nanoid": "catalog:",
     "resend": "catalog:",
     "zod": "catalog:"

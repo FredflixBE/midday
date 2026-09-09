@@ -1258,7 +1258,7 @@ mock.module("@api/services/supabase", () => ({
   })),
 }));
 
-mock.module("@api/services/resend", () => ({
+mock.module("@midday/utils/resend", () => ({
   isResendConfigured: () => true,
   getResend: () => ({
     emails: {

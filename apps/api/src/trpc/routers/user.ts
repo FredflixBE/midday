@@ -1,5 +1,4 @@
 import { updateUserSchema } from "@api/schemas/users";
-import { getResend, isResendConfigured } from "@api/services/resend";
 import { createAdminClient } from "@api/services/supabase";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import { teamCache } from "@midday/cache/team-cache";
@@ -11,6 +10,7 @@ import {
   updateUser,
 } from "@midday/db/queries";
 import { generateFileKey } from "@midday/encryption";
+import { getResend, isResendConfigured } from "@midday/utils/resend";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 

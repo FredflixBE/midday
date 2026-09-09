@@ -2,13 +2,18 @@ import { Resend } from "resend";
 
 let client: Resend | null = null;
 
+/**
+ * Whether this instance can send email at all. Call it before offering an
+ * email-backed feature; a self-hosted instance may run without Resend.
+ */
 export function isResendConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
 /**
- * Resend client, built on first use so the API boots without RESEND_API_KEY.
- * A missing key fails the request that needs email, not the whole process.
+ * The shared Resend client, built on first use so that importing a module
+ * which sends email does not require RESEND_API_KEY at boot. A missing key
+ * fails the request or task that needs email, not the whole process.
  */
 export function getResend(): Resend {
   if (client) {
