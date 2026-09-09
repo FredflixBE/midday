@@ -518,16 +518,19 @@ export const transactions = pgTable(
       as: "permissive",
       for: "delete",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Transactions can be selected by a member of the team", {
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Transactions can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -1827,6 +1830,7 @@ export const documents = pgTable(
       as: "permissive",
       for: "all",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Documents can be updated by a member of the team", {
       as: "permissive",
@@ -2577,11 +2581,13 @@ export const inbox = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
     pgPolicy("Inbox can be updated by a member of the team", {
       as: "permissive",
       for: "update",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );
@@ -4188,6 +4194,7 @@ export const insights = pgTable(
       as: "permissive",
       for: "select",
       to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
     }),
   ],
 );

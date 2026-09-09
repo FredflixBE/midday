@@ -70,6 +70,14 @@ $$;
 -- repeated here because `drizzle-kit push` creates policies without their
 -- USING expression — see the note in the pull request; a policy with no
 -- USING grants nothing, so push alone would leave this table silent.
+--
+-- The other five tables already have a team policy in schema.ts. Four of them
+-- had lost the USING expression somewhere in introspection — the policy name
+-- said "by a member of the team" while the policy allowed nothing — and it is
+-- restored there from the old database's own text. They are not repeated here:
+-- the bootstrap script applies every policy in schema.ts after the push, which
+-- is what puts the expressions back that push drops.
+
 alter table public.activities enable row level security;
 
 drop policy if exists "Activities can be selected by the user they belong to" on public.activities;
