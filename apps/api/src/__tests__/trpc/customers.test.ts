@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 // Import after mocking (mocks are set up via preload)
 import { createCallerFactory } from "../../trpc/init";
 import { customersRouter } from "../../trpc/routers/customers";
@@ -173,6 +173,82 @@ describe("tRPC: customers.upsert", () => {
         userId: "test-user-id",
       }),
     );
+  });
+});
+
+describe("tRPC: customers enrichment gate", () => {
+  const originalKey = process.env.COMPANY_ENRICH_API_KEY;
+
+  beforeEach(() => {
+    delete process.env.COMPANY_ENRICH_API_KEY;
+    mocks.triggerTask.mockClear();
+    mocks.updateCustomerEnrichmentStatus.mockClear();
+    mocks.getCustomerById.mockReset();
+    mocks.getCustomerById.mockImplementation(() =>
+      createValidCustomerResponse(),
+    );
+    mocks.upsertCustomer.mockReset();
+    mocks.upsertCustomer.mockImplementation(() =>
+      Promise.resolve({
+        id: CUSTOMER_ID,
+        name: "Customer",
+        website: "https://acme.com",
+        email: "billing@example.com",
+      }),
+    );
+  });
+
+  afterEach(() => {
+    if (originalKey === undefined) {
+      delete process.env.COMPANY_ENRICH_API_KEY;
+    } else {
+      process.env.COMPANY_ENRICH_API_KEY = originalKey;
+    }
+  });
+
+  test("enrich refuses when the provider is not configured", async () => {
+    const caller = createCaller(createTestContext());
+
+    await expect(caller.enrich({ id: CUSTOMER_ID })).rejects.toThrow(
+      /not configured/i,
+    );
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+    expect(mocks.updateCustomerEnrichmentStatus).not.toHaveBeenCalled();
+  });
+
+  test("enrich queues the job when the provider is configured", async () => {
+    process.env.COMPANY_ENRICH_API_KEY = "ce_test_key";
+    const caller = createCaller(createTestContext());
+
+    await caller.enrich({ id: CUSTOMER_ID });
+
+    expect(mocks.triggerTask).toHaveBeenCalled();
+  });
+
+  test("creating a customer does not enrich when the provider is not configured", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.upsert({
+      name: "Customer",
+      email: "billing@example.com",
+      website: "https://acme.com",
+    });
+
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+    expect(mocks.updateCustomerEnrichmentStatus).not.toHaveBeenCalled();
+  });
+
+  test("creating a customer enriches when the provider is configured", async () => {
+    process.env.COMPANY_ENRICH_API_KEY = "ce_test_key";
+    const caller = createCaller(createTestContext());
+
+    await caller.upsert({
+      name: "Customer",
+      email: "billing@example.com",
+      website: "https://acme.com",
+    });
+
+    expect(mocks.triggerTask).toHaveBeenCalled();
   });
 });
 
