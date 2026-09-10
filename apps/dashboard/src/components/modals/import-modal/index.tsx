@@ -1,7 +1,6 @@
+"use client";
+
 import type { TriggeredRun } from "@midday/jobs/run-status";
-
-("use client");
-
 import { uniqueCurrencies } from "@midday/location/currencies";
 import { AnimatedSizeContainer } from "@midday/ui/animated-size-container";
 import {

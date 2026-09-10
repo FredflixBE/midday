@@ -1,7 +1,6 @@
+"use client";
+
 import type { TriggeredRun } from "@midday/jobs/run-status";
-
-("use client");
-
 import { uniqueCurrencies } from "@midday/location/currencies";
 import { Button } from "@midday/ui/button";
 import { useToast } from "@midday/ui/use-toast";
