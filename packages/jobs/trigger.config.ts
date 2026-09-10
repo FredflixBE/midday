@@ -7,7 +7,12 @@ export default defineConfig({
   // do from .env: it evaluates this file before it loads one.
   project: "proj_sgmczlmqfzditzydebar",
   runtime: "node",
-  logLevel: "log",
+  // Not "log". The SDK's LogLevel type accepts it, but the array it is
+  // looked up in is ["none","error","warn","info","debug"] — so indexOf
+  // returns -1 and every level guard short-circuits, silently discarding
+  // every logger call in every task, errors included. "info" emits
+  // everything except debug, which is only the progress-update chatter.
+  logLevel: "info",
   maxDuration: 60,
   experimental_processKeepAlive: true,
   retries: {
