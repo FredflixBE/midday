@@ -17,6 +17,7 @@ import { processBatch } from "@jobs/utils/process-batch";
 import {
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
+  markTransactionsAsEnrichmentFailed,
   type UpdateTransactionEnrichmentParams,
   updateTransactionEnrichments,
 } from "@midday/db/queries";
@@ -30,12 +31,37 @@ const google = createGoogleGenerativeAI({
 });
 
 /**
+ * What a run did, counted honestly.
+ *
+ * `enrichment_completed` goes true in all three cases — it means the process
+ * finished, and it is what stops the dashboard showing a row as analyzing —
+ * so a single count over it would report a total failure as a clean run. That
+ * is the bug this shape exists to prevent (FF-1471).
+ */
+type EnrichmentTotals = {
+  /** The model returned a merchant name or category and it was written. */
+  enriched: number;
+  /** The model answered but had nothing to change for these rows. */
+  unchanged: number;
+  /** The model call failed. These were marked finished, not enriched. */
+  failed: number;
+};
+
+type BatchFailure = {
+  error: unknown;
+  message: string;
+  count: number;
+};
+
+/**
  * Enriches transactions with AI (merchant names, categories)
  * Uses Google Generative AI (Gemini) to extract merchant names and categorize transactions
  */
 export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactionsPayload> {
   async process(job: JobContext<EnrichTransactionsPayload>): Promise<{
     enrichedCount: number;
+    unchangedCount: number;
+    failedCount: number;
     teamId: string;
   }> {
     const { transactionIds, teamId } = job.data;
@@ -55,7 +81,12 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
     if (transactionsToEnrich.length === 0) {
       this.logger.info("No transactions need enrichment", { teamId });
-      return { enrichedCount: 0, teamId };
+      return {
+        enrichedCount: 0,
+        unchangedCount: 0,
+        failedCount: 0,
+        teamId,
+      };
     }
 
     this.logger.info("Starting transaction enrichment", {
@@ -63,7 +94,8 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
       transactionCount: transactionsToEnrich.length,
     });
 
-    let totalEnriched = 0;
+    const totals: EnrichmentTotals = { enriched: 0, unchanged: 0, failed: 0 };
+    const failures: BatchFailure[] = [];
 
     // Process in batches of 50
     await processBatch(
@@ -74,8 +106,12 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
         const transactionData = prepareTransactionData(batch);
         const prompt = generateEnrichmentPrompt(transactionData, batch);
 
-        // Track transactions enriched in this batch to avoid double counting
-        let batchEnrichedCount = 0;
+        const batchIds = batch.filter((tx) => tx?.id).map((tx) => tx.id);
+
+        // Rows this batch has already written a successful outcome for. A
+        // write can fail partway through, and those rows must not then be
+        // recorded as failures.
+        const settled = new Set<string>();
 
         try {
           const { object } = await generateObject({
@@ -145,105 +181,83 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
             );
           }
 
+          // Rows the model returned no result for at all. The call succeeded,
+          // it just had no answer for them, so they finished unchanged rather
+          // than failed.
+          const answered = new Set([
+            ...updates.map((update) => update.transactionId),
+            ...noUpdateNeeded,
+          ]);
+          const unanswered = batchIds.filter((id) => !answered.has(id));
+          noUpdateNeeded.push(...unanswered);
+
           // Execute all updates
           if (updates.length > 0) {
             await updateTransactionEnrichments(db, updates);
-            batchEnrichedCount += updates.length;
+            for (const update of updates) {
+              settled.add(update.transactionId);
+            }
+            totals.enriched += updates.length;
           }
 
           // Mark transactions that don't need updates as enriched
           if (noUpdateNeeded.length > 0) {
             await markTransactionsAsEnriched(db, noUpdateNeeded);
-            batchEnrichedCount += noUpdateNeeded.length;
+            for (const id of noUpdateNeeded) {
+              settled.add(id);
+            }
+            totals.unchanged += noUpdateNeeded.length;
           }
 
-          const totalProcessed = updates.length + noUpdateNeeded.length;
-          if (totalProcessed > 0) {
-            this.logger.info("Enriched transaction batch", {
-              batchSize: batch.length,
-              enrichedCount: totalProcessed,
-              updatesApplied: updates.length,
-              noUpdateNeeded: noUpdateNeeded.length,
-              merchantNamesUpdated: updates.filter(
-                (update) => update.data.merchantName,
-              ).length,
-              categoriesUpdated,
-              skippedResults,
-              teamId,
-            });
-          }
-
-          // Ensure ALL transactions in the batch are marked as enrichment completed
-          // This is critical for UI loading states - enrichment_completed indicates the process finished, not success
-          const processedIds = new Set([
-            ...updates.map((u) => u.transactionId),
-            ...noUpdateNeeded,
-          ]);
-
-          const unprocessedTransactions = batch.filter(
-            (tx) => !processedIds.has(tx.id),
-          );
-
-          // Mark ANY remaining unprocessed transactions as enriched (process completed, even if no data found)
-          if (unprocessedTransactions.length > 0) {
-            await markTransactionsAsEnriched(
-              db,
-              unprocessedTransactions.map((tx) => tx.id),
-            );
-            batchEnrichedCount += unprocessedTransactions.length;
-
-            this.logger.info(
-              "Marked remaining unprocessed transactions as completed",
-              {
-                count: unprocessedTransactions.length,
-                reason: "enrichment_process_finished",
-                teamId,
-              },
-            );
-          }
-
-          // Add the actual count of enriched transactions from this batch
-          totalEnriched += batchEnrichedCount;
+          this.logger.info("Enriched transaction batch", {
+            batchSize: batch.length,
+            updatesApplied: updates.length,
+            noUpdateNeeded: noUpdateNeeded.length,
+            noResultReturned: unanswered.length,
+            merchantNamesUpdated: updates.filter(
+              (update) => update.data.merchantName,
+            ).length,
+            categoriesUpdated,
+            skippedResults,
+            teamId,
+          });
 
           // Return ALL transaction IDs from the batch (all should now be marked as enriched)
           // Defensive handling for potentially falsy transactions
-          return batch.filter((tx) => tx?.id).map((tx) => tx.id);
+          return batchIds;
         } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
+
           this.logger.error("Failed to enrich transaction batch", {
-            error: error instanceof Error ? error.message : "Unknown error",
+            error: message,
             batchSize: batch.length,
             teamId,
           });
 
-          // Even if enrichment fails, mark all transactions as completed to prevent infinite loading
-          // The enrichment_completed field indicates process completion, not success
+          // Anything this batch already wrote succeeded; only the rest failed.
+          const failedIds = batchIds.filter((id) => !settled.has(id));
+
           try {
-            // Defensive handling for potentially falsy transactions
-            const validTransactionIds = batch
-              .filter((tx) => tx?.id)
-              .map((tx) => tx.id);
+            // Mark the failed rows completed so the UI stops showing them as
+            // analyzing — enrichment_completed means the process finished, not
+            // that it worked — and stamp enrichment_failed_at so the failure is
+            // visible and the rows stay eligible for a replay.
+            await markTransactionsAsEnrichmentFailed(db, failedIds);
+            totals.failed += failedIds.length;
+            failures.push({ error, message, count: failedIds.length });
 
-            await markTransactionsAsEnriched(db, validTransactionIds);
-
-            this.logger.info(
+            this.logger.warn(
               "Marked failed batch transactions as completed to prevent infinite loading",
               {
-                count: validTransactionIds.length,
+                count: failedIds.length,
                 reason: "enrichment_process_failed_but_completed",
                 teamId,
               },
             );
 
-            // Only add transactions that weren't already counted in batchEnrichedCount
-            // If batchEnrichedCount > 0, some transactions were already processed and counted
-            const uncountedTransactions =
-              validTransactionIds.length - batchEnrichedCount;
-            if (uncountedTransactions > 0) {
-              totalEnriched += uncountedTransactions;
-            }
-
             // Return the valid transaction IDs even though enrichment failed
-            return validTransactionIds;
+            return batchIds;
           } catch (markError) {
             this.logger.error(
               "Failed to mark transactions as completed after enrichment error",
@@ -252,8 +266,7 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
                   markError instanceof Error
                     ? markError.message
                     : "Unknown error",
-                originalError:
-                  error instanceof Error ? error.message : "Unknown error",
+                originalError: message,
                 batchSize: batch.length,
                 teamId,
               },
@@ -264,12 +277,40 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
       },
     );
 
+    const firstFailure = failures[0];
+
+    if (firstFailure) {
+      this.logger.error("Transaction enrichment failed", {
+        ...totals,
+        failedBatches: failures.length,
+        teamId,
+      });
+
+      // Fail the run. Returning here is what made a total outage look like a
+      // clean run in the dashboard, in runs.list and in anything alerting on
+      // either. The counts go in the message because a failed run stores no
+      // output.
+      throw new Error(
+        `Enrichment failed for ${totals.failed} of ${transactionsToEnrich.length} transactions ` +
+          `in ${failures.length} of ${Math.ceil(transactionsToEnrich.length / BATCH_SIZE)} batches ` +
+          `(${totals.enriched} enriched, ${totals.unchanged} unchanged). ` +
+          `They are marked finished so the UI does not hang, and stay eligible ` +
+          `for a replay. First failure: ${firstFailure.message}`,
+        { cause: firstFailure.error },
+      );
+    }
+
     this.logger.info("Transaction enrichment completed", {
-      totalEnriched,
+      ...totals,
       teamId,
     });
 
-    return { enrichedCount: totalEnriched, teamId };
+    return {
+      enrichedCount: totals.enriched,
+      unchangedCount: totals.unchanged,
+      failedCount: totals.failed,
+      teamId,
+    };
   }
 }
 
