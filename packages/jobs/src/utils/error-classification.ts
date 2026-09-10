@@ -74,7 +74,7 @@ export class ImageTooLargeError extends NonRetryableError {
     public readonly maxMegapixels: number,
   ) {
     super(
-      `This photo is ${megapixels.toFixed(0)} megapixels, more than the ${maxMegapixels} we can convert. Upload it as a JPEG, or at a lower resolution.`,
+      `This photo is ${megapixels.toFixed(1)} megapixels, more than the ${maxMegapixels} we can convert. Upload it as a JPEG, or at a lower resolution.`,
       undefined,
       "validation",
     );

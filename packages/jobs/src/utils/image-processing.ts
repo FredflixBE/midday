@@ -9,27 +9,36 @@ sharp.cache({ memory: 256, files: 20, items: 100 }); // 256MB cache limit
 sharp.concurrency(2); // Limit internal parallelism per sharp instance
 
 /**
- * The most pixels a HEIC may decode to on the machines that convert them.
+ * The most pixels a HEIC may decode to, per machine that converts them.
  *
  * Not a file size: what a decode costs is set by the pixels, and the file says
  * little about them — a 0.9 MB and a 1.6 MB iPhone photo cost the same, and a
  * 2.5 MB 48-megapixel one costs three times as much. Measured through the
- * conversion below, resident memory peaks about 64 MB plus 13 MB per
- * megapixel above where it started: 223 MB at 12 MP, 361 MB at 24.5 MP,
- * 705 MB at 48.8 MP.
+ * conversion below, resident memory peaks about 64 MiB plus 13 MiB per
+ * megapixel above where it started: 223 at 12 MP, 361 at 24.5 MP, 705 at
+ * 48.8 MP.
  *
  * Almost none of that is V8 heap — the WebAssembly memory, the pixel buffer
- * and sharp are all outside it, and the heap grows by 6 MB at any size — so
+ * and sharp are all outside it, and the heap grows by 6 MiB at any size — so
  * the limit that binds is the machine's whole memory, not the heap ceiling
- * Trigger derives from it. Calibrated for small-2x (1 GiB) above a worker that
- * rests at about 210 MB with the task bundle loaded: 32 MP peaks near 700 MB
- * and leaves room for what a warm worker has kept, and the 48 MP an iPhone Pro
- * writes in "HEIF Max" does not fit, so it is refused rather than killed.
+ * Trigger derives from it, and `trigger dev` will not catch an overrun that a
+ * deployed machine is killed for. The converting tasks rest at 190-213 MiB
+ * with their bundle loaded:
  *
- * Every task that calls convertHeicToJpeg runs on small-2x for this reason.
- * A task on a smaller machine needs its own ceiling, or its own machine.
+ * - small-1x (512 MiB): 14 MP peaks near 440, leaving ~75 for the rest of the
+ *   run. A 12 MP iPhone photo converts; a 24 MP one is refused.
+ * - small-2x (1 GiB): 32 MP peaks near 700, with room for what a warm worker
+ *   has kept. The 48 MP an iPhone Pro writes in "HEIF Max" is refused.
+ *
+ * A refusal is decided from the file's header, before anything is decoded.
  */
-export const MAX_HEIC_MEGAPIXELS = 32;
+export const HEIC_MEGAPIXEL_CEILING = {
+  "small-1x": 14,
+  "small-2x": 32,
+} as const;
+
+/** A machine preset that has been measured for HEIC conversion. */
+export type HeicConvertingMachine = keyof typeof HEIC_MEGAPIXEL_CEILING;
 
 export interface HeicConversionResult {
   buffer: Buffer;
@@ -41,7 +50,8 @@ export interface ImageProcessingOptions {
 }
 
 export interface HeicConversionOptions extends ImageProcessingOptions {
-  maxMegapixels?: number;
+  /** The preset of the task doing the conversion, which sets its ceiling. */
+  machine: HeicConvertingMachine;
 }
 
 export interface ResizeResult {
@@ -145,18 +155,18 @@ export async function resizeImage(
  * prebuilt libvips has no HEVC decoder on any platform we run on — so for a
  * real photo the second path is the normal one, not a fallback.
  *
- * @throws ImageTooLargeError when the image decodes to more than
- *   `maxMegapixels` — decided from the file's header, before any pixel is
- *   decoded
+ * @throws ImageTooLargeError when sharp cannot read the file and it decodes to
+ *   more pixels than the calling machine can hold. The pixel ceiling applies
+ *   to the libheif path only, which is where it was measured.
  * @throws Error if neither path can read the file
  */
 export async function convertHeicToJpeg(
   inputBuffer: ArrayBuffer,
   logger: JobLogger,
-  options?: HeicConversionOptions,
+  options: HeicConversionOptions,
 ): Promise<HeicConversionResult> {
-  const maxSize = options?.maxSize ?? IMAGE_SIZES.MAX_DIMENSION;
-  const maxMegapixels = options?.maxMegapixels ?? MAX_HEIC_MEGAPIXELS;
+  const maxSize = options.maxSize ?? IMAGE_SIZES.MAX_DIMENSION;
+  const maxMegapixels = HEIC_MEGAPIXEL_CEILING[options.machine];
 
   // Validate input buffer
   if (!inputBuffer || inputBuffer.byteLength === 0) {
@@ -195,7 +205,7 @@ export async function convertHeicToJpeg(
     );
   }
 
-  const { pixels, width, height } = decoded;
+  const { pixels, width, height, megapixels } = decoded;
 
   try {
     const buffer = await toResizedJpeg(
@@ -206,7 +216,7 @@ export async function convertHeicToJpeg(
     logger.info("HEIC conversion successful with libheif", {
       width,
       height,
-      megapixels: Number(((width * height) / 1_000_000).toFixed(1)),
+      megapixels: Number(megapixels.toFixed(1)),
     });
     return { buffer, mimetype: "image/jpeg" };
   } catch (finalSharpError) {
@@ -229,19 +239,34 @@ function toResizedJpeg(image: sharp.Sharp, maxSize: number): Promise<Buffer> {
     .toBuffer();
 }
 
-type DecodedImage = { pixels: Buffer; width: number; height: number };
+type DecodedImage = {
+  pixels: Buffer;
+  width: number;
+  height: number;
+  megapixels: number;
+};
 
-type Libheif = typeof import("libheif-js/wasm-bundle").default;
+type LibheifFactory =
+  typeof import("libheif-js/libheif-wasm/libheif-bundle.js").default;
 
-let libheif: Promise<Libheif> | undefined;
+let libheifFactoryLoading: Promise<LibheifFactory> | undefined;
 
 /**
  * Loaded on first use rather than at import: every task bundled beside this
- * file imports it, and only the ones handed a HEIC need a decoder in memory.
+ * file imports it, and only the ones handed a HEIC need the decoder. A load
+ * that fails is not remembered, so the next conversion tries again.
  */
-function loadLibheif(): Promise<Libheif> {
-  libheif ??= import("libheif-js/wasm-bundle").then((module) => module.default);
-  return libheif;
+function loadLibheifFactory(): Promise<LibheifFactory> {
+  libheifFactoryLoading ??= import(
+    "libheif-js/libheif-wasm/libheif-bundle.js"
+  ).then(
+    (module) => module.default,
+    (error: unknown) => {
+      libheifFactoryLoading = undefined;
+      throw error;
+    },
+  );
+  return libheifFactoryLoading;
 }
 
 /**
@@ -252,6 +277,12 @@ function loadLibheif(): Promise<Libheif> {
  * to decode all over again: 790 MB at peak for a 24.5 MP photo, where this
  * takes 361 MB in a third of the time.
  *
+ * Each call gets its own decoder instance, dropped when it returns. The
+ * WebAssembly memory an instance grows to never shrinks, and one kept for the
+ * life of the module held 178 MiB after a 24 MP photo — memory a worker kept
+ * alive between runs would carry into whatever it ran next. A fresh instance
+ * costs ~10 ms, and its memory goes back when it is collected.
+ *
  * Parsing the file does not decode it, and costs a few megabytes, so the
  * pixel count is known — and a refusal is free — before the expensive part.
  */
@@ -259,8 +290,8 @@ async function decodeHeic(
   input: ArrayBuffer,
   maxMegapixels: number,
 ): Promise<DecodedImage> {
-  const { HeifDecoder, heif_context_free } = await loadLibheif();
-  const decoder = new HeifDecoder();
+  const libheif = (await loadLibheifFactory())();
+  const decoder = new libheif.HeifDecoder();
 
   try {
     const images = decoder.decode(new Uint8Array(input));
@@ -268,7 +299,8 @@ async function decodeHeic(
     try {
       const image = images[0];
       if (!image) {
-        throw new Error("No image found in the HEIF container");
+        // libheif gives its reason to console.log and returns nothing
+        throw new Error("libheif could not read the file as HEIF");
       }
 
       const width = image.get_width();
@@ -295,6 +327,7 @@ async function decodeHeic(
         ),
         width,
         height,
+        megapixels,
       };
     } finally {
       for (const image of images) {
@@ -302,11 +335,10 @@ async function decodeHeic(
       }
     }
   } finally {
-    // The context holds a copy of the file in WebAssembly memory, which never
-    // shrinks. Left alone it leaks one file per conversion into a worker that
-    // is kept alive between runs.
+    // HeifDecoder frees nothing itself; its parse context (`decoder`, in the
+    // library's naming) holds a copy of the file in WebAssembly memory.
     if (decoder.decoder) {
-      heif_context_free(decoder.decoder);
+      libheif.heif_context_free(decoder.decoder);
     }
   }
 }

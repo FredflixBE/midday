@@ -6,7 +6,7 @@ import {
   ImageTooLargeError,
   isNonRetryableError,
 } from "./error-classification";
-import { convertHeicToJpeg } from "./image-processing";
+import { convertHeicToJpeg, HEIC_MEGAPIXEL_CEILING } from "./image-processing";
 
 /**
  * A 320x240 gradient, encoded by macOS the way an iPhone encodes a photo:
@@ -16,6 +16,19 @@ import { convertHeicToJpeg } from "./image-processing";
 const heicPhoto = readFileSync(
   new URL("./__fixtures__/synthetic-320x240.heic", import.meta.url),
 );
+
+/**
+ * Flat colour, so HEVC compresses each to under 20 KB — but they decode to 16
+ * and 36 megapixels. What a decode costs is set by the pixels, not the file.
+ */
+const sixteenMegapixels = readFileSync(
+  new URL("./__fixtures__/flat-4600x3500.heic", import.meta.url),
+);
+const thirtySixMegapixels = readFileSync(
+  new URL("./__fixtures__/flat-6000x6000.heic", import.meta.url),
+);
+
+const onSmall2x = { machine: "small-2x" } as const;
 
 const silent: JobLogger = {
   debug: () => {},
@@ -41,7 +54,11 @@ async function pixelAt(jpeg: Buffer, x: number, y: number) {
 
 describe("convertHeicToJpeg", () => {
   test("converts an HEVC photo that sharp cannot decode", async () => {
-    const result = await convertHeicToJpeg(toArrayBuffer(heicPhoto), silent);
+    const result = await convertHeicToJpeg(
+      toArrayBuffer(heicPhoto),
+      silent,
+      onSmall2x,
+    );
     const metadata = await sharp(result.buffer).metadata();
 
     expect(result.mimetype).toBe("image/jpeg");
@@ -54,6 +71,7 @@ describe("convertHeicToJpeg", () => {
     const { buffer } = await convertHeicToJpeg(
       toArrayBuffer(heicPhoto),
       silent,
+      onSmall2x,
     );
 
     // The fixture runs red left to right and green top to bottom, over a
@@ -73,7 +91,7 @@ describe("convertHeicToJpeg", () => {
     const { buffer } = await convertHeicToJpeg(
       toArrayBuffer(heicPhoto),
       silent,
-      { maxSize: 160 },
+      { ...onSmall2x, maxSize: 160 },
     );
     const metadata = await sharp(buffer).metadata();
 
@@ -81,18 +99,39 @@ describe("convertHeicToJpeg", () => {
     expect(metadata.height).toBe(120);
   });
 
-  test("refuses a photo over the pixel ceiling, whatever its file size", async () => {
-    // 1.7 KB on disk and 0.08 megapixels decoded: the ceiling is on pixels,
-    // because that is what the decode costs.
-    const attempt = convertHeicToJpeg(toArrayBuffer(heicPhoto), silent, {
-      maxMegapixels: 0.05,
-    });
+  test("refuses a photo with more pixels than the machine can hold, whatever its file size", async () => {
+    const attempt = convertHeicToJpeg(
+      toArrayBuffer(thirtySixMegapixels),
+      silent,
+      onSmall2x,
+    );
 
     await expect(attempt).rejects.toBeInstanceOf(ImageTooLargeError);
 
-    const error = await attempt.catch((e: unknown) => e);
+    const error = (await attempt.catch(
+      (e: unknown) => e,
+    )) as ImageTooLargeError;
     expect(isNonRetryableError(error)).toBe(true);
-    expect((error as ImageTooLargeError).megapixels).toBeCloseTo(0.0768, 3);
+    expect(error.megapixels).toBe(36);
+    expect(error.maxMegapixels).toBe(HEIC_MEGAPIXEL_CEILING["small-2x"]);
+    expect(error.message).toContain("36.0 megapixels");
+  });
+
+  test("gives a small-1x less room than a small-2x", async () => {
+    const small1x = convertHeicToJpeg(
+      toArrayBuffer(sixteenMegapixels),
+      silent,
+      { machine: "small-1x" },
+    );
+    await expect(small1x).rejects.toBeInstanceOf(ImageTooLargeError);
+
+    const small2x = await convertHeicToJpeg(
+      toArrayBuffer(sixteenMegapixels),
+      silent,
+      onSmall2x,
+    );
+    const metadata = await sharp(small2x.buffer).metadata();
+    expect(metadata.width).toBe(2048);
   });
 
   test("still converts a JPEG that arrived labelled as HEIC", async () => {
@@ -107,7 +146,11 @@ describe("convertHeicToJpeg", () => {
       .jpeg()
       .toBuffer();
 
-    const result = await convertHeicToJpeg(toArrayBuffer(jpeg), silent);
+    const result = await convertHeicToJpeg(
+      toArrayBuffer(jpeg),
+      silent,
+      onSmall2x,
+    );
     const metadata = await sharp(result.buffer).metadata();
 
     expect(metadata.width).toBe(100);

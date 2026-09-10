@@ -18,7 +18,10 @@ import {
   NonRetryableError,
   UnsupportedFileTypeError,
 } from "@jobs/utils/error-classification";
-import { convertHeicToJpeg } from "@jobs/utils/image-processing";
+import {
+  convertHeicToJpeg,
+  type HeicConvertingMachine,
+} from "@jobs/utils/image-processing";
 import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
 import { loadDocument } from "@midday/documents/loader";
 import {
@@ -133,6 +136,7 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
           const { buffer: image } = await convertHeicToJpeg(
             buffer,
             this.logger,
+            { machine: MACHINE },
           );
 
           await this.updateProgress(
@@ -587,16 +591,22 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
 
 const processor = new ProcessDocumentProcessor();
 
+/**
+ * The preset this task runs on, and so the HEIC ceiling it converts under —
+ * one value, so the two cannot drift apart. See HEIC_MEGAPIXEL_CEILING.
+ */
+const MACHINE = "small-1x" satisfies HeicConvertingMachine;
+
 export const processDocument = schemaTask({
   id: "process-document",
   schema: processDocumentSchema,
   // Carried over from the documents queue's 11 minute lock. HEIC conversion and
   // parsing run here, and the run stays open across the classification wait.
   maxDuration: 660,
-  // Downloads the stored file whole before classifying it, and decodes a HEIC
-  // photo to raw pixels: 360 MB above a ~190 MB resting worker for a 24 MP
-  // one, which a 512 MiB small-1x cannot hold. See MAX_HEIC_MEGAPIXELS.
-  machine: "small-2x",
+  // Downloads the stored file whole before classifying it. A HEIC photo
+  // decoded here is held to what this preset can take; one over it completes
+  // with its filename rather than killing the worker.
+  machine: MACHINE,
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: async (payload, { ctx }) => {

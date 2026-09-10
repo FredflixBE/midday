@@ -8,7 +8,10 @@ import {
 } from "@jobs/schemas/inbox";
 import { markAttachmentFailed } from "@jobs/utils/attachment-failure";
 import { NonRetryableError } from "@jobs/utils/error-classification";
-import { convertHeicToJpeg } from "@jobs/utils/image-processing";
+import {
+  convertHeicToJpeg,
+  type HeicConvertingMachine,
+} from "@jobs/utils/image-processing";
 import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
 import {
   createInbox,
@@ -193,7 +196,9 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
       const buffer = await data.arrayBuffer();
 
       // Convert HEIC to JPEG using shared utility
-      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger);
+      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger, {
+        machine: MACHINE,
+      });
 
       // Upload the converted image
       const { data: uploadedData } = await withTimeout(
@@ -512,6 +517,12 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
   }
 }
 
+/**
+ * The preset this task runs on, and so the HEIC ceiling it converts under —
+ * one value, so the two cannot drift apart. See HEIC_MEGAPIXEL_CEILING.
+ */
+const MACHINE = "small-2x" satisfies HeicConvertingMachine;
+
 const processor = new ProcessAttachmentProcessor();
 
 export const processAttachment = schemaTask({
@@ -523,7 +534,7 @@ export const processAttachment = schemaTask({
   // Multi-pass OCR: the PDF is base64'd into the request, and a failed pass
   // re-sends it once per missing field, in parallel. The biggest resident
   // set of any task here.
-  machine: "small-2x",
+  machine: MACHINE,
   // Every concurrent run is a separate process holding its own OCR heap and
   // its own Postgres connection, so this number is a multiplier on both. At 50
   // a mailbox with 20 attachments fanned out to 20 at once: in development

@@ -1,6 +1,6 @@
 // The JavaScript wrapper libheif-js puts over its Emscripten build. The package
 // ships a declaration for the raw Emscripten module only, not for this.
-declare module "libheif-js/wasm-bundle" {
+declare module "libheif-js/libheif-wasm/libheif-bundle.js" {
   interface HeifImageData {
     data: Uint8ClampedArray;
     width: number;
@@ -25,10 +25,16 @@ declare module "libheif-js/wasm-bundle" {
     decode(buffer: Uint8Array): HeifImage[];
   }
 
-  const libheif: {
+  interface Libheif {
     HeifDecoder: typeof HeifDecoder;
     heif_context_free(context: number): void;
-  };
+  }
 
-  export default libheif;
+  /**
+   * Each call instantiates the WebAssembly module anew, with its own memory.
+   * The package's `wasm-bundle` entry calls this once and keeps the result.
+   */
+  const createLibheif: () => Libheif;
+
+  export default createLibheif;
 }
