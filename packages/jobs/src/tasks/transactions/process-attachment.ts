@@ -6,7 +6,10 @@ import {
   type ProcessTransactionAttachmentPayload,
   processTransactionAttachmentSchema,
 } from "@jobs/schemas/transactions";
-import { convertHeicToJpeg } from "@jobs/utils/image-processing";
+import {
+  convertHeicToJpeg,
+  type HeicConvertingMachine,
+} from "@jobs/utils/image-processing";
 import { updateTransaction } from "@midday/db/queries";
 import { DocumentClient } from "@midday/documents";
 import { createClient } from "@midday/supabase/job";
@@ -48,7 +51,9 @@ export class ProcessTransactionAttachmentProcessor extends BaseProcessor<Process
       const buffer = await data.arrayBuffer();
 
       // Use shared HEIC conversion utility (resizes to 2048px)
-      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger);
+      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger, {
+        machine: MACHINE,
+      });
 
       // Upload the converted image
       const { data: uploadedData } = await supabase.storage
@@ -140,13 +145,20 @@ export class ProcessTransactionAttachmentProcessor extends BaseProcessor<Process
 
 const processor = new ProcessTransactionAttachmentProcessor();
 
+/**
+ * The preset this task runs on, and so the HEIC ceiling it converts under —
+ * one value, so the two cannot drift apart. See HEIC_MEGAPIXEL_CEILING.
+ */
+const MACHINE = "small-1x" satisfies HeicConvertingMachine;
+
 export const processTransactionAttachment = schemaTask({
   id: "process-transaction-attachment",
   schema: processTransactionAttachmentSchema,
   // OCR extraction, so it gets the same room as the other document work.
   maxDuration: 660,
-  // Downloads the attachment whole.
-  machine: "small-1x",
+  // Downloads the attachment whole. A HEIC photo decoded here is held to what
+  // this preset can take.
+  machine: MACHINE,
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: (payload, { ctx }) =>

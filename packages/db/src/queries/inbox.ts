@@ -1,4 +1,5 @@
 import { createLoggerWithContext } from "@midday/logger";
+import { INBOX_FAILURE_REASON_KEY } from "@midday/utils/inbox-failure";
 import type { Database, DatabaseOrTransaction } from "../client";
 import {
   inbox,
@@ -159,6 +160,9 @@ export async function getInbox(db: Database, params: GetInboxParams) {
       taxAmount: inbox.taxAmount,
       taxRate: inbox.taxRate,
       taxType: inbox.taxType,
+      // Small — where an item came from, and why a refused one was refused,
+      // which the list shows on a failed item. See INBOX_FAILURE_REASON_KEY.
+      meta: inbox.meta,
       relatedCount: sql<number>`(
         SELECT COUNT(*)::int
         FROM ${inbox} AS related
@@ -1665,6 +1669,12 @@ const UNFINISHED_INBOX_STATUSES = ["processing", "new", "analyzing"] as const;
 export type MarkInboxAttachmentFailedParams = {
   filePath: string[];
   teamId: string;
+  /**
+   * What the uploader is told, when the failure is one they can act on. Left
+   * out, any reason an earlier attempt recorded is cleared, so a refusal is
+   * never shown as the explanation for a different failure after it.
+   */
+  reason?: string;
 };
 
 /**
@@ -1679,11 +1689,15 @@ export async function markInboxAttachmentFailed(
   db: Database,
   params: MarkInboxAttachmentFailedParams,
 ) {
-  const { filePath, teamId } = params;
+  const { filePath, teamId, reason } = params;
 
   return db
     .update(inbox)
-    .set({ status: "failed" })
+    .set({
+      status: "failed",
+      // Merged, not replaced: meta also carries where the item came from.
+      meta: sql`(coalesce(${inbox.meta}::jsonb, '{}'::jsonb) || jsonb_build_object(${INBOX_FAILURE_REASON_KEY}::text, ${reason ?? null}::text))::json`,
+    })
     .where(
       and(
         eq(inbox.filePath, filePath),

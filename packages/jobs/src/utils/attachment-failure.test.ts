@@ -35,6 +35,20 @@ const { failedBatchItems, markAttachmentFailed } = await import(
   "./attachment-failure"
 );
 
+/**
+ * The plain values bound into the `meta` expression of the last update. The
+ * merge itself is checked against Postgres in packages/db; this only needs to
+ * know which reason was handed to it.
+ */
+function boundValuesOfMeta(): unknown[] {
+  const values = updateCalls.at(-1)?.values as
+    | { meta?: { queryChunks?: unknown[] } }
+    | undefined;
+  return (values?.meta?.queryChunks ?? []).filter(
+    (chunk) => chunk === null || typeof chunk === "string",
+  );
+}
+
 beforeEach(() => {
   updateCalls = [];
   returnedRows = [{ id: "inbox-1" }];
@@ -83,7 +97,33 @@ describe("markAttachmentFailed", () => {
     );
 
     expect(updateCalls).toHaveLength(1);
-    expect(updateCalls[0]?.values).toEqual({ status: "failed" });
+    expect(updateCalls[0]?.values).toMatchObject({ status: "failed" });
+  });
+
+  test("records the reason when the uploader should see it", async () => {
+    await markAttachmentFailed(
+      { teamId: "team-1", filePath: ["team-1", "inbox", "IMG_4179.HEIC"] },
+      "This photo is 48.8 megapixels, more than the 32 we can convert.",
+      { tellUploader: true },
+    );
+
+    expect(boundValuesOfMeta()).toContain(
+      "This photo is 48.8 megapixels, more than the 32 we can convert.",
+    );
+  });
+
+  test("keeps an internal reason out of what the uploader sees", async () => {
+    // The reason onFailure has is a run's error message — a timeout, a
+    // Postgres error — not something to put in front of a user.
+    await markAttachmentFailed(
+      { teamId: "team-1", filePath: ["team-1", "inbox", "receipt.pdf"] },
+      "Document processing timed out after 600000ms",
+    );
+
+    expect(boundValuesOfMeta()).not.toContain(
+      "Document processing timed out after 600000ms",
+    );
+    expect(boundValuesOfMeta()).toContain(null);
   });
 
   test("does not throw when the write fails", async () => {

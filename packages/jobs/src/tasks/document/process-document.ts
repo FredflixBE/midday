@@ -14,12 +14,13 @@ import {
 } from "@jobs/utils/document-status";
 import { updateDocumentWithRetry } from "@jobs/utils/document-update";
 import {
+  ImageTooLargeError,
   NonRetryableError,
   UnsupportedFileTypeError,
 } from "@jobs/utils/error-classification";
 import {
   convertHeicToJpeg,
-  MAX_HEIC_FILE_SIZE,
+  type HeicConvertingMachine,
 } from "@jobs/utils/image-processing";
 import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
 import { loadDocument } from "@midday/documents/loader";
@@ -128,38 +129,14 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
           sizeMB: fileSizeMB,
         });
 
-        // Skip AI classification for very large HEIC files to prevent OOM
-        // 15MB HEIC ≈ 24MP ≈ ~100MB decoded. Complete with filename instead.
-        if (buffer.byteLength > MAX_HEIC_FILE_SIZE) {
-          this.logger.warn(
-            "HEIC file too large for AI classification - completing with filename",
-            {
-              fileName,
-              teamId,
-              sizeBytes: buffer.byteLength,
-              maxSizeBytes: MAX_HEIC_FILE_SIZE,
-            },
-          );
-
-          await updateDocumentWithRetry(
-            db,
-            {
-              pathTokens: filePath,
-              teamId,
-              title: filePath.at(-1) ?? "Large HEIC Image",
-              summary: `Large image (${fileSizeMB}MB) - AI classification skipped`,
-              processingStatus: "completed",
-            },
-            this.logger,
-          );
-          return;
-        }
-
-        // Try to convert HEIC to JPEG - use graceful degradation if it fails (e.g., OOM)
+        // Try to convert HEIC to JPEG - use graceful degradation if it fails.
+        // A photo with more pixels than a worker can decode is refused from
+        // its header before any decoding, rather than killing the worker.
         try {
           const { buffer: image } = await convertHeicToJpeg(
             buffer,
             this.logger,
+            { machine: MACHINE },
           );
 
           await this.updateProgress(
@@ -192,7 +169,32 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
           fileData = new Blob([image], { type: "image/jpeg" });
           processedMimetype = "image/jpeg";
         } catch (conversionError) {
-          // HEIC conversion failed (possibly OOM) - complete with fallback
+          if (conversionError instanceof ImageTooLargeError) {
+            this.logger.warn(
+              "HEIC too large for AI classification - completing with filename",
+              {
+                fileName,
+                teamId,
+                megapixels: conversionError.megapixels,
+                maxMegapixels: conversionError.maxMegapixels,
+              },
+            );
+
+            await updateDocumentWithRetry(
+              db,
+              {
+                pathTokens: filePath,
+                teamId,
+                title: filePath.at(-1) ?? "Large HEIC Image",
+                summary: `Large image (${conversionError.megapixels.toFixed(0)} MP) - AI classification skipped`,
+                processingStatus: "completed",
+              },
+              this.logger,
+            );
+            return;
+          }
+
+          // HEIC conversion failed - complete with fallback
           // User can still see the file and retry later
           this.logger.error(
             "HEIC conversion failed - completing with fallback",
@@ -589,14 +591,22 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
 
 const processor = new ProcessDocumentProcessor();
 
+/**
+ * The preset this task runs on, and so the HEIC ceiling it converts under —
+ * one value, so the two cannot drift apart. See HEIC_MEGAPIXEL_CEILING.
+ */
+const MACHINE = "small-1x" satisfies HeicConvertingMachine;
+
 export const processDocument = schemaTask({
   id: "process-document",
   schema: processDocumentSchema,
   // Carried over from the documents queue's 11 minute lock. HEIC conversion and
   // parsing run here, and the run stays open across the classification wait.
   maxDuration: 660,
-  // Downloads the stored file whole before classifying it.
-  machine: "small-1x",
+  // Downloads the stored file whole before classifying it. A HEIC photo
+  // decoded here is held to what this preset can take; one over it completes
+  // with its filename rather than killing the worker.
+  machine: MACHINE,
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: async (payload, { ctx }) => {
