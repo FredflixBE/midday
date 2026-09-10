@@ -10,20 +10,24 @@ const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * The most a single emitted chunk may weigh, in bytes.
  *
  * This is not a budget for the deployed size — nobody minds a large bundle on
- * disk. It is a ceiling on what one stack frame costs to format.
+ * disk. It is a ceiling on what one stack frame costs to format, because the
+ * dev worker resolves every frame of every error whose `.stack` is read
+ * against the source map of the chunk that frame lives in.
  *
- * The dev worker resolves every frame of every error whose `.stack` is read
- * against the chunk's source map, and a map runs a little under twice its
- * chunk. Before FF-1487 the largest chunk was 30 MB and one frame lookup
- * allocated 582 MB, which killed a warm executor at around 210 MB of heap.
- * Removing one umbrella dependency took the same chunk to under 5 MB and the
- * same lookup to 133 MB.
+ * Two points were measured for FF-1487: a 5 MB chunk cost 133 MB of heap per
+ * frame and the run survived; a 30 MB chunk cost 582 MB and killed a warm
+ * executor that was already holding about 210 MB. Straight through those two
+ * points is roughly 18 MB of heap per MB of chunk, plus 45 MB fixed — which
+ * puts 8 MB at about 186 MB a frame.
  *
- * 12 MB is roughly two and a half times what the largest chunk weighs today,
- * so an honest new dependency does not trip it, and a quarter of what the
- * regression weighed, so that class of mistake cannot slip past.
+ * That is the reasoning, and it is an extrapolation from two points rather
+ * than a law. So the ceiling sits near the end of the range that is known to
+ * work rather than in the middle of the part that isn't: 8 MB is two thirds
+ * more than the largest chunk today, and a quarter of what the regression
+ * weighed. Raising it is a one-line change; the point is that someone decides
+ * to, having seen which dependency asked.
  */
-export const MAX_CHUNK_BYTES = 12 * 1024 * 1024;
+export const MAX_CHUNK_BYTES = 8 * 1024 * 1024;
 
 export type BundleMeasurement = {
   entryPoints: number;
