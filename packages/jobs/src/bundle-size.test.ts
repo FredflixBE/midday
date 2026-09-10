@@ -1,42 +1,46 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_CHUNK_BYTES, measureJobsBundle } from "./bundle-size";
+import {
+  type Chunk,
+  MAX_SOURCE_MAP_BYTES,
+  measureJobsBundle,
+} from "./bundle-size";
 
 const mb = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`;
 
 const measurement = await measureJobsBundle();
 
+/**
+ * What the failure has to say, since knowing a chunk is too big is not the
+ * useful part — knowing which dependency made it that way is. It is almost
+ * always one, and almost always an umbrella package that imports a whole
+ * product family where the code needed a single client of it.
+ */
+function explain(chunk: Chunk): string {
+  return [
+    `${chunk.file} has a ${mb(chunk.sourceMapBytes)} source map, over the ${mb(MAX_SOURCE_MAP_BYTES)} ceiling.`,
+    "The dev worker parses that map for every stack frame in the chunk.",
+    "What is in it:",
+    ...chunk.packages
+      .slice(0, 5)
+      .map((pkg) => `  ${mb(pkg.bytes)}  ${pkg.name}`),
+  ].join("\n");
+}
+
 describe("the jobs bundle", () => {
-  test("has entry points at all", () => {
-    // Without this the ceiling below passes an empty bundle, and a guard that
-    // cannot fail is worse than no guard.
-    expect(measurement.entryPoints).toBeGreaterThan(20);
-    expect(measurement.outputs.length).toBeGreaterThan(0);
+  test("is measured at all", () => {
+    // A ceiling over an empty bundle is a guard that cannot fail, so this is
+    // the guard on the guard.
+    expect(measurement.entryPointCount).toBeGreaterThan(0);
+    expect(measurement.chunks.length).toBeGreaterThan(0);
   });
 
-  test("keeps every chunk under the stack-formatting ceiling", () => {
-    const largest = measurement.outputs[0]!;
+  test("keeps every source map under the stack-formatting ceiling", () => {
+    const heaviest = measurement.chunks[0];
 
-    if (largest.bytes > MAX_CHUNK_BYTES) {
-      const culprits = measurement
-        .packagesIn(largest.file)
-        .slice(0, 5)
-        .map((pkg) => `  ${mb(pkg.bytes)}  ${pkg.name}`)
-        .join("\n");
-
-      throw new Error(
-        [
-          `${largest.file} is ${mb(largest.bytes)}, over the ${mb(MAX_CHUNK_BYTES)} ceiling.`,
-          "",
-          "The dev worker resolves every stack frame in this chunk against its",
-          "source map, and that cost scales with the chunk. What is in it:",
-          culprits,
-          "",
-          "Usually one dependency, and usually an umbrella package that imports",
-          "a whole product family when the code needs one client of it.",
-        ].join("\n"),
-      );
-    }
-
-    expect(largest.bytes).toBeLessThanOrEqual(MAX_CHUNK_BYTES);
+    expect(
+      heaviest && heaviest.sourceMapBytes > MAX_SOURCE_MAP_BYTES
+        ? explain(heaviest)
+        : "under the ceiling",
+    ).toBe("under the ceiling");
   });
 });

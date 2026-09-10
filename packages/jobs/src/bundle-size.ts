@@ -7,33 +7,41 @@ import config from "../trigger.config";
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
- * The most a single emitted chunk may weigh, in bytes.
+ * The most a single source map may weigh, in bytes.
  *
  * This is not a budget for the deployed size — nobody minds a large bundle on
- * disk. It is a ceiling on what one stack frame costs to format, because the
- * dev worker resolves every frame of every error whose `.stack` is read
- * against the source map of the chunk that frame lives in.
+ * disk. It is a ceiling on what one stack frame costs to format. The dev
+ * worker resolves every frame of every error whose `.stack` is read against
+ * the source map of the chunk that frame lives in, which means reading that
+ * file and parsing it.
  *
- * Two points were measured for FF-1487: a 5 MB chunk cost 133 MB of heap per
- * frame and the run survived; a 30 MB chunk cost 582 MB and killed a warm
+ * Two points were measured for FF-1487: an 8.4 MB map cost 133 MB of heap per
+ * frame and the run survived; a 50.4 MB map cost 582 MB and killed a warm
  * executor that was already holding about 210 MB. Straight through those two
- * points is roughly 18 MB of heap per MB of chunk, plus 45 MB fixed — which
- * puts 8 MB at about 186 MB a frame.
+ * points is roughly 11 MB of heap per MB of map, plus 43 MB fixed, which puts
+ * 210 MB at a map of about 15.6 MB.
  *
  * That is the reasoning, and it is an extrapolation from two points rather
- * than a law. So the ceiling sits near the end of the range that is known to
- * work rather than in the middle of the part that isn't: 8 MB is two thirds
- * more than the largest chunk today, and a quarter of what the regression
- * weighed. Raising it is a one-line change; the point is that someone decides
- * to, having seen which dependency asked.
+ * than a law. So the ceiling sits at the end of the range that is known to
+ * work rather than in the middle of the part that isn't: 14 MB is two thirds
+ * more than the largest map today, and well under what killed the worker.
+ * Raising it is a one-line change; the point is that someone decides to,
+ * having seen which dependency asked.
  */
-export const MAX_CHUNK_BYTES = 8 * 1024 * 1024;
+export const MAX_SOURCE_MAP_BYTES = 14 * 1024 * 1024;
+
+export type Chunk = {
+  file: string;
+  bytes: number;
+  sourceMapBytes: number;
+  /** Bytes contributed by each npm package, largest first. */
+  packages: { name: string; bytes: number }[];
+};
 
 export type BundleMeasurement = {
-  entryPoints: number;
-  outputs: { file: string; bytes: number }[];
-  /** Bytes contributed to `file` by each npm package, largest first. */
-  packagesIn: (file: string) => { name: string; bytes: number }[];
+  entryPointCount: number;
+  /** Emitted chunks, heaviest source map first. */
+  chunks: Chunk[];
 };
 
 function packageOf(inputPath: string): string {
@@ -47,15 +55,19 @@ function packageOf(inputPath: string): string {
  *
  * esbuild rather than the Trigger CLI because the CLI needs a project token
  * and a network call to build, and this has to run on any checkout. It is
- * close enough to be worth trusting: measured against the same tree, this
- * reports 4.8 MB where the CLI reports 5.0, and 30.1 MB where it reports 30.4.
+ * close enough to be worth trusting: measured against the same tree the
+ * largest source map here is 8.4 MB and the CLI's is 8.4 MB, and with the
+ * dependency FF-1487 removed put back, 51.2 MB against the CLI's 50.4 MB.
  *
+ * Both the task directories and the externals are read from the real config,
+ * so neither can drift into measuring something the deployed bundle is not.
  * Nothing is written to disk — only the metafile is read.
  */
 export async function measureJobsBundle(): Promise<BundleMeasurement> {
-  const entryPoints = globSync("src/tasks/**/*.ts", { cwd: PACKAGE_ROOT }).map(
-    (file) => resolve(PACKAGE_ROOT, file),
-  );
+  const entryPoints = (config.dirs ?? [])
+    .flatMap((dir) => globSync(`${dir}/**/*.ts`, { cwd: PACKAGE_ROOT }))
+    .filter((file) => !file.endsWith(".test.ts"))
+    .map((file) => resolve(PACKAGE_ROOT, file));
 
   const result = await build({
     entryPoints,
@@ -64,34 +76,36 @@ export async function measureJobsBundle(): Promise<BundleMeasurement> {
     format: "esm",
     platform: "node",
     outdir: resolve(PACKAGE_ROOT, ".bundle-size"),
-    // The same list the real build is given, so a package left out there is
-    // left out here.
+    // The maps are the artifact being measured, not a side effect of it.
+    sourcemap: true,
     external: config.build?.external ?? [],
     metafile: true,
     write: false,
     logLevel: "silent",
   });
 
-  const outputs = Object.entries(result.metafile.outputs)
-    .filter(([file]) => file.endsWith(".js"))
-    .map(([file, meta]) => ({ file, bytes: meta.bytes }))
-    .sort((a, b) => b.bytes - a.bytes);
+  const outputs = result.metafile.outputs;
 
-  return {
-    entryPoints: entryPoints.length,
-    outputs,
-    packagesIn: (file) => {
-      const inputs = result.metafile.outputs[file]?.inputs ?? {};
+  const chunks: Chunk[] = Object.entries(outputs)
+    .filter(([file]) => file.endsWith(".js"))
+    .map(([file, meta]) => {
       const totals = new Map<string, number>();
 
-      for (const [input, meta] of Object.entries(inputs)) {
+      for (const [input, inputMeta] of Object.entries(meta.inputs)) {
         const name = packageOf(input);
-        totals.set(name, (totals.get(name) ?? 0) + meta.bytesInOutput);
+        totals.set(name, (totals.get(name) ?? 0) + inputMeta.bytesInOutput);
       }
 
-      return [...totals]
-        .map(([name, bytes]) => ({ name, bytes }))
-        .sort((a, b) => b.bytes - a.bytes);
-    },
-  };
+      return {
+        file,
+        bytes: meta.bytes,
+        sourceMapBytes: outputs[`${file}.map`]?.bytes ?? 0,
+        packages: [...totals]
+          .map(([name, bytes]) => ({ name, bytes }))
+          .sort((a, b) => b.bytes - a.bytes),
+      };
+    })
+    .sort((a, b) => b.sourceMapBytes - a.sourceMapBytes);
+
+  return { entryPointCount: entryPoints.length, chunks };
 }
