@@ -7,6 +7,7 @@ import {
   processDocumentSchema,
 } from "@jobs/schemas/documents";
 import { detectFileTypeFromBlob } from "@jobs/utils/detect-file-type";
+import { fileMissingBecauseDeleted } from "@jobs/utils/document-presence";
 import {
   markDocumentFailed,
   markDocumentUnsupported,
@@ -36,6 +37,21 @@ import { classifyImage } from "./classify-image";
  * Handles HEIC conversion, document loading, and triggers classification
  */
 export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPayload> {
+  /**
+   * Whether a download that came back empty did so because the item was
+   * deleted from the inbox, which takes the stored object with it. Every
+   * download here asks, because a deletion is a normal ending and a file
+   * missing while its documents row stands is still a failure.
+   */
+  private wasDeleted(fileName: string, teamId: string): Promise<boolean> {
+    return fileMissingBecauseDeleted({
+      db: getDb(),
+      fileName,
+      teamId,
+      logger: this.logger,
+    });
+  }
+
   async process(job: JobContext<ProcessDocumentPayload>): Promise<void> {
     const processStartTime = Date.now();
     const { mimetype, filePath, teamId } = job.data;
@@ -85,6 +101,10 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         );
 
         if (!data) {
+          if (await this.wasDeleted(fileName, teamId)) {
+            return;
+          }
+
           throw new NonRetryableError(
             "File not found",
             undefined,
@@ -226,6 +246,10 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         });
 
         if (!data) {
+          if (await this.wasDeleted(fileName, teamId)) {
+            return;
+          }
+
           throw new NonRetryableError(
             "File not found",
             undefined,
@@ -297,6 +321,10 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
             fileData = redownloadedData;
             processedMimetype = "application/pdf";
           } else {
+            if (await this.wasDeleted(fileName, teamId)) {
+              return;
+            }
+
             throw new Error("Failed to re-download file for type detection");
           }
         }
@@ -325,6 +353,18 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         if (!imageResult.ok) {
           throw new Error(
             `Image classification failed: ${imageResult.error instanceof Error ? imageResult.error.message : String(imageResult.error)}`,
+          );
+        }
+
+        if (imageResult.output.status === "skipped") {
+          this.logger.info(
+            "Image classification stopped early - the document was deleted",
+            {
+              jobId: job.id,
+              fileName,
+              teamId,
+              reason: imageResult.output.reason,
+            },
           );
         }
 
@@ -476,6 +516,22 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         throw new Error(
           `Document classification failed: ${classificationJobResult.error instanceof Error ? classificationJobResult.error.message : String(classificationJobResult.error)}`,
         );
+      }
+
+      // The child exits quietly when the item is deleted under it, and there is
+      // nothing left here to announce - the document it would name is gone.
+      if (classificationJobResult.output.status === "skipped") {
+        this.logger.info(
+          "Document classification stopped early - the document was deleted",
+          {
+            jobId: job.id,
+            fileName,
+            teamId,
+            reason: classificationJobResult.output.reason,
+          },
+        );
+
+        return;
       }
 
       const classificationDuration = Date.now() - classificationStartTime;

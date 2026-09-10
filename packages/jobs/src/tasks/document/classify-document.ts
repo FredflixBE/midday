@@ -6,6 +6,12 @@ import {
   type ClassifyDocumentPayload,
   classifyDocumentSchema,
 } from "@jobs/schemas/documents";
+import {
+  type ClassificationOutcome,
+  documentDeletedOutcome,
+  documentWasDeleted,
+  outcomeForMissingRow,
+} from "@jobs/utils/document-presence";
 import { markDocumentFailed } from "@jobs/utils/document-status";
 import { updateDocumentWithRetry } from "@jobs/utils/document-update";
 import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
@@ -31,7 +37,9 @@ interface ClassificationResult {
  * with null values so users can access the file and retry classification later
  */
 export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPayload> {
-  async process(job: JobContext<ClassifyDocumentPayload>): Promise<void> {
+  async process(
+    job: JobContext<ClassifyDocumentPayload>,
+  ): Promise<ClassificationOutcome> {
     const { content, fileName, teamId } = job.data;
     const db = getDb();
 
@@ -45,6 +53,15 @@ export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPay
       teamId,
       contentLength: content.length,
     });
+
+    // A document deleted from the inbox has nothing left to classify. Asking
+    // before the model runs is what keeps the several seconds it would spend
+    // from being thrown away on a row that is already gone.
+    if (
+      await documentWasDeleted({ db, fileName, teamId, logger: this.logger })
+    ) {
+      return documentDeletedOutcome;
+    }
 
     // Attempt AI classification with graceful fallback
     let classificationResult: ClassificationResult | null = null;
@@ -150,12 +167,15 @@ export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPay
     );
 
     if (!updatedDocs || updatedDocs.length === 0) {
-      this.logger.error("Document not found for classification update", {
+      // The document was there when classification began, so it was either
+      // deleted while the model ran - a normal ending, and the result is
+      // simply discarded - or its row never existed, which throws.
+      return outcomeForMissingRow({
+        db,
         fileName,
-        pathTokens,
         teamId,
+        logger: this.logger,
       });
-      throw new Error(`Document with path ${fileName} not found`);
     }
 
     const data = updatedDocs[0];
@@ -193,6 +213,8 @@ export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPay
         hasTitle: !!finalTitle,
       });
     }
+
+    return { status: "completed" };
   }
 }
 

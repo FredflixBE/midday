@@ -6,6 +6,13 @@ import {
   type ClassifyImagePayload,
   classifyImageSchema,
 } from "@jobs/schemas/documents";
+import {
+  type ClassificationOutcome,
+  documentDeletedOutcome,
+  documentWasDeleted,
+  fileMissingBecauseDeleted,
+  outcomeForMissingRow,
+} from "@jobs/utils/document-presence";
 import { markDocumentFailed } from "@jobs/utils/document-status";
 import { updateDocumentWithRetry } from "@jobs/utils/document-update";
 import { NonRetryableError } from "@jobs/utils/error-classification";
@@ -35,7 +42,9 @@ interface ImageClassificationResult {
  * with null values so users can access the file and retry classification later
  */
 export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> {
-  async process(job: JobContext<ClassifyImagePayload>): Promise<void> {
+  async process(
+    job: JobContext<ClassifyImagePayload>,
+  ): Promise<ClassificationOutcome> {
     const { teamId, fileName } = job.data;
     const supabase = createClient();
     const db = getDb();
@@ -49,6 +58,15 @@ export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> 
       teamId,
     });
 
+    // An image deleted from the inbox has nothing left to classify. Asking
+    // before the download and the model run is what keeps that work from being
+    // spent on a row that is already gone.
+    if (
+      await documentWasDeleted({ db, fileName, teamId, logger: this.logger })
+    ) {
+      return documentDeletedOutcome;
+    }
+
     // Download file - this is a hard failure if it fails (file doesn't exist)
     const { data: fileData } = await withTimeout(
       supabase.storage.from("vault").download(fileName),
@@ -57,6 +75,19 @@ export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> 
     );
 
     if (!fileData) {
+      // Deleted between the check above and the download: still a normal
+      // ending, not a missing file.
+      if (
+        await fileMissingBecauseDeleted({
+          db,
+          fileName,
+          teamId,
+          logger: this.logger,
+        })
+      ) {
+        return documentDeletedOutcome;
+      }
+
       throw new NonRetryableError("File not found", undefined, "validation");
     }
 
@@ -184,12 +215,15 @@ export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> 
     );
 
     if (!updatedDocs || updatedDocs.length === 0) {
-      this.logger.error("Document not found for image classification update", {
+      // The row was there when classification began, so it was either deleted
+      // while the model ran - a normal ending, and the result is simply
+      // discarded - or it never existed, which throws.
+      return outcomeForMissingRow({
+        db,
         fileName,
-        pathTokens,
         teamId,
+        logger: this.logger,
       });
-      throw new Error(`Document with path ${fileName} not found`);
     }
 
     const data = updatedDocs[0];
@@ -222,6 +256,8 @@ export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> 
         hasTitle: !!finalTitle,
       });
     }
+
+    return { status: "completed" };
   }
 }
 
