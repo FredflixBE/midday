@@ -1171,7 +1171,11 @@ export const exchangeRates = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     base: text(),
-    rate: numericCasted({ precision: 10, scale: 2 }),
+    // Unconstrained numeric, not the (10,2) that amount and balance use. A
+    // rate is not a money column: numeric(10,2) cannot hold EUR->VEB
+    // (9.5e10; BTC->VEB is 6.4e15), and scale 2 would round USD->EUR
+    // 0.85925219 to 0.86 and anything under 0.005 to zero.
+    rate: numericCasted(),
     target: text(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
   },
