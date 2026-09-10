@@ -257,6 +257,7 @@ export const mocks = {
     }),
   ) as MockFn,
   getInboxByStatus: mock(() => []) as MockFn,
+  getInboxForReprocessing: mock(() => null) as MockFn,
 
   // API Keys
   getApiKeyByToken: mock(() => null) as MockFn,
@@ -879,6 +880,7 @@ const dbQueriesMock = new Proxy(
     deleteInbox: mocks.deleteInbox,
     deleteInboxMany: mocks.deleteInboxMany,
     getInboxByStatus: mocks.getInboxByStatus,
+    getInboxForReprocessing: mocks.getInboxForReprocessing,
     getInboxSearch: mocks.getInboxSearch,
     getInboxAccounts: mocks.getInboxAccounts,
     getInboxAccountById: createDefaultMock(),

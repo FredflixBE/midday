@@ -13,6 +13,7 @@ import {
   matchTransactionSchema,
   processAttachmentsSchema,
   retryMatchingSchema,
+  retryProcessingSchema,
   searchInboxSchema,
   unmatchTransactionSchema,
   updateInboxSchema,
@@ -31,6 +32,7 @@ import {
   getInboxBlocklist,
   getInboxById,
   getInboxByStatus,
+  getInboxForReprocessing,
   getInboxSearch,
   matchTransaction,
   unmatchTransaction,
@@ -44,6 +46,7 @@ import type { NotificationInput } from "@midday/jobs/schemas/notifications";
 import { logger } from "@midday/logger";
 import { remove } from "@midday/supabase/storage";
 import { tasks } from "@trigger.dev/sdk";
+import { TRPCError } from "@trpc/server";
 
 export const inboxRouter = createTRPCRouter({
   get: protectedProcedure
@@ -263,6 +266,52 @@ export const inboxRouter = createTRPCRouter({
         teamId: teamId!,
         inboxIds: [input.id],
       } satisfies BatchProcessMatchingPayload);
+
+      return { jobId: result.id };
+    }),
+
+  // Process an item again after its first attempt failed
+  retryProcessing: protectedProcedure
+    .input(retryProcessingSchema)
+    .mutation(async ({ ctx: { db, teamId }, input }) => {
+      const item = await getInboxForReprocessing(db, {
+        id: input.id,
+        teamId: teamId!,
+      });
+
+      if (!item) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Inbox item not found",
+        });
+      }
+
+      if (!item.filePath?.length || !item.size) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Inbox item has no stored file to process",
+        });
+      }
+
+      // Triggered before the status is moved back, so a trigger that fails
+      // leaves the item where the user found it rather than back on a spinner
+      // with no job behind it.
+      const result = await tasks.trigger("process-attachment", {
+        filePath: item.filePath,
+        mimetype: item.contentType ?? "application/octet-stream",
+        size: item.size,
+        teamId: teamId!,
+        referenceId: item.referenceId ?? undefined,
+        website: item.website ?? undefined,
+        senderEmail: item.senderEmail ?? undefined,
+        inboxAccountId: item.inboxAccountId ?? undefined,
+      } satisfies ProcessAttachmentPayload);
+
+      await updateInbox(db, {
+        id: item.id,
+        teamId: teamId!,
+        status: "processing",
+      });
 
       return { jobId: result.id };
     }),

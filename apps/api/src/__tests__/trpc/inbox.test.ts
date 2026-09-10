@@ -205,3 +205,96 @@ describe("tRPC: inbox.search", () => {
     );
   });
 });
+
+describe("tRPC: inbox.retryProcessing", () => {
+  const FAILED_ID = "c4d5e6f7-8a9b-4c0d-8e1f-2a3b4c5d6e7f";
+
+  const failedItem = {
+    id: FAILED_ID,
+    status: "failed",
+    filePath: ["test-team-id", "inbox", "receipt.pdf"],
+    contentType: "application/pdf",
+    size: 188391,
+    referenceId: "reference-1",
+    website: "example.com",
+    senderEmail: "sender@example.com",
+    inboxAccountId: null,
+  };
+
+  beforeEach(() => {
+    mocks.getInboxForReprocessing.mockReset();
+    mocks.getInboxForReprocessing.mockImplementation(() => failedItem);
+    mocks.updateInbox.mockReset();
+    mocks.updateInbox.mockImplementation(() => ({}));
+    mocks.triggerTask.mockReset();
+    mocks.triggerTask.mockImplementation(() => ({ id: "job-123" }));
+  });
+
+  test("processes the stored file again", async () => {
+    const caller = createCaller(createTestContext());
+    const result = await caller.retryProcessing({ id: FAILED_ID });
+
+    expect(result).toEqual({ jobId: "job-123" });
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
+      "process-attachment",
+      expect.objectContaining({
+        filePath: failedItem.filePath,
+        mimetype: "application/pdf",
+        size: 188391,
+        teamId: "test-team-id",
+        referenceId: "reference-1",
+      }),
+    );
+  });
+
+  test("puts the item back into processing", async () => {
+    const caller = createCaller(createTestContext());
+    await caller.retryProcessing({ id: FAILED_ID });
+
+    expect(mocks.updateInbox).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: FAILED_ID, status: "processing" }),
+    );
+  });
+
+  test("leaves the item alone when the job cannot be triggered", async () => {
+    // Otherwise a failed trigger strands the row on a spinner again, which is
+    // the state this whole path exists to end.
+    mocks.triggerTask.mockImplementation(() => {
+      throw new Error("trigger unavailable");
+    });
+
+    const caller = createCaller(createTestContext());
+
+    await expect(caller.retryProcessing({ id: FAILED_ID })).rejects.toThrow(
+      "trigger unavailable",
+    );
+    expect(mocks.updateInbox).not.toHaveBeenCalled();
+  });
+
+  test("rejects an item that is not there", async () => {
+    mocks.getInboxForReprocessing.mockImplementation(() => null);
+
+    const caller = createCaller(createTestContext());
+
+    await expect(caller.retryProcessing({ id: FAILED_ID })).rejects.toThrow(
+      "Inbox item not found",
+    );
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
+  test("rejects an item with no stored file", async () => {
+    mocks.getInboxForReprocessing.mockImplementation(() => ({
+      ...failedItem,
+      filePath: null,
+      size: null,
+    }));
+
+    const caller = createCaller(createTestContext());
+
+    await expect(caller.retryProcessing({ id: FAILED_ID })).rejects.toThrow(
+      "no stored file",
+    );
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+});

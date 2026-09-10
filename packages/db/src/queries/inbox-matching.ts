@@ -374,7 +374,8 @@ export async function getInboxByStatus(
       | "no_match"
       | "done"
       | "deleted"
-      | "other";
+      | "other"
+      | "failed";
   },
 ) {
   const { teamId, status } = params;

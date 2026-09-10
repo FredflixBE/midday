@@ -40,6 +40,7 @@ export type GetInboxParams = {
     | "suggested_match"
     | "no_match"
     | "other"
+    | "failed"
     | null;
   tab?: "all" | "other" | null;
 };
@@ -1072,7 +1073,8 @@ export type UpdateInboxParams = {
     | "pending"
     | "analyzing"
     | "suggested_match"
-    | "other";
+    | "other"
+    | "failed";
   contentType?: string;
 };
 
@@ -1649,6 +1651,84 @@ export async function getInboxByFilePath(
     contentType: result.contentType,
     displayName: result.displayName,
   };
+}
+
+/**
+ * The statuses a row can be marked failed from.
+ *
+ * A row only reaches "failed" because the run that owned it died, so anything
+ * that has moved past processing was moved there by something still alive and
+ * is not ours to overwrite.
+ */
+const UNFINISHED_INBOX_STATUSES = ["processing", "new", "analyzing"] as const;
+
+export type MarkInboxAttachmentFailedParams = {
+  filePath: string[];
+  teamId: string;
+};
+
+/**
+ * Mark the row behind an attachment failed, so the UI stops showing a spinner
+ * for work that has stopped.
+ *
+ * Guarded in the statement rather than by a read first: the caller is an
+ * error path, and a read-then-write there is one more thing that can fail
+ * between the two halves.
+ */
+export async function markInboxAttachmentFailed(
+  db: Database,
+  params: MarkInboxAttachmentFailedParams,
+) {
+  const { filePath, teamId } = params;
+
+  return db
+    .update(inbox)
+    .set({ status: "failed" })
+    .where(
+      and(
+        eq(inbox.filePath, filePath),
+        eq(inbox.teamId, teamId),
+        inArray(inbox.status, [...UNFINISHED_INBOX_STATUSES]),
+      ),
+    )
+    .returning({ id: inbox.id });
+}
+
+export type GetInboxForReprocessingParams = {
+  id: string;
+  teamId: string;
+};
+
+/**
+ * The stored row, read back as the payload that processes it.
+ *
+ * Retrying is re-running process-attachment against the same file, and the
+ * row is the only record of what that run was given — the caller cannot be
+ * trusted to supply it again.
+ */
+export async function getInboxForReprocessing(
+  db: Database,
+  params: GetInboxForReprocessingParams,
+) {
+  const { id, teamId } = params;
+
+  const [result] = await db
+    .select({
+      id: inbox.id,
+      status: inbox.status,
+      filePath: inbox.filePath,
+      contentType: inbox.contentType,
+      size: inbox.size,
+      referenceId: inbox.referenceId,
+      website: inbox.website,
+      senderEmail: inbox.senderEmail,
+      inboxAccountId: inbox.inboxAccountId,
+    })
+    .from(inbox)
+    .where(and(eq(inbox.id, id), eq(inbox.teamId, teamId)))
+    .limit(1);
+
+  return result ?? null;
 }
 
 export type GetStuckInboxItemsParams = {

@@ -87,6 +87,16 @@ export function InboxDetails() {
     trpc.inbox.retryMatching.mutationOptions(),
   );
 
+  const retryProcessingMutation = useMutation(
+    trpc.inbox.retryProcessing.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.inbox.get.infiniteQueryKey(),
+        });
+      },
+    }),
+  );
+
   const blockSenderMutation = useMutation(
     trpc.inbox.blocklist.create.mutationOptions({
       onMutate: async (variables) => {
@@ -196,6 +206,32 @@ export function InboxDetails() {
     }
   };
 
+  const handleRetryProcessing = () => {
+    if (!data?.id) return;
+
+    const queryKey = trpc.inbox.getById.queryKey({ id: data.id });
+    const previousData = queryClient.getQueryData(queryKey);
+
+    queryClient.setQueryData(queryKey, (old) =>
+      old ? { ...old, status: "processing" as const } : old,
+    );
+
+    retryProcessingMutation.mutate(
+      { id: data.id },
+      {
+        onError: () => {
+          queryClient.setQueryData(queryKey, previousData);
+
+          toast({
+            duration: 4000,
+            title: "Couldn't start processing again. Please try again.",
+            variant: "error",
+          });
+        },
+      },
+    );
+  };
+
   useHotkeys("meta+backspace", (event) => {
     event.preventDefault();
     handleOnDelete();
@@ -203,6 +239,7 @@ export function InboxDetails() {
 
   const isProcessing = data?.status === "processing" || data?.status === "new";
   const isOtherDocument = data?.status === "other" || data?.type === "other";
+  const hasFailed = data?.status === "failed";
 
   useEffect(() => {
     setShowFallback(false);
@@ -314,8 +351,29 @@ export function InboxDetails() {
                   )}
                 </DropdownMenuItem>
 
+                {/* An item that never got read has nothing to match against —
+                    it needs processing again, not matching again. */}
+                {hasFailed && (
+                  <DropdownMenuItem
+                    onClick={handleRetryProcessing}
+                    disabled={retryProcessingMutation.isPending}
+                  >
+                    {retryProcessingMutation.isPending ? (
+                      <>
+                        <Icons.Refresh className="mr-2 size-4 animate-spin" />
+                        <span className="text-xs">Processing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Icons.Refresh className="mr-2 size-4" />
+                        <span className="text-xs">Retry Processing</span>
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                )}
+
                 {/* Hide retry matching for "other" (non-financial) documents */}
-                {!isOtherDocument && (
+                {!isOtherDocument && !hasFailed && (
                   <DropdownMenuItem
                     onClick={handleRetryMatching}
                     disabled={retryMatchingMutation.isPending}

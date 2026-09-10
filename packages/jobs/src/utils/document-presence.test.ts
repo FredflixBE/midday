@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { JobLogger } from "@jobs/processors/types";
+import * as queries from "@midday/db/queries";
 
 let rowExists = true;
 let rowError: Error | null = null;
@@ -8,7 +9,11 @@ let fileError: Error | null = null;
 let rowChecks = 0;
 let fileChecks = 0;
 
+// Spread the real module: mock.module replaces the whole registry entry for
+// the process, so a factory that returns one function makes every other query
+// unimportable — including in test files that never asked for a mock.
 mock.module("@midday/db/queries", () => ({
+  ...queries,
   documentExistsByPath: async () => {
     rowChecks++;
     if (rowError) throw rowError;
