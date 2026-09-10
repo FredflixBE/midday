@@ -1,0 +1,21 @@
+{
+  "name": "@midday/yuki",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "clean": "rm -rf .turbo node_modules",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --exit src",
+    "explore": "bun run scripts/explore.ts",
+    "backlog": "bun run scripts/backlog.ts"
+  },
+  "dependencies": {
+    "fast-xml-parser": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
