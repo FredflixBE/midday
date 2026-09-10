@@ -1,4 +1,8 @@
 import { getDb } from "@jobs/init";
+import {
+  failedBatchItems,
+  markAttachmentFailed,
+} from "@jobs/utils/attachment-failure";
 import { processBatch } from "@jobs/utils/process-batch";
 import {
   getInboxAccountInfo,
@@ -212,6 +216,11 @@ export const syncInboxAccount = schemaTask({
 
             if (uploadData) {
               results.push({
+                // A queued run expires after ten minutes in the development
+                // environment, and the whole point of a bounded queue is that
+                // the back of a large mailbox waits its turn. Waiting is not
+                // the same as being abandoned.
+                options: { ttl: "1h" },
                 payload: {
                   filePath: uploadData.path.split("/"),
                   size: item.size,
@@ -244,7 +253,41 @@ export const syncInboxAccount = schemaTask({
           attachmentCount: uploadedAttachments.length,
         });
 
-        await processAttachment.batchTriggerAndWait(uploadedAttachments);
+        const batch =
+          await processAttachment.batchTriggerAndWait(uploadedAttachments);
+
+        // A run that crashed — an out-of-memory kill is the one seen here —
+        // never reaches its own onFailure hook, so its inbox row would keep
+        // the "processing" status it was created with. This is the only place
+        // that learns those runs are over.
+        const { failed, unreadable } = failedBatchItems(
+          uploadedAttachments,
+          batch.runs,
+        );
+
+        if (unreadable) {
+          logger.error(
+            "Batch returned a result per run that cannot be paired",
+            {
+              accountId: id,
+              attachmentCount: uploadedAttachments.length,
+              runCount: batch.runs.length,
+            },
+          );
+        }
+
+        if (failed.length > 0) {
+          logger.warn("Attachments did not process", {
+            accountId: id,
+            teamId: accountRow.teamId,
+            failedCount: failed.length,
+            attachmentCount: uploadedAttachments.length,
+          });
+
+          for (const item of failed) {
+            await markAttachmentFailed(item.payload, "run did not complete");
+          }
+        }
 
         // Send notification for new inbox items
         await tasks.trigger("notification", {

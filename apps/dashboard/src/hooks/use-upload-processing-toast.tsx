@@ -10,7 +10,13 @@ import { usePendingUploadsStore } from "@/store/pending-uploads";
 
 // Terminal statuses that indicate processing is truly complete
 // Note: "pending" is NOT terminal - items can go pending → analyzing → suggested_match
-const TERMINAL_STATUSES = new Set(["suggested_match", "done", "deleted"]);
+// "failed" is terminal: the work stopped, and only the user restarts it.
+const TERMINAL_STATUSES = new Set([
+  "suggested_match",
+  "done",
+  "deleted",
+  "failed",
+]);
 
 type UseUploadProcessingToastOptions = {
   teamId?: string;

@@ -10,6 +10,7 @@ export const inboxFilterParamsSchema = {
     "suggested_match",
     "no_match",
     "other",
+    "failed",
   ]),
   tab: parseAsStringLiteral(["all", "other"]),
 };

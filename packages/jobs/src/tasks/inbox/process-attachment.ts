@@ -6,6 +6,7 @@ import {
   type ProcessAttachmentPayload,
   processAttachmentSchema,
 } from "@jobs/schemas/inbox";
+import { markAttachmentFailed } from "@jobs/utils/attachment-failure";
 import { NonRetryableError } from "@jobs/utils/error-classification";
 import { convertHeicToJpeg } from "@jobs/utils/image-processing";
 import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
@@ -498,23 +499,11 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
         throw error;
       }
 
-      // For non-retryable errors, mark as pending with fallback name
-      this.logger.info(
-        "Document processing failed, marking as pending with fallback name",
-        {
-          inboxId: inboxData.id,
-          referenceId,
-          errorMessage:
-            error instanceof Error ? error.message : "Unknown error",
-        },
-      );
-
-      await updateInbox(db, {
-        id: inboxData.id,
-        teamId,
-        status: "pending",
-      });
-
+      // Nothing is written here on the way out. The row is marked failed by
+      // onFailure once the run has spent its attempts, or by the parent of a
+      // batch when the run dies before any hook can run — both of them outside
+      // the work that just failed. This block used to write the status itself,
+      // and when that write failed it took the real error with it.
       throw error;
     }
   }
@@ -532,7 +521,12 @@ export const processAttachment = schemaTask({
   // re-sends it once per missing field, in parallel. The biggest resident
   // set of any task here.
   machine: "small-2x",
-  queue: { concurrencyLimit: 50 },
+  // Every concurrent run is a separate process holding its own OCR heap and
+  // its own Postgres connection, so this number is a multiplier on both. At 50
+  // a mailbox with 20 attachments fanned out to 20 at once: in development
+  // that is 20 heaps on one laptop, which killed the largest PDF, and in any
+  // environment it is 20 session-pooler connections for one sync.
+  queue: { concurrencyLimit: 5 },
   retry: {
     maxAttempts: 3,
     minTimeoutInMs: 5000,
@@ -542,4 +536,14 @@ export const processAttachment = schemaTask({
   },
   run: (payload, { ctx }) =>
     runProcessor(processor, "process-attachment", payload, ctx),
+  // The run is over and the inbox row is still whatever the run left it as.
+  // Trigger does not call this for crashed, cancelled or timed-out runs, so it
+  // is not the only thing marking a row failed — see the parent in
+  // sync-account.ts — but it is the one that covers every trigger path.
+  onFailure: async ({ payload, error }) => {
+    await markAttachmentFailed(
+      payload,
+      error instanceof Error ? error.message : "Unknown error",
+    );
+  },
 });

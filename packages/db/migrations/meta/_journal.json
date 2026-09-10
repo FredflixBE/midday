@@ -43,6 +43,13 @@
       "when": 1789041771872,
       "tag": "0005_enrichment_failure_visible",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789060922353,
+      "tag": "0006_inbox_failed_status",
+      "breakpoints": true
     }
   ]
 }

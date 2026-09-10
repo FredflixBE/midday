@@ -4268,7 +4268,8 @@ export type Database = {
         | "analyzing"
         | "suggested_match"
         | "no_match"
-        | "other";
+        | "other"
+        | "failed";
       inbox_type: "invoice" | "expense" | "other";
       insight_period_type: "weekly" | "monthly" | "quarterly" | "yearly";
       insight_status: "pending" | "generating" | "completed" | "failed";
@@ -4567,6 +4568,7 @@ export const Constants = {
         "suggested_match",
         "no_match",
         "other",
+        "failed",
       ],
       inbox_type: ["invoice", "expense", "other"],
       insight_period_type: ["weekly", "monthly", "quarterly", "yearly"],

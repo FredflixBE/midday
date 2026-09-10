@@ -30,11 +30,11 @@ export const getInboxSchema = z.object({
     .optional()
     .describe("Search query to filter inbox items"),
   status: z
-    .enum(["done", "pending", "suggested_match", "no_match", "other"])
+    .enum(["done", "pending", "suggested_match", "no_match", "other", "failed"])
     .nullable()
     .optional()
     .describe(
-      "Filter by processing status: done (processed), pending (awaiting action), suggested_match (auto-matched), no_match (unmatched), other",
+      "Filter by processing status: done (processed), pending (awaiting action), suggested_match (auto-matched), no_match (unmatched), other, failed (could not be processed)",
     ),
   tab: z
     .enum(["all", "other"])
@@ -257,6 +257,13 @@ export const retryMatchingSchema = z.object({
   }),
 });
 
+export const retryProcessingSchema = z.object({
+  id: z.string().uuid().openapi({
+    description: "Inbox item ID to process again",
+    example: "b3b7c1e2-4c2a-4e7a-9c1a-2b7c1e24c2a4",
+  }),
+});
+
 export const getInboxByStatusSchema = z.object({
   status: z
     .enum([
@@ -270,6 +277,7 @@ export const getInboxByStatusSchema = z.object({
       "done",
       "deleted",
       "other",
+      "failed",
     ])
     .optional(),
 });

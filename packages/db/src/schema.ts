@@ -123,6 +123,10 @@ export const inboxStatusEnum = pgEnum("inbox_status", [
   "done",
   "deleted",
   "other",
+  // The attachment could not be processed. Terminal until the user retries it,
+  // and the only status that says so — a run that dies leaves its row at
+  // "processing" otherwise, which the UI shows as a spinner forever.
+  "failed",
 ]);
 
 export const inboxTypeEnum = pgEnum("inbox_type", [

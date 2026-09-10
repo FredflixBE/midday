@@ -20,6 +20,27 @@ export function InboxStatus({ item }: Props) {
     return null;
   }
 
+  if (item.status === "failed") {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex space-x-1.5 items-center px-1.5 py-0.5 text-[10px] cursor-default border">
+              <div className="w-1.5 h-1.5 bg-destructive rounded-full" />
+              <span>Failed</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={10} className="text-xs">
+            <p>
+              We couldn't process this file — <br />
+              try again from the menu
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   // Show status for "other" (non-financial) documents
   if (item.status === "other" || item.type === "other") {
     return (
