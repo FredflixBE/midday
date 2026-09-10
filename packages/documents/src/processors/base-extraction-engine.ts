@@ -27,17 +27,47 @@ const mistral = createMistral({
  *
  * Each one is a whole extraction: a request carrying the document, a response
  * to parse, and — if it throws — a stack to resolve against the worker's
- * source map, which on its own has been measured in the hundreds of megabytes.
- * One call per missing field, started together, is widest precisely when the
- * document has nothing on it, and that is what exhausted the worker.
+ * source map. FF-1487 measured one such lookup at 133 MB on the current
+ * bundle, against an 819 MiB machine already holding a ~130 MB baseline. Two
+ * at once is about 266 MB and fits; the four the old fan-out could start is
+ * about 530 MB and does not.
  */
 export const MAX_PARALLEL_FIELD_REEXTRACTIONS = 2;
+
+/**
+ * How long all of Pass 3 may spend before it stops starting calls.
+ *
+ * Bounding parallelism must not trade a memory problem for a timeout: an
+ * invoice has five critical fields, which used to be one round of 90s plus a
+ * retry, and two at a time makes it three. This keeps the whole pass inside
+ * roughly what one round of each batch used to cost (181s + 61s), and a call
+ * already in flight when the budget runs out still finishes — so the worst
+ * case is that plus one more call, well inside the caller's 600s ceiling.
+ */
+const FIELD_REEXTRACTION_BUDGET = 240_000;
 
 /** Per-call timeout when re-extracting a field the document needs to be usable. */
 const CRITICAL_FIELD_TIMEOUT = 90_000;
 
 /** Per-call timeout when re-extracting a field that only adds detail. */
 const OTHER_FIELD_TIMEOUT = 30_000;
+
+/** Above this, a field is one the document is not usable without. */
+const CRITICAL_FIELD_PRIORITY = 8;
+
+/**
+ * Fields whose presence is not evidence that anything was read.
+ *
+ * The classification and the language are what a model answers for a blank
+ * wall, and the schema asks for `tax_type` and `website` to be *inferred* —
+ * from the country, or from a name — rather than read off the document.
+ */
+const NOT_EVIDENCE_OF_CONTENT = new Set([
+  "document_type",
+  "language",
+  "tax_type",
+  "website",
+]);
 
 /**
  * Check if an error is a rate limit error
@@ -78,6 +108,8 @@ export interface ExtractionOptions {
 export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   protected config: ExtractionConfig<T>;
   protected logger: ReturnType<typeof createLoggerWithContext>;
+  /** A field, so a test can watch the budget run out without waiting for it. */
+  protected fieldReExtractionBudget = FIELD_REEXTRACTION_BUDGET;
 
   constructor(
     config: ExtractionConfig<T>,
@@ -383,25 +415,23 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       return priorityB - priorityA;
     });
 
-    // Batch critical fields (priority >= 8) separately from others
+    // The fields the document is unusable without go first, and get longer
+    const critical: string[] = [];
+    const other: string[] = [];
+
+    for (const field of sortedFields) {
+      const priority = this.config.fieldPriority[field] || 0;
+      (priority >= CRITICAL_FIELD_PRIORITY ? critical : other).push(field);
+    }
+
     const batches = [
-      {
-        label: "critical",
-        timeout: CRITICAL_FIELD_TIMEOUT,
-        fields: sortedFields.filter(
-          (field) => (this.config.fieldPriority[field] || 0) >= 8,
-        ),
-      },
-      {
-        label: "other",
-        timeout: OTHER_FIELD_TIMEOUT,
-        fields: sortedFields.filter(
-          (field) => (this.config.fieldPriority[field] || 0) < 8,
-        ),
-      },
+      { label: "critical", timeout: CRITICAL_FIELD_TIMEOUT, fields: critical },
+      { label: "other", timeout: OTHER_FIELD_TIMEOUT, fields: other },
     ];
 
     const reExtractedFields: Partial<z.infer<T>> = {};
+    const deadline = Date.now() + this.fieldReExtractionBudget;
+    const abandoned: string[] = [];
 
     for (const batch of batches) {
       if (batch.fields.length === 0) {
@@ -417,12 +447,21 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       const results = await mapWithConcurrency(
         batch.fields,
         MAX_PARALLEL_FIELD_REEXTRACTIONS,
-        (field) =>
-          this.reExtractField(documentUrl, field, {
+        (field) => {
+          // Two at a time takes longer in wall clock than all at once did, so
+          // the fields at the back of the queue are dropped rather than
+          // allowed to run the whole extraction past its caller's timeout.
+          if (Date.now() >= deadline) {
+            abandoned.push(field);
+            return Promise.resolve(null);
+          }
+
+          return this.reExtractField(documentUrl, field, {
             timeout: batch.timeout,
             companyName,
             format,
-          }),
+          });
+        },
       );
 
       for (const result of results) {
@@ -430,6 +469,13 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
           (reExtractedFields as any)[result.field] = result.value;
         }
       }
+    }
+
+    if (abandoned.length > 0) {
+      this.logger.warn("Out of time for the remaining field re-extractions", {
+        fields: abandoned,
+        budgetMs: this.fieldReExtractionBudget,
+      });
     }
 
     return reExtractedFields;
@@ -504,17 +550,19 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   }
 
   /**
-   * Whether the model read anything off the document, classification aside.
+   * Whether the model read anything off the document at all.
    *
-   * The classification and the language are what a model returns for a blank
-   * wall, so neither counts as content.
+   * Inferred and always-present fields do not count — see
+   * NOT_EVIDENCE_OF_CONTENT.
    */
   protected hasExtractedContent(result: z.infer<T>): boolean {
-    const ignored = new Set(["document_type", "language"]);
-
     return Object.entries(result as Record<string, unknown>).some(
       ([field, value]) => {
-        if (ignored.has(field) || value === null || value === undefined) {
+        if (
+          NOT_EVIDENCE_OF_CONTENT.has(field) ||
+          value === null ||
+          value === undefined
+        ) {
           return false;
         }
         if (Array.isArray(value)) {
@@ -638,13 +686,18 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       return { data: result, qualityScore };
     }
 
-    // A document the model itself classified as non-financial scores zero for
-    // the same reason it is finished: it has no amounts on it. Escalating from
-    // here spends a second whole pass plus one call per missing field
-    // re-reading a photo of something else, which is the most expensive path
-    // in the engine taken for the least useful input.
-    if (this.isClassifiedAsOther(result)) {
-      logger.info("Pass 1 classified the document as other, stopping", {
+    // A document the model itself classified as non-financial, and read
+    // nothing off, scores zero for the same reason it is finished: there is
+    // nothing on it. Escalating from here spends a second whole pass plus one
+    // call per missing field re-reading a photo of something else, which is
+    // the most expensive path in the engine taken for the least useful input.
+    //
+    // Both halves are required. The primary model is the smallest of the three
+    // and "other" is a judgement it can get wrong; when it says so but still
+    // read an amount or a vendor off the page, the later passes are what
+    // recover the rest, so they still run.
+    if (this.isClassifiedAsOther(result) && !this.hasExtractedContent(result)) {
+      logger.info("Pass 1 read nothing off a non-financial document", {
         pass: 1,
         score: qualityScore.score,
       });
@@ -714,14 +767,6 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       if (!this.isDataQualityPoor(result)) {
         return { data: result, qualityScore: mergedQualityScore };
       }
-
-      if (this.isClassifiedAsOther(result)) {
-        logger.info("Pass 2 classified the document as other, stopping", {
-          pass: 2,
-          score: mergedQualityScore.score,
-        });
-        return { data: result, qualityScore: mergedQualityScore };
-      }
     } catch (fallbackError) {
       logger.warn("Pass 2 fallback extraction failed", {
         error:
@@ -738,10 +783,7 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
     // Two passes, two models, and the result is still empty. Asking again one
     // field at a time is a request per missing field against the same empty
     // document, and the answer it is refining does not exist.
-    const worthReExtracting =
-      fieldsToReExtract.length > 0 && this.hasExtractedContent(result);
-
-    if (fieldsToReExtract.length > 0 && !worthReExtracting) {
+    if (fieldsToReExtract.length > 0 && !this.hasExtractedContent(result)) {
       logger.info(
         "Skipping Pass 3: two passes read nothing off this document",
         {
@@ -749,9 +791,7 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
           fields: fieldsToReExtract.length,
         },
       );
-    }
-
-    if (worthReExtracting) {
+    } else if (fieldsToReExtract.length > 0) {
       logger.info("Pass 3: Re-extracting specific fields", {
         pass: 3,
         fields: fieldsToReExtract,

@@ -10,7 +10,7 @@
 export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
-  fn: (item: T, index: number) => Promise<R>,
+  fn: (item: T) => Promise<R>,
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;
@@ -18,7 +18,7 @@ export async function mapWithConcurrency<T, R>(
   const worker = async (): Promise<void> => {
     while (next < items.length) {
       const index = next++;
-      results[index] = await fn(items[index] as T, index);
+      results[index] = await fn(items[index] as T);
     }
   };
 

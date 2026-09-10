@@ -43,6 +43,13 @@ class ScriptedReceiptProcessor extends ReceiptProcessor {
   passResponses: ReceiptData[] = [];
   fieldValues: Record<string, unknown> = {};
 
+  /** How long a single scripted field call takes. */
+  fieldCallDuration = 5;
+
+  limitPass3To(milliseconds: number) {
+    this.fieldReExtractionBudget = milliseconds;
+  }
+
   passCount = 0;
   fieldCalls: string[] = [];
   peakParallelFieldCalls = 0;
@@ -70,11 +77,42 @@ class ScriptedReceiptProcessor extends ReceiptProcessor {
       this.#fieldCallsInFlight,
     );
 
-    await sleep(5);
+    await sleep(this.fieldCallDuration);
     this.#fieldCallsInFlight -= 1;
 
     const value = this.fieldValues[field];
     return value === undefined ? null : { field, value };
+  }
+}
+
+/**
+ * The same engine with only the provider seam replaced, so the options the
+ * field batches pass down are the ones under test rather than stubbed over.
+ */
+class ProviderRecordingProcessor extends ReceiptProcessor {
+  passResponses: ReceiptData[] = [];
+  fieldResponse: ReceiptData = emptyReceipt();
+  providerCalls: Array<{
+    model: string;
+    options: { timeout?: number; retries?: number; retryDelay?: number };
+  }> = [];
+
+  protected override async extractWithProvider(
+    _documentUrl: string,
+    _prompt: string,
+    modelConfig: { provider: string; model: string },
+    options: {
+      timeout?: number;
+      retries?: number;
+      retryDelay?: number;
+    } = {},
+  ): Promise<ReceiptData> {
+    this.providerCalls.push({ model: modelConfig.model, options });
+
+    // The whole-document passes come first; everything after is Pass 3 asking
+    // for one field at a time.
+    const response = this.passResponses[this.providerCalls.length - 1];
+    return response ?? this.fieldResponse;
   }
 }
 
@@ -93,6 +131,19 @@ describe("extraction escalation", () => {
     expect(processor.passCount).toBe(1);
     expect(processor.fieldCalls).toEqual([]);
     expect(result.data.document_type).toBe("other");
+  });
+
+  test("keeps escalating when the first model says other but read an amount", async () => {
+    processor.passResponses = [
+      emptyReceipt({ document_type: "other", total_amount: 20 }),
+      emptyReceipt({ document_type: "other", total_amount: 20 }),
+    ];
+
+    await processor.extract("https://example.com/invoice.jpg");
+
+    // The smallest of the three models does not get to end the extraction on
+    // its own when it has read something off the page.
+    expect(processor.passCount).toBe(2);
   });
 
   test("stops before Pass 3 when two passes found nothing at all", async () => {
@@ -129,10 +180,56 @@ describe("extraction escalation", () => {
 
     await processor.extract("https://example.com/receipt.jpg");
 
-    expect(processor.peakParallelFieldCalls).toBeLessThanOrEqual(
+    // Three critical fields are queued, so an unbounded fan-out would show 3.
+    expect(processor.peakParallelFieldCalls).toBe(
       MAX_PARALLEL_FIELD_REEXTRACTIONS,
     );
-    expect(processor.peakParallelFieldCalls).toBeGreaterThan(0);
+  });
+
+  test("abandons the fields it runs out of time for", async () => {
+    processor.passResponses = [
+      emptyReceipt(),
+      emptyReceipt({ store_name: "Coffee Bar" }),
+    ];
+    // A budget shorter than one call: the first two start before it expires,
+    // and nothing after them does.
+    processor.fieldCallDuration = 50;
+    processor.limitPass3To(10);
+
+    const result = await processor.extract("https://example.com/receipt.jpg");
+
+    expect(processor.fieldCalls.length).toBe(MAX_PARALLEL_FIELD_REEXTRACTIONS);
+    // The extraction still returns what the earlier passes did find.
+    expect(result.data.store_name).toBe("Coffee Bar");
+  });
+
+  test("keeps each batch's own timeout and retry count", async () => {
+    const recorder = new ProviderRecordingProcessor();
+    recorder.passResponses = [
+      emptyReceipt(),
+      emptyReceipt({ store_name: "Coffee Bar" }),
+    ];
+
+    await recorder.extract("https://example.com/receipt.jpg");
+
+    // Two whole-document passes, then total_amount, currency, date (critical)
+    // and tax_amount (not).
+    const fieldCalls = recorder.providerCalls.slice(2);
+    expect(fieldCalls).toHaveLength(4);
+
+    for (const call of fieldCalls.slice(0, 3)) {
+      expect(call.options).toEqual({
+        timeout: 90_000,
+        retries: 1,
+        retryDelay: 1000,
+      });
+    }
+
+    expect(fieldCalls[3]?.options).toEqual({
+      timeout: 30_000,
+      retries: 1,
+      retryDelay: 1000,
+    });
   });
 
   test("merges what the field re-extractions recovered", async () => {
