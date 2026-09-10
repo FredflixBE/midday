@@ -145,6 +145,8 @@ export const processTransactionAttachment = schemaTask({
   schema: processTransactionAttachmentSchema,
   // OCR extraction, so it gets the same room as the other document work.
   maxDuration: 660,
+  // Downloads the attachment whole.
+  machine: "small-1x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: (payload, { ctx }) =>

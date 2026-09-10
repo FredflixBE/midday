@@ -263,6 +263,8 @@ export const importTransactions = schemaTask({
   // chunks and upserts in batches of 500, so it needs more than the queue's
   // 5 minute stall window allowed for.
   maxDuration: 900,
+  // The parsed CSV is held in full while its rows are mapped.
+  machine: "small-1x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: (payload, { ctx }) =>

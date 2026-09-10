@@ -539,6 +539,8 @@ export const processDocument = schemaTask({
   // Carried over from the documents queue's 11 minute lock. HEIC conversion and
   // parsing run here, and the run stays open across the classification wait.
   maxDuration: 660,
+  // Downloads the stored file whole before classifying it.
+  machine: "small-1x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: async (payload, { ctx }) => {

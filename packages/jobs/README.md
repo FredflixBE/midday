@@ -53,3 +53,29 @@ It registers every task and schedule against the Trigger.dev **dev**
 environment and stays attached, running each task locally as it is triggered.
 Leave it running while you use the API and dashboard, or nothing that dispatches
 a job will get one.
+
+## Machines
+
+Trigger.dev sizes V8's heap from the task's machine preset — `memory * 1024 *
+0.8`, in `@trigger.dev/core/v3/machines`. The default preset, `micro`, is
+0.25 GB, which leaves a **205 MiB** heap. This bundle's own module graph —
+the AI SDKs, the langchain loaders, sharp, unpdf, drizzle — is a large share of
+that before a task allocates anything of its own, so any task that holds a file
+or a model payload has to say what it needs:
+
+| Preset | Heap | Tasks |
+| --- | --- | --- |
+| `micro` (default) | 205 MiB | everything that only reads and writes rows |
+| `small-1x` | 410 MiB | one file in memory at a time |
+| `small-2x` | 819 MiB | multi-pass OCR; the transaction export |
+| `medium-1x` | 1638 MiB | the full team export |
+
+`trigger dev` applies the same limit as the cloud, so an undersized preset
+fails locally exactly as it would in production — as
+`TASK_PROCESS_OOM_KILLED`, with the V8 heap-limit trace in the run's logs.
+
+One thing that makes this easy to misread: `experimental_processKeepAlive` in
+`trigger.config.ts` reuses a worker process across runs, so a run starts
+holding whatever the previous one retained. A task sized too tightly therefore
+tends to succeed the first time and die on the second, quickly, rather than
+degrading gradually.

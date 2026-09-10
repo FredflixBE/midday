@@ -525,6 +525,10 @@ export const exportTeamData = schemaTask({
   // attachment before it zips anything. An hour is deliberately generous; it
   // is a rare, user-initiated job.
   maxDuration: 3600,
+  // Every attachment, invoice and document a team has, assembled into one
+  // in-memory ZIP before it is uploaded. Sized for the code as it stands,
+  // not as it should be.
+  machine: "medium-1x",
   queue: { concurrencyLimit: 1 },
   retry: { maxAttempts: 2, minTimeoutInMs: 5000, factor: 2 },
   run: (payload, { ctx }) =>
