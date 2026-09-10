@@ -147,8 +147,14 @@ export type EnrichmentMetrics = {
 };
 
 export type EnrichCustomerResult = {
-  raw: CustomerEnrichmentResult;
-  verified: VerifiedEnrichmentData;
+  /**
+   * Only the fields the run actually learned something about. A field that is
+   * absent means "we found out nothing"; a field that is null means "the
+   * provider says this company has none". The database writer skips the
+   * former and writes the latter, so the two must never be conflated.
+   */
+  raw: Partial<CustomerEnrichmentResult>;
+  verified: Partial<VerifiedEnrichmentData>;
   verifiedFieldCount: number;
   metrics: EnrichmentMetrics;
 };

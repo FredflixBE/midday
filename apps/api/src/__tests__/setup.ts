@@ -188,6 +188,7 @@ export const mocks = {
   getCustomerInvoiceSummary: mock(() =>
     Promise.resolve({ total: 0, paid: 0, overdue: 0 }),
   ) as MockFn,
+  updateCustomerEnrichmentStatus: mock(() => ({})) as MockFn,
   toggleCustomerPortal: mock(() =>
     Promise.resolve({
       id: "a1b2c3d4-e5f6-4789-a012-345678901234",
@@ -850,7 +851,7 @@ const dbQueriesMock = new Proxy(
     upsertCustomer: mocks.upsertCustomer,
     getCustomerInvoiceSummary: mocks.getCustomerInvoiceSummary,
     clearCustomerEnrichment: mock(() => ({})),
-    updateCustomerEnrichmentStatus: mock(() => ({})),
+    updateCustomerEnrichmentStatus: mocks.updateCustomerEnrichmentStatus,
     toggleCustomerPortal: mocks.toggleCustomerPortal,
     getCustomerByPortalId: mocks.getCustomerByPortalId,
     getCustomerPortalInvoices: mocks.getCustomerPortalInvoices,

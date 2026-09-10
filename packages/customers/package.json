@@ -11,6 +11,7 @@
     "clean": "rm -rf .turbo node_modules",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "test": "bun test --exit src",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "@midday/tsconfig": "workspace:*",
+    "@types/bun": "latest",
     "@types/node": "^25.5.0",
     "typescript": "catalog:"
   }

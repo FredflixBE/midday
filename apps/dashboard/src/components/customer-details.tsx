@@ -43,6 +43,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CopyInput } from "@/components/copy-input";
 import { OpenURL } from "@/components/open-url";
 import { useCustomerParams } from "@/hooks/use-customer-params";
+import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useUserQuery } from "@/hooks/use-user";
@@ -98,6 +99,7 @@ export function CustomerDetails() {
   const { data: user } = useUserQuery();
   const { customerId, setParams } = useCustomerParams();
   const { setParams: setInvoiceParams } = useInvoiceParams();
+  const { enrichment: enrichmentAvailable } = useFeatureAvailability();
   const { toast } = useToast();
   const dropdownContainerRef = useRef<HTMLDivElement>(null!);
 
@@ -321,6 +323,13 @@ export function CustomerDetails() {
     customer?.employeeCount ||
     customer?.fundingStage;
 
+  // Enrichment needs a provider key this deployment may not have. Clearing
+  // data does not, and is the only way to undo an enrichment, so it stays.
+  const canEnrich = enrichmentAvailable && !isEnriching;
+  const showActionsMenu =
+    Boolean(customer.website) &&
+    (canEnrich || isEnriching || Boolean(hasEnrichmentData));
+
   return (
     <div className="h-full flex flex-col min-h-0 -mx-6">
       {/* Content */}
@@ -356,7 +365,7 @@ export function CustomerDetails() {
           </div>
 
           {/* Actions menu */}
-          {customer.website && (
+          {showActionsMenu && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8">
@@ -364,12 +373,13 @@ export function CustomerDetails() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {isEnriching ? (
+                {isEnriching && (
                   <DropdownMenuItem onClick={handleCancelEnrich}>
                     <Icons.Close className="size-4 mr-2" />
                     Cancel enrichment
                   </DropdownMenuItem>
-                ) : (
+                )}
+                {canEnrich && (
                   <DropdownMenuItem onClick={handleStartEnrich}>
                     <Icons.RefreshOutline className="size-4 mr-2" />
                     {hasEnrichmentData ? "Refresh data" : "Enrich company"}

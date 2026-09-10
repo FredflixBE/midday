@@ -29,6 +29,8 @@ export function getFeatureAvailability(): FeatureAvailability {
     assistant: hasAll("OPENAI_API_KEY"),
     // Matches isComposioConfigured() in @api/composio/client.
     connectors: hasAll("COMPOSIO_API_KEY"),
+    // Matches isCompanyEnrichConfigured() in @midday/customers, which is what
+    // the enrichment job checks before it stamps a status.
     enrichment: hasAll("COMPANY_ENRICH_API_KEY"),
     fortnox: hasAll("FORTNOX_CLIENT_ID", "FORTNOX_CLIENT_SECRET"),
     insights: process.env.INSIGHTS_ENABLED === "true",

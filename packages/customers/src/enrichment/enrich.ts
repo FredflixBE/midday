@@ -72,7 +72,7 @@ export async function enrichCustomer(
       signal: combinedSignal,
     });
 
-    const verifiedFieldCount = countNonNull(verified);
+    const verifiedFieldCount = countPresentFields(verified);
     const durationMs = Date.now() - startTime;
 
     logger.info("Enrichment complete", {
@@ -170,66 +170,23 @@ function domainsMatch(a: string, b: string): boolean {
   return normalize(a) === normalize(b);
 }
 
-function countNonNull(data: VerifiedEnrichmentData): number {
-  return Object.values(data).filter((v) => v !== null).length;
+function countPresentFields(data: Partial<VerifiedEnrichmentData>): number {
+  return Object.values(data).filter((v) => v !== null && v !== undefined)
+    .length;
 }
 
+/**
+ * A run that learned nothing.
+ *
+ * Every field is absent, not null. The database writer copies across anything
+ * that is not undefined, so a null here reads as "the provider confirmed this
+ * company has no description" and overwrites whatever a human typed. Absent
+ * is the only honest way to say we found out nothing.
+ */
 function emptyResult(durationMs = 0): EnrichCustomerResult {
   return {
-    raw: {
-      description: null,
-      industry: null,
-      companyType: null,
-      employeeCount: null,
-      foundedYear: null,
-      estimatedRevenue: null,
-      fundingStage: null,
-      totalFunding: null,
-      headquartersLocation: null,
-      addressLine1: null,
-      city: null,
-      state: null,
-      zipCode: null,
-      country: null,
-      timezone: null,
-      linkedinUrl: null,
-      twitterUrl: null,
-      instagramUrl: null,
-      facebookUrl: null,
-      ceoName: null,
-      financeContact: null,
-      financeContactEmail: null,
-      primaryLanguage: null,
-      fiscalYearEnd: null,
-      vatNumber: null,
-    },
-    verified: {
-      description: null,
-      industry: null,
-      companyType: null,
-      employeeCount: null,
-      foundedYear: null,
-      estimatedRevenue: null,
-      fundingStage: null,
-      totalFunding: null,
-      headquartersLocation: null,
-      addressLine1: null,
-      city: null,
-      state: null,
-      zipCode: null,
-      country: null,
-      timezone: null,
-      linkedinUrl: null,
-      twitterUrl: null,
-      instagramUrl: null,
-      facebookUrl: null,
-      ceoName: null,
-      financeContact: null,
-      financeContactEmail: null,
-      primaryLanguage: null,
-      fiscalYearEnd: null,
-      vatNumber: null,
-    },
+    raw: {},
+    verified: {},
     verifiedFieldCount: 0,
     metrics: {
       durationMs,

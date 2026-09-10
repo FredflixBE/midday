@@ -15,6 +15,7 @@ import {
 import { VirtualRow } from "@/components/tables/core";
 import { useCustomerFilterParams } from "@/hooks/use-customer-filter-params";
 import { useCustomerParams } from "@/hooks/use-customer-params";
+import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useScrollHeader } from "@/hooks/use-scroll-header";
@@ -91,6 +92,8 @@ export function DataTable({ initialSettings }: Props) {
     }),
   );
 
+  const { enrichment: enrichmentAvailable } = useFeatureAvailability();
+
   const enrichCustomerMutation = useMutation(
     trpc.customers.enrich.mutationOptions({
       onSuccess: () => {
@@ -128,12 +131,14 @@ export function DataTable({ initialSettings }: Props) {
     [setParams],
   );
 
+  // No provider key, no enrich action: leaving it out of the meta is what
+  // stops the row menu drawing an item whose route would only refuse.
   const tableMeta = useMemo(
     () => ({
       deleteCustomer: handleDeleteCustomer,
-      enrichCustomer: handleEnrichCustomer,
+      enrichCustomer: enrichmentAvailable ? handleEnrichCustomer : undefined,
     }),
-    [handleDeleteCustomer, handleEnrichCustomer],
+    [handleDeleteCustomer, handleEnrichCustomer, enrichmentAvailable],
   );
 
   const table = useReactTable({

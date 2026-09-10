@@ -56,6 +56,17 @@ export type LookupResult = {
 };
 
 /**
+ * Whether this deployment can reach CompanyEnrich at all.
+ *
+ * Without the key every lookup returns null, so callers that would otherwise
+ * queue a job, stamp a status or draw a button should ask first rather than
+ * run an enrichment that can only come back empty.
+ */
+export function isCompanyEnrichConfigured(): boolean {
+  return Boolean(process.env.COMPANY_ENRICH_API_KEY);
+}
+
+/**
  * Look up a company, trying domain-first (deterministic) then name (best-match).
  * Domain lookup is the preferred method per CompanyEnrich docs — each domain maps
  * to a unique company, so there's zero ambiguity.
@@ -65,6 +76,8 @@ export async function lookupCompany(
   domain: string | null,
   options?: { signal?: AbortSignal },
 ): Promise<LookupResult | null> {
+  // Read rather than calling isCompanyEnrichConfigured(), so the key below is
+  // narrowed to a string by the same check that decides whether to go on.
   const apiKey = process.env.COMPANY_ENRICH_API_KEY;
   if (!apiKey) {
     logger.warn("COMPANY_ENRICH_API_KEY not set, skipping enrichment");

@@ -14,6 +14,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "@api/trpc/init";
+import { getFeatureAvailability } from "@api/utils/availability";
 import {
   clearCustomerEnrichment,
   deleteCustomer,
@@ -72,8 +73,11 @@ export const customersRouter = createTRPCRouter({
         userId: session.user.id,
       });
 
-      // Auto-trigger enrichment for new customers with a website or email
+      // Auto-trigger enrichment for new customers with a website or email.
+      // Without a provider key the run can only come back empty, so creating a
+      // customer would stamp an enrichment status it never earns.
       if (
+        getFeatureAvailability().enrichment &&
         isNewCustomer &&
         (customer?.website || customer?.email) &&
         customer?.id
@@ -117,6 +121,15 @@ export const customersRouter = createTRPCRouter({
   enrich: protectedProcedure
     .input(enrichCustomerSchema)
     .mutation(async ({ ctx: { db, teamId }, input }) => {
+      // The same flag the dashboard reads before it draws the action, so a
+      // client that asks anyway is refused rather than served an empty run.
+      if (!getFeatureAvailability().enrichment) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Customer enrichment is not configured on this instance",
+        });
+      }
+
       const customer = await getCustomerById(db, {
         id: input.id,
         teamId: teamId!,

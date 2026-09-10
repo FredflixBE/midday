@@ -1,3 +1,4 @@
+export { isCompanyEnrichConfigured } from "./company-enrich";
 export { enrichCustomer } from "./enrich";
 
 export {
