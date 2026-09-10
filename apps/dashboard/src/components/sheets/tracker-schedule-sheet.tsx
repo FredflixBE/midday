@@ -1,6 +1,6 @@
 "use client";
 
-import { Sheet, SheetContent } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { useTrackerParams } from "@/hooks/use-tracker-params";
 import { TrackerSchedule } from "../tracker-schedule";
 
@@ -29,6 +29,8 @@ export function TrackerScheduleSheet() {
       }
     >
       <SheetContent>
+        <SheetTitle className="sr-only">Tracker schedule</SheetTitle>
+
         <TrackerSchedule />
       </SheetContent>
     </Sheet>

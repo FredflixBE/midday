@@ -13,7 +13,7 @@ import { Button } from "@midday/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@midday/ui/card";
 import { Icons } from "@midday/ui/icons";
 import { ScrollArea } from "@midday/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { Skeleton } from "@midday/ui/skeleton";
 import { SubmitButton } from "@midday/ui/submit-button";
 import { useToast } from "@midday/ui/use-toast";
@@ -543,6 +543,8 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
         </div>
 
         <SheetContent>
+          <SheetTitle className="sr-only">{app.name}</SheetTitle>
+
           <SheetHeader className="h-full overflow-hidden">
             <div className="mb-4 shrink-0">
               <AppHeroBanner app={app} />

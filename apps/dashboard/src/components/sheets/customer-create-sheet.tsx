@@ -2,7 +2,7 @@
 
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { useCustomerParams } from "@/hooks/use-customer-params";
 import { CustomerForm } from "../forms/customer-form";
 
@@ -15,7 +15,9 @@ export function CustomerCreateSheet() {
     <Sheet open={isOpen} onOpenChange={() => setParams(null)}>
       <SheetContent stack>
         <SheetHeader className="mb-6 flex justify-between items-center flex-row">
-          <h2 className="text-xl">Create Customer</h2>
+          <SheetTitle className="text-xl font-normal">
+            Create Customer
+          </SheetTitle>
           <Button
             size="icon"
             variant="ghost"

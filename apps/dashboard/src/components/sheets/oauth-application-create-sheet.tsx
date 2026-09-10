@@ -3,7 +3,7 @@
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
 import { ScrollArea } from "@midday/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { OAuthApplicationForm } from "@/components/forms/oauth-application-form";
 import { useOAuthApplicationParams } from "@/hooks/use-oauth-application-params";
 
@@ -16,7 +16,9 @@ export function OAuthApplicationCreateSheet() {
     <Sheet open={isOpen} onOpenChange={() => setParams(null)}>
       <SheetContent stack>
         <SheetHeader className="mb-6 flex justify-between items-center flex-row">
-          <h2 className="text-xl">Create OAuth Application</h2>
+          <SheetTitle className="text-xl font-normal">
+            Create OAuth Application
+          </SheetTitle>
           <Button
             size="icon"
             variant="ghost"

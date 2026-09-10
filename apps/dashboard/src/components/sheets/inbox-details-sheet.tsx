@@ -1,6 +1,6 @@
 "use client";
 
-import { Sheet, SheetContent } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { InboxSheetDetails } from "@/components/inbox-sheet-details";
 import { useInboxParams } from "@/hooks/use-inbox-params";
 
@@ -15,6 +15,8 @@ export function InboxDetailsSheet() {
       onOpenChange={() => setParams({ inboxType: null, inboxId: null })}
     >
       <SheetContent style={{ maxWidth: 647 }}>
+        <SheetTitle className="sr-only">Inbox item details</SheetTitle>
+
         <InboxSheetDetails />
       </SheetContent>
     </Sheet>

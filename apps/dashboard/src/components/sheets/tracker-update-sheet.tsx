@@ -19,7 +19,7 @@ import {
 } from "@midday/ui/dropdown-menu";
 import { Icons } from "@midday/ui/icons";
 import { ScrollArea } from "@midday/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TrackerProjectForm } from "@/components/forms/tracker-project-form";
 import { useLatestProjectId } from "@/hooks/use-latest-project-id";
@@ -82,7 +82,9 @@ export function TrackerUpdateSheet() {
       >
         <SheetContent>
           <SheetHeader className="mb-8 flex justify-between items-center flex-row">
-            <h2 className="text-xl">Edit Project</h2>
+            <SheetTitle className="text-xl font-normal">
+              Edit Project
+            </SheetTitle>
 
             <DropdownMenu>
               <DropdownMenuTrigger>

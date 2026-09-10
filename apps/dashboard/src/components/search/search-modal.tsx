@@ -1,6 +1,6 @@
 "use client";
 
-import { Dialog, DialogContent } from "@midday/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@midday/ui/dialog";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useSearchStore } from "@/store/search";
 import { Search } from "./search";
@@ -19,6 +19,8 @@ export function SearchModal() {
         className="overflow-hidden p-0 max-w-full w-full md:max-w-[740px] h-[535px] m-0 select-text bg-transparent border-none"
         hideClose
       >
+        <DialogTitle className="sr-only">Search</DialogTitle>
+
         {isOpen && (
           <>
             <Search />

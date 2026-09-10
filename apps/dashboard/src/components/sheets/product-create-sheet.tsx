@@ -2,7 +2,7 @@
 
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { useProductParams } from "@/hooks/use-product-params";
 import { useTeamQuery } from "@/hooks/use-team";
 import { ProductForm } from "../forms/product-form";
@@ -18,7 +18,9 @@ export function ProductCreateSheet() {
     <Sheet open={isOpen} onOpenChange={() => setParams(null)}>
       <SheetContent>
         <SheetHeader className="mb-6 flex justify-between items-center flex-row">
-          <h2 className="text-xl">Create Product</h2>
+          <SheetTitle className="text-xl font-normal">
+            Create Product
+          </SheetTitle>
           <Button
             size="icon"
             variant="ghost"

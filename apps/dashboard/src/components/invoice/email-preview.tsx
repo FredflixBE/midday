@@ -8,7 +8,7 @@ import {
 } from "@midday/email/defaults";
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
-import { Sheet, SheetContent } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { getEmailUrl } from "@midday/utils/envs";
 import { format } from "date-fns";
 import { useCallback, useEffect, useRef } from "react";
@@ -212,6 +212,8 @@ export function EmailPreview() {
         style={{ maxWidth: 580 }}
         className="bg-white dark:bg-[#080808] p-0"
       >
+        <SheetTitle className="sr-only">Email preview</SheetTitle>
+
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <span className="text-sm font-medium">Email Preview</span>

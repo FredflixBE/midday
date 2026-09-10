@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@midday/ui/select";
-import { Sheet, SheetContent } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { SubmitButton } from "@midday/ui/submit-button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, getDate, getDay } from "date-fns";
@@ -287,6 +287,8 @@ export function EditRecurringSheet() {
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <SheetContent stack>
+        <SheetTitle className="sr-only">Edit recurring settings</SheetTitle>
+
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <span className="text-muted-foreground">Loading...</span>

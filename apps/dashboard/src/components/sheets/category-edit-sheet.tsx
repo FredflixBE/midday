@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@midday/ui/dropdown-menu";
 import { Icons } from "@midday/ui/icons";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCategoryParams } from "@/hooks/use-category-params";
 import { useTRPC } from "@/trpc/client";
@@ -66,7 +66,7 @@ export function CategoryEditSheet() {
     <Sheet open={isOpen} onOpenChange={() => setParams(null)}>
       <SheetContent>
         <SheetHeader className="mb-6 flex justify-between items-center flex-row">
-          <h2 className="text-xl">Edit Category</h2>
+          <SheetTitle className="text-xl font-normal">Edit Category</SheetTitle>
 
           {categoryId && (
             <DropdownMenu>

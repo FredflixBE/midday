@@ -8,7 +8,7 @@ import {
 } from "@midday/ui/dropdown-menu";
 import { Icons } from "@midday/ui/icons";
 import { ScrollArea } from "@midday/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { useToast } from "@midday/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -52,7 +52,9 @@ export function OAuthApplicationEditSheet() {
     <Sheet open={isOpen} onOpenChange={() => setParams(null)}>
       <SheetContent stack>
         <SheetHeader className="mb-6 flex justify-between items-center flex-row">
-          <h2 className="text-xl">Edit OAuth Application</h2>
+          <SheetTitle className="text-xl font-normal">
+            Edit OAuth Application
+          </SheetTitle>
 
           <div className="flex items-center gap-2">
             {application?.status && (
