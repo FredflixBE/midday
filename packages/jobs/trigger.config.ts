@@ -1,7 +1,11 @@
 import { defineConfig } from "@trigger.dev/sdk";
 
 export default defineConfig({
-  project: process.env.TRIGGER_PROJECT_ID!,
+  // The project ref, literally, the way `trigger init` writes it. It is an
+  // identifier rather than a credential — an access token is what grants
+  // anything — and keeping it here means the CLI can read it, which it cannot
+  // do from .env: it evaluates this file before it loads one.
+  project: "proj_sgmczlmqfzditzydebar",
   runtime: "node",
   logLevel: "log",
   maxDuration: 60,
