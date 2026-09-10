@@ -2,7 +2,7 @@
 
 import { createClient } from "@midday/supabase/client";
 import { Button } from "@midday/ui/button";
-import { Dialog, DialogContent } from "@midday/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@midday/ui/dialog";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@midday/ui/input-otp";
 import { Spinner } from "@midday/ui/spinner";
 import Image from "next/image";
@@ -88,6 +88,8 @@ export function AddNewDeviceModal() {
           evt.preventDefault();
         }}
       >
+        <DialogTitle className="sr-only">Add new device</DialogTitle>
+
         <div className="p-6">
           <div className="flex items-center justify-center mt-8">
             <div className="w-[190px] h-[190px] bg-white rounded-md">

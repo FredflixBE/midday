@@ -8,7 +8,7 @@ import {
   AccordionTrigger,
 } from "@midday/ui/accordion";
 import { ScrollArea } from "@midday/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { parseAsString, useQueryStates } from "nuqs";
 import { useMemo } from "react";
 import { MemoizedReactMarkdown } from "@/components/markdown";
@@ -71,6 +71,8 @@ export function AppDetailSheet() {
   return (
     <Sheet open={!!appId} onOpenChange={() => setParams({ "mcp-app": null })}>
       <SheetContent>
+        <SheetTitle className="sr-only">{app.name}</SheetTitle>
+
         <SheetHeader>
           <div className="mb-4">
             <AppHeroBanner app={app} />

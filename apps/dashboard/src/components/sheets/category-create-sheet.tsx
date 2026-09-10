@@ -2,7 +2,7 @@
 
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { useCategoryParams } from "@/hooks/use-category-params";
 import { CategoryForm } from "../forms/category-form";
 
@@ -15,7 +15,9 @@ export function CategoryCreateSheet() {
     <Sheet open={isOpen} onOpenChange={() => setParams(null)}>
       <SheetContent>
         <SheetHeader className="mb-6 flex justify-between items-center flex-row">
-          <h2 className="text-xl">Create Category</h2>
+          <SheetTitle className="text-xl font-normal">
+            Create Category
+          </SheetTitle>
           <Button
             size="icon"
             variant="ghost"

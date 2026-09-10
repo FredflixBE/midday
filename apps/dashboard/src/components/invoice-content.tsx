@@ -1,6 +1,6 @@
 "use client";
 
-import { SheetContent } from "@midday/ui/sheet";
+import { SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { useFormContext } from "react-hook-form";
 import { Form } from "@/components/invoice/form";
 import { InvoiceSuccess } from "@/components/invoice-success";
@@ -16,6 +16,8 @@ export function InvoiceContent() {
   if (invoiceType === "success") {
     return (
       <SheetContent className="bg-white dark:bg-[#080808] transition-[max-width] duration-300 ease-in-out">
+        <SheetTitle className="sr-only">Invoice sent</SheetTitle>
+
         <InvoiceSuccess />
       </SheetContent>
     );
@@ -26,6 +28,8 @@ export function InvoiceContent() {
       style={{ maxWidth: size }}
       className="bg-white dark:bg-[#080808] transition-[max-width] duration-300 ease-in-out p-0"
     >
+      <SheetTitle className="sr-only">Invoice</SheetTitle>
+
       <Form />
     </SheetContent>
   );

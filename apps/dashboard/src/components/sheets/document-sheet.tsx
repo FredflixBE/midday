@@ -1,6 +1,6 @@
 "use client";
 
-import { Sheet, SheetContent } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { DocumentDetails } from "@/components/document-details";
 import { useDocumentParams } from "@/hooks/use-document-params";
 
@@ -15,6 +15,8 @@ export function DocumentSheet() {
       onOpenChange={() => setParams({ documentId: null, filePath: null })}
     >
       <SheetContent style={{ maxWidth: 647 }}>
+        <SheetTitle className="sr-only">Document details</SheetTitle>
+
         <DocumentDetails />
       </SheetContent>
     </Sheet>

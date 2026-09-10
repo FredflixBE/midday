@@ -56,33 +56,27 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(
-  (
-    { side = "right", stack = false, className, children, title, ...props },
-    ref,
-  ) => (
-    <SheetPortal>
-      <SheetOverlay />
-      <SheetPrimitive.Content
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        ref={ref}
-        className={cn("md:p-4", sheetVariants({ side }))}
-        aria-describedby={props["aria-describedby"] || undefined}
-        {...props}
+>(({ side = "right", stack = false, className, children, ...props }, ref) => (
+  <SheetPortal>
+    <SheetOverlay />
+    <SheetPrimitive.Content
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      ref={ref}
+      className={cn("md:p-4", sheetVariants({ side }))}
+      aria-describedby={props["aria-describedby"] || undefined}
+      {...props}
+    >
+      <div
+        className={cn(
+          "border w-full h-full bg-[#FAFAF9] dark:bg-[#0C0C0C] p-6 relative overflow-hidden",
+          className,
+        )}
       >
-        <div
-          className={cn(
-            "border w-full h-full bg-[#FAFAF9] dark:bg-[#0C0C0C] p-6 relative overflow-hidden",
-            className,
-          )}
-        >
-          <SheetTitle className="sr-only">{title}</SheetTitle>
-          {children}
-        </div>
-      </SheetPrimitive.Content>
-    </SheetPortal>
-  ),
-);
+        {children}
+      </div>
+    </SheetPrimitive.Content>
+  </SheetPortal>
+));
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 const SheetHeader = ({

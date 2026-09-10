@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@midday/ui/dropdown-menu";
 import { Icons } from "@midday/ui/icons";
-import { Sheet, SheetContent, SheetHeader } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@midday/ui/sheet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCustomerParams } from "@/hooks/use-customer-params";
 import { useTRPC } from "@/trpc/client";
@@ -65,7 +65,7 @@ export function CustomerEditSheet() {
     <Sheet open={isOpen} onOpenChange={() => setParams(null)}>
       <SheetContent stack>
         <SheetHeader className="mb-6 flex justify-between items-center flex-row">
-          <h2 className="text-xl">Edit Customer</h2>
+          <SheetTitle className="text-xl font-normal">Edit Customer</SheetTitle>
 
           {customerId && (
             <DropdownMenu>

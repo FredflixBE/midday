@@ -2,7 +2,7 @@
 
 import { Button } from "@midday/ui/button";
 import { Icons } from "@midday/ui/icons";
-import { Sheet, SheetContent } from "@midday/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { useState } from "react";
 import { MainMenu } from "./main-menu";
 
@@ -22,6 +22,8 @@ export function MobileMenu() {
         </Button>
       </div>
       <SheetContent side="left" className="border-none rounded-none -ml-4">
+        <SheetTitle className="sr-only">Menu</SheetTitle>
+
         <div className="ml-2 mb-8">
           <Icons.LogoSmall />
         </div>

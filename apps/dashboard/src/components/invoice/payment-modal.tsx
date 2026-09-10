@@ -3,7 +3,7 @@
 import { fromStripeAmount } from "@midday/invoice/currency";
 import { Button } from "@midday/ui/button";
 import { cn } from "@midday/ui/cn";
-import { Drawer, DrawerContent } from "@midday/ui/drawer";
+import { Drawer, DrawerContent, DrawerTitle } from "@midday/ui/drawer";
 import { useMediaQuery } from "@midday/ui/hooks";
 import { Icons } from "@midday/ui/icons";
 import { Skeleton } from "@midday/ui/skeleton";
@@ -548,6 +548,8 @@ export function PaymentModal({
     return (
       <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent className="flex flex-col max-h-[90vh]">
+          <DrawerTitle className="sr-only">Pay invoice</DrawerTitle>
+
           <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
             <PaymentContent isMobile />
           </div>
