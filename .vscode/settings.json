@@ -1,7 +1,10 @@
 {
-  // `auto` reads the root `packageManager` field, cannot parse
-  // "bun@1.3.11", and falls back to yarn — so every script in the NPM
-  // Scripts pane fails. Naming bun explicitly skips that detection.
+  // Both default to `auto`, whose detection lands on yarn here even though
+  // bun.lock is the only lockfile — and `yarn` on this machine is a corepack
+  // shim that refuses outright, because packageManager says bun. Naming bun
+  // skips the detection. `scriptRunner` is the one that builds the task
+  // command for the NPM Scripts pane; `packageManager` covers the rest.
+  "npm.scriptRunner": "bun",
   "npm.packageManager": "bun",
   "editor.defaultFormatter": "biomejs.biome",
   "editor.formatOnSave": true,
