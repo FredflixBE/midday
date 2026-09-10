@@ -72,7 +72,7 @@ export async function enrichCustomer(
       signal: combinedSignal,
     });
 
-    const verifiedFieldCount = countNonNull(verified);
+    const verifiedFieldCount = countPresentFields(verified);
     const durationMs = Date.now() - startTime;
 
     logger.info("Enrichment complete", {
@@ -170,7 +170,7 @@ function domainsMatch(a: string, b: string): boolean {
   return normalize(a) === normalize(b);
 }
 
-function countNonNull(data: Partial<VerifiedEnrichmentData>): number {
+function countPresentFields(data: Partial<VerifiedEnrichmentData>): number {
   return Object.values(data).filter((v) => v !== null && v !== undefined)
     .length;
 }

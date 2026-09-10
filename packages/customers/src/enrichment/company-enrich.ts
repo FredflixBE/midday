@@ -76,8 +76,10 @@ export async function lookupCompany(
   domain: string | null,
   options?: { signal?: AbortSignal },
 ): Promise<LookupResult | null> {
+  // Read rather than calling isCompanyEnrichConfigured(), so the key below is
+  // narrowed to a string by the same check that decides whether to go on.
   const apiKey = process.env.COMPANY_ENRICH_API_KEY;
-  if (!isCompanyEnrichConfigured()) {
+  if (!apiKey) {
     logger.warn("COMPANY_ENRICH_API_KEY not set, skipping enrichment");
     return null;
   }
