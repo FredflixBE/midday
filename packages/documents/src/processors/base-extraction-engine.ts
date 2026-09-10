@@ -9,6 +9,7 @@ import type {
 } from "../config/extraction-config";
 import type { PromptComponents } from "../prompts/factory";
 import { createFieldSpecificPrompt } from "../prompts/field-specific";
+import { mapWithConcurrency } from "../utils/concurrency";
 import type { DocumentFormat } from "../utils/format-detection";
 import { extractTextFromPdf } from "../utils/pdf-text-extract";
 import { retryCall } from "../utils/retry";
@@ -20,6 +21,53 @@ const google = createGoogleGenerativeAI({
 const mistral = createMistral({
   apiKey: process.env.MISTRAL_API_KEY!,
 });
+
+/**
+ * How many single-field re-extractions may be in the air at once.
+ *
+ * Each one is a whole extraction: a request carrying the document, a response
+ * to parse, and — if it throws — a stack to resolve against the worker's
+ * source map. FF-1487 measured one such lookup at 133 MB on the current
+ * bundle, against an 819 MiB machine already holding a ~130 MB baseline. Two
+ * at once is about 266 MB and fits; the four the old fan-out could start is
+ * about 530 MB and does not.
+ */
+export const MAX_PARALLEL_FIELD_REEXTRACTIONS = 2;
+
+/**
+ * How long all of Pass 3 may spend before it stops starting calls.
+ *
+ * Bounding parallelism must not trade a memory problem for a timeout: an
+ * invoice has five critical fields, which used to be one round of 90s plus a
+ * retry, and two at a time makes it three. This keeps the whole pass inside
+ * roughly what one round of each batch used to cost (181s + 61s), and a call
+ * already in flight when the budget runs out still finishes — so the worst
+ * case is that plus one more call, well inside the caller's 600s ceiling.
+ */
+const FIELD_REEXTRACTION_BUDGET = 240_000;
+
+/** Per-call timeout when re-extracting a field the document needs to be usable. */
+const CRITICAL_FIELD_TIMEOUT = 90_000;
+
+/** Per-call timeout when re-extracting a field that only adds detail. */
+const OTHER_FIELD_TIMEOUT = 30_000;
+
+/** Above this, a field is one the document is not usable without. */
+const CRITICAL_FIELD_PRIORITY = 8;
+
+/**
+ * Fields whose presence is not evidence that anything was read.
+ *
+ * The classification and the language are what a model answers for a blank
+ * wall, and the schema asks for `tax_type` and `website` to be *inferred* —
+ * from the country, or from a name — rather than read off the document.
+ */
+const NOT_EVIDENCE_OF_CONTENT = new Set([
+  "document_type",
+  "language",
+  "tax_type",
+  "website",
+]);
 
 /**
  * Check if an error is a rate limit error
@@ -60,6 +108,8 @@ export interface ExtractionOptions {
 export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   protected config: ExtractionConfig<T>;
   protected logger: ReturnType<typeof createLoggerWithContext>;
+  /** A field, so a test can watch the budget run out without waiting for it. */
+  protected fieldReExtractionBudget = FIELD_REEXTRACTION_BUDGET;
 
   constructor(
     config: ExtractionConfig<T>,
@@ -82,6 +132,11 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
     documentUrl: string,
     prompt: string,
     modelConfig: ModelConfig,
+    options: {
+      timeout?: number;
+      retries?: number;
+      retryDelay?: number;
+    } = {},
   ): Promise<z.infer<T>> {
     const contentField =
       this.config.contentType === "file"
@@ -116,7 +171,9 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
           model,
           schema: this.config.schema,
           temperature: 0.1,
-          abortSignal: AbortSignal.timeout(this.config.timeout),
+          abortSignal: AbortSignal.timeout(
+            options.timeout ?? this.config.timeout,
+          ),
           messages: [
             {
               role: "system",
@@ -129,8 +186,8 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
           ],
           ...(providerOptions && { providerOptions }),
         }),
-      this.config.retries,
-      2000, // Start with 2s delay
+      options.retries ?? this.config.retries,
+      options.retryDelay ?? 2000, // Start with 2s delay
     );
 
     return result.object as z.infer<T>;
@@ -336,7 +393,10 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   }
 
   /**
-   * Re-extract specific fields in parallel (batched by priority)
+   * Re-extract specific fields, a bounded number of calls at a time.
+   *
+   * Still batched by priority, so the fields that decide whether the document
+   * is usable at all are asked for before the ones that only add detail.
    */
   protected async reExtractFields(
     documentUrl: string,
@@ -355,192 +415,165 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       return priorityB - priorityA;
     });
 
-    // Batch critical fields (priority >= 8) separately from others
-    const criticalFields = sortedFields.filter(
-      (f) => (this.config.fieldPriority[f] || 0) >= 8,
-    );
-    const otherFields = sortedFields.filter(
-      (f) => (this.config.fieldPriority[f] || 0) < 8,
-    );
+    // The fields the document is unusable without go first, and get longer
+    const critical: string[] = [];
+    const other: string[] = [];
+
+    for (const field of sortedFields) {
+      const priority = this.config.fieldPriority[field] || 0;
+      (priority >= CRITICAL_FIELD_PRIORITY ? critical : other).push(field);
+    }
+
+    const batches = [
+      { label: "critical", timeout: CRITICAL_FIELD_TIMEOUT, fields: critical },
+      { label: "other", timeout: OTHER_FIELD_TIMEOUT, fields: other },
+    ];
 
     const reExtractedFields: Partial<z.infer<T>> = {};
+    const deadline = Date.now() + this.fieldReExtractionBudget;
+    const abandoned: string[] = [];
 
-    // Extract critical fields first (in parallel)
-    if (criticalFields.length > 0) {
-      this.logger.info("Re-extracting critical fields in parallel", {
-        fields: criticalFields,
-        count: criticalFields.length,
+    for (const batch of batches) {
+      if (batch.fields.length === 0) {
+        continue;
+      }
+
+      this.logger.info(`Re-extracting ${batch.label} fields`, {
+        fields: batch.fields,
+        count: batch.fields.length,
+        maxParallel: MAX_PARALLEL_FIELD_REEXTRACTIONS,
       });
 
-      const criticalResults = await Promise.allSettled(
-        criticalFields.map(async (field) => {
-          try {
-            // Use format-aware prompt if format is available
-            let fieldPrompt = createFieldSpecificPrompt(
-              field,
-              this.getDocumentType() as "invoice" | "receipt",
-              companyName,
-            );
-
-            // Enhance prompt with format hints if available
-            if (format) {
-              const formatHints = this.getFormatHintsForField(field, format);
-              if (formatHints) {
-                fieldPrompt = `${fieldPrompt}\n\n${formatHints}`;
-              }
-            }
-            // Use secondary model (Google) for field re-extraction for reliability
-            const modelConfig = this.config.models.secondary;
-            const model =
-              modelConfig.provider === "mistral"
-                ? mistral(modelConfig.model)
-                : google(modelConfig.model);
-
-            const result = await retryCall(
-              () =>
-                generateObject({
-                  model,
-                  schema: this.config.schema,
-                  temperature: 0.1,
-                  abortSignal: AbortSignal.timeout(90000),
-                  messages: [
-                    {
-                      role: "system",
-                      content: fieldPrompt,
-                    },
-                    {
-                      role: "user",
-                      content: [
-                        this.config.contentType === "file"
-                          ? {
-                              type: "file" as const,
-                              data: documentUrl,
-                              mediaType: this.config.mediaType,
-                            }
-                          : {
-                              type: "image" as const,
-                              image: documentUrl,
-                            },
-                      ],
-                    },
-                  ],
-                }),
-              1, // 1 retry (2 total attempts) for field-specific extraction
-              1000,
-            );
-
-            const fieldValue = (result.object as any)[field];
-            if (fieldValue !== null && fieldValue !== undefined) {
-              return { field, value: fieldValue };
-            }
-            return null;
-          } catch (error) {
-            this.logger.warn(`Failed to re-extract field ${field}`, {
-              field,
-              error: error instanceof Error ? error.message : "Unknown error",
-            });
-            return null;
+      const results = await mapWithConcurrency(
+        batch.fields,
+        MAX_PARALLEL_FIELD_REEXTRACTIONS,
+        (field) => {
+          // Two at a time takes longer in wall clock than all at once did, so
+          // the fields at the back of the queue are dropped rather than
+          // allowed to run the whole extraction past its caller's timeout.
+          if (Date.now() >= deadline) {
+            abandoned.push(field);
+            return Promise.resolve(null);
           }
-        }),
+
+          return this.reExtractField(documentUrl, field, {
+            timeout: batch.timeout,
+            companyName,
+            format,
+          });
+        },
       );
 
-      // Process critical field results
-      for (const result of criticalResults) {
-        if (result.status === "fulfilled" && result.value) {
-          (reExtractedFields as any)[result.value.field] = result.value.value;
+      for (const result of results) {
+        if (result) {
+          (reExtractedFields as any)[result.field] = result.value;
         }
       }
     }
 
-    // Extract other fields in parallel
-    if (otherFields.length > 0) {
-      this.logger.info("Re-extracting other fields in parallel", {
-        fields: otherFields,
-        count: otherFields.length,
+    if (abandoned.length > 0) {
+      this.logger.warn("Out of time for the remaining field re-extractions", {
+        fields: abandoned,
+        budgetMs: this.fieldReExtractionBudget,
       });
-
-      const otherResults = await Promise.allSettled(
-        otherFields.map(async (field) => {
-          try {
-            // Use format-aware prompt if format is available
-            let fieldPrompt = createFieldSpecificPrompt(
-              field,
-              this.getDocumentType() as "invoice" | "receipt",
-              companyName,
-            );
-
-            // Enhance prompt with format hints if available
-            if (format) {
-              const formatHints = this.getFormatHintsForField(field, format);
-              if (formatHints) {
-                fieldPrompt = `${fieldPrompt}\n\n${formatHints}`;
-              }
-            }
-
-            // Use secondary model (Google) for field re-extraction for reliability
-            const modelConfig = this.config.models.secondary;
-            const model =
-              modelConfig.provider === "mistral"
-                ? mistral(modelConfig.model)
-                : google(modelConfig.model);
-
-            const result = await retryCall(
-              () =>
-                generateObject({
-                  model,
-                  schema: this.config.schema,
-                  temperature: 0.1,
-                  abortSignal: AbortSignal.timeout(30000),
-                  messages: [
-                    {
-                      role: "system",
-                      content: fieldPrompt,
-                    },
-                    {
-                      role: "user",
-                      content: [
-                        this.config.contentType === "file"
-                          ? {
-                              type: "file" as const,
-                              data: documentUrl,
-                              mediaType: this.config.mediaType,
-                            }
-                          : {
-                              type: "image" as const,
-                              image: documentUrl,
-                            },
-                      ],
-                    },
-                  ],
-                }),
-              1,
-              1000,
-            );
-
-            const fieldValue = (result.object as any)[field];
-            if (fieldValue !== null && fieldValue !== undefined) {
-              return { field, value: fieldValue };
-            }
-            return null;
-          } catch (error) {
-            this.logger.warn(`Failed to re-extract field ${field}`, {
-              field,
-              error: error instanceof Error ? error.message : "Unknown error",
-            });
-            return null;
-          }
-        }),
-      );
-
-      // Process other field results
-      for (const result of otherResults) {
-        if (result.status === "fulfilled" && result.value) {
-          (reExtractedFields as any)[result.value.field] = result.value.value;
-        }
-      }
     }
 
     return reExtractedFields;
+  }
+
+  /**
+   * Ask for one field on its own.
+   *
+   * Never throws: a field that cannot be recovered is one field missing from
+   * the result, not a failed extraction.
+   */
+  protected async reExtractField(
+    documentUrl: string,
+    field: string,
+    options: {
+      timeout: number;
+      companyName?: string | null;
+      format?: DocumentFormat | undefined;
+    },
+  ): Promise<{ field: string; value: unknown } | null> {
+    try {
+      // Use format-aware prompt if format is available
+      let fieldPrompt = createFieldSpecificPrompt(
+        field,
+        this.getDocumentType() as "invoice" | "receipt",
+        options.companyName,
+      );
+
+      // Enhance prompt with format hints if available
+      if (options.format) {
+        const formatHints = this.getFormatHintsForField(field, options.format);
+        if (formatHints) {
+          fieldPrompt = `${fieldPrompt}\n\n${formatHints}`;
+        }
+      }
+
+      // Use secondary model (Google) for field re-extraction for reliability
+      const result = await this.extractWithProvider(
+        documentUrl,
+        fieldPrompt,
+        this.config.models.secondary,
+        {
+          timeout: options.timeout,
+          retries: 1, // 1 retry (2 total attempts) for field-specific extraction
+          retryDelay: 1000,
+        },
+      );
+
+      const fieldValue = (result as Record<string, unknown>)[field];
+      if (fieldValue !== null && fieldValue !== undefined) {
+        return { field, value: fieldValue };
+      }
+      return null;
+    } catch (error) {
+      this.logger.warn(`Failed to re-extract field ${field}`, {
+        field,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return null;
+    }
+  }
+
+  /**
+   * The model's own answer to whether this is a financial document at all.
+   *
+   * "other" is a legitimate result with nothing to extract, not a failed
+   * extraction: every amount it is missing is missing because the document
+   * has none.
+   */
+  protected isClassifiedAsOther(result: z.infer<T>): boolean {
+    return (result as { document_type?: unknown }).document_type === "other";
+  }
+
+  /**
+   * Whether the model read anything off the document at all.
+   *
+   * Inferred and always-present fields do not count — see
+   * NOT_EVIDENCE_OF_CONTENT.
+   */
+  protected hasExtractedContent(result: z.infer<T>): boolean {
+    return Object.entries(result as Record<string, unknown>).some(
+      ([field, value]) => {
+        if (
+          NOT_EVIDENCE_OF_CONTENT.has(field) ||
+          value === null ||
+          value === undefined
+        ) {
+          return false;
+        }
+        if (Array.isArray(value)) {
+          return value.length > 0;
+        }
+        if (typeof value === "string") {
+          return value.trim().length > 0;
+        }
+        return true;
+      },
+    );
   }
 
   /**
@@ -653,6 +686,24 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       return { data: result, qualityScore };
     }
 
+    // A document the model itself classified as non-financial, and read
+    // nothing off, scores zero for the same reason it is finished: there is
+    // nothing on it. Escalating from here spends a second whole pass plus one
+    // call per missing field re-reading a photo of something else, which is
+    // the most expensive path in the engine taken for the least useful input.
+    //
+    // Both halves are required. The primary model is the smallest of the three
+    // and "other" is a judgement it can get wrong; when it says so but still
+    // read an amount or a vendor off the page, the later passes are what
+    // recover the rest, so they still run.
+    if (this.isClassifiedAsOther(result) && !this.hasExtractedContent(result)) {
+      logger.info("Pass 1 read nothing off a non-financial document", {
+        pass: 1,
+        score: qualityScore.score,
+      });
+      return { data: result, qualityScore };
+    }
+
     // Pass 2: Re-extract with fallback model and chain-of-thought prompt
     logger.info(
       "Pass 1 quality poor, running Pass 2 with fallback model and chain-of-thought",
@@ -728,7 +779,19 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
 
     // Pass 3: Targeted field re-extraction for missing/invalid fields
     const fieldsToReExtract = this.getFieldsNeedingReExtraction(result);
-    if (fieldsToReExtract.length > 0) {
+
+    // Two passes, two models, and the result is still empty. Asking again one
+    // field at a time is a request per missing field against the same empty
+    // document, and the answer it is refining does not exist.
+    if (fieldsToReExtract.length > 0 && !this.hasExtractedContent(result)) {
+      logger.info(
+        "Skipping Pass 3: two passes read nothing off this document",
+        {
+          pass: 3,
+          fields: fieldsToReExtract.length,
+        },
+      );
+    } else if (fieldsToReExtract.length > 0) {
       logger.info("Pass 3: Re-extracting specific fields", {
         pass: 3,
         fields: fieldsToReExtract,
