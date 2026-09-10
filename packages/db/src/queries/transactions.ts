@@ -2050,7 +2050,8 @@ export async function getTransactionCountByBankAccountId(
 export type BulkUpdateTransactionsBaseCurrencyParams = {
   transactions: Array<{
     id: string;
-    baseAmount: number;
+    /** Null when no rate was available - the amount is unknown, not zero. */
+    baseAmount: number | null;
     baseCurrency: string;
   }>;
   teamId: string;

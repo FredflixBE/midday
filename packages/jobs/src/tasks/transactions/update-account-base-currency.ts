@@ -7,13 +7,13 @@ import {
   updateAccountBaseCurrencySchema,
 } from "@jobs/schemas/transactions";
 import {
-  getAccountBalance,
-  getTransactionAmount,
+  currenciesToConvert,
+  planBaseCurrencyUpdate,
 } from "@jobs/utils/base-currency";
 import {
   bulkUpdateTransactionsBaseCurrency,
   getBankAccountTeamId,
-  getExchangeRate,
+  getExchangeRatesBatch,
   getTransactionsByAccountId,
   updateBankAccount,
 } from "@midday/db/queries";
@@ -37,42 +37,11 @@ export class UpdateAccountBaseCurrencyProcessor extends BaseProcessor<UpdateAcco
       baseCurrency,
     });
 
-    // Get exchange rate
-    const exchangeRate = await getExchangeRate(db, {
-      base: currency,
-      target: baseCurrency,
-    });
-
-    if (!exchangeRate?.rate) {
-      this.logger.info("No exchange rate found", {
-        currency,
-        baseCurrency,
-        accountId,
-      });
-      return;
-    }
-
-    const rate = Number(exchangeRate.rate);
-
-    // Update account base balance and base currency
-    // Get teamId from account - we need to find it first
     const teamId = await getBankAccountTeamId(db, { id: accountId });
 
     if (!teamId) {
       throw new Error(`Account not found: ${accountId}`);
     }
-
-    await updateBankAccount(db, {
-      id: accountId,
-      teamId,
-      baseBalance: getAccountBalance({
-        currency,
-        balance,
-        baseCurrency,
-        rate,
-      }),
-      baseCurrency,
-    });
 
     // Get all transactions for this account
     const transactionsData = await getTransactionsByAccountId(db, {
@@ -80,29 +49,49 @@ export class UpdateAccountBaseCurrencyProcessor extends BaseProcessor<UpdateAcco
       teamId,
     });
 
-    // Format transactions with base amounts
-    const formattedTransactions = transactionsData.map((transaction) => {
-      // Exclude fts_vector as it's a generated column
-      const { ftsVector, ...tx } = transaction;
-      return {
-        ...tx,
-        baseAmount: getTransactionAmount({
-          amount: Number(transaction.amount),
-          currency: transaction.currency,
-          baseCurrency,
-          rate,
-        }),
+    const transactions = transactionsData.map((transaction) => ({
+      id: transaction.id,
+      amount: Number(transaction.amount),
+      currency: transaction.currency,
+    }));
+
+    // One lookup for every currency involved, the account's and its
+    // transactions' alike - they are not always the same currency.
+    const rates = await getExchangeRatesBatch(db, {
+      pairs: currenciesToConvert({ currency, baseCurrency, transactions }).map(
+        (base) => ({ base, target: baseCurrency }),
+      ),
+    });
+
+    const update = planBaseCurrencyUpdate({
+      currency,
+      balance,
+      baseCurrency,
+      transactions,
+      rateFor: (base) => rates.get(`${base}:${baseCurrency}`) ?? null,
+    });
+
+    if (update.missingRates.length > 0) {
+      // Not a reason to stop: the currencies that do have a rate still
+      // convert, and the ones that don't are left empty rather than guessed at.
+      this.logger.warn("No exchange rate found, leaving base amount empty", {
+        accountId,
         baseCurrency,
-      };
+        currencies: update.missingRates,
+      });
+    }
+
+    // Update account base balance and base currency
+    await updateBankAccount(db, {
+      id: accountId,
+      teamId,
+      baseBalance: update.baseBalance,
+      baseCurrency,
     });
 
     // Bulk update transactions with base currency/amount
     await bulkUpdateTransactionsBaseCurrency(db, {
-      transactions: formattedTransactions.map((tx) => ({
-        id: tx.id,
-        baseAmount: tx.baseAmount,
-        baseCurrency: tx.baseCurrency,
-      })),
+      transactions: update.transactions,
       teamId,
     });
 
@@ -110,7 +99,9 @@ export class UpdateAccountBaseCurrencyProcessor extends BaseProcessor<UpdateAcco
       accountId,
       currency,
       baseCurrency,
-      transactionCount: formattedTransactions.length,
+      transactionCount: update.transactions.length,
+      convertedCount: update.transactions.filter((tx) => tx.baseAmount !== null)
+        .length,
       teamId,
     });
   }

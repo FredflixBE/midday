@@ -62,7 +62,7 @@ export type UpdateBankAccountParams = {
   balance?: number;
   enabled?: boolean;
   currency?: string;
-  baseBalance?: number;
+  baseBalance?: number | null;
   baseCurrency?: string;
 };
 
