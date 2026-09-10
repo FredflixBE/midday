@@ -31,9 +31,12 @@ mock.module("@jobs/init", () => ({
   getDb: () => fakeDb(),
 }));
 
-const { failedBatchItems, markAttachmentFailed } = await import(
-  "./attachment-failure"
-);
+const {
+  STRANDED_AFTER_MINUTES,
+  failedBatchItems,
+  markAttachmentFailed,
+  sweepStrandedAttachments,
+} = await import("./attachment-failure");
 
 beforeEach(() => {
   updateCalls = [];
@@ -120,5 +123,33 @@ describe("markAttachmentFailed", () => {
     await expect(
       markAttachmentFailed(malformed, "run did not complete"),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("sweepStrandedAttachments", () => {
+  test("only sweeps past the point a run could still be alive", () => {
+    // process-attachment is capped at 660s. Anything shorter than that would
+    // fail rows out from under runs that are still working.
+    expect(STRANDED_AFTER_MINUTES).toBeGreaterThan(660 / 60);
+  });
+
+  test("marks what it finds as failed", async () => {
+    await sweepStrandedAttachments();
+
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0]?.values).toEqual({ status: "failed" });
+  });
+
+  test("does not throw when the sweep fails", async () => {
+    // It shares a schedule with the no-match sweep, which must still run.
+    dbError = new Error("Failed query: update inbox set status");
+
+    await expect(sweepStrandedAttachments()).resolves.toBeUndefined();
+  });
+
+  test("does not throw when there is nothing stranded", async () => {
+    returnedRows = [];
+
+    await expect(sweepStrandedAttachments()).resolves.toBeUndefined();
   });
 });

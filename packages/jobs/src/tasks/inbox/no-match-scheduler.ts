@@ -1,4 +1,5 @@
 import { getDb } from "@jobs/init";
+import { sweepStrandedAttachments } from "@jobs/utils/attachment-failure";
 import { inbox } from "@midday/db/schema";
 import { isFlagEnabled } from "@midday/utils/flags";
 import { logger, schedules } from "@trigger.dev/sdk";
@@ -18,6 +19,11 @@ export const noMatchScheduler = schedules.task({
     }
 
     const db = getDb();
+
+    // Two sweeps of the same table share this schedule because the project is
+    // at the free plan's ten-schedule ceiling (FF-1417) and there is no
+    // eleventh slot to give this one.
+    await sweepStrandedAttachments();
 
     try {
       const ninetyDaysAgo = subDays(new Date(), 90);

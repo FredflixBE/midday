@@ -1731,43 +1731,38 @@ export async function getInboxForReprocessing(
   return result ?? null;
 }
 
-export type GetStuckInboxItemsParams = {
-  teamId: string;
-  thresholdMinutes?: number;
+export type MarkStrandedInboxItemsFailedParams = {
+  olderThanMinutes: number;
 };
 
 /**
- * Find inbox items stuck in "processing" or "new" status for longer than threshold
- * Useful for cleanup jobs to recover stuck items
+ * Mark every inbox item that has been "processing" for longer than a run can
+ * live as failed.
+ *
+ * The last resort, and the only one that covers a run nothing was watching: a
+ * crashed run reaches no hook of its own, and a directly triggered attachment
+ * has no parent to notice. The threshold is what makes it safe — a run cannot
+ * outlive its maxDuration, so past that there is nothing left to overwrite.
  */
-export async function getStuckInboxItems(
+export async function markStrandedInboxItemsFailed(
   db: Database,
-  params: GetStuckInboxItemsParams,
+  params: MarkStrandedInboxItemsFailedParams,
 ) {
-  const { teamId, thresholdMinutes = 5 } = params;
-  const thresholdMs = thresholdMinutes * 60 * 1000;
-  const thresholdDate = new Date(Date.now() - thresholdMs).toISOString();
+  const { olderThanMinutes } = params;
+  const cutoff = new Date(
+    Date.now() - olderThanMinutes * 60 * 1000,
+  ).toISOString();
 
-  const stuckItems = await db
-    .select({
+  return db
+    .update(inbox)
+    .set({ status: "failed" })
+    .where(and(eq(inbox.status, "processing"), lt(inbox.createdAt, cutoff)))
+    .returning({
       id: inbox.id,
-      status: inbox.status,
-      createdAt: inbox.createdAt,
-      filePath: inbox.filePath,
+      teamId: inbox.teamId,
       displayName: inbox.displayName,
-    })
-    .from(inbox)
-    .where(
-      and(
-        eq(inbox.teamId, teamId),
-        ne(inbox.status, "deleted"),
-        or(eq(inbox.status, "processing"), eq(inbox.status, "new")),
-        lt(inbox.createdAt, thresholdDate),
-      ),
-    )
-    .orderBy(desc(inbox.createdAt));
-
-  return stuckItems;
+      createdAt: inbox.createdAt,
+    });
 }
 
 export type GetExistingInboxAttachmentsByReferenceIdsParams = {

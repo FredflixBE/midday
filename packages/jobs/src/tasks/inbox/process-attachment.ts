@@ -533,6 +533,10 @@ export const processAttachment = schemaTask({
     maxTimeoutInMs: 60000,
     factor: 2,
     randomize: true,
+    // An out-of-memory kill is a crashed run: no catch block, no onFailure,
+    // nothing to mark the inbox row with. A retry on a larger machine is the
+    // only way such a run gets to end as something a hook can observe.
+    outOfMemory: { machine: "medium-2x" },
   },
   run: (payload, { ctx }) =>
     runProcessor(processor, "process-attachment", payload, ctx),

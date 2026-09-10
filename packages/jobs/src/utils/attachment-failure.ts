@@ -1,7 +1,17 @@
 import { getDb } from "@jobs/init";
 import { extractErrorDetails } from "@jobs/utils/error-details";
-import { markInboxAttachmentFailed } from "@midday/db/queries";
+import {
+  markInboxAttachmentFailed,
+  markStrandedInboxItemsFailed,
+} from "@midday/db/queries";
 import { logger } from "@trigger.dev/sdk";
+
+/**
+ * A run cannot outlive process-attachment's maxDuration of eleven minutes, so
+ * anything still "processing" hours later is a row whose owner is gone. Six
+ * hours is far enough past that to leave no doubt.
+ */
+export const STRANDED_AFTER_MINUTES = 6 * 60;
 
 type Attachment = {
   teamId: string;
@@ -87,4 +97,42 @@ export function failedBatchItems<T>(
   const failed = items.filter((_, index) => runs[index]?.ok === false);
 
   return { failed, unreadable: false };
+}
+
+/**
+ * Mark the inbox rows whose processing stopped without ever saying so.
+ *
+ * The last resort. The parent of a sync batch and the task's own onFailure
+ * hook mark their failures as they happen, but neither can see a run that
+ * crashed with nothing watching it — a directly triggered attachment killed
+ * for running out of memory reaches no hook at all.
+ *
+ * Never throws: it runs alongside another sweep that must still get its turn.
+ */
+export async function sweepStrandedAttachments(): Promise<void> {
+  try {
+    const stranded = await markStrandedInboxItemsFailed(getDb(), {
+      olderThanMinutes: STRANDED_AFTER_MINUTES,
+    });
+
+    if (stranded.length === 0) {
+      logger.info("No stranded inbox items to fail");
+      return;
+    }
+
+    logger.warn("Marked stranded inbox items as failed", {
+      count: stranded.length,
+      strandedAfterMinutes: STRANDED_AFTER_MINUTES,
+      items: stranded.slice(0, 5).map((item) => ({
+        id: item.id,
+        teamId: item.teamId,
+        displayName: item.displayName,
+        createdAt: item.createdAt,
+      })),
+    });
+  } catch (error) {
+    logger.error("Failed to sweep stranded inbox items", {
+      errorDetails: extractErrorDetails(error),
+    });
+  }
 }
