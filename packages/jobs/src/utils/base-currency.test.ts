@@ -82,7 +82,6 @@ describe("planBaseCurrencyUpdate", () => {
     expect(baseAmountOf(update, "usd")).toBe(-17.19);
     expect(baseAmountOf(update, "eur")).toBe(-50);
     expect(update.baseBalance).toBe(1000);
-    expect(update.missingRates).toEqual([]);
   });
 
   test("still converts transactions that share the account's currency", () => {
@@ -111,7 +110,6 @@ describe("planBaseCurrencyUpdate", () => {
 
     expect(baseAmountOf(update, "eur")).toBe(-50);
     expect(baseAmountOf(update, "sek")).toBeNull();
-    expect(update.missingRates).toEqual(["SEK"]);
   });
 
   test("converts what it has rates for when the account's own rate is missing", () => {
@@ -125,7 +123,6 @@ describe("planBaseCurrencyUpdate", () => {
 
     expect(baseAmountOf(update, "usd")).toBe(-17.19);
     expect(update.baseBalance).toBeNull();
-    expect(update.missingRates).toEqual(["SEK"]);
   });
 
   test("stamps the base currency on every transaction", () => {

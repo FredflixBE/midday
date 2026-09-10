@@ -96,8 +96,6 @@ export type BaseCurrencyUpdate = {
     baseAmount: number | null;
     baseCurrency: string;
   }>;
-  /** The currencies no rate was found for, so a caller can say so out loud. */
-  missingRates: string[];
 };
 
 type PlanBaseCurrencyUpdateParams = AccountConversionParams & {
@@ -138,10 +136,5 @@ export function planBaseCurrencyUpdate({
       }),
       baseCurrency,
     })),
-    missingRates: currenciesToConvert({
-      currency,
-      baseCurrency,
-      transactions,
-    }).filter((base) => rateFor(base) === null),
   };
 }

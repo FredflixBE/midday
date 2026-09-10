@@ -57,27 +57,36 @@ export class UpdateAccountBaseCurrencyProcessor extends BaseProcessor<UpdateAcco
 
     // One lookup for every currency involved, the account's and its
     // transactions' alike - they are not always the same currency.
-    const rates = await getExchangeRatesBatch(db, {
-      pairs: currenciesToConvert({ currency, baseCurrency, transactions }).map(
-        (base) => ({ base, target: baseCurrency }),
-      ),
+    const currencies = currenciesToConvert({
+      currency,
+      baseCurrency,
+      transactions,
     });
+
+    const rates = await getExchangeRatesBatch(db, {
+      pairs: currencies.map((base) => ({ base, target: baseCurrency })),
+    });
+
+    const rateFor = (base: string) =>
+      rates.get(`${base}:${baseCurrency}`) ?? null;
+
+    const missingRates = currencies.filter((base) => rateFor(base) === null);
 
     const update = planBaseCurrencyUpdate({
       currency,
       balance,
       baseCurrency,
       transactions,
-      rateFor: (base) => rates.get(`${base}:${baseCurrency}`) ?? null,
+      rateFor,
     });
 
-    if (update.missingRates.length > 0) {
+    if (missingRates.length > 0) {
       // Not a reason to stop: the currencies that do have a rate still
       // convert, and the ones that don't are left empty rather than guessed at.
       this.logger.warn("No exchange rate found, leaving base amount empty", {
         accountId,
         baseCurrency,
-        currencies: update.missingRates,
+        currencies: missingRates,
       });
     }
 
