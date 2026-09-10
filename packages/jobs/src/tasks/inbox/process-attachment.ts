@@ -7,7 +7,10 @@ import {
   processAttachmentSchema,
 } from "@jobs/schemas/inbox";
 import { markAttachmentFailed } from "@jobs/utils/attachment-failure";
-import { NonRetryableError } from "@jobs/utils/error-classification";
+import {
+  ImageTooLargeError,
+  NonRetryableError,
+} from "@jobs/utils/error-classification";
 import {
   convertHeicToJpeg,
   type HeicConvertingMachine,
@@ -196,9 +199,23 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
       const buffer = await data.arrayBuffer();
 
       // Convert HEIC to JPEG using shared utility
-      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger, {
-        machine: MACHINE,
-      });
+      let image: Buffer;
+      try {
+        ({ buffer: image } = await convertHeicToJpeg(buffer, this.logger, {
+          machine: MACHINE,
+        }));
+      } catch (error) {
+        if (error instanceof ImageTooLargeError) {
+          // Recorded here, with its reason, because this is the last place
+          // that knows it is a refusal: onFailure sees only the message of the
+          // abort it becomes. Retrying refuses it again, so the generic
+          // "try again" would be wrong. markAttachmentFailed never throws.
+          await markAttachmentFailed({ filePath, teamId }, error.message, {
+            tellUploader: true,
+          });
+        }
+        throw error;
+      }
 
       // Upload the converted image
       const { data: uploadedData } = await withTimeout(

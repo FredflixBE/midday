@@ -24,6 +24,14 @@ type Attachment = {
 export async function markAttachmentFailed(
   attachment: Attachment,
   reason: string,
+  options: {
+    /**
+     * Show `reason` to whoever uploaded the file. Only for a failure they can
+     * act on and that retrying will not fix; everything else gets the inbox's
+     * generic message, and any reason an earlier attempt left is cleared.
+     */
+    tellUploader?: boolean;
+  } = {},
 ): Promise<void> {
   // Not simply filePath.join: onFailure hands back whatever was triggered,
   // including a payload that never passed the task's schema.
@@ -35,6 +43,7 @@ export async function markAttachmentFailed(
     const updated = await markInboxAttachmentFailed(getDb(), {
       filePath: attachment.filePath,
       teamId: attachment.teamId,
+      reason: options.tellUploader ? reason : undefined,
     });
 
     if (updated.length === 0) {

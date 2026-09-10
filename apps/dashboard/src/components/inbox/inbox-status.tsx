@@ -9,6 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@midday/ui/tooltip";
+import { getInboxFailureReason } from "@midday/utils/inbox-failure";
 
 type Props = {
   item: RouterOutputs["inbox"]["get"]["data"][number];
@@ -21,6 +22,10 @@ export function InboxStatus({ item }: Props) {
   }
 
   if (item.status === "failed") {
+    // A refusal the uploader can act on says why; anything else gets the
+    // generic message, which only makes sense because retrying might work.
+    const failureReason = getInboxFailureReason(item.meta);
+
     return (
       <TooltipProvider delayDuration={0}>
         <Tooltip>
@@ -30,11 +35,15 @@ export function InboxStatus({ item }: Props) {
               <span>Failed</span>
             </div>
           </TooltipTrigger>
-          <TooltipContent sideOffset={10} className="text-xs">
-            <p>
-              We couldn't process this file — <br />
-              try again from the menu
-            </p>
+          <TooltipContent sideOffset={10} className="text-xs max-w-[260px]">
+            {failureReason ? (
+              <p>{failureReason}</p>
+            ) : (
+              <p>
+                We couldn't process this file — <br />
+                try again from the menu
+              </p>
+            )}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
