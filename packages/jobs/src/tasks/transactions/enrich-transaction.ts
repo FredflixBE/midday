@@ -79,7 +79,11 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
         try {
           const { object } = await generateObject({
-            model: google("gemini-2.5-flash-lite"),
+            // gemini-2.5-flash-lite was retired: Google returns "no longer
+            // available to new users" and names this as its successor. It is
+            // also the right size for the job — gemini-3-flash-preview handles
+            // the same batch correctly but takes ~200s to 3.5-flash-lite's ~2s.
+            model: google("gemini-3.5-flash-lite"),
             prompt,
             output: "array",
             schema: enrichmentSchema,
