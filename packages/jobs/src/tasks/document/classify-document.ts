@@ -6,6 +6,12 @@ import {
   type ClassifyDocumentPayload,
   classifyDocumentSchema,
 } from "@jobs/schemas/documents";
+import {
+  type DocumentTaskOutcome,
+  documentDeletedOutcome,
+  documentWasDeleted,
+  explainMissingDocument,
+} from "@jobs/utils/document-presence";
 import { markDocumentFailed } from "@jobs/utils/document-status";
 import { updateDocumentWithRetry } from "@jobs/utils/document-update";
 import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
@@ -31,7 +37,9 @@ interface ClassificationResult {
  * with null values so users can access the file and retry classification later
  */
 export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPayload> {
-  async process(job: JobContext<ClassifyDocumentPayload>): Promise<void> {
+  async process(
+    job: JobContext<ClassifyDocumentPayload>,
+  ): Promise<DocumentTaskOutcome> {
     const { content, fileName, teamId } = job.data;
     const db = getDb();
 
@@ -45,6 +53,20 @@ export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPay
       teamId,
       contentLength: content.length,
     });
+
+    // A document deleted from the inbox has nothing left to classify. Asking
+    // before the model runs is what keeps the several seconds it would spend
+    // from being thrown away on a row that is already gone.
+    if (
+      await documentWasDeleted({ db, fileName, teamId, logger: this.logger })
+    ) {
+      this.logger.info(
+        "Document was deleted before classification started - nothing to do",
+        { fileName, pathTokens, teamId },
+      );
+
+      return documentDeletedOutcome;
+    }
 
     // Attempt AI classification with graceful fallback
     let classificationResult: ClassificationResult | null = null;
@@ -150,10 +172,31 @@ export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPay
     );
 
     if (!updatedDocs || updatedDocs.length === 0) {
+      // The document was there when classification began, so it was either
+      // deleted while the model ran - a normal ending - or its row never
+      // existed, which is a bug worth failing over.
+      const cause = await explainMissingDocument({
+        db,
+        fileName,
+        teamId,
+        logger: this.logger,
+        missing: "row",
+      });
+
+      if (cause === "deleted") {
+        this.logger.info(
+          "Document was deleted while it was being classified - discarding the result",
+          { fileName, pathTokens, teamId },
+        );
+
+        return documentDeletedOutcome;
+      }
+
       this.logger.error("Document not found for classification update", {
         fileName,
         pathTokens,
         teamId,
+        cause,
       });
       throw new Error(`Document with path ${fileName} not found`);
     }
@@ -193,6 +236,8 @@ export class ClassifyDocumentProcessor extends BaseProcessor<ClassifyDocumentPay
         hasTitle: !!finalTitle,
       });
     }
+
+    return { status: "completed" };
   }
 }
 

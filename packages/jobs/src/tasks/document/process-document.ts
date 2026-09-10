@@ -7,6 +7,7 @@ import {
   processDocumentSchema,
 } from "@jobs/schemas/documents";
 import { detectFileTypeFromBlob } from "@jobs/utils/detect-file-type";
+import { fileMissingBecauseDeleted } from "@jobs/utils/document-presence";
 import {
   markDocumentFailed,
   markDocumentUnsupported,
@@ -85,6 +86,19 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         );
 
         if (!data) {
+          // Deleted while this ran, rather than never there - see the same
+          // check on the ordinary download below.
+          if (
+            await fileMissingBecauseDeleted({
+              db,
+              fileName,
+              teamId,
+              logger: this.logger,
+            })
+          ) {
+            return;
+          }
+
           throw new NonRetryableError(
             "File not found",
             undefined,
@@ -226,6 +240,20 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         });
 
         if (!data) {
+          // Deleting an inbox item removes the stored object, which is what
+          // makes this download come back empty. That is a normal ending, not
+          // a missing file - so long as the documents row went with it.
+          if (
+            await fileMissingBecauseDeleted({
+              db,
+              fileName,
+              teamId,
+              logger: this.logger,
+            })
+          ) {
+            return;
+          }
+
           throw new NonRetryableError(
             "File not found",
             undefined,
@@ -297,6 +325,17 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
             fileData = redownloadedData;
             processedMimetype = "application/pdf";
           } else {
+            if (
+              await fileMissingBecauseDeleted({
+                db,
+                fileName,
+                teamId,
+                logger: this.logger,
+              })
+            ) {
+              return;
+            }
+
             throw new Error("Failed to re-download file for type detection");
           }
         }
@@ -325,6 +364,18 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         if (!imageResult.ok) {
           throw new Error(
             `Image classification failed: ${imageResult.error instanceof Error ? imageResult.error.message : String(imageResult.error)}`,
+          );
+        }
+
+        if (imageResult.output.status === "skipped") {
+          this.logger.info(
+            "Image classification stopped early - the document was deleted",
+            {
+              jobId: job.id,
+              fileName,
+              teamId,
+              reason: imageResult.output.reason,
+            },
           );
         }
 
@@ -476,6 +527,22 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         throw new Error(
           `Document classification failed: ${classificationJobResult.error instanceof Error ? classificationJobResult.error.message : String(classificationJobResult.error)}`,
         );
+      }
+
+      // The child exits quietly when the item is deleted under it, and there is
+      // nothing left here to announce - the document it would name is gone.
+      if (classificationJobResult.output.status === "skipped") {
+        this.logger.info(
+          "Document classification stopped early - the document was deleted",
+          {
+            jobId: job.id,
+            fileName,
+            teamId,
+            reason: classificationJobResult.output.reason,
+          },
+        );
+
+        return;
       }
 
       const classificationDuration = Date.now() - classificationStartTime;

@@ -79,3 +79,23 @@ One thing that makes this easy to misread: `experimental_processKeepAlive` in
 holding whatever the previous one retained. A task sized too tightly therefore
 tends to succeed the first time and die on the second, quickly, rather than
 degrading gradually.
+
+## Deleted documents
+
+Deleting an item from the inbox does not stop the jobs already working on it —
+nothing records their run ids, so nothing can cancel them. They discover the
+deletion themselves, and treat it as a normal ending: the document tasks stop
+early and their runs go green having written nothing.
+
+A vault document has two halves, the file in the bucket and the
+`public.documents` row, and triggers on `storage.objects` create and drop them
+together (`packages/db/supabase/50-documents.sql`). That pairing is the whole
+mechanism: when a job finds the half it needs is gone, it asks about the other
+one. Both gone means the item was deleted. The other half still present means
+the missing one was never created — an upstream bug, which keeps failing
+loudly. `src/utils/document-presence.ts` holds the check, and the two cases
+never share a log line, so a green run always says which it was.
+
+`classify-document` and `classify-image` ask before the model runs as well as
+after the update, because the deletion usually lands during the model call and
+the answer is what saves that work from being thrown away.

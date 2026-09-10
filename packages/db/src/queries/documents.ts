@@ -423,6 +423,39 @@ export async function updateDocumentByPath(
     .returning();
 }
 
+export type DocumentExistsByPathParams = {
+  pathTokens: string[];
+  teamId: string;
+};
+
+/**
+ * Whether a documents row still exists at this path.
+ *
+ * The document jobs use this to tell a document that was deleted mid-run from
+ * one whose row was never created — see the note in
+ * packages/jobs/src/utils/document-presence.ts.
+ */
+export async function documentExistsByPath(
+  db: Database,
+  params: DocumentExistsByPathParams,
+): Promise<boolean> {
+  const { pathTokens, teamId } = params;
+
+  if (!pathTokens || pathTokens.length === 0) {
+    return false;
+  }
+
+  const [row] = await db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(
+      and(eq(documents.teamId, teamId), eq(documents.pathTokens, pathTokens)),
+    )
+    .limit(1);
+
+  return row !== undefined;
+}
+
 export type UpdateDocumentByFileNameParams = {
   fileName: string;
   teamId: string;
