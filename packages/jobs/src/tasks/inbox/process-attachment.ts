@@ -523,9 +523,11 @@ export const processAttachment = schemaTask({
   machine: "small-2x",
   // Every concurrent run is a separate process holding its own OCR heap and
   // its own Postgres connection, so this number is a multiplier on both. At 50
-  // a mailbox with 20 attachments fanned out to 20 at once: in development
-  // that is 20 heaps on one laptop, which killed the largest PDF, and in any
-  // environment it is 20 session-pooler connections for one sync.
+  // a mailbox with 20 attachments fanned out to 20 at once: twenty heaps on
+  // one laptop in development, and twenty session-pooler connections for a
+  // single sync in any environment. (The out-of-memory kill that started
+  // FF-1486 turned out not to be the fan-out — see FF-1487 — but a batch
+  // whose size is whatever a mailbox happened to hold is still not a plan.)
   queue: { concurrencyLimit: 5 },
   retry: {
     maxAttempts: 3,
