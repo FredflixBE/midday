@@ -127,6 +127,8 @@ describe("reconcileYukiGap", () => {
     // Most SaaS invoices are in dollars and the card is charged in euros.
     // Midday's conversion and the card network's rate never agree to the cent,
     // so the comparison runs on the converted amount, with room for FX drift.
+    // This needs the inbox to carry that converted amount — which, as of
+    // 2026-09-11, nothing in the pipeline writes (FF-1497). See the next test.
     const report = reconcileYukiGap({
       items: [payment({ openAmount: -21.4 })],
       documents: [
@@ -188,5 +190,27 @@ describe("reconcileYukiGap", () => {
     expect(report.review).toEqual([]);
     expect(report.missing).toEqual([]);
     expect(report.unpaidInvoices).toBe(1);
+  });
+
+  it("does not push a dollar invoice whose converted amount is unknown", () => {
+    // On a live domain every inbox document had no converted amount, dollar
+    // invoices included. Without one, $25 and EUR 21.40 cannot be shown to agree
+    // — right supplier and right day are not enough to upload on. It must stay
+    // with a person until the inbox carries a converted amount (FF-1497).
+    const report = reconcileYukiGap({
+      items: [payment({ openAmount: -21.4 })],
+      documents: [
+        document({
+          amount: 25,
+          currency: "USD",
+          baseAmount: null,
+          baseCurrency: null,
+        }),
+      ],
+      bookCurrency: "EUR",
+    });
+
+    expect(report.push).toEqual([]);
+    expect(report.review.map((r) => r.payment.documentId)).toEqual(["pay-1"]);
   });
 });
