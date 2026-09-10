@@ -328,6 +328,40 @@ Both helpers live in [`packages/jobs/src/utils/document-status.ts`](../packages/
 and open their own database connection, because a lifecycle hook runs outside
 the middleware that gives a run its own.
 
+### Deleted Documents
+
+Deleting an item from the inbox does not stop the jobs already working on it.
+Nothing records their run ids, so nothing can cancel them — and a run already
+inside a model call could not be stopped in time anyway. They discover the
+deletion themselves, and treat it as a normal ending: the task stops early and
+the run goes green having written nothing.
+
+`inbox.delete` removes the stored object; the `delete_from_documents()` trigger
+on `storage.objects` then drops the `documents` row
+([`packages/db/supabase/50-documents.sql`](../packages/db/supabase/50-documents.sql)).
+Nothing in application code deletes that row, which is what makes the two
+halves of a document — the file in the vault and its `documents` row — reliable
+witnesses for each other:
+
+| File | Row | Meaning |
+|------|-----|---------|
+| gone | gone | The item was deleted. A normal ending. |
+| present | gone | The row was never created — `insert_into_documents()` did not fire. An upstream bug, and it still fails. |
+| gone | present | The file is missing while its row stands. Still `File not found`. |
+
+[`packages/jobs/src/utils/document-presence.ts`](../packages/jobs/src/utils/document-presence.ts)
+holds that check. A failed check is reported as unknown rather than as a
+deletion, so an unreachable database or storage API cannot quietly turn a real
+bug into a green run. The deletion case and the never-created case never share
+a log line — a run that stops early always says which of the two it saw.
+
+`classify-document` and `classify-image` ask twice: once before the model runs,
+which is what keeps the several seconds of model time from being spent on a row
+that is already gone, and once when the update comes back with zero rows, which
+is where a deletion that lands mid-classification shows up. Both return
+`{ status: "skipped", reason: "document-deleted" }`, and `process-document`
+stops on that rather than announcing a document that no longer exists.
+
 ## Reprocessing Flow
 
 ### User-Initiated Retry
@@ -583,6 +617,7 @@ timeout of its own, and keeping the two in step was a standing hazard.
 | [`apps/api/src/trpc/routers/documents.ts`](../apps/api/src/trpc/routers/documents.ts) | tRPC router with reprocessDocument endpoint |
 | [`packages/jobs/src/tasks/document/process-document.ts`](../packages/jobs/src/tasks/document/process-document.ts) | Main orchestrator job |
 | [`packages/jobs/src/tasks/document/classify-document.ts`](../packages/jobs/src/tasks/document/classify-document.ts) | AI text classification with graceful degradation |
+| [`packages/jobs/src/utils/document-presence.ts`](../packages/jobs/src/utils/document-presence.ts) | Tells a deleted document from one whose row was never created |
 | [`packages/jobs/src/tasks/document/classify-image.ts`](../packages/jobs/src/tasks/document/classify-image.ts) | AI vision classification with graceful degradation |
 | [`packages/jobs/src/tasks/document/embed-document-tags.ts`](../packages/jobs/src/tasks/document/embed-document-tags.ts) | Tag embedding generation |
 | [`packages/jobs/src/utils/document-status.ts`](../packages/jobs/src/utils/document-status.ts) | Failure handlers (queue options now live on each task) |
