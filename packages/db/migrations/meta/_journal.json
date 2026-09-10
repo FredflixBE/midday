@@ -29,6 +29,13 @@
       "when": 1788993027341,
       "tag": "0003_enrichments_server_only",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789039841407,
+      "tag": "0004_exchange_rate_precision",
+      "breakpoints": true
     }
   ]
 }
