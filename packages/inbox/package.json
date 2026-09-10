@@ -17,12 +17,14 @@
     "test": "bun test --exit src"
   },
   "dependencies": {
+    "@googleapis/gmail": "^18.0.0",
+    "@googleapis/oauth2": "^6.0.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@midday/db": "workspace:*",
     "@midday/encryption": "workspace:*",
     "@midday/supabase": "workspace:*",
     "@midday/utils": "workspace:*",
-    "googleapis": "^171.4.0",
+    "google-auth-library": "^10.5.0",
     "zod": "catalog:"
   }
 }
