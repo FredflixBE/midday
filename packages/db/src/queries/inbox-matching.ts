@@ -1,5 +1,18 @@
 import { createLoggerWithContext } from "@midday/logger";
-import { and, desc, eq, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  ne,
+  notLike,
+  or,
+  sql,
+} from "drizzle-orm";
 import type { Database } from "../client";
 import { inbox, transactionMatchSuggestions } from "../schema";
 import { createActivity } from "./activities";
@@ -476,4 +489,66 @@ export async function getSuggestionByInboxAndTransaction(
     .limit(1);
 
   return result || null;
+}
+
+/**
+ * The inbox statuses a document reaches once its extraction has finished. Rows
+ * still being read, and rows the pipeline gave up on or filed as not-an-invoice,
+ * have nothing a payment could be matched against.
+ */
+const EXTRACTED_INBOX_STATUSES = [
+  "pending",
+  "suggested_match",
+  "no_match",
+  "done",
+] as const;
+
+/**
+ * Inbox documents that could be the missing invoice for a payment Yuki
+ * reports (FF-1493).
+ *
+ * One row per upload — grouped siblings are left out, so two attachments of
+ * the same email do not look like rival candidates. Nothing pulled from Yuki
+ * is included: those documents are already in Yuki by definition. Documents
+ * matched to a Midday transaction stay in; a match inside Midday says nothing
+ * about whether Yuki has the invoice.
+ */
+export async function getInboxDocumentsForYukiGap(
+  db: Database,
+  params: { teamId: string; from: string; to: string },
+) {
+  const { teamId, from, to } = params;
+
+  const rows = await db
+    .select({
+      id: inbox.id,
+      displayName: inbox.displayName,
+      amount: inbox.amount,
+      currency: inbox.currency,
+      baseAmount: inbox.baseAmount,
+      baseCurrency: inbox.baseCurrency,
+      date: inbox.date,
+      invoiceNumber: inbox.invoiceNumber,
+      website: inbox.website,
+      type: inbox.type,
+    })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, teamId),
+        inArray(inbox.status, [...EXTRACTED_INBOX_STATUSES]),
+        isNotNull(inbox.amount),
+        isNotNull(inbox.date),
+        gte(inbox.date, from),
+        lte(inbox.date, to),
+        isNull(inbox.groupedInboxId),
+        or(isNull(inbox.type), ne(inbox.type, "other")),
+        or(isNull(inbox.referenceId), notLike(inbox.referenceId, "yuki:%")),
+      ),
+    );
+
+  // The WHERE clause already excludes nulls; this tells the type system so.
+  return rows.flatMap(({ amount, date, ...rest }) =>
+    amount === null || date === null ? [] : [{ ...rest, amount, date }],
+  );
 }

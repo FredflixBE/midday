@@ -249,6 +249,7 @@ Runtime environment:
 | `INVOICE_JWT_SECRET` | for invoicing | Signs the public invoice links in invoice emails. Same value as the API. |
 | `GMAIL_*` / `OUTLOOK_*` | for inbox sync | Same OAuth client as the API. |
 | `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | for accounting export | Token refresh needs the client credentials. |
+| `YUKI_ACCESS_KEY`, `YUKI_ADMINISTRATION_ID`, `YUKI_REGION` | for Yuki | Yuki: Settings → Web services. `YUKI_REGION` is `be` or `nl`; the wrong one answers "Domain has no active database". Read-only until a task deliberately enables a write — see `packages/yuki/README.md`. |
 | `MISTRAL_API_KEY`, `OPENAI_API_KEY` | no | Document OCR fallback; Slack receipt summaries. |
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |

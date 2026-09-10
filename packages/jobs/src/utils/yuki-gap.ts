@@ -36,6 +36,8 @@ export interface YukiGapReport {
   review: Array<{ payment: YukiOutstandingItem; candidates: ScoredDocument[] }>;
   /** Yuki is missing an invoice and Midday has nothing for it either. */
   missing: Array<{ payment: YukiOutstandingItem }>;
+  /** Outstanding in Yuki but not a gap: the invoice is there, just unpaid. */
+  unpaidInvoices: number;
 }
 
 /**
@@ -108,9 +110,15 @@ export function reconcileYukiGap(params: {
   bookCurrency: string;
 }): YukiGapReport {
   const { items, documents, bookCurrency } = params;
-  const report: YukiGapReport = { push: [], review: [], missing: [] };
+  const payments = items.filter((i) => i.kind === "payment_awaiting_invoice");
+  const report: YukiGapReport = {
+    push: [],
+    review: [],
+    missing: [],
+    unpaidInvoices: items.length - payments.length,
+  };
 
-  for (const payment of items) {
+  for (const payment of payments) {
     const scored = documents
       .map((document) => ({
         document,

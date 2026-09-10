@@ -169,4 +169,24 @@ describe("reconcileYukiGap", () => {
 
     expect(report.push.map((p) => p.document.id)).toEqual(["inbox-1"]);
   });
+
+  it("leaves Yuki's unpaid invoices alone, because the document is already there", () => {
+    const unpaid = payment({
+      kind: "unpaid_invoice",
+      typeLabel: "Aankoopfactuur",
+      documentId: "invoice-1",
+      reference: "INV-OPENAI-0001",
+    });
+
+    const report = reconcileYukiGap({
+      items: [unpaid],
+      documents: [document()],
+      bookCurrency: "EUR",
+    });
+
+    expect(report.push).toEqual([]);
+    expect(report.review).toEqual([]);
+    expect(report.missing).toEqual([]);
+    expect(report.unpaidInvoices).toBe(1);
+  });
 });
