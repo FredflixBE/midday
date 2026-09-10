@@ -5,14 +5,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("mapWithConcurrency", () => {
   test("returns results in input order, not completion order", async () => {
-    const results = await mapWithConcurrency(
-      [30, 10, 20],
-      2,
-      async (delay) => {
-        await sleep(delay);
-        return delay;
-      },
-    );
+    const results = await mapWithConcurrency([30, 10, 20], 2, async (delay) => {
+      await sleep(delay);
+      return delay;
+    });
 
     expect(results).toEqual([30, 10, 20]);
   });

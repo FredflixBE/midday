@@ -139,7 +139,9 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
           model,
           schema: this.config.schema,
           temperature: 0.1,
-          abortSignal: AbortSignal.timeout(options.timeout ?? this.config.timeout),
+          abortSignal: AbortSignal.timeout(
+            options.timeout ?? this.config.timeout,
+          ),
           messages: [
             {
               role: "system",
@@ -740,10 +742,13 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       fieldsToReExtract.length > 0 && this.hasExtractedContent(result);
 
     if (fieldsToReExtract.length > 0 && !worthReExtracting) {
-      logger.info("Skipping Pass 3: two passes read nothing off this document", {
-        pass: 3,
-        fields: fieldsToReExtract.length,
-      });
+      logger.info(
+        "Skipping Pass 3: two passes read nothing off this document",
+        {
+          pass: 3,
+          fields: fieldsToReExtract.length,
+        },
+      );
     }
 
     if (worthReExtracting) {
