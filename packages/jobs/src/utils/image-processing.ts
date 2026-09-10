@@ -14,12 +14,20 @@ sharp.concurrency(2); // Limit internal parallelism per sharp instance
  * Not a file size: what a decode costs is set by the pixels, and the file says
  * little about them — a 0.9 MB and a 1.6 MB iPhone photo cost the same, and a
  * 2.5 MB 48-megapixel one costs three times as much. Measured through the
- * conversion below, the peak is about 64 MB plus 13 MB per megapixel: 224 MB
- * at 12 MP, 369 MB at 24.5 MP, 704 MB at 48.8 MP.
+ * conversion below, resident memory peaks about 64 MB plus 13 MB per
+ * megapixel above where it started: 223 MB at 12 MP, 361 MB at 24.5 MP,
+ * 705 MB at 48.8 MP.
  *
- * A small-2x worker has 819 MiB and already holds up to ~210 MB before the
- * task starts. 32 MP peaks near 690 MB, which fits with room; the 48 MP an
- * iPhone Pro writes in "HEIF Max" does not, and is refused rather than killed.
+ * Almost none of that is V8 heap — the WebAssembly memory, the pixel buffer
+ * and sharp are all outside it, and the heap grows by 6 MB at any size — so
+ * the limit that binds is the machine's whole memory, not the heap ceiling
+ * Trigger derives from it. Calibrated for small-2x (1 GiB) above a worker that
+ * rests at about 210 MB with the task bundle loaded: 32 MP peaks near 700 MB
+ * and leaves room for what a warm worker has kept, and the 48 MP an iPhone Pro
+ * writes in "HEIF Max" does not fit, so it is refused rather than killed.
+ *
+ * Every task that calls convertHeicToJpeg runs on small-2x for this reason.
+ * A task on a smaller machine needs its own ceiling, or its own machine.
  */
 export const MAX_HEIC_MEGAPIXELS = 32;
 
@@ -242,7 +250,7 @@ function loadLibheif(): Promise<Libheif> {
  * This used to be heic-convert, which uses libheif's asm.js build, encodes
  * the full-size image to JPEG in pure JavaScript, and hands that JPEG to sharp
  * to decode all over again: 790 MB at peak for a 24.5 MP photo, where this
- * takes 369 MB in a third of the time.
+ * takes 361 MB in a third of the time.
  *
  * Parsing the file does not decode it, and costs a few megabytes, so the
  * pixel count is known — and a refusal is free — before the expensive part.

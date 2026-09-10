@@ -145,8 +145,10 @@ export const processTransactionAttachment = schemaTask({
   schema: processTransactionAttachmentSchema,
   // OCR extraction, so it gets the same room as the other document work.
   maxDuration: 660,
-  // Downloads the attachment whole.
-  machine: "small-1x",
+  // Downloads the attachment whole, and decodes a HEIC photo to raw pixels:
+  // 360 MB above a ~190 MB resting worker for a 24 MP one, which a 512 MiB
+  // small-1x cannot hold. See MAX_HEIC_MEGAPIXELS.
+  machine: "small-2x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: (payload, { ctx }) =>

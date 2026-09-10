@@ -593,8 +593,10 @@ export const processDocument = schemaTask({
   // Carried over from the documents queue's 11 minute lock. HEIC conversion and
   // parsing run here, and the run stays open across the classification wait.
   maxDuration: 660,
-  // Downloads the stored file whole before classifying it.
-  machine: "small-1x",
+  // Downloads the stored file whole before classifying it, and decodes a HEIC
+  // photo to raw pixels: 360 MB above a ~190 MB resting worker for a 24 MP
+  // one, which a 512 MiB small-1x cannot hold. See MAX_HEIC_MEGAPIXELS.
+  machine: "small-2x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: async (payload, { ctx }) => {
