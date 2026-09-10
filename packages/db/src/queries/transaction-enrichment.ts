@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or, type SQL, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { transactions } from "../schema";
 
@@ -29,7 +29,13 @@ export type UpdateTransactionEnrichmentParams = {
 };
 
 /**
- * Get transactions that need enrichment (no merchantName yet)
+ * Get the transactions a run should enrich.
+ *
+ * A row qualifies if enrichment has never finished for it, or if the last
+ * attempt finished by failing. The second half is what makes a failed batch
+ * replayable: without it, marking a failed batch complete (which the UI needs)
+ * would make it permanently ineligible and re-running the task would quietly
+ * find nothing to do.
  */
 export async function getTransactionsForEnrichment(
   db: Database,
@@ -55,7 +61,10 @@ export async function getTransactionsForEnrichment(
       and(
         eq(transactions.teamId, params.teamId),
         inArray(transactions.id, params.transactionIds),
-        eq(transactions.enrichmentCompleted, false), // Only non-enriched transactions
+        or(
+          eq(transactions.enrichmentCompleted, false),
+          isNotNull(transactions.enrichmentFailedAt),
+        ),
       ),
     );
 }
@@ -126,8 +135,11 @@ export async function updateTransactionEnrichments(
             merchantName?: string;
             categorySlug?: string;
             enrichmentCompleted: boolean;
+            enrichmentFailedAt: null;
           } = {
             enrichmentCompleted: true,
+            // This row enriched, so any earlier failure no longer stands.
+            enrichmentFailedAt: null,
           };
 
           if (data.merchantName) {
@@ -152,15 +164,14 @@ export async function updateTransactionEnrichments(
 }
 
 /**
- * Mark transactions as enrichment completed without updating any other fields
- * Used for transactions that don't need merchant/category updates but should be marked as processed
- *
- * @param db - Database connection
- * @param transactionIds - Array of transaction IDs to mark as enriched
+ * Validate a set of transaction ids destined for a bulk `enrichment_completed`
+ * write, then apply `values` to all of them.
  */
-export async function markTransactionsAsEnriched(
+async function markTransactions(
   db: Database,
   transactionIds: string[],
+  values: { enrichmentCompleted: true; enrichmentFailedAt: SQL | null },
+  description: string,
 ): Promise<void> {
   if (transactionIds.length === 0) {
     return;
@@ -183,11 +194,53 @@ export async function markTransactionsAsEnriched(
   try {
     await db
       .update(transactions)
-      .set({ enrichmentCompleted: true })
+      .set(values)
       .where(inArray(transactions.id, transactionIds));
   } catch (error) {
     throw new Error(
-      `Failed to mark transactions as enriched: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to ${description}: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
+}
+
+/**
+ * Mark transactions as enrichment completed without updating any other fields.
+ * Used for transactions the model processed successfully but that needed no
+ * merchant/category change, so any earlier failure marker is cleared.
+ *
+ * @param db - Database connection
+ * @param transactionIds - Array of transaction IDs to mark as enriched
+ */
+export async function markTransactionsAsEnriched(
+  db: Database,
+  transactionIds: string[],
+): Promise<void> {
+  await markTransactions(
+    db,
+    transactionIds,
+    { enrichmentCompleted: true, enrichmentFailedAt: null },
+    "mark transactions as enriched",
+  );
+}
+
+/**
+ * Mark transactions as enrichment completed *after the enrichment failed*.
+ *
+ * `enrichment_completed` still goes true so the UI stops showing them as
+ * analyzing, but `enrichment_failed_at` records that nothing was actually
+ * enriched — which is also what keeps them eligible for a replay.
+ *
+ * @param db - Database connection
+ * @param transactionIds - Array of transaction IDs whose enrichment failed
+ */
+export async function markTransactionsAsEnrichmentFailed(
+  db: Database,
+  transactionIds: string[],
+): Promise<void> {
+  await markTransactions(
+    db,
+    transactionIds,
+    { enrichmentCompleted: true, enrichmentFailedAt: sql`now()` },
+    "mark transactions as enrichment failed",
+  );
 }

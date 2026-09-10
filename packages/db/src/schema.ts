@@ -398,6 +398,15 @@ export const transactions = pgTable(
     frequency: transactionFrequencyEnum(),
     merchantName: text("merchant_name"),
     enrichmentCompleted: boolean("enrichment_completed").default(false),
+    // enrichment_completed only says the process finished, which is what stops
+    // the UI spinning. This says whether it finished by working: set when a
+    // batch is marked complete after the model call failed, cleared the moment
+    // enrichment succeeds. Non-null is also what makes the row eligible again,
+    // so replaying the task retries it instead of skipping it.
+    enrichmentFailedAt: timestamp("enrichment_failed_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     ftsVector: tsvector("fts_vector")
       .notNull()
       .generatedAlwaysAs(

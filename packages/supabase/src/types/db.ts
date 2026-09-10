@@ -3147,6 +3147,7 @@ export type Database = {
           date: string;
           description: string | null;
           enrichment_completed: boolean;
+          enrichment_failed_at: string | null;
           frequency:
             | Database["public"]["Enums"]["transaction_frequency"]
             | null;
@@ -3187,6 +3188,7 @@ export type Database = {
           date: string;
           description?: string | null;
           enrichment_completed?: boolean;
+          enrichment_failed_at?: string | null;
           frequency?:
             | Database["public"]["Enums"]["transaction_frequency"]
             | null;
@@ -3224,6 +3226,7 @@ export type Database = {
           date?: string;
           description?: string | null;
           enrichment_completed?: boolean;
+          enrichment_failed_at?: string | null;
           frequency?:
             | Database["public"]["Enums"]["transaction_frequency"]
             | null;

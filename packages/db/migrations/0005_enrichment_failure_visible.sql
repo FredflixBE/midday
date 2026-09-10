@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "enrichment_failed_at" timestamp with time zone;

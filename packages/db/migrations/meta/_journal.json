@@ -36,6 +36,13 @@
       "when": 1789039841407,
       "tag": "0004_exchange_rate_precision",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789041771872,
+      "tag": "0005_enrichment_failure_visible",
+      "breakpoints": true
     }
   ]
 }
