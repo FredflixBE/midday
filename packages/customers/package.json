@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@midday/tsconfig": "workspace:*",
+    "@types/bun": "latest",
     "@types/node": "^25.5.0",
     "typescript": "catalog:"
   }

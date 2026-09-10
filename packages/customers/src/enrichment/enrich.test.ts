@@ -64,7 +64,7 @@ describe("enrichCustomer when nothing is learned", () => {
   test("learns nothing when the provider has no such company either", async () => {
     process.env.COMPANY_ENRICH_API_KEY = "ce_test_key";
     globalThis.fetch = (async () =>
-      new Response(null, { status: 404 })) as typeof fetch;
+      new Response(null, { status: 404 })) as unknown as typeof fetch;
 
     const result = await enrichCustomer({
       companyName: "Acme",

@@ -6,7 +6,7 @@ import {
   type EnrichCustomerPayload,
   enrichCustomerSchema,
 } from "@jobs/schemas/customers";
-import { enrichCustomer } from "@midday/customers";
+import { enrichCustomer, isCompanyEnrichConfigured } from "@midday/customers";
 import {
   getCustomerForEnrichment,
   markCustomerEnrichmentFailed,
@@ -29,6 +29,21 @@ export class EnrichCustomerProcessor extends BaseProcessor<EnrichCustomerPayload
   }> {
     const { customerId, teamId } = job.data;
     const db = getDb();
+
+    // No provider, no enrichment. Running anyway would stamp "completed" and
+    // an enrichedAt on a customer nothing was ever looked up for.
+    if (!isCompanyEnrichConfigured()) {
+      this.logger.warn("Enrichment provider not configured, skipping", {
+        customerId,
+        teamId,
+      });
+
+      // The caller set "pending" before queueing; leaving it there would show
+      // the customer as forever enriching.
+      await updateCustomerEnrichmentStatus(db, { customerId, status: null });
+
+      return { customerId, status: "skipped" };
+    }
 
     this.logger.info("Starting customer enrichment", {
       jobId: job.id,

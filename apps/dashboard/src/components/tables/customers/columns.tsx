@@ -123,7 +123,8 @@ const ActionsCell = memo(
               Edit customer
             </DropdownMenuItem>
 
-            {hasWebsite && !isEnriching && (
+            {/* No onEnrich means this deployment has no enrichment provider. */}
+            {onEnrich && hasWebsite && !isEnriching && (
               <DropdownMenuItem onClick={handleEnrich}>
                 Enrich company
               </DropdownMenuItem>
