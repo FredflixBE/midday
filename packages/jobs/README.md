@@ -66,13 +66,20 @@ or a model payload has to say what it needs:
 | Preset | Heap | Tasks |
 | --- | --- | --- |
 | `micro` (default) | 205 MiB | everything that only reads and writes rows |
-| `small-1x` | 410 MiB | one file in memory at a time |
-| `small-2x` | 819 MiB | multi-pass OCR; the transaction export |
+| `small-1x` | 410 MiB | one file in memory at a time; HEIC photos up to 14 MP |
+| `small-2x` | 819 MiB | multi-pass OCR, and HEIC photos up to 32 MP; the transaction export |
 | `medium-1x` | 1638 MiB | the full team export |
 
 `trigger dev` applies the same limit as the cloud, so an undersized preset
 fails locally exactly as it would in production — as
 `TASK_PROCESS_OOM_KILLED`, with the V8 heap-limit trace in the run's logs.
+
+That holds for the heap only. Memory outside it — WebAssembly, `Buffer`s,
+sharp's native allocations — counts against a deployed machine's whole memory
+and against nothing locally, so `trigger dev` will not catch an overrun there.
+HEIC conversion is almost entirely off-heap (6 MiB of heap at any size), which
+is why its ceilings in `utils/image-processing.ts` are measured against the
+machine's memory rather than the heap column above.
 
 One thing that makes this easy to misread: `experimental_processKeepAlive` in
 `trigger.config.ts` reuses a worker process across runs, so a run starts

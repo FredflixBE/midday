@@ -238,14 +238,15 @@ export const processDocument = schemaTask({
 sharp.cache({ memory: 256, files: 20, items: 100 }); // 256MB cache limit
 sharp.concurrency(2); // Limit internal parallelism
 
-// File size limit for HEIC
-const MAX_HEIC_FILE_SIZE = 15 * 1024 * 1024; // 15MB - larger files skip AI
+// Pixel ceiling for HEIC, per machine: what a decode costs is set by the
+// pixels, not the file. Over it, a vault document completes with its filename.
+const HEIC_MEGAPIXEL_CEILING = { "small-1x": 14, "small-2x": 32 };
 ```
 
 All four document tasks use the same numbers.
 
 **Why a concurrency limit of 10?**
-- HEIC conversion is memory-intensive (~50-100MB per 12MP image)
+- HEIC conversion is memory-intensive (~220 MiB for a 12 MP photo, ~360 MiB for 24 MP)
 - AI classification (Gemini) has rate limits - avoid 429 errors
 - Matches the other API-heavy tasks (enrich-customer: 5, delete-team: 5, accounting: 10)
 
@@ -475,9 +476,11 @@ flowchart TD
     C --> E[Two-stage conversion]
     E --> F{Try Sharp}
     F -->|Success| G[JPEG @ 2048px]
-    F -->|Failure| H[heic-convert fallback]
-    H --> I[Sharp resize]
-    I --> G
+    F -->|"Failure (every iPhone photo: HEVC)"| H{Pixels over the machine's ceiling?}
+    H -->|No| I[libheif WebAssembly decode to RGBA]
+    H -->|Yes| R[Refused: ImageTooLargeError]
+    I --> J[Sharp resize]
+    J --> G
     
     D --> J{Size > 2048px?}
     J -->|Yes| K[Resize to fit 2048px]
@@ -525,47 +528,40 @@ export async function resizeImage(
 export async function convertHeicToJpeg(
   inputBuffer: ArrayBuffer,
   logger: Logger,
-  options?: { maxSize?: number }
+  options: { machine: HeicConvertingMachine; maxSize?: number }
 ): Promise<HeicConversionResult> {
-  const maxSize = options?.maxSize ?? IMAGE_SIZES.MAX_DIMENSION; // 2048px
-  
-  // Try sharp first (handles HEIF/HEIC + mislabeled files)
+  // Try sharp first: a JPEG named .heic, or a HEIF that is not HEVC inside.
+  // sharp's prebuilt libvips has no HEVC decoder on any platform, so for a
+  // real iPhone photo this fails and the libheif path below is the normal one.
   try {
-    const buffer = await sharp(Buffer.from(inputBuffer))
-      .rotate()
-      .resize({ width: maxSize, height: maxSize, fit: "inside" })
-      .toFormat("jpeg")
-      .toBuffer();
-    return { buffer, mimetype: "image/jpeg" };
-  } catch (sharpError) {
-    // Fall back to heic-convert for edge cases
-    // Note: heic-convert decodes to raw pixels - memory intensive!
-    // 12MP photo = ~48MB raw RGBA. Quality 0.8 reduces output size.
-    const decodedImage = await convert({
-      buffer: new Uint8Array(inputBuffer),
-      format: "JPEG",
-      quality: 0.8, // Reduced from 1.0 to save memory
-    });
-    
-    const buffer = await sharp(Buffer.from(decodedImage))
-      .rotate()
-      .resize({ width: maxSize, height: maxSize, fit: "inside" })
-      .toFormat("jpeg")
-      .toBuffer();
+    return { buffer: await toResizedJpeg(sharp(inputBuffer), maxSize), mimetype: "image/jpeg" };
+  } catch {
+    // Parse the header with libheif's WebAssembly build — cheap — and refuse
+    // an image with more pixels than the calling machine can decode, before
+    // decoding anything. Otherwise decode to RGBA and hand the raw pixels to
+    // sharp. A fresh decoder instance per call: WebAssembly memory never
+    // shrinks, and a kept-alive worker would carry it into its next run.
+    const { pixels, width, height } = await decodeHeic(inputBuffer, HEIC_MEGAPIXEL_CEILING[options.machine]);
+    const buffer = await toResizedJpeg(sharp(pixels, { raw: { width, height, channels: 4 } }), maxSize);
     return { buffer, mimetype: "image/jpeg" };
   }
 }
 
 // In process-document.ts - graceful degradation for HEIC
-// If conversion fails (e.g., OOM), document completes with fallback
+// A refused or unreadable photo completes with its filename instead
 try {
-  const { buffer: image } = await convertHeicToJpeg(buffer, logger);
+  const { buffer: image } = await convertHeicToJpeg(buffer, logger, { machine: MACHINE });
   // ... upload and continue
 } catch (conversionError) {
-  // Complete with fallback - user can still see file and retry
+  // ImageTooLargeError: summary "Large image (N MP) - AI classification skipped"
+  // Anything else: complete with fallback - user can still see file and retry
   await updateDocument({ title: filename, status: "completed" });
   return;
 }
+
+// In inbox/process-attachment.ts a refusal instead ends the inbox row
+// `failed`, with the refusal's message in meta.failureReason, which the
+// inbox's Failed tooltip shows in place of "try again".
 ```
 
 ### Supported Image Types
