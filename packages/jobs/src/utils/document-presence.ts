@@ -29,6 +29,12 @@ export type MissingDocumentHalf = "row" | "file";
 type Presence = "present" | "absent" | "unknown";
 
 type DocumentRef = {
+  /**
+   * The run's own connection. Storage, by contrast, is reached through a
+   * client created here: it carries no per-run state, where the database
+   * connection comes from the middleware and has to be the one the caller
+   * already holds.
+   */
   db: Database;
   /** Full vault path, e.g. "teamId/inbox/invoice.pdf". */
   fileName: string;
@@ -85,8 +91,25 @@ async function documentRowPresence({
 }
 
 /**
+ * The line every quiet exit turns on. It states what was observed rather than
+ * what it implies: both halves being gone is overwhelmingly a deletion, but a
+ * run started against a path that never existed would look the same, and the
+ * log should not claim more than it saw.
+ */
+function logBothHalvesGone({ fileName, teamId, logger }: DocumentRef): void {
+  logger.info(
+    "Neither the file nor its documents row is there - treating the document as deleted",
+    { fileName, teamId },
+  );
+}
+
+/**
  * Explain a half of the document that has already been found missing, and say
  * so in the log — the two causes must stay distinguishable there.
+ *
+ * Only for a half found missing *after* the document was known to be there.
+ * At the start of a run use {@link documentWasDeleted} instead: a row that has
+ * not been written yet is not yet an orphan.
  */
 export async function explainMissingDocument({
   missing,
@@ -101,11 +124,7 @@ export async function explainMissingDocument({
       : await documentRowPresence(ref);
 
   if (other === "absent") {
-    logger.info("Document was deleted while the job was running", {
-      fileName,
-      teamId,
-      missing,
-    });
+    logBothHalvesGone(ref);
 
     return "deleted";
   }
@@ -132,19 +151,27 @@ export async function explainMissingDocument({
 /**
  * Whether the document has already been deleted — both halves gone.
  *
- * Cheap enough to call before an expensive step: it only reaches storage when
- * the row has already turned up missing. A row missing on its own is not
- * reported as deleted, because it may simply not have been written yet — that
- * race is what `updateDocumentWithRetry` in ./document-update.ts retries for.
+ * Cheap enough to call before an expensive step: it only reaches storage once
+ * the row has already turned up missing.
+ *
+ * Unlike {@link explainMissingDocument} this says nothing when the answer is
+ * no. A row missing while its file is there means the row has not been written
+ * yet as often as it means it never will be — that is the race
+ * `updateDocumentWithRetry` in ./document-update.ts retries for — and calling
+ * it a bug this early would be a false alarm on every one of them.
  */
 export async function documentWasDeleted(ref: DocumentRef): Promise<boolean> {
   if ((await documentRowPresence(ref)) !== "absent") {
     return false;
   }
 
-  return (
-    (await explainMissingDocument({ ...ref, missing: "row" })) === "deleted"
-  );
+  if ((await vaultFilePresence(ref)) !== "absent") {
+    return false;
+  }
+
+  logBothHalvesGone(ref);
+
+  return true;
 }
 
 /**
@@ -160,15 +187,35 @@ export async function fileMissingBecauseDeleted(
 }
 
 /**
- * What a document task did, so a parent waiting on it can tell real work from
- * a quiet exit and stop rather than announce a document that no longer exists.
+ * What a classification task did, so the `process-document` run waiting on it
+ * can tell real work from a quiet exit and stop rather than announce a
+ * document that no longer exists.
  */
-export type DocumentTaskOutcome =
+export type ClassificationOutcome =
   | { status: "completed" }
   | { status: "skipped"; reason: "document-deleted" };
 
-/** The result every document task returns when the item was deleted under it. */
-export const documentDeletedOutcome: DocumentTaskOutcome = {
+/** The result a classification returns when the item was deleted under it. */
+export const documentDeletedOutcome: ClassificationOutcome = {
   status: "skipped",
   reason: "document-deleted",
 };
+
+/**
+ * The ending for a classification whose update matched no rows.
+ *
+ * Returns the quiet outcome when the document was deleted, and **throws**
+ * otherwise: a row that is gone while its file is still in the vault was never
+ * created, which is an upstream bug and the one case that must not go quiet.
+ */
+export async function outcomeForMissingRow(
+  ref: DocumentRef,
+): Promise<ClassificationOutcome> {
+  const cause = await explainMissingDocument({ ...ref, missing: "row" });
+
+  if (cause === "deleted") {
+    return documentDeletedOutcome;
+  }
+
+  throw new Error(`Document with path ${ref.fileName} not found`);
+}

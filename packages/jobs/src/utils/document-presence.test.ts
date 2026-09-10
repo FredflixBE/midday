@@ -38,7 +38,11 @@ const {
   documentWasDeleted,
   explainMissingDocument,
   fileMissingBecauseDeleted,
+  outcomeForMissingRow,
 } = await import("./document-presence");
+
+const DELETED_LINE =
+  "Neither the file nor its documents row is there - treating the document as deleted";
 
 type Line = { level: keyof JobLogger; message: string };
 
@@ -75,12 +79,7 @@ describe("explainMissingDocument", () => {
     expect(await explainMissingDocument({ ...ref, missing: "row" })).toBe(
       "deleted",
     );
-    expect(lines).toEqual([
-      {
-        level: "info",
-        message: "Document was deleted while the job was running",
-      },
-    ]);
+    expect(lines).toEqual([{ level: "info", message: DELETED_LINE }]);
   });
 
   test("a missing row whose file is still there is an upstream bug", async () => {
@@ -154,10 +153,13 @@ describe("documentWasDeleted", () => {
     expect(await documentWasDeleted(ref)).toBe(true);
   });
 
-  test("a row missing on its own is not yet a deletion", async () => {
+  test("a row missing on its own is not yet a deletion, and not an alarm", async () => {
     rowExists = false;
 
     expect(await documentWasDeleted(ref)).toBe(false);
+    // The row may simply not have been written yet, so saying "never created"
+    // here would fire on every one of those races.
+    expect(lines).toEqual([]);
   });
 
   test("a row check that fails is not a deletion", async () => {
@@ -175,5 +177,30 @@ describe("fileMissingBecauseDeleted", () => {
 
     rowExists = true;
     expect(await fileMissingBecauseDeleted(ref)).toBe(false);
+  });
+});
+
+describe("outcomeForMissingRow", () => {
+  test("a deleted document ends the run quietly", async () => {
+    fileExists = false;
+
+    expect(await outcomeForMissingRow(ref)).toEqual({
+      status: "skipped",
+      reason: "document-deleted",
+    });
+  });
+
+  test("a row that was never created still throws", async () => {
+    await expect(outcomeForMissingRow(ref)).rejects.toThrow(
+      "Document with path team-1/inbox/invoice.pdf not found",
+    );
+  });
+
+  test("a check that could not be made still throws", async () => {
+    fileError = new Error("storage unreachable");
+
+    await expect(outcomeForMissingRow(ref)).rejects.toThrow(
+      "Document with path team-1/inbox/invoice.pdf not found",
+    );
   });
 });

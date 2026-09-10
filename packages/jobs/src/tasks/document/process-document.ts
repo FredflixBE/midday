@@ -37,6 +37,21 @@ import { classifyImage } from "./classify-image";
  * Handles HEIC conversion, document loading, and triggers classification
  */
 export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPayload> {
+  /**
+   * Whether a download that came back empty did so because the item was
+   * deleted from the inbox, which takes the stored object with it. Every
+   * download here asks, because a deletion is a normal ending and a file
+   * missing while its documents row stands is still a failure.
+   */
+  private wasDeleted(fileName: string, teamId: string): Promise<boolean> {
+    return fileMissingBecauseDeleted({
+      db: getDb(),
+      fileName,
+      teamId,
+      logger: this.logger,
+    });
+  }
+
   async process(job: JobContext<ProcessDocumentPayload>): Promise<void> {
     const processStartTime = Date.now();
     const { mimetype, filePath, teamId } = job.data;
@@ -86,16 +101,7 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         );
 
         if (!data) {
-          // Deleted while this ran, rather than never there - see the same
-          // check on the ordinary download below.
-          if (
-            await fileMissingBecauseDeleted({
-              db,
-              fileName,
-              teamId,
-              logger: this.logger,
-            })
-          ) {
+          if (await this.wasDeleted(fileName, teamId)) {
             return;
           }
 
@@ -240,17 +246,7 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
         });
 
         if (!data) {
-          // Deleting an inbox item removes the stored object, which is what
-          // makes this download come back empty. That is a normal ending, not
-          // a missing file - so long as the documents row went with it.
-          if (
-            await fileMissingBecauseDeleted({
-              db,
-              fileName,
-              teamId,
-              logger: this.logger,
-            })
-          ) {
+          if (await this.wasDeleted(fileName, teamId)) {
             return;
           }
 
@@ -325,14 +321,7 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
             fileData = redownloadedData;
             processedMimetype = "application/pdf";
           } else {
-            if (
-              await fileMissingBecauseDeleted({
-                db,
-                fileName,
-                teamId,
-                logger: this.logger,
-              })
-            ) {
+            if (await this.wasDeleted(fileName, teamId)) {
               return;
             }
 

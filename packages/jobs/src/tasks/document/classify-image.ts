@@ -7,11 +7,11 @@ import {
   classifyImageSchema,
 } from "@jobs/schemas/documents";
 import {
-  type DocumentTaskOutcome,
+  type ClassificationOutcome,
   documentDeletedOutcome,
   documentWasDeleted,
-  explainMissingDocument,
   fileMissingBecauseDeleted,
+  outcomeForMissingRow,
 } from "@jobs/utils/document-presence";
 import { markDocumentFailed } from "@jobs/utils/document-status";
 import { updateDocumentWithRetry } from "@jobs/utils/document-update";
@@ -44,7 +44,7 @@ interface ImageClassificationResult {
 export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> {
   async process(
     job: JobContext<ClassifyImagePayload>,
-  ): Promise<DocumentTaskOutcome> {
+  ): Promise<ClassificationOutcome> {
     const { teamId, fileName } = job.data;
     const supabase = createClient();
     const db = getDb();
@@ -64,11 +64,6 @@ export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> 
     if (
       await documentWasDeleted({ db, fileName, teamId, logger: this.logger })
     ) {
-      this.logger.info(
-        "Image was deleted before classification started - nothing to do",
-        { fileName, pathTokens, teamId },
-      );
-
       return documentDeletedOutcome;
     }
 
@@ -221,32 +216,14 @@ export class ClassifyImageProcessor extends BaseProcessor<ClassifyImagePayload> 
 
     if (!updatedDocs || updatedDocs.length === 0) {
       // The row was there when classification began, so it was either deleted
-      // while the model ran - a normal ending - or it never existed, which is
-      // a bug worth failing over.
-      const cause = await explainMissingDocument({
+      // while the model ran - a normal ending, and the result is simply
+      // discarded - or it never existed, which throws.
+      return outcomeForMissingRow({
         db,
         fileName,
         teamId,
         logger: this.logger,
-        missing: "row",
       });
-
-      if (cause === "deleted") {
-        this.logger.info(
-          "Image was deleted while it was being classified - discarding the result",
-          { fileName, pathTokens, teamId },
-        );
-
-        return documentDeletedOutcome;
-      }
-
-      this.logger.error("Document not found for image classification update", {
-        fileName,
-        pathTokens,
-        teamId,
-        cause,
-      });
-      throw new Error(`Document with path ${fileName} not found`);
     }
 
     const data = updatedDocs[0];

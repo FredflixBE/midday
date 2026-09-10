@@ -347,7 +347,7 @@ witnesses for each other:
 |------|-----|---------|
 | gone | gone | The item was deleted. A normal ending. |
 | present | gone | The row was never created — `insert_into_documents()` did not fire. An upstream bug, and it still fails. |
-| gone | present | The file is missing while its row stands. Still `File not found`. |
+| gone | present | The file is missing while its row stands. Still fails, with whatever error that site already raised. |
 
 [`packages/jobs/src/utils/document-presence.ts`](../packages/jobs/src/utils/document-presence.ts)
 holds that check. A failed check is reported as unknown rather than as a
@@ -361,6 +361,13 @@ that is already gone, and once when the update comes back with zero rows, which
 is where a deletion that lands mid-classification shows up. Both return
 `{ status: "skipped", reason: "document-deleted" }`, and `process-document`
 stops on that rather than announcing a document that no longer exists.
+
+The two asks are not the same check, and the difference matters. Before the run
+has seen the document, a row missing while its file is there proves nothing —
+the row may not have been written yet, which is the race
+`updateDocumentWithRetry` retries for — so the early check stays silent unless
+both halves are gone. After the update has already retried and still matched no
+rows, that same state is the bug, and it is reported as one.
 
 ## Reprocessing Flow
 
@@ -617,8 +624,8 @@ timeout of its own, and keeping the two in step was a standing hazard.
 | [`apps/api/src/trpc/routers/documents.ts`](../apps/api/src/trpc/routers/documents.ts) | tRPC router with reprocessDocument endpoint |
 | [`packages/jobs/src/tasks/document/process-document.ts`](../packages/jobs/src/tasks/document/process-document.ts) | Main orchestrator job |
 | [`packages/jobs/src/tasks/document/classify-document.ts`](../packages/jobs/src/tasks/document/classify-document.ts) | AI text classification with graceful degradation |
-| [`packages/jobs/src/utils/document-presence.ts`](../packages/jobs/src/utils/document-presence.ts) | Tells a deleted document from one whose row was never created |
 | [`packages/jobs/src/tasks/document/classify-image.ts`](../packages/jobs/src/tasks/document/classify-image.ts) | AI vision classification with graceful degradation |
+| [`packages/jobs/src/utils/document-presence.ts`](../packages/jobs/src/utils/document-presence.ts) | Tells a deleted document from one whose row was never created |
 | [`packages/jobs/src/tasks/document/embed-document-tags.ts`](../packages/jobs/src/tasks/document/embed-document-tags.ts) | Tag embedding generation |
 | [`packages/jobs/src/utils/document-status.ts`](../packages/jobs/src/utils/document-status.ts) | Failure handlers (queue options now live on each task) |
 | [`packages/jobs/src/utils/image-processing.ts`](../packages/jobs/src/utils/image-processing.ts) | Image resize and HEIC conversion utilities |
