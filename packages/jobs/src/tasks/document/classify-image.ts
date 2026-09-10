@@ -233,6 +233,8 @@ export const classifyImage = schemaTask({
   // Downloading and resizing the image on top of the 90s classification cap;
   // the documents queue allowed 11 minutes for the pair.
   maxDuration: 660,
+  // The decoded image plus sharp's working buffers.
+  machine: "small-1x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: (payload, { ctx }) =>

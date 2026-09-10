@@ -620,6 +620,8 @@ export const slackUpload = schemaTask({
   schema: slackUploadSchema,
   // Carried over from the inbox queue's 11 minute lock; OCR dominates.
   maxDuration: 660,
+  // Holds the Slack file in memory on its way to the vault.
+  machine: "small-1x",
   queue: { concurrencyLimit: 50 },
   retry: {
     maxAttempts: 3,

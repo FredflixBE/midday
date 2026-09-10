@@ -528,6 +528,10 @@ export const processAttachment = schemaTask({
   // Carried over from the inbox queue: 11 minutes, because OCR extraction runs
   // multiple passes and each is allowed 10.
   maxDuration: 660,
+  // Multi-pass OCR: the PDF is base64'd into the request, and a failed pass
+  // re-sends it once per missing field, in parallel. The biggest resident
+  // set of any task here.
+  machine: "small-2x",
   queue: { concurrencyLimit: 50 },
   retry: {
     maxAttempts: 3,

@@ -305,6 +305,9 @@ export const exportTransactions = schemaTask({
   // every attachment before zipping, so it needs far more than the 5 minute
   // stall window the BullMQ queue used for the same work.
   maxDuration: 1800,
+  // Buffers every attachment and then the finished ZIP, both in memory.
+  // Streaming the archive to storage would let this drop back down.
+  machine: "small-2x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: (payload, { ctx }) =>

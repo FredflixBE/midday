@@ -204,6 +204,8 @@ export const classifyDocument = schemaTask({
   // The documents queue held its lock for 11 minutes; classification itself is
   // capped at 90s but retries and a slow model can stack up under it.
   maxDuration: 660,
+  // Holds the document while the model reads it.
+  machine: "small-1x",
   queue: { concurrencyLimit: 10 },
   retry: { maxAttempts: 3, minTimeoutInMs: 1000, factor: 2 },
   run: (payload, { ctx }) =>
