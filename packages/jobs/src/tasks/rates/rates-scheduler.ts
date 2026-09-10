@@ -3,8 +3,8 @@ import { BaseProcessor } from "@jobs/processors/base";
 import { runProcessor } from "@jobs/processors/run";
 import type { JobContext } from "@jobs/processors/types";
 import type { RatesSchedulerPayload } from "@jobs/schemas/rates";
+import { getRates } from "@midday/banking";
 import { upsertExchangeRates } from "@midday/db/queries";
-import { trpc } from "@midday/trpc";
 import { isFlagEnabled } from "@midday/utils/flags";
 import { schedules } from "@trigger.dev/sdk";
 
@@ -28,8 +28,12 @@ export class RatesSchedulerProcessor extends BaseProcessor<RatesSchedulerPayload
 
     this.logger.info("Starting rates scheduler");
 
-    // Fetch rates from banking API
-    const { data: ratesData } = await trpc.banking.rates.query();
+    // Straight to the provider, the way sync-institutions reaches its own.
+    // Going through the API meant going through the tRPC client's fetch
+    // wrapper, which gives up after 5s — sized for a private-network hop
+    // during a redeploy, not for this: getRates() makes one CDN request per
+    // currency, 152 of them, and takes about 75 seconds.
+    const ratesData = await getRates();
 
     // Transform rates data to match database schema
     const exchangeRateData = ratesData.flatMap((rate) => {
