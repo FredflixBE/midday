@@ -14,13 +14,11 @@ import {
 } from "@jobs/utils/document-status";
 import { updateDocumentWithRetry } from "@jobs/utils/document-update";
 import {
+  ImageTooLargeError,
   NonRetryableError,
   UnsupportedFileTypeError,
 } from "@jobs/utils/error-classification";
-import {
-  convertHeicToJpeg,
-  MAX_HEIC_FILE_SIZE,
-} from "@jobs/utils/image-processing";
+import { convertHeicToJpeg } from "@jobs/utils/image-processing";
 import { TIMEOUTS, withTimeout } from "@jobs/utils/timeout";
 import { loadDocument } from "@midday/documents/loader";
 import {
@@ -128,34 +126,9 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
           sizeMB: fileSizeMB,
         });
 
-        // Skip AI classification for very large HEIC files to prevent OOM
-        // 15MB HEIC ≈ 24MP ≈ ~100MB decoded. Complete with filename instead.
-        if (buffer.byteLength > MAX_HEIC_FILE_SIZE) {
-          this.logger.warn(
-            "HEIC file too large for AI classification - completing with filename",
-            {
-              fileName,
-              teamId,
-              sizeBytes: buffer.byteLength,
-              maxSizeBytes: MAX_HEIC_FILE_SIZE,
-            },
-          );
-
-          await updateDocumentWithRetry(
-            db,
-            {
-              pathTokens: filePath,
-              teamId,
-              title: filePath.at(-1) ?? "Large HEIC Image",
-              summary: `Large image (${fileSizeMB}MB) - AI classification skipped`,
-              processingStatus: "completed",
-            },
-            this.logger,
-          );
-          return;
-        }
-
-        // Try to convert HEIC to JPEG - use graceful degradation if it fails (e.g., OOM)
+        // Try to convert HEIC to JPEG - use graceful degradation if it fails.
+        // A photo with more pixels than a worker can decode is refused from
+        // its header before any decoding, rather than killing the worker.
         try {
           const { buffer: image } = await convertHeicToJpeg(
             buffer,
@@ -192,7 +165,32 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
           fileData = new Blob([image], { type: "image/jpeg" });
           processedMimetype = "image/jpeg";
         } catch (conversionError) {
-          // HEIC conversion failed (possibly OOM) - complete with fallback
+          if (conversionError instanceof ImageTooLargeError) {
+            this.logger.warn(
+              "HEIC too large for AI classification - completing with filename",
+              {
+                fileName,
+                teamId,
+                megapixels: conversionError.megapixels,
+                maxMegapixels: conversionError.maxMegapixels,
+              },
+            );
+
+            await updateDocumentWithRetry(
+              db,
+              {
+                pathTokens: filePath,
+                teamId,
+                title: filePath.at(-1) ?? "Large HEIC Image",
+                summary: `Large image (${conversionError.megapixels.toFixed(0)} MP) - AI classification skipped`,
+                processingStatus: "completed",
+              },
+              this.logger,
+            );
+            return;
+          }
+
+          // HEIC conversion failed - complete with fallback
           // User can still see the file and retry later
           this.logger.error(
             "HEIC conversion failed - completing with fallback",

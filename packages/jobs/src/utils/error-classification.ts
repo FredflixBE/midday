@@ -61,6 +61,28 @@ export class UnsupportedFileTypeError extends NonRetryableError {
 }
 
 /**
+ * An image with more pixels than a worker can decode.
+ *
+ * The decode cost is set by the decoded pixel count, not by the file: a 1.6 MB
+ * and a 0.9 MB iPhone photo cost the same, and a 2.5 MB 48-megapixel one costs
+ * three times as much. Retrying gets the same answer, so it is never retried,
+ * and the message is written for whoever uploaded the photo.
+ */
+export class ImageTooLargeError extends NonRetryableError {
+  constructor(
+    public readonly megapixels: number,
+    public readonly maxMegapixels: number,
+  ) {
+    super(
+      `This photo is ${megapixels.toFixed(0)} megapixels, more than the ${maxMegapixels} we can convert. Upload it as a JPEG, or at a lower resolution.`,
+      undefined,
+      "validation",
+    );
+    this.name = "ImageTooLargeError";
+  }
+}
+
+/**
  * Classify an error to determine retry strategy
  */
 export function classifyError(error: unknown): ClassifiedError {

@@ -87,65 +87,6 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
       duration: `${inboxCheckDuration}ms`,
     });
 
-    // Convert HEIC to JPEG if needed (do this after inbox check so we can update contentType immediately)
-    if (mimetype === "image/heic") {
-      const heicStartTime = Date.now();
-      this.logger.info("Converting HEIC to JPEG", {
-        filePath: fileName,
-        jobId: job.id,
-      });
-
-      const { data } = await withTimeout(
-        supabase.storage.from("vault").download(fileName),
-        TIMEOUTS.FILE_DOWNLOAD,
-        `File download timed out after ${TIMEOUTS.FILE_DOWNLOAD}ms`,
-      );
-
-      if (!data) {
-        throw new NonRetryableError("File not found", undefined, "validation");
-      }
-
-      const buffer = await data.arrayBuffer();
-
-      // Convert HEIC to JPEG using shared utility
-      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger);
-
-      // Upload the converted image
-      const { data: uploadedData } = await withTimeout(
-        supabase.storage.from("vault").upload(fileName, image, {
-          contentType: "image/jpeg",
-          upsert: true,
-        }),
-        TIMEOUTS.FILE_UPLOAD,
-        `File upload timed out after ${TIMEOUTS.FILE_UPLOAD}ms`,
-      );
-
-      if (!uploadedData) {
-        throw new Error("Failed to upload converted image");
-      }
-
-      processedMimetype = "image/jpeg";
-      const heicDuration = Date.now() - heicStartTime;
-      this.logger.info("HEIC conversion completed", {
-        filePath: fileName,
-        jobId: job.id,
-        duration: `${heicDuration}ms`,
-      });
-
-      // Update contentType immediately if item exists (so frontend can show image sooner)
-      if (inboxData && inboxData.contentType === "image/heic") {
-        await updateInbox(db, {
-          id: inboxData.id,
-          teamId,
-          contentType: "image/jpeg",
-        });
-        this.logger.info("Updated contentType to jpeg", {
-          inboxId: inboxData.id,
-          jobId: job.id,
-        });
-      }
-    }
-
     // Create inbox item if it doesn't exist (for non-manual uploads)
     // or update existing item status if it was created manually
     if (!inboxData) {
@@ -159,7 +100,7 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
         teamId,
         filePath,
         fileName: filename ?? "Unknown",
-        contentType: processedMimetype, // Use processed mimetype (jpeg if converted from heic)
+        contentType: mimetype, // The original; a HEIC is moved to jpeg once converted below
         size,
         referenceId,
         website,
@@ -226,6 +167,68 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
 
     if (!inboxData) {
       throw new Error("Inbox data not found");
+    }
+
+    // Convert HEIC to JPEG if needed. After the row exists, not before: a
+    // photo that cannot be converted — one with more pixels than the worker
+    // can decode is refused outright — still leaves a row for the failure to
+    // land on, and a duplicate skipped above is never converted at all.
+    if (mimetype === "image/heic") {
+      const heicStartTime = Date.now();
+      this.logger.info("Converting HEIC to JPEG", {
+        filePath: fileName,
+        jobId: job.id,
+      });
+
+      const { data } = await withTimeout(
+        supabase.storage.from("vault").download(fileName),
+        TIMEOUTS.FILE_DOWNLOAD,
+        `File download timed out after ${TIMEOUTS.FILE_DOWNLOAD}ms`,
+      );
+
+      if (!data) {
+        throw new NonRetryableError("File not found", undefined, "validation");
+      }
+
+      const buffer = await data.arrayBuffer();
+
+      // Convert HEIC to JPEG using shared utility
+      const { buffer: image } = await convertHeicToJpeg(buffer, this.logger);
+
+      // Upload the converted image
+      const { data: uploadedData } = await withTimeout(
+        supabase.storage.from("vault").upload(fileName, image, {
+          contentType: "image/jpeg",
+          upsert: true,
+        }),
+        TIMEOUTS.FILE_UPLOAD,
+        `File upload timed out after ${TIMEOUTS.FILE_UPLOAD}ms`,
+      );
+
+      if (!uploadedData) {
+        throw new Error("Failed to upload converted image");
+      }
+
+      processedMimetype = "image/jpeg";
+      const heicDuration = Date.now() - heicStartTime;
+      this.logger.info("HEIC conversion completed", {
+        filePath: fileName,
+        jobId: job.id,
+        duration: `${heicDuration}ms`,
+      });
+
+      // Update contentType immediately (so frontend can show image sooner)
+      if (inboxData.contentType === "image/heic") {
+        await updateInbox(db, {
+          id: inboxData.id,
+          teamId,
+          contentType: "image/jpeg",
+        });
+        this.logger.info("Updated contentType to jpeg", {
+          inboxId: inboxData.id,
+          jobId: job.id,
+        });
+      }
     }
 
     // Create signed URL and fetch team data in parallel (they don't depend on each other)

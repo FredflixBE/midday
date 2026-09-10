@@ -49,7 +49,7 @@
     "archiver": "^7.0.1",
     "camelcase-keys": "catalog:",
     "date-fns": "catalog:",
-    "heic-convert": "catalog:",
+    "libheif-js": "catalog:",
     "node-xlsx": "catalog:",
     "papaparse": "catalog:",
     "sharp": "catalog:",
@@ -60,7 +60,6 @@
   "devDependencies": {
     "@types/archiver": "^7.0.0",
     "@types/bun": "latest",
-    "@types/heic-convert": "1.2.3",
     "@types/papaparse": "^5.5.2",
     "esbuild": "^0.27.3"
   }
