@@ -39,7 +39,8 @@
     "./utils/currency": "./src/utils/currency.ts",
     "./utils/tax": "./src/utils/tax.ts",
     "./utils/blocklist": "./src/utils/blocklist.ts",
-    "./utils/invoice-recurring": "./src/utils/invoice-recurring.ts"
+    "./utils/invoice-recurring": "./src/utils/invoice-recurring.ts",
+    "./utils/transaction-matching": "./src/utils/transaction-matching.ts"
   },
   "dependencies": {
     "@date-fns/tz": "catalog:",
