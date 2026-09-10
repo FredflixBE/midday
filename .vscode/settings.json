@@ -1,4 +1,8 @@
 {
+  // `auto` reads the root `packageManager` field, cannot parse
+  // "bun@1.3.11", and falls back to yarn — so every script in the NPM
+  // Scripts pane fails. Naming bun explicitly skips that detection.
+  "npm.packageManager": "bun",
   "editor.defaultFormatter": "biomejs.biome",
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
