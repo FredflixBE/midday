@@ -427,12 +427,14 @@
       "name": "@midday/inbox",
       "version": "1.0.0",
       "dependencies": {
+        "@googleapis/gmail": "^18.0.0",
+        "@googleapis/oauth2": "^6.0.0",
         "@microsoft/microsoft-graph-client": "^3.0.7",
         "@midday/db": "workspace:*",
         "@midday/encryption": "workspace:*",
         "@midday/supabase": "workspace:*",
         "@midday/utils": "workspace:*",
-        "googleapis": "^171.4.0",
+        "google-auth-library": "^10.5.0",
         "zod": "catalog:",
       },
     },
@@ -960,6 +962,10 @@
     "@floating-ui/utils": ["@floating-ui/utils@0.2.10", "", {}, "sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ=="],
 
     "@google-cloud/precise-date": ["@google-cloud/precise-date@4.0.0", "", {}, "sha512-1TUx3KdaU3cN7nfCdNf+UVqA/PSX29Cjcox3fZZBtINlRrXVTmUkQnCKv2MbBUbCopbK4olAT1IHl76uZyCiVA=="],
+
+    "@googleapis/gmail": ["@googleapis/gmail@18.0.0", "", { "dependencies": { "googleapis-common": "^8.0.0" } }, "sha512-qC8CaF3mgi8ZMm7IYK1Pk6AF3z2v1IE++8rtn+Mmpx+zIhbS9MMazY7+WicwgLKKskn5zQLXCoNv0Jn7OdFfPg=="],
+
+    "@googleapis/oauth2": ["@googleapis/oauth2@6.0.0", "", { "dependencies": { "googleapis-common": "^8.0.0" } }, "sha512-tmDk7M+vLzxmwHuM8fLXF6g/HJtwOu55qGz0TItJVfi/zTSHvbALPt2x2qCZUGkK9FxPOo9a1S4/XM0sH7nCVw=="],
 
     "@googlemaps/js-api-loader": ["@googlemaps/js-api-loader@1.16.8", "", {}, "sha512-CROqqwfKotdO6EBjZO/gQGVTbeDps5V7Mt9+8+5Q+jTg5CRMi3Ii/L9PmV3USROrt2uWxtGzJHORmByxyo9pSQ=="],
 

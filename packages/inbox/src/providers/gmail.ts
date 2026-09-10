@@ -1,9 +1,10 @@
+import { gmail, type gmail_v1 } from "@googleapis/gmail";
+import { oauth2 } from "@googleapis/oauth2";
 import type { Database } from "@midday/db/client";
 import { updateInboxAccount } from "@midday/db/queries";
 import { encrypt } from "@midday/encryption";
 import { ensureFileExtension } from "@midday/utils";
-import type { Credentials } from "google-auth-library";
-import { type Auth, type gmail_v1, google } from "googleapis";
+import { type Credentials, OAuth2Client } from "google-auth-library";
 import { decodeBase64Url } from "../attachments";
 import { InboxAuthError, InboxSyncError } from "../errors";
 import { generateDeterministicId } from "../generate-id";
@@ -38,7 +39,7 @@ interface GoogleApiError extends Error {
 }
 
 export class GmailProvider implements OAuthProviderInterface {
-  #oauth2Client: Auth.OAuth2Client;
+  #oauth2Client: OAuth2Client;
   #gmail: gmail_v1.Gmail | null = null;
   #accountId: string | null = null;
   #db: Database;
@@ -65,11 +66,7 @@ export class GmailProvider implements OAuthProviderInterface {
       );
     }
 
-    this.#oauth2Client = new google.auth.OAuth2(
-      clientId,
-      clientSecret,
-      redirectUri,
-    );
+    this.#oauth2Client = new OAuth2Client(clientId, clientSecret, redirectUri);
   }
 
   setAccountId(accountId: string): void {
@@ -126,7 +123,7 @@ export class GmailProvider implements OAuthProviderInterface {
     };
 
     this.#oauth2Client.setCredentials(googleCredentials);
-    this.#gmail = google.gmail({ version: "v1", auth: this.#oauth2Client });
+    this.#gmail = gmail({ version: "v1", auth: this.#oauth2Client });
   }
 
   /**
@@ -332,12 +329,10 @@ export class GmailProvider implements OAuthProviderInterface {
       // Ensure token is valid before making API call
       await this.#ensureValidAccessToken();
 
-      const oauth2 = google.oauth2({
+      const userInfoResponse = await oauth2({
         auth: this.#oauth2Client,
         version: "v2",
-      });
-
-      const userInfoResponse = await oauth2.userinfo.get();
+      }).userinfo.get();
       const userInfo = userInfoResponse.data;
 
       return {
