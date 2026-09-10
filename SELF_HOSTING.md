@@ -255,7 +255,6 @@ Runtime environment:
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. `packages/jobs/README.md` lists every schedule and its cron. |
 | `INVOICE_JOBS_DRY_RUN` | no | Off unless set. Makes the two invoice schedules log which invoices they would generate and who they would email, and send nothing. Worth one run before letting invoicing send for real. |
-| `TRIGGER_PROJECT_ID` | yes | Read by `trigger.config.ts`, and a repository secret for the deploy workflow. |
 | `INSIGHTS_ENABLED` | no | Weekly insight emails, off unless exactly `true`. No schedule is registered for the dispatcher, so this alone starts nothing. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
 
@@ -266,7 +265,7 @@ Runtime environment:
 | `DATABASE_SESSION_POOLER` | Lets the `migrate` job in `ci.yml` apply pending migrations on push to `main`. When unset the job skips with a notice — which is what it did for as long as `db:migrate` was broken. |
 | `SUPABASE_URL` | The project's API URL. With the next one, lets `supabase-keepalive.yml` touch the API twice a week so a free project never pauses. When either is unset the job skips with a notice. |
 | `SUPABASE_SECRET_KEY` | The project's secret (service role) key, so the keepalive call does not depend on what RLS allows anonymously. |
-| `TRIGGER_ACCESS_TOKEN`, `TRIGGER_PROJECT_ID` | Let `trigger-deploy.yml` ship `packages/jobs` on push to `main`. Both must be set or the job skips with a notice. The token comes from the Trigger.dev account (Personal Access Token); the project id is the `proj_…` reference on the project. |
+| `TRIGGER_ACCESS_TOKEN` | Lets `trigger-deploy.yml` ship `packages/jobs` on push to `main`. When unset the job skips with a notice. A Personal Access Token from the Trigger.dev account; the project itself is named in `trigger.config.ts`. |
 
 ## Local development
 

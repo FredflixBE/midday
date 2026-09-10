@@ -42,8 +42,12 @@ turning a job back on is an environment change rather than a deploy.
 ## Local development
 
 ```bash
-bun run jobs:dev   # trigger.dev dev, against packages/jobs/.env
+bun run jobs:dev            # or: npx trigger.dev@latest dev
 ```
+
+The project is named in `trigger.config.ts`, so nothing has to be exported
+first and the plain CLI invocation works too. Everything else the tasks need
+comes from `packages/jobs/.env`, which the CLI loads for the run itself.
 
 It registers every task and schedule against the Trigger.dev **dev**
 environment and stays attached, running each task locally as it is triggered.
