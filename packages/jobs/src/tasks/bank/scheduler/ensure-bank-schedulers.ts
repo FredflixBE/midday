@@ -88,14 +88,14 @@ export const ensureBankSchedulers = task({
         missing: missingTeams.length,
       });
 
-      if (missingTeams.length === 0) {
-        return {
-          eligible: eligibleTeams.length,
-          registered: registeredTeamIds.size,
-          created: 0,
-          failed: 0,
-        };
-      }
+      const counted = (created: number, failed: number) => ({
+        eligible: eligibleTeams.length,
+        registered: registeredTeamIds.size,
+        created,
+        failed,
+      });
+
+      if (missingTeams.length === 0) return counted(0, 0);
 
       let created = 0;
       let failed = 0;
@@ -124,12 +124,7 @@ export const ensureBankSchedulers = task({
         failed,
       });
 
-      return {
-        eligible: eligibleTeams.length,
-        registered: registeredTeamIds.size,
-        created,
-        failed,
-      };
+      return counted(created, failed);
     } catch (error) {
       logger.error("Failed to run ensure-bank-schedulers", {
         error: error instanceof Error ? error.message : "Unknown error",

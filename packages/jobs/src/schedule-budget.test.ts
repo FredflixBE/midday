@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { MAINTENANCE_ACTIONS } from "./maintenance";
 
 /**
  * The Trigger.dev free plan allows ten schedules, and a schedule declared in
@@ -39,23 +40,37 @@ async function sourceFiles(dir: string): Promise<string[]> {
   return files.flat();
 }
 
-async function scheduleTaskIds(): Promise<string[]> {
-  const tasksDir = join(import.meta.dir, "tasks");
-  const ids: string[] = [];
+/**
+ * Task ids declared by one of the three builders this package uses.
+ *
+ * The `id` is read from the first 200 characters of the definition rather than
+ * from the very next line, so that reformatting a call does not quietly turn
+ * this guard off by making it match nothing.
+ */
+async function declaredTaskIds(builders: string[]): Promise<string[]> {
+  const pattern = new RegExp(
+    `(?:${builders.join("|").replace(/\./g, "\\.")})\\(\\s*\\{[\\s\\S]{0,200}?id:\\s*"([^"]+)"`,
+    "g",
+  );
+  const ids = new Set<string>();
 
-  for (const file of await sourceFiles(tasksDir)) {
+  for (const file of await sourceFiles(join(import.meta.dir, "tasks"))) {
     const source = await readFile(file, "utf8");
 
-    for (const match of source.matchAll(
-      /schedules\.task\(\{\s*id:\s*"([^"]+)"/g,
-    )) {
-      const id = match[1];
-      if (id) ids.push(id);
+    for (const match of source.matchAll(pattern)) {
+      if (match[1]) ids.add(match[1]);
     }
   }
 
-  return ids.sort();
+  return [...ids].sort();
 }
+
+/** Only the scheduled ones — these are what the plan's ten counts. */
+const scheduleTaskIds = () => declaredTaskIds(["schedules.task"]);
+
+/** Everything, however it was declared. */
+const allTaskIds = () =>
+  declaredTaskIds(["schedules.task", "schemaTask", "task"]);
 
 describe("the schedule budget", () => {
   test("declares exactly the schedules the README lists", async () => {
@@ -64,11 +79,29 @@ describe("the schedule budget", () => {
     );
   });
 
+  test("finds the schedules at all", async () => {
+    // A regex that matches nothing would make the list above pass by being
+    // empty, which is the one way this guard can fail silently.
+    expect((await scheduleTaskIds()).length).toBeGreaterThan(0);
+  });
+
   test("leaves room for Yuki under the plan's ten", async () => {
     // The declared ones, plus one bank schedule and one inbox schedule for
     // the single team this fork serves.
     const inUse = (await scheduleTaskIds()).length;
 
     expect(inUse).toBeLessThan(10);
+  });
+});
+
+describe("the maintenance actions", () => {
+  test("each name a task that exists", async () => {
+    // The registry refers to tasks by id, which nothing else checks: renaming
+    // a task would otherwise leave a button that fails only when pressed.
+    const declared = await allTaskIds();
+
+    for (const action of MAINTENANCE_ACTIONS) {
+      expect(declared).toContain(action.task);
+    }
   });
 });
