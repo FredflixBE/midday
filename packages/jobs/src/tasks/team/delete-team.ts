@@ -2,6 +2,7 @@ import { BaseProcessor } from "@jobs/processors/base";
 import { runProcessor } from "@jobs/processors/run";
 import type { JobContext } from "@jobs/processors/types";
 import { type DeleteTeamPayload, deleteTeamSchema } from "@jobs/schemas/teams";
+import { deleteSchedulesFor } from "@jobs/utils/schedules";
 import { trpc } from "@midday/trpc";
 import { schemaTask } from "@trigger.dev/sdk";
 
@@ -22,13 +23,18 @@ export class DeleteTeamProcessor extends BaseProcessor<DeleteTeamPayload> {
     teamId: string;
     connectionsDeleted: number;
   }> {
-    const { teamId, connections } = job.data;
+    const { teamId, connections, inboxAccounts } = job.data;
 
     this.logger.info("Starting team deletion cleanup", {
       jobId: job.id,
       teamId,
       connectionsCount: connections.length,
     });
+
+    await deleteSchedulesFor([
+      teamId,
+      ...inboxAccounts.map((account) => account.id),
+    ]);
 
     // Delete bank connections
     const connectionsDeleted = await this.deleteBankConnections(
