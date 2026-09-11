@@ -1,10 +1,11 @@
 import { getDb } from "@jobs/init";
 import { syncMailbox } from "@jobs/utils/inbox-sync";
+import { recordSyncFailure } from "@jobs/utils/inbox-sync-failure";
 import { getInboxAccountInfo, updateInboxAccount } from "@midday/db/queries";
 import { InboxConnector } from "@midday/inbox/connector";
 import { AbortTaskRunError, logger, schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
-import { recordSyncFailure, syncInboxMessages } from "./sync-messages";
+import { syncInboxMessages } from "./sync-messages";
 
 /**
  * Sync an inbox account: list every message since the account's watermark,

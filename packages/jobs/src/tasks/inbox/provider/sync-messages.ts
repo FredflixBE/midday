@@ -4,19 +4,11 @@ import {
   markAttachmentFailed,
 } from "@jobs/utils/attachment-failure";
 import { MESSAGES_PER_BATCH } from "@jobs/utils/inbox-sync";
+import { recordSyncFailure } from "@jobs/utils/inbox-sync-failure";
 import { processBatch } from "@jobs/utils/process-batch";
-import {
-  getInboxAccountInfo,
-  getInboxBlocklist,
-  updateInboxAccount,
-} from "@midday/db/queries";
+import { getInboxAccountInfo, getInboxBlocklist } from "@midday/db/queries";
 import { separateBlocklistEntries } from "@midday/db/utils/blocklist";
 import { InboxConnector } from "@midday/inbox/connector";
-import {
-  assertInboxAuthError,
-  InboxSyncError,
-  isInboxAuthError,
-} from "@midday/inbox/errors";
 import { createClient } from "@midday/supabase/job";
 import { getExistingInboxAttachmentsQuery } from "@midday/supabase/queries";
 import { ensureFileExtension } from "@midday/utils";
@@ -25,7 +17,7 @@ import { z } from "zod";
 import { processAttachment } from "../process-attachment";
 
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
-const BATCH_SIZE = 5;
+const UPLOADS_AT_A_TIME = 5;
 
 /**
  * Read one batch of an inbox account's messages: fetch their PDFs, pass over
@@ -181,7 +173,7 @@ export const syncInboxMessages = schemaTask({
 
       const uploadedAttachments = await processBatch(
         filteredAttachments,
-        BATCH_SIZE,
+        UPLOADS_AT_A_TIME,
         async (batch) => {
           const results = [];
           for (const item of batch) {
@@ -191,12 +183,18 @@ export const syncInboxMessages = schemaTask({
               item.mimeType,
             );
 
-            const { data: uploadData } = await supabase.storage
-              .from("vault")
-              .upload(`${accountRow.teamId}/inbox/${safeFilename}`, item.data, {
-                contentType: item.mimeType,
-                upsert: true,
-              });
+            const { data: uploadData, error: uploadError } =
+              await supabase.storage
+                .from("vault")
+                .upload(
+                  `${accountRow.teamId}/inbox/${safeFilename}`,
+                  item.data,
+                  { contentType: item.mimeType, upsert: true },
+                );
+
+            // An attachment that never reached storage was never read: fail
+            // the batch rather than let the sync move past it.
+            if (uploadError) throw uploadError;
 
             if (uploadData) {
               results.push({
@@ -234,7 +232,7 @@ export const syncInboxMessages = schemaTask({
       if (uploadedAttachments.length > 0) {
         // Waiting is also what paces a backfill: the next batch is not read
         // until this one's documents are through the pipeline.
-        const batch =
+        const processed =
           await processAttachment.batchTriggerAndWait(uploadedAttachments);
 
         // A run that crashed — an out-of-memory kill is the one seen here —
@@ -243,7 +241,7 @@ export const syncInboxMessages = schemaTask({
         // that learns those runs are over.
         const { failed, unreadable } = failedBatchItems(
           uploadedAttachments,
-          batch.runs,
+          processed.runs,
         );
 
         if (unreadable) {
@@ -252,7 +250,7 @@ export const syncInboxMessages = schemaTask({
             {
               accountId: id,
               attachmentCount: uploadedAttachments.length,
-              runCount: batch.runs.length,
+              runCount: processed.runs.length,
             },
           );
         }
@@ -281,74 +279,3 @@ export const syncInboxMessages = schemaTask({
     }
   },
 });
-
-/**
- * Log a failed read of a mailbox, and mark the account disconnected when the
- * failure needs the user to connect it again. Any other failure leaves the
- * account's status alone, for the run's retries to deal with.
- */
-export async function recordSyncFailure(
-  error: unknown,
-  context: { accountId: string; provider: string },
-): Promise<void> {
-  const { accountId, provider } = context;
-
-  // Handle structured InboxAuthError
-  if (isInboxAuthError(error)) {
-    // Use assertion to narrow type without casting
-    assertInboxAuthError(error);
-
-    logger.error("Inbox sync failed - authentication error", {
-      accountId,
-      errorCode: error.code,
-      errorMessage: error.message,
-      requiresReauth: error.requiresReauth,
-      provider: error.provider,
-    });
-
-    if (error.requiresReauth) {
-      // Mark as disconnected - user needs to re-authenticate
-      await updateInboxAccount(getDb(), {
-        id: accountId,
-        status: "disconnected",
-        errorMessage: `Authentication failed (${error.code}): ${error.message}`,
-      });
-
-      logger.error("Account marked as disconnected - requires reauth", {
-        accountId,
-        errorCode: error.code,
-        provider: error.provider,
-      });
-    } else {
-      // Transient auth error - don't change status, let retry handle it
-      logger.warn("Transient auth error - will retry", {
-        accountId,
-        errorCode: error.code,
-        provider: error.provider,
-      });
-    }
-
-    return;
-  }
-
-  // Handle structured InboxSyncError
-  if (error instanceof InboxSyncError) {
-    // Sync errors are typically transient - don't change connection status
-    logger.warn("Inbox sync failed - sync error", {
-      accountId,
-      errorCode: error.code,
-      errorMessage: error.message,
-      isRetryable: error.isRetryable(),
-      provider: error.provider,
-    });
-    return;
-  }
-
-  // For unknown errors, don't change connection status
-  // These might be infrastructure issues that resolve on retry
-  logger.error("Inbox sync failed - unknown error", {
-    accountId,
-    error: error instanceof Error ? error.message : "Unknown sync error",
-    provider,
-  });
-}

@@ -33,6 +33,11 @@ export interface AccountRef {
   teamId: string;
 }
 
+export interface GetMessageAttachmentsOptions extends AccountRef {
+  /** Ids returned by `listMessageIds`. */
+  messageIds: string[];
+}
+
 export abstract class Connector {
   abstract connect(state?: string): Promise<string>;
   abstract exchangeCodeForAccount(
@@ -42,7 +47,7 @@ export abstract class Connector {
     options: AccountRef & ListMessagesOptions,
   ): Promise<string[]>;
   abstract getMessageAttachments(
-    options: AccountRef & { messageIds: string[] },
+    options: GetMessageAttachmentsOptions,
   ): Promise<Attachment[]>;
 }
 
@@ -123,8 +128,8 @@ export interface OAuthProviderInterface {
 
   /**
    * Lists every message received since `options.since` that may carry an
-   * invoice — one with a PDF attached that the account did not send itself —
-   * newest first. There is no cap: a sync that stopped short would move its
+   * invoice — one with an attachment, a PDF where the provider can search on
+   * it, that the account did not send itself — newest first. There is no cap: a sync that stopped short would move its
    * watermark past mail it never read.
    */
   listMessageIds(options: ListMessagesOptions): Promise<string[]>;

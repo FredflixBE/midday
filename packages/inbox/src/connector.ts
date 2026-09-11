@@ -14,6 +14,7 @@ import {
   type Attachment,
   Connector,
   type ExchangeCodeForAccountParams,
+  type GetMessageAttachmentsOptions,
   type ListMessagesOptions,
   type OAuthProvider,
   type OAuthProviderInterface,
@@ -108,7 +109,7 @@ export class InboxConnector extends Connector {
 
   /** The PDF attachments of messages returned by `listMessageIds`. */
   async getMessageAttachments(
-    options: AccountRef & { messageIds: string[] },
+    options: GetMessageAttachmentsOptions,
   ): Promise<Attachment[]> {
     return this.#withAccount(options, (provider) =>
       provider.getMessageAttachments(options.messageIds),

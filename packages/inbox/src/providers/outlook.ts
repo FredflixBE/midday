@@ -8,6 +8,7 @@ import { encrypt } from "@midday/encryption";
 import { ensureFileExtension } from "@midday/utils";
 import { InboxAuthError, InboxSyncError } from "../errors";
 import { generateDeterministicId } from "../generate-id";
+import { readMessages } from "./read-messages";
 import type {
   Attachment,
   EmailAttachment,
@@ -551,28 +552,15 @@ export class OutlookProvider implements OAuthProviderInterface {
     const client = this.#client();
 
     try {
-      const messages = await Promise.all(
-        messageIds.map(async (id) => {
-          try {
-            return (await client
-              .api(`/me/messages/${id}`)
-              .select("id,from")
-              .get()) as OutlookMessage;
-          } catch (error: unknown) {
-            // Deleted since it was listed: there is nothing left to read.
-            if (isNotFound(error)) return null;
-            throw error;
-          }
-        }),
-      );
-
-      const attachments = await Promise.all(
-        messages
-          .filter((message): message is OutlookMessage => Boolean(message))
-          .map((message) => this.#processMessageToAttachments(message)),
-      );
-
-      return attachments.flat();
+      return await readMessages(messageIds, {
+        message: async (id) =>
+          (await client
+            .api(`/me/messages/${id}`)
+            .select("id,from")
+            .get()) as OutlookMessage,
+        attachments: (message) => this.#processMessageToAttachments(message),
+        isNotFound,
+      });
     } catch (error: unknown) {
       throw this.#toInboxError(error, "Failed to fetch attachments");
     }
@@ -594,7 +582,7 @@ export class OutlookProvider implements OAuthProviderInterface {
     error: unknown,
     context: string,
   ): InboxAuthError | InboxSyncError {
-    // Re-throw InboxAuthError and InboxSyncError as-is
+    // Already classified
     if (error instanceof InboxAuthError || error instanceof InboxSyncError) {
       return error;
     }
@@ -666,10 +654,12 @@ export class OutlookProvider implements OAuthProviderInterface {
   async #processMessageToAttachments(
     message: OutlookMessage,
   ): Promise<Attachment[]> {
-    if (!message.id || !this.#graphClient) {
-      console.warn(`Skipping message ${message.id} due to missing ID.`);
+    if (!message.id) {
+      console.warn("Skipping a message with no ID.");
       return [];
     }
+
+    const client = this.#client();
 
     // Extract sender details
     let senderDomain: string | undefined;
@@ -691,9 +681,10 @@ export class OutlookProvider implements OAuthProviderInterface {
 
     // A failure here fails the batch: swallowing it would let the sync move
     // past a message whose invoice it never saw.
+
     // List attachments without $select - Microsoft Graph returns all base properties
     // including @odata.type automatically. contentBytes requires fetching individually.
-    const attachmentsResponse = await this.#graphClient
+    const attachmentsResponse = await client
       .api(`/me/messages/${message.id}/attachments`)
       .get();
 
@@ -726,9 +717,19 @@ export class OutlookProvider implements OAuthProviderInterface {
 
       if (att.name && isPdf && isFileAttachment) {
         // Fetch the individual attachment to get contentBytes
-        const fullAttachment = await this.#graphClient!.api(
-          `/me/messages/${message.id}/attachments/${att.id}`,
-        ).get();
+        let fullAttachment: { contentBytes?: string };
+        try {
+          fullAttachment = await client
+            .api(`/me/messages/${message.id}/attachments/${att.id}`)
+            .get();
+        } catch (error: unknown) {
+          // Only an attachment that no longer exists may be passed over.
+          if (!isNotFound(error)) throw error;
+          console.warn(
+            `Attachment ${att.name} of message ${message.id} no longer exists`,
+          );
+          continue;
+        }
 
         if (fullAttachment.contentBytes) {
           pdfAttachments.push({

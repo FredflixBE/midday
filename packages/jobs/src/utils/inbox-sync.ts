@@ -1,8 +1,8 @@
 /**
- * Messages read by one run of `sync-inbox-messages`. Small enough that a run
- * stays well inside its max duration and a medium-1x machine's memory with
- * five 10 MB attachments on every message, and that twenty messages fetched
- * at once stay under Gmail's per-user quota of 250 units a second.
+ * Messages read by one run of `sync-inbox-messages`: small enough that a run
+ * stays well inside its max duration, and inside a medium-1x machine's memory
+ * with five 10 MB attachments on every message. The providers read them a few
+ * at a time, to stay under Gmail's per-user quota.
  */
 export const MESSAGES_PER_BATCH = 20;
 

@@ -17,6 +17,7 @@ import type { Credentials } from "google-auth-library";
 import { decodeBase64Url } from "../attachments";
 import { InboxAuthError, InboxSyncError } from "../errors";
 import { generateDeterministicId } from "../generate-id";
+import { readMessages } from "./read-messages";
 import type {
   Attachment,
   EmailAttachment,
@@ -453,32 +454,18 @@ export class GmailProvider implements OAuthProviderInterface {
     const client = await this.#client();
 
     try {
-      const messages = await Promise.all(
-        messageIds.map(async (id) => {
-          try {
-            const { data } = await client.users.messages.get({
+      return await readMessages(messageIds, {
+        message: async (id) =>
+          (
+            await client.users.messages.get({
               userId: "me",
               id,
               format: "full",
-            });
-            return data;
-          } catch (error: unknown) {
-            // Deleted since it was listed: there is nothing left to read.
-            if (statusOf(error) === 404) return null;
-            throw error;
-          }
-        }),
-      );
-
-      const attachments = await Promise.all(
-        messages
-          .filter((message): message is gmail_v1.Schema$Message =>
-            Boolean(message),
-          )
-          .map((message) => this.#processMessageToAttachments(message)),
-      );
-
-      return attachments.flat();
+            })
+          ).data,
+        attachments: (message) => this.#processMessageToAttachments(message),
+        isNotFound: (error) => statusOf(error) === 404,
+      });
     } catch (error: unknown) {
       throw this.#toInboxError(error, "Failed to fetch attachments");
     }
