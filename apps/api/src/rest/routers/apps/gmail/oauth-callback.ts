@@ -145,6 +145,7 @@ app.openapi(
       // Trigger initial inbox setup job
       await tasks.trigger("initial-inbox-setup", {
         id: account.id,
+        since: parsedState.since,
       });
 
       // Redirect based on source

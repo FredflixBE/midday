@@ -3,6 +3,7 @@ import { syncMailbox } from "@jobs/utils/inbox-sync";
 import { recordSyncFailure } from "@jobs/utils/inbox-sync-failure";
 import { getInboxAccountInfo, updateInboxAccount } from "@midday/db/queries";
 import { InboxConnector } from "@midday/inbox/connector";
+import { syncStartProblem } from "@midday/inbox/sync-start";
 import { AbortTaskRunError, logger, schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { syncInboxMessages } from "./sync-messages";
@@ -11,15 +12,18 @@ import { syncInboxMessages } from "./sync-messages";
  * Sync an inbox account: list every message since the account's watermark,
  * and read them a batch at a time in `sync-inbox-messages`.
  *
- * Pass `since` (YYYY-MM-DD) to backfill from that date instead. A backfill is
- * safe to run again: what an earlier run read is passed over by reference id.
+ * Pass `since` (YYYY-MM-DD) to backfill from that date instead, at most one
+ * year back. A backfill is safe to run again: what an earlier run read is
+ * passed over by reference id.
  */
 export const syncInboxAccount = schemaTask({
   id: "sync-inbox-account",
   schema: z.object({
     id: z.string(),
     manualSync: z.boolean().optional(),
-    since: z.iso.date().optional(),
+    // Validated below, against the one-year limit, with a message that says
+    // what was wrong.
+    since: z.string().optional(),
   }),
   // Listing a mailbox takes a request per 500 messages, and the time spent
   // waiting on the batches does not count towards this.
@@ -37,6 +41,13 @@ export const syncInboxAccount = schemaTask({
   run: async (payload) => {
     const { id, manualSync = false, since } = payload;
     const startedAt = new Date();
+
+    // The API refuses the same dates when the user picks one; this is the
+    // check a sync triggered by hand, with any date, cannot get around.
+    const sinceProblem = since && syncStartProblem(since, startedAt);
+    if (sinceProblem) {
+      throw new AbortTaskRunError(sinceProblem);
+    }
 
     // Get the account info to access provider and teamId
     const accountRow = await getInboxAccountInfo(getDb(), { id });

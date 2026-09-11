@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, setSystemTime, test } from "bun:test";
+import { decryptOAuthState } from "@midday/inbox/utils";
 import { createCallerFactory } from "../../trpc/init";
 import { inboxAccountsRouter } from "../../trpc/routers/inbox-accounts";
 import { createTestContext } from "../helpers/test-context";
@@ -33,6 +34,55 @@ describe("tRPC: inboxAccounts.get", () => {
     const caller = createCaller(createTestContext());
 
     await expect(caller.get()).rejects.toThrow("database unavailable");
+  });
+});
+
+describe("tRPC: inboxAccounts.connect", () => {
+  beforeEach(() => {
+    process.env.MIDDAY_ENCRYPTION_KEY ??= "ab".repeat(32);
+    setSystemTime(new Date("2026-09-11T12:00:00Z"));
+    mocks.connectInbox.mockClear();
+  });
+
+  /** The OAuth state the provider's login will hand back to the callback. */
+  function stateSentToProvider() {
+    const [state] = mocks.connectInbox.mock.calls.at(-1) as [string];
+    return decryptOAuthState(state);
+  }
+
+  test("carries the chosen start date through the provider's login", async () => {
+    const caller = createCaller(createTestContext());
+    const url = await caller.connect({
+      provider: "gmail",
+      since: "2026-03-01",
+    });
+
+    expect(url).toBe("https://accounts.test/authorize");
+    expect(stateSentToProvider()).toMatchObject({
+      teamId: "test-team-id",
+      provider: "gmail",
+      since: "2026-03-01",
+    });
+  });
+
+  test("sends no start date when none was chosen", async () => {
+    const caller = createCaller(createTestContext());
+    await caller.connect({ provider: "outlook" });
+
+    expect(stateSentToProvider()?.since).toBeUndefined();
+  });
+
+  test("refuses a start date more than a year back, before the login", async () => {
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.connect({ provider: "gmail", since: "2025-06-01" }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        "An inbox sync can reach back at most one year, to 2025-09-11; 2025-06-01 is further back.",
+    });
+    expect(mocks.connectInbox).not.toHaveBeenCalled();
   });
 });
 

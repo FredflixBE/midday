@@ -11,8 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { revalidateInbox } from "@/actions/revalidate-action";
 import { AppConnectionToast } from "@/components/app-connection-toast";
-import { ConnectGmail } from "@/components/inbox/connect-gmail";
-import { ConnectOutlook } from "@/components/inbox/connect-outlook";
+import { ConnectMailbox } from "@/components/inbox/connect-mailbox";
 import { ConnectSlack } from "@/components/inbox/connect-slack";
 import { useInboxParams } from "@/hooks/use-inbox-params";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -90,8 +89,7 @@ export function InboxGetStarted() {
             </div>
 
             <div className="pointer-events-auto flex flex-col space-y-4">
-              <ConnectGmail />
-              <ConnectOutlook />
+              <ConnectMailbox />
 
               <Accordion
                 type="single"

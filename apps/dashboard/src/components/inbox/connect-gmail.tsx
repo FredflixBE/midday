@@ -8,9 +8,11 @@ import { useTRPC } from "@/trpc/client";
 
 type Props = {
   redirectPath?: string;
+  /** The date the first sync reads from (YYYY-MM-DD). */
+  since?: string;
 };
 
-export function ConnectGmail({ redirectPath }: Props) {
+export function ConnectGmail({ redirectPath, since }: Props) {
   const trpc = useTRPC();
   const router = useRouter();
 
@@ -31,7 +33,7 @@ export function ConnectGmail({ redirectPath }: Props) {
       data-track="Inbox Email Connected"
       data-provider="gmail"
       onClick={() =>
-        connectMutation.mutate({ provider: "gmail", redirectPath })
+        connectMutation.mutate({ provider: "gmail", redirectPath, since })
       }
       isSubmitting={connectMutation.isPending}
     >
