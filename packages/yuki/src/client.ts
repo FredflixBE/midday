@@ -94,8 +94,7 @@ export class YukiClient {
     if (!sessionId) {
       throw new YukiRequestError({
         operation: "Authenticate",
-        message:
-          "Authenticate returned no session id. Check YUKI_ACCESS_KEY, and that YUKI_REGION matches the domain — the wrong region reports 'Domain has no active database'.",
+        message: "Authenticate returned no session id. Check the access key.",
       });
     }
 

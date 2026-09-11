@@ -694,6 +694,8 @@
       "name": "@midday/yuki",
       "version": "1.0.0",
       "dependencies": {
+        "@midday/db": "workspace:*",
+        "@midday/encryption": "workspace:*",
         "fast-xml-parser": "catalog:",
       },
       "devDependencies": {

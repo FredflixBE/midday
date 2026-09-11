@@ -11,8 +11,8 @@
  * Read-only. Prints to stdout and writes nothing.
  */
 import { YukiClient } from "../src/client";
-import { configFromEnv } from "../src/config";
 import { OUTSTANDING_ITEM_TYPE_LABELS } from "../src/types";
+import { configFromEnv } from "./env";
 
 type OutstandingItem = {
   Date?: string;

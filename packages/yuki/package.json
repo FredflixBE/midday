@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./team": "./src/team.ts"
+  },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",
     "lint": "biome check .",
@@ -13,6 +17,8 @@
     "backlog": "bun run scripts/backlog.ts"
   },
   "dependencies": {
+    "@midday/db": "workspace:*",
+    "@midday/encryption": "workspace:*",
     "fast-xml-parser": "catalog:"
   },
   "devDependencies": {

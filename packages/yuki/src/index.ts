@@ -1,7 +1,9 @@
+export type { YukiAccessRefusal, YukiAdministration } from "./access";
+export { verifyAccess, YukiAccessError } from "./access";
 export type { FetchLike, YukiCallOptions, YukiClientConfig } from "./client";
 export { YukiClient } from "./client";
 export type { YukiConfig, YukiRegion } from "./config";
-export { baseUrlFor, configFromEnv } from "./config";
+export { baseUrlFor } from "./config";
 export {
   YukiConfigError,
   YukiOperationNotAllowedError,

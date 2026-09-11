@@ -41,11 +41,23 @@ export type FortnoxAppConfig = {
   scope: string[];
 };
 
+/**
+ * Written and read only by `@midday/yuki/team`. Unlike the OAuth tokens above,
+ * the key is encrypted at rest: it is a long-lived credential for the books.
+ */
+export type YukiAppConfig = {
+  encryptedAccessKey: string;
+  region: "be" | "nl";
+  administrationId: string;
+  administrationName: string;
+};
+
 export type AppConfigById = {
   slack: SlackAppConfig;
   xero: XeroAppConfig;
   quickbooks: QuickBooksAppConfig;
   fortnox: FortnoxAppConfig;
+  yuki: YukiAppConfig;
 };
 
 export type KnownAppId = keyof AppConfigById;
