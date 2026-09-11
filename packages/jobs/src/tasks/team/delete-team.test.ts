@@ -151,6 +151,7 @@ mock.module("@midday/db/queries", () => ({
 
 const { encrypt } = await import("@midday/encryption");
 const { DeleteTeamProcessor } = await import("./delete-team");
+const { deleteTeamSchema } = await import("@jobs/schemas/teams");
 
 function gmailAccount(): Payload["inboxAccounts"][number] {
   return {
@@ -193,6 +194,30 @@ beforeEach(() => {
 });
 
 describe("delete-team", () => {
+  test("still cleans up after an API one version behind, which sends no inbox accounts", async () => {
+    // The payload the API sent before FF-1501, as Trigger.dev validates it.
+    // On 2026-09-11 a stale API dev server sent exactly this, and the run was
+    // rejected before any cleanup ran.
+    const payloadFromOlderApi = deleteTeamSchema.safeParse({
+      teamId: TEAM_ID,
+      connections: [
+        { referenceId: "req_1", provider: "enablebanking", accessToken: null },
+      ],
+    });
+    expect(payloadFromOlderApi.success).toBe(true);
+
+    scheduleStore = [
+      { id: "sched_bank", task: "bank-sync-scheduler", externalId: TEAM_ID },
+    ];
+    bucketStore = { vault: new Set([`${TEAM_ID}/inbox/receipt.pdf`]) };
+
+    await runCleanup(payloadFromOlderApi.data as Payload);
+
+    expect(scheduleStore).toEqual([]);
+    expect([...(bucketStore.vault ?? [])]).toEqual([]);
+    expect(providerDeletes).toEqual(["req_1"]);
+  });
+
   test("removes the schedules of the team and of its inbox accounts, and no other", async () => {
     scheduleStore = [
       {

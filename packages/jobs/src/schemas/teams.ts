@@ -22,7 +22,11 @@ const inboxAccountSchema = z.object({
 export const deleteTeamSchema = z.object({
   teamId: z.string().uuid(),
   connections: z.array(bankConnectionSchema),
-  inboxAccounts: z.array(inboxAccountSchema),
+  // Optional for an API one version behind, which sends no inbox accounts:
+  // the API and the worker deploy separately, and a rejected payload skips
+  // the whole cleanup. Their schedules still remove themselves on their next
+  // run; only revoking their access is lost.
+  inboxAccounts: z.array(inboxAccountSchema).default([]),
 });
 
 export type DeleteTeamPayload = z.infer<typeof deleteTeamSchema>;

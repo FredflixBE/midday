@@ -33,7 +33,9 @@ export const generateInvoiceSchema = z.object({
 export type GenerateInvoicePayload = z.infer<typeof generateInvoiceSchema>;
 
 export const deleteConnectionSchema = z.object({
-  teamId: z.string().uuid(),
+  // Optional for an API one version behind, which does not send it: a
+  // rejected payload would leave the connection at the provider too.
+  teamId: z.string().uuid().optional(),
   referenceId: z.string().optional().nullable(),
   provider: z.enum(["gocardless", "enablebanking"]),
   accessToken: z.string().optional().nullable(),
