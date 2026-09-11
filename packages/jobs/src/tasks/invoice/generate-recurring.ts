@@ -54,10 +54,13 @@ type ProcessResult = {
 };
 
 /**
- * Generates invoices from recurring invoice series.
+ * Generates invoices from the recurring series that are due.
+ *
+ * Run by `invoice-recurring-daily`, after the upcoming-invoice warnings.
  *
  * Duplicate processing is prevented by:
- * 1. BullMQ's upsertJobScheduler (ensures only one scheduler job exists)
+ * 1. One schedule: the cron is declared on `invoice-recurring-daily`, which
+ *    takes a queue of one, so two runs cannot overlap
  * 2. Idempotency check via checkInvoiceExists (prevents duplicate invoices)
  *
  * Kill switch: Set DISABLE_RECURRING_INVOICES=true to disable processing
@@ -417,7 +420,7 @@ export class InvoiceRecurringSchedulerProcessor extends BaseProcessor<InvoiceRec
         // and will be picked up by idempotency checks on retry, or can be manually
         // processed via the dashboard.
         try {
-          // Trigger invoice generation and sending via BullMQ
+          // Hand the PDF and the email to the generation task
           await generateInvoice.trigger({
             invoiceId,
             deliveryType: "create_and_send",

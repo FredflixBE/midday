@@ -6,6 +6,7 @@ import {
   type InvoiceUpcomingNotificationPayload,
   invoiceUpcomingNotificationSchema,
 } from "@jobs/schemas/invoices";
+import { WARNING_LOOK_AHEAD_HOURS } from "@jobs/utils/recurring-invoice-day";
 import { sendToProviders } from "@midday/bot/activity-notifications";
 import {
   getUpcomingDueRecurring,
@@ -14,22 +15,6 @@ import {
 import { Notifications } from "@midday/notifications";
 import { isFlagEnabled } from "@midday/utils/flags";
 import { task } from "@trigger.dev/sdk";
-
-/**
- * How far ahead a warning looks.
- *
- * This was 24 while the job ran hourly, which gave every series a warning
- * between 23 and 24 hours before it was generated. Now that the job runs once
- * a day (FF-1522), a 24-hour window would miss almost everything: a series due
- * 25 hours after today's run is outside it, and by tomorrow's run it is an
- * hour away — warned, but not warned *ahead*.
- *
- * 48 restores the promise. Each daily run warns about everything due before
- * the run after next, so every series is warned at least 24 hours ahead, and
- * only once: the query treats a notification sent less than `hoursAhead + 1`
- * before the due date as belonging to this cycle rather than the last.
- */
-const LOOK_AHEAD_HOURS = 48;
 
 type ProcessResult = {
   processed: number;
@@ -79,7 +64,7 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
       );
 
       const { data: upcomingRecurring, hasMore } =
-        await getUpcomingDueRecurring(db, LOOK_AHEAD_HOURS);
+        await getUpcomingDueRecurring(db, WARNING_LOOK_AHEAD_HOURS);
 
       if (upcomingRecurring.length === 0) {
         this.logger.info("[DRY RUN] No upcoming invoices to notify about");
@@ -140,7 +125,7 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
     // cycle (batched, default limit: 100).
     const { data: upcomingRecurring, hasMore } = await getUpcomingDueRecurring(
       db,
-      LOOK_AHEAD_HOURS,
+      WARNING_LOOK_AHEAD_HOURS,
     );
 
     if (upcomingRecurring.length === 0) {
@@ -168,12 +153,12 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
         const nextScheduled = new Date(recurring.nextScheduledAt);
         // A warning sent inside the look-ahead (plus the hour of slack the
         // query allows) was for this cycle, not the last one. Derived from
-        // LOOK_AHEAD_HOURS rather than written out, so that widening the
-        // window cannot leave this guard behind sending a second warning.
+        // the same constant as the window, so that changing the window cannot
+        // leave this guard behind sending a second warning.
         const hoursDiff =
           (nextScheduled.getTime() - notificationSentAt.getTime()) /
           (1000 * 60 * 60);
-        if (hoursDiff < LOOK_AHEAD_HOURS + 1) {
+        if (hoursDiff < WARNING_LOOK_AHEAD_HOURS + 1) {
           this.logger.info(
             "Notification already sent for this cycle, skipping",
             {

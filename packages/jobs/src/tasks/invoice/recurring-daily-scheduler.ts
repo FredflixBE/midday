@@ -1,4 +1,5 @@
 import {
+  RECURRING_INVOICE_CRON,
   type RecurringInvoiceDayResult,
   runRecurringInvoiceDay,
 } from "@jobs/utils/recurring-invoice-day";
@@ -21,17 +22,20 @@ import { invoiceUpcomingNotification } from "./upcoming-notification";
  * `nextScheduledAt <= now`, so an overdue series is picked up by the next run
  * rather than skipped.
  *
- * 05:00 UTC, so that a series due at UTC midnight is invoiced on the same UTC
- * day it is dated, and early enough to reach a European inbox in the morning.
+ * The cron and the warning's look-ahead are tied together, and the reason is
+ * on `RECURRING_INVOICE_CRON`.
  *
  * Both halves stay tasks of their own, so either can still be run alone.
  */
 export const invoiceRecurringDailyScheduler = schedules.task({
   id: "invoice-recurring-daily",
-  cron: "0 5 * * *",
-  // Waiting on the two children is not compute time; this covers the run's own
-  // work either side of the waits.
+  cron: RECURRING_INVOICE_CRON,
+  // Waiting on the two children is wall-clock, not compute, but this task
+  // spends almost none of either itself.
   maxDuration: 300,
+  // One at a time. A daily schedule cannot overlap itself, but the button on
+  // Settings → Admin can be pressed while a run is going.
+  queue: { concurrencyLimit: 1 },
   // The payload is deliberately ignored, so that this also runs correctly when
   // triggered by hand from Settings → Admin, which sends none.
   run: (): Promise<RecurringInvoiceDayResult> =>
