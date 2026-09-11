@@ -7,6 +7,7 @@
   "scripts": {
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "test": "bun test --exit src",
     "typecheck": "echo 'Types validated by @midday/api and consumer packages'"
   },
   "exports": {

@@ -416,5 +416,8 @@ export default {
   port: process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 3000,
   fetch: app.fetch,
   host: "0.0.0.0", // Listen on all interfaces
-  idleTimeout: 60,
+  // Seconds a connection may stay silent. A full bank history fetch sends
+  // nothing until it is done, and the jobs wait up to 110 s for it
+  // (SLOW_PROCEDURES in @midday/trpc/internal). Bun caps this at 255.
+  idleTimeout: 120,
 };
