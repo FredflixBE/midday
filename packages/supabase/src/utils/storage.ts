@@ -1,5 +1,8 @@
 export const EMPTY_FOLDER_PLACEHOLDER_FILE_NAME = ".emptyFolderPlaceholder";
 
+// The most paths Storage lists or removes in one call.
+const STORAGE_PAGE_SIZE = 1000;
+
 type StorageClient = {
   storage: {
     from(bucket: string): any;
@@ -48,9 +51,6 @@ type RemoveFolderParams = {
   path: string[];
   bucket: string;
 };
-
-// The most paths Storage lists or removes in one call.
-const STORAGE_PAGE_SIZE = 1000;
 
 /**
  * Remove every file under a folder, however deeply nested, and return how many

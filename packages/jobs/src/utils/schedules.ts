@@ -14,7 +14,7 @@ const PAGE_SIZE = 200;
  * Returns how many it deleted. A schedule that disappears between the list and
  * the delete is already what we wanted.
  */
-export async function deleteSchedulesFor(externalIds: string[]) {
+export async function deleteSchedulesByExternalId(externalIds: string[]) {
   const ids = new Set(externalIds);
   const matching: string[] = [];
 

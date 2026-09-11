@@ -1,9 +1,9 @@
 import { getDb } from "@jobs/init";
 import { BaseProcessor } from "@jobs/processors/base";
-import { runProcessor } from "@jobs/processors/run";
+import { handleJob } from "@jobs/processors/run";
 import type { JobContext } from "@jobs/processors/types";
 import { type DeleteTeamPayload, deleteTeamSchema } from "@jobs/schemas/teams";
-import { deleteSchedulesFor } from "@jobs/utils/schedules";
+import { deleteSchedulesByExternalId } from "@jobs/utils/schedules";
 import { getTeamById } from "@midday/db/queries";
 import { InboxConnector } from "@midday/inbox/connector";
 import { createClient } from "@midday/supabase/job";
@@ -27,7 +27,10 @@ const TEAM_BUCKETS = ["vault", "avatars"];
  * - its bank connections, at the provider
  *
  * Every step runs even when another fails, and is safe to run twice, so a
- * failed run is retried whole.
+ * failed run is retried whole. The exception is the bank connections: as
+ * before, a provider that refuses a deletion is logged and not retried — an
+ * expired connection is refused on every attempt, and the provider expires it
+ * anyway.
  *
  * Note: Subscription cancellation is handled manually by the user via the
  * customer portal before team deletion. The UI prompts users to cancel
@@ -77,7 +80,10 @@ export class DeleteTeamProcessor extends BaseProcessor<DeleteTeamPayload> {
     };
 
     await step("schedules deleted", () =>
-      deleteSchedulesFor([teamId, ...inboxAccounts.map(({ id }) => id)]),
+      deleteSchedulesByExternalId([
+        teamId,
+        ...inboxAccounts.map(({ id }) => id),
+      ]),
     );
 
     const supabase = createClient();
@@ -182,6 +188,10 @@ export const deleteTeam = schemaTask({
   // Five attempts wait 2, 4, 8 and 16 seconds between them: half a minute for
   // the team's deletion to commit before the run gives up on it.
   retry: { maxAttempts: 5, minTimeoutInMs: 2000, factor: 2 },
-  run: (payload, { ctx }) =>
-    runProcessor(processor, "delete-team", payload, ctx),
+  // handleJob, not runProcessor: runProcessor stops the run on any error whose
+  // message reads as permanent ("invalid", "not found", "400"…). Here every
+  // step is safe to repeat, and one run's error may combine a permanent-looking
+  // failure in one step with a transient one in another, so every failure gets
+  // the remaining attempts.
+  run: (payload, { ctx }) => handleJob(processor, "delete-team", payload, ctx),
 });

@@ -327,6 +327,7 @@ export const mocks = {
     }),
   ) as MockFn,
   deleteUser: mock(() => Promise.resolve({ id: "test-user-id" })) as MockFn,
+  getSoleMemberTeamIds: mock(() => Promise.resolve([])) as MockFn,
   supabaseAdminDeleteUser: mock(() =>
     Promise.resolve({ data: {}, error: null }),
   ) as MockFn,
@@ -723,7 +724,9 @@ export const mocks = {
   deleteInboxAccount: mock(() =>
     Promise.resolve({ id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }),
   ) as MockFn,
-  // InboxConnector#revokeAccess — withdraws access at the mail provider
+  // InboxConnector — its constructor, and revokeAccess, which withdraws access
+  // at the mail provider
+  constructInboxConnector: mock(() => undefined) as MockFn,
   revokeInboxAccess: mock(() => Promise.resolve("revoked")) as MockFn,
 
   // Trigger.dev schedules
@@ -964,6 +967,7 @@ const dbQueriesMock = new Proxy(
     getUserInvites: createDefaultMock(),
     switchUserTeam: mocks.switchUserTeam,
     deleteUser: mocks.deleteUser,
+    getSoleMemberTeamIds: mocks.getSoleMemberTeamIds,
 
     // Transaction categories
     getCategories: createDefaultMock(),
@@ -1207,6 +1211,10 @@ mock.module("@trigger.dev/sdk", () => ({
 // The mail providers sit behind the connector; the API only asks it to revoke.
 mock.module("@midday/inbox/connector", () => ({
   InboxConnector: class {
+    // The real one throws here when the provider has no OAuth credentials.
+    constructor() {
+      mocks.constructInboxConnector();
+    }
     connect = mock(() => Promise.resolve("https://accounts.test/authorize"));
     exchangeCodeForAccount = mock(() => Promise.resolve(null));
     revokeAccess = mocks.revokeInboxAccess;

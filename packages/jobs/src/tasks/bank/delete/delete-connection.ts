@@ -1,5 +1,5 @@
 import { getDb } from "@jobs/init";
-import { deleteSchedulesFor } from "@jobs/utils/schedules";
+import { deleteSchedulesByExternalId } from "@jobs/utils/schedules";
 import { getBankConnections } from "@midday/db/queries";
 import { deleteConnectionSchema } from "@midday/jobs/schema";
 import { trpc } from "@midday/trpc";
@@ -22,7 +22,7 @@ export const deleteConnection = schemaTask({
     const remaining = await getBankConnections(getDb(), { teamId });
 
     if (remaining.length === 0) {
-      const deleted = await deleteSchedulesFor([teamId]);
+      const deleted = await deleteSchedulesByExternalId([teamId]);
       logger.info(
         "Deleted the bank sync schedule of a team with no connections",
         {

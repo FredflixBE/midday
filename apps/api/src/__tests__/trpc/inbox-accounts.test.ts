@@ -83,6 +83,8 @@ describe("tRPC: inboxAccounts.delete, cleaning up after the account", () => {
     mocks.revokeInboxAccess.mockImplementation(() =>
       Promise.resolve("revoked"),
     );
+    mocks.constructInboxConnector.mockReset();
+    mocks.constructInboxConnector.mockImplementation(() => undefined);
   });
 
   test("deletes the account's schedule and revokes the app's access to the mailbox", async () => {
@@ -114,6 +116,19 @@ describe("tRPC: inboxAccounts.delete, cleaning up after the account", () => {
     mocks.revokeInboxAccess.mockImplementation(() =>
       Promise.reject(new Error("Google is unavailable")),
     );
+
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.delete({ id: ACCOUNT_ID })).toEqual({
+      id: ACCOUNT_ID,
+      scheduleId: "sched_inbox",
+    });
+  });
+
+  test("still succeeds when the provider's OAuth credentials are not configured", async () => {
+    mocks.constructInboxConnector.mockImplementation(() => {
+      throw new Error("Missing required Gmail OAuth2 credentials");
+    });
 
     const caller = createCaller(createTestContext());
 

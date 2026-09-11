@@ -11,7 +11,7 @@ const bankConnectionSchema = z.object({
 });
 
 const inboxAccountSchema = z.object({
-  id: z.string(),
+  id: z.string().uuid(),
   provider: z.enum(["gmail", "outlook"]),
   email: z.string(),
   // Still encrypted, as the database stores it: Trigger.dev keeps payloads and

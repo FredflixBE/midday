@@ -122,21 +122,30 @@ export const getUserTeamId = async (db: Database, userId: string) => {
   return result?.teamId || null;
 };
 
-export const deleteUser = async (db: Database, id: string) => {
-  // Find teams where this user is a member
-  const teamsWithUser = await db
-    .select({
-      teamId: usersOnTeam.teamId,
-      memberCount: sql<number>`count(${usersOnTeam.userId})`.as("member_count"),
-    })
+/**
+ * The teams this user is the only member of, which are deleted with them.
+ */
+export const getSoleMemberTeamIds = async (db: Database, userId: string) => {
+  // Count every member of the user's teams, not just the user's own rows —
+  // filtering to them first counts one per team, every time. The comparison
+  // stays in SQL because the driver returns count() as a string.
+  const teamsWithUser = db
+    .select({ teamId: usersOnTeam.teamId })
     .from(usersOnTeam)
-    .where(eq(usersOnTeam.userId, id))
-    .groupBy(usersOnTeam.teamId);
+    .where(eq(usersOnTeam.userId, userId));
 
-  // Extract team IDs with only one member (this user)
-  const teamIdsToDelete = teamsWithUser
-    .filter((team) => team.memberCount === 1)
-    .map((team) => team.teamId);
+  const soleMemberTeams = await db
+    .select({ teamId: usersOnTeam.teamId })
+    .from(usersOnTeam)
+    .where(inArray(usersOnTeam.teamId, teamsWithUser))
+    .groupBy(usersOnTeam.teamId)
+    .having(sql`count(*) = 1`);
+
+  return soleMemberTeams.map((team) => team.teamId);
+};
+
+export const deleteUser = async (db: Database, id: string) => {
+  const teamIdsToDelete = await getSoleMemberTeamIds(db, id);
 
   // Delete the user and teams with only this user as a member
   // Foreign key constraints with cascade delete will handle related records

@@ -6,7 +6,7 @@ import type { DeleteTeamPayload as Payload } from "@jobs/schemas/teams";
 // banking API and the two database lookups. The job itself, the inbox
 // connector and the storage walk all run for real.
 
-process.env.MIDDAY_ENCRYPTION_KEY = "ab".repeat(32);
+process.env.MIDDAY_ENCRYPTION_KEY ??= "ab".repeat(32);
 process.env.GMAIL_CLIENT_ID ??= "test-gmail-client";
 process.env.GMAIL_CLIENT_SECRET ??= "test-gmail-secret";
 process.env.OUTLOOK_CLIENT_ID ??= "test-outlook-client";
@@ -152,6 +152,15 @@ mock.module("@midday/db/queries", () => ({
 const { encrypt } = await import("@midday/encryption");
 const { DeleteTeamProcessor } = await import("./delete-team");
 
+function gmailAccount(): Payload["inboxAccounts"][number] {
+  return {
+    id: GMAIL_ACCOUNT_ID,
+    provider: "gmail",
+    email: "finance@example.com",
+    refreshToken: encrypt("gmail-refresh-token"),
+  };
+}
+
 function payload(overrides: Partial<Payload> = {}): Payload {
   return {
     teamId: TEAM_ID,
@@ -207,14 +216,7 @@ describe("delete-team", () => {
 
     await runCleanup(
       payload({
-        inboxAccounts: [
-          {
-            id: GMAIL_ACCOUNT_ID,
-            provider: "gmail",
-            email: "finance@example.com",
-            refreshToken: encrypt("gmail-refresh-token"),
-          },
-        ],
+        inboxAccounts: [gmailAccount()],
       }),
     );
 
@@ -266,14 +268,7 @@ describe("delete-team", () => {
           connections: [
             { referenceId: "req_1", provider: "gocardless", accessToken: null },
           ],
-          inboxAccounts: [
-            {
-              id: GMAIL_ACCOUNT_ID,
-              provider: "gmail",
-              email: "finance@example.com",
-              refreshToken: encrypt("gmail-refresh-token"),
-            },
-          ],
+          inboxAccounts: [gmailAccount()],
         }),
       ),
     ).rejects.toThrow();
@@ -289,14 +284,7 @@ describe("delete-team", () => {
   test("revokes the app's access to each Gmail inbox the team connected", async () => {
     await runCleanup(
       payload({
-        inboxAccounts: [
-          {
-            id: GMAIL_ACCOUNT_ID,
-            provider: "gmail",
-            email: "finance@example.com",
-            refreshToken: encrypt("gmail-refresh-token"),
-          },
-        ],
+        inboxAccounts: [gmailAccount()],
       }),
     );
 
@@ -310,14 +298,7 @@ describe("delete-team", () => {
 
     await runCleanup(
       payload({
-        inboxAccounts: [
-          {
-            id: GMAIL_ACCOUNT_ID,
-            provider: "gmail",
-            email: "finance@example.com",
-            refreshToken: encrypt("gmail-refresh-token"),
-          },
-        ],
+        inboxAccounts: [gmailAccount()],
       }),
     );
 
@@ -334,14 +315,7 @@ describe("delete-team", () => {
     await expect(
       runCleanup(
         payload({
-          inboxAccounts: [
-            {
-              id: GMAIL_ACCOUNT_ID,
-              provider: "gmail",
-              email: "finance@example.com",
-              refreshToken: encrypt("gmail-refresh-token"),
-            },
-          ],
+          inboxAccounts: [gmailAccount()],
         }),
       ),
     ).resolves.toBeDefined();
@@ -402,14 +376,7 @@ describe("delete-team", () => {
           connections: [
             { referenceId: "req_1", provider: "gocardless", accessToken: null },
           ],
-          inboxAccounts: [
-            {
-              id: GMAIL_ACCOUNT_ID,
-              provider: "gmail",
-              email: "finance@example.com",
-              refreshToken: encrypt("gmail-refresh-token"),
-            },
-          ],
+          inboxAccounts: [gmailAccount()],
         }),
       ),
     ).rejects.toThrow("Storage is unavailable");
