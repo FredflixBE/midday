@@ -11,7 +11,7 @@ import { generateDeterministicId } from "../generate-id";
 import type {
   Attachment,
   EmailAttachment,
-  GetAttachmentsOptions,
+  ListMessagesOptions,
   MicrosoftTokenResponse,
   OAuthProviderInterface,
   OutlookAttachment,
@@ -27,6 +27,16 @@ import type {
  * where a token expires mid-request.
  */
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+
+/** Ids per page when listing messages; Graph allows up to 1,000. */
+const LIST_PAGE_SIZE = 250;
+
+function isNotFound(error: unknown): boolean {
+  const graphError = error as { statusCode?: number; code?: string };
+  return (
+    graphError?.statusCode === 404 || graphError?.code === "ErrorItemNotFound"
+  );
+}
 
 /**
  * Custom AuthenticationProvider that handles token refresh automatically.
@@ -493,170 +503,164 @@ export class OutlookProvider implements OAuthProviderInterface {
     }
   }
 
-  async getAttachments(options: GetAttachmentsOptions): Promise<Attachment[]> {
-    if (!this.#graphClient) {
-      throw new Error("Graph client not initialized. Set tokens first.");
-    }
-
-    const { maxResults = 50, lastAccessed, fullSync = false } = options;
+  async listMessageIds(options: ListMessagesOptions): Promise<string[]> {
+    const client = this.#client();
 
     // Get the current user's email to exclude self-sent messages
     const userInfo = await this.getUserInfo();
     const userEmail = userInfo?.email?.toLowerCase();
 
-    // Build date filter based on sync type and lastAccessed
-    let dateFilter: string;
-    if (fullSync || !lastAccessed) {
-      // For full syncs, fetch last 30 days
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      dateFilter = `receivedDateTime ge ${thirtyDaysAgo.toISOString()}`;
-    } else {
-      // For subsequent syncs, sync from last access date minus 1 day
-      const lastAccessDate = new Date(lastAccessed);
-      lastAccessDate.setDate(lastAccessDate.getDate() - 1);
-      dateFilter = `receivedDateTime ge ${lastAccessDate.toISOString()}`;
-    }
+    // Graph cannot filter on the sender's address, so self-sent messages are
+    // dropped below. receivedDateTime must come first in the filter since the
+    // results are ordered by it, or Graph answers "The restriction or sort
+    // order is too complex".
+    const filter = `receivedDateTime ge ${options.since.toISOString()} and hasAttachments eq true`;
+
+    const ids: string[] = [];
 
     try {
-      // Query for messages with attachments
-      // Microsoft Graph uses OData query syntax
-      // Note: We filter out self-sent messages in JavaScript because Microsoft Graph
-      // doesn't support complex OData filters with nested properties like from/emailAddress/address
-      // IMPORTANT: Properties in $orderby must appear FIRST in $filter to avoid
-      // "The restriction or sort order is too complex" error
-      const allMessages: OutlookMessage[] = [];
-      let nextLink: string | undefined;
-      const maxPagesToFetch = 3;
-      let pagesFetched = 0;
-
-      // receivedDateTime must come first since we order by it
-      const filter = `${dateFilter} and hasAttachments eq true`;
-
-      // Initial request
-      let response = await this.#graphClient
+      let response = await client
         .api("/me/messages")
         .filter(filter)
-        .select("id,from,hasAttachments")
-        .top(Math.min(maxResults, 50))
+        .select("id,from")
+        .top(LIST_PAGE_SIZE)
         .orderby("receivedDateTime desc")
         .get();
 
-      if (response.value) {
-        allMessages.push(...response.value);
-      }
-      nextLink = response["@odata.nextLink"];
-      pagesFetched++;
-
-      // Pagination
-      while (
-        nextLink &&
-        allMessages.length < maxResults &&
-        pagesFetched < maxPagesToFetch
-      ) {
-        response = await this.#graphClient.api(nextLink).get();
-
-        if (response.value) {
-          allMessages.push(...response.value);
+      while (true) {
+        for (const message of (response.value ?? []) as OutlookMessage[]) {
+          const sender = message.from?.emailAddress?.address?.toLowerCase();
+          if (message.id && (!userEmail || sender !== userEmail)) {
+            ids.push(message.id);
+          }
         }
-        nextLink = response["@odata.nextLink"];
-        pagesFetched++;
+
+        const nextLink: string | undefined = response["@odata.nextLink"];
+        if (!nextLink) break;
+
+        response = await client.api(nextLink).get();
       }
+    } catch (error: unknown) {
+      throw this.#toInboxError(error, "Failed to list messages");
+    }
 
-      // Filter out self-sent messages and limit to maxResults
-      const messages = allMessages
-        .filter((msg) => {
-          if (!userEmail) return true;
-          const senderEmail = msg.from?.emailAddress?.address?.toLowerCase();
-          return senderEmail !== userEmail;
-        })
-        .slice(0, maxResults);
+    return ids;
+  }
 
-      if (!messages || messages.length === 0) {
-        console.log(
-          "No emails found with PDF attachments matching the criteria.",
-        );
-        return [];
-      }
+  async getMessageAttachments(messageIds: string[]): Promise<Attachment[]> {
+    const client = this.#client();
 
-      // Process messages to get attachments
-      const allAttachmentsPromises = messages.map((message) =>
-        this.#processMessageToAttachments(message),
+    try {
+      const messages = await Promise.all(
+        messageIds.map(async (id) => {
+          try {
+            return (await client
+              .api(`/me/messages/${id}`)
+              .select("id,from")
+              .get()) as OutlookMessage;
+          } catch (error: unknown) {
+            // Deleted since it was listed: there is nothing left to read.
+            if (isNotFound(error)) return null;
+            throw error;
+          }
+        }),
       );
 
-      const attachmentsArray = await Promise.all(allAttachmentsPromises);
-      const flattenedAttachments = attachmentsArray.flat();
+      const attachments = await Promise.all(
+        messages
+          .filter((message): message is OutlookMessage => Boolean(message))
+          .map((message) => this.#processMessageToAttachments(message)),
+      );
 
-      return flattenedAttachments;
+      return attachments.flat();
     } catch (error: unknown) {
-      // Re-throw InboxAuthError and InboxSyncError as-is
-      if (error instanceof InboxAuthError || error instanceof InboxSyncError) {
-        throw error;
-      }
+      throw this.#toInboxError(error, "Failed to fetch attachments");
+    }
+  }
 
-      // Extract GraphError properties for reliable error detection
-      const graphError = error as {
-        statusCode?: number;
-        code?: string;
-        message?: string;
-      };
+  #client(): Client {
+    if (!this.#graphClient) {
+      throw new Error("Graph client not initialized. Set tokens first.");
+    }
 
-      const statusCode = graphError.statusCode;
-      const errorCode = graphError.code;
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+    return this.#graphClient;
+  }
 
-      console.error("Microsoft Graph API error:", {
-        statusCode,
-        errorCode,
-        errorMessage,
-        accountId: this.#accountId,
-        timestamp: new Date().toISOString(),
-      });
+  /**
+   * Classify a failed Graph call as an auth or a sync error. Which one decides
+   * whether the account is marked disconnected.
+   */
+  #toInboxError(
+    error: unknown,
+    context: string,
+  ): InboxAuthError | InboxSyncError {
+    // Re-throw InboxAuthError and InboxSyncError as-is
+    if (error instanceof InboxAuthError || error instanceof InboxSyncError) {
+      return error;
+    }
 
-      // Use status codes and error codes for reliable detection, not message parsing
-      // 401 = Unauthorized (token issues)
-      // InvalidAuthenticationToken = Microsoft's error code for token problems
-      if (statusCode === 401 || errorCode === "InvalidAuthenticationToken") {
-        throw new InboxAuthError({
-          code: "token_expired",
-          provider: "outlook",
-          message:
-            "Access token is invalid or expired. Authentication required.",
-          requiresReauth: true,
-          cause: error instanceof Error ? error : undefined,
-        });
-      }
+    // Extract GraphError properties for reliable error detection
+    const graphError = error as {
+      statusCode?: number;
+      code?: string;
+      message?: string;
+    };
 
-      // 403 = Forbidden (permission issues)
-      if (statusCode === 403 || errorCode === "Authorization_RequestDenied") {
-        throw new InboxAuthError({
-          code: "forbidden",
-          provider: "outlook",
-          message: "Insufficient permissions or access denied.",
-          requiresReauth: true,
-          cause: error instanceof Error ? error : undefined,
-        });
-      }
+    const statusCode = graphError.statusCode;
+    const errorCode = graphError.code;
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    const cause = error instanceof Error ? error : undefined;
 
-      // 429 = Rate limited
-      if (statusCode === 429) {
-        throw new InboxSyncError({
-          code: "rate_limited",
-          provider: "outlook",
-          message:
-            "Microsoft Graph API rate limit exceeded. Please try again later.",
-          cause: error instanceof Error ? error : undefined,
-        });
-      }
+    console.error("Microsoft Graph API error:", {
+      statusCode,
+      errorCode,
+      errorMessage,
+      accountId: this.#accountId,
+      timestamp: new Date().toISOString(),
+    });
 
-      throw new InboxSyncError({
-        code: "fetch_failed",
+    // Use status codes and error codes for reliable detection, not message parsing
+    // 401 = Unauthorized (token issues)
+    // InvalidAuthenticationToken = Microsoft's error code for token problems
+    if (statusCode === 401 || errorCode === "InvalidAuthenticationToken") {
+      return new InboxAuthError({
+        code: "token_expired",
         provider: "outlook",
-        message: `Failed to fetch attachments: ${errorMessage}`,
-        cause: error instanceof Error ? error : undefined,
+        message: "Access token is invalid or expired. Authentication required.",
+        requiresReauth: true,
+        cause,
       });
     }
+
+    // 403 = Forbidden (permission issues)
+    if (statusCode === 403 || errorCode === "Authorization_RequestDenied") {
+      return new InboxAuthError({
+        code: "forbidden",
+        provider: "outlook",
+        message: "Insufficient permissions or access denied.",
+        requiresReauth: true,
+        cause,
+      });
+    }
+
+    // 429 = Rate limited
+    if (statusCode === 429) {
+      return new InboxSyncError({
+        code: "rate_limited",
+        provider: "outlook",
+        message:
+          "Microsoft Graph API rate limit exceeded. Please try again later.",
+        cause,
+      });
+    }
+
+    return new InboxSyncError({
+      code: "fetch_failed",
+      provider: "outlook",
+      message: `${context}: ${errorMessage}`,
+      cause,
+    });
   }
 
   async #processMessageToAttachments(
@@ -685,88 +689,77 @@ export class OutlookProvider implements OAuthProviderInterface {
       }
     }
 
-    try {
-      // List attachments without $select - Microsoft Graph returns all base properties
-      // including @odata.type automatically. contentBytes requires fetching individually.
-      const attachmentsResponse = await this.#graphClient
-        .api(`/me/messages/${message.id}/attachments`)
-        .get();
+    // A failure here fails the batch: swallowing it would let the sync move
+    // past a message whose invoice it never saw.
+    // List attachments without $select - Microsoft Graph returns all base properties
+    // including @odata.type automatically. contentBytes requires fetching individually.
+    const attachmentsResponse = await this.#graphClient
+      .api(`/me/messages/${message.id}/attachments`)
+      .get();
 
-      const rawAttachments: OutlookAttachment[] =
-        attachmentsResponse.value || [];
-      const pdfAttachments: EmailAttachment[] = [];
-      const maxAttachments = 5;
+    const rawAttachments: OutlookAttachment[] = attachmentsResponse.value || [];
+    const pdfAttachments: EmailAttachment[] = [];
+    const maxAttachments = 5;
 
-      for (const att of rawAttachments) {
-        if (pdfAttachments.length >= maxAttachments) {
-          console.log(
-            `Reached maximum attachment limit (${maxAttachments}) for message ${message.id}.`,
-          );
-          break;
-        }
-
-        // Only process PDF attachments
-        // Note: Unlike Gmail which pre-filters with `filename:pdf` in the API query,
-        // Outlook only filters for `hasAttachments eq true`, so we must filter locally.
-        // We check for application/octet-stream + .pdf extension to avoid false positives
-        // (e.g., .docx, .xlsx files that also use application/octet-stream).
-        const mimeType = att.contentType ?? "application/octet-stream";
-        const hasPdfExtension =
-          att.name?.toLowerCase().endsWith(".pdf") ?? false;
-        const isPdf =
-          mimeType === "application/pdf" ||
-          (mimeType === "application/octet-stream" && hasPdfExtension);
-
-        // Skip inline attachments (they have @odata.type of #microsoft.graph.itemAttachment)
-        const isFileAttachment =
-          att["@odata.type"] === "#microsoft.graph.fileAttachment";
-
-        if (att.name && isPdf && isFileAttachment) {
-          // Fetch the individual attachment to get contentBytes
-          const fullAttachment = await this.#graphClient!.api(
-            `/me/messages/${message.id}/attachments/${att.id}`,
-          ).get();
-
-          if (fullAttachment.contentBytes) {
-            pdfAttachments.push({
-              filename: att.name,
-              mimeType:
-                mimeType === "application/octet-stream"
-                  ? "application/pdf"
-                  : mimeType,
-              size: att.size,
-              data: fullAttachment.contentBytes,
-            });
-          }
-        }
+    for (const att of rawAttachments) {
+      if (pdfAttachments.length >= maxAttachments) {
+        console.log(
+          `Reached maximum attachment limit (${maxAttachments}) for message ${message.id}.`,
+        );
+        break;
       }
 
-      const attachments: Attachment[] = pdfAttachments.map((att) => {
-        const filename = ensureFileExtension(att.filename, att.mimeType);
-        const referenceId = generateDeterministicId(
-          `${message.id}_${filename}`,
-        );
+      // Only process PDF attachments
+      // Note: Unlike Gmail which pre-filters with `filename:pdf` in the API query,
+      // Outlook only filters for `hasAttachments eq true`, so we must filter locally.
+      // We check for application/octet-stream + .pdf extension to avoid false positives
+      // (e.g., .docx, .xlsx files that also use application/octet-stream).
+      const mimeType = att.contentType ?? "application/octet-stream";
+      const hasPdfExtension = att.name?.toLowerCase().endsWith(".pdf") ?? false;
+      const isPdf =
+        mimeType === "application/pdf" ||
+        (mimeType === "application/octet-stream" && hasPdfExtension);
 
-        return {
-          id: referenceId,
-          filename,
-          mimeType: att.mimeType,
-          size: att.size,
-          data: Buffer.from(att.data, "base64"),
-          website: senderDomain,
-          senderEmail: senderEmail,
-          referenceId: referenceId,
-        };
-      });
+      // Skip inline attachments (they have @odata.type of #microsoft.graph.itemAttachment)
+      const isFileAttachment =
+        att["@odata.type"] === "#microsoft.graph.fileAttachment";
 
-      return attachments;
-    } catch (error: unknown) {
-      const messageText =
-        error instanceof Error ? error.message : "Unknown error";
-      console.error(
-        `Failed to process attachments for message ${message.id}: ${messageText}`,
-      );
-      return [];
+      if (att.name && isPdf && isFileAttachment) {
+        // Fetch the individual attachment to get contentBytes
+        const fullAttachment = await this.#graphClient!.api(
+          `/me/messages/${message.id}/attachments/${att.id}`,
+        ).get();
+
+        if (fullAttachment.contentBytes) {
+          pdfAttachments.push({
+            filename: att.name,
+            mimeType:
+              mimeType === "application/octet-stream"
+                ? "application/pdf"
+                : mimeType,
+            size: att.size,
+            data: fullAttachment.contentBytes,
+          });
+        }
+      }
     }
+
+    const attachments: Attachment[] = pdfAttachments.map((att) => {
+      const filename = ensureFileExtension(att.filename, att.mimeType);
+      const referenceId = generateDeterministicId(`${message.id}_${filename}`);
+
+      return {
+        id: referenceId,
+        filename,
+        mimeType: att.mimeType,
+        size: att.size,
+        data: Buffer.from(att.data, "base64"),
+        website: senderDomain,
+        senderEmail: senderEmail,
+        referenceId: referenceId,
+      };
+    });
+
+    return attachments;
   }
 }

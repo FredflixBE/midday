@@ -27,12 +27,10 @@ export interface ListMessagesOptions {
   since: Date;
 }
 
-export interface GetAttachmentsOptions {
+/** Identifies the inbox account a connector call reads from. */
+export interface AccountRef {
   id: string;
   teamId: string;
-  maxResults?: number;
-  lastAccessed?: string;
-  fullSync?: boolean;
 }
 
 export abstract class Connector {
@@ -40,8 +38,11 @@ export abstract class Connector {
   abstract exchangeCodeForAccount(
     params: ExchangeCodeForAccountParams,
   ): Promise<Account | null>;
-  abstract getAttachments(
-    options?: GetAttachmentsOptions,
+  abstract listMessageIds(
+    options: AccountRef & ListMessagesOptions,
+  ): Promise<string[]>;
+  abstract getMessageAttachments(
+    options: AccountRef & { messageIds: string[] },
   ): Promise<Attachment[]>;
 }
 
@@ -121,10 +122,19 @@ export interface OAuthProviderInterface {
   setTokens(tokens: Tokens): void;
 
   /**
-   * Fetches attachments from the provider.
-   * @param options - Options for fetching attachments (e.g., max results, id).
+   * Lists every message received since `options.since` that may carry an
+   * invoice — one with a PDF attached that the account did not send itself —
+   * newest first. There is no cap: a sync that stopped short would move its
+   * watermark past mail it never read.
    */
-  getAttachments(options: GetAttachmentsOptions): Promise<Attachment[]>;
+  listMessageIds(options: ListMessagesOptions): Promise<string[]>;
+
+  /**
+   * Fetches the PDF attachments of these messages. A message deleted since it
+   * was listed is passed over; any other failure throws, rather than let the
+   * caller count a message as read when it was not.
+   */
+  getMessageAttachments(messageIds: string[]): Promise<Attachment[]>;
 
   /**
    * Fetches user info from the provider.

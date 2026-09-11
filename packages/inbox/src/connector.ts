@@ -10,10 +10,11 @@ import { GmailProvider } from "./providers/gmail";
 import { OutlookProvider } from "./providers/outlook";
 import {
   type Account,
+  type AccountRef,
   type Attachment,
   Connector,
   type ExchangeCodeForAccountParams,
-  type GetAttachmentsOptions,
+  type ListMessagesOptions,
   type OAuthProvider,
   type OAuthProviderInterface,
   type RevokeAccessResult,
@@ -96,10 +97,36 @@ export class InboxConnector extends Connector {
     return this.#provider.revokeAccess(decrypt(account.refreshToken));
   }
 
-  async getAttachments(options: GetAttachmentsOptions): Promise<Attachment[]> {
+  /** Every message since `options.since` that may carry an invoice. */
+  async listMessageIds(
+    options: AccountRef & ListMessagesOptions,
+  ): Promise<string[]> {
+    return this.#withAccount(options, (provider) =>
+      provider.listMessageIds({ since: options.since }),
+    );
+  }
+
+  /** The PDF attachments of messages returned by `listMessageIds`. */
+  async getMessageAttachments(
+    options: AccountRef & { messageIds: string[] },
+  ): Promise<Attachment[]> {
+    return this.#withAccount(options, (provider) =>
+      provider.getMessageAttachments(options.messageIds),
+    );
+  }
+
+  /**
+   * Run a provider call as this account: load its tokens, and retry once
+   * after a refresh when the call fails on an auth error that a new access
+   * token may fix.
+   */
+  async #withAccount<T>(
+    ref: AccountRef,
+    call: (provider: OAuthProviderInterface) => Promise<T>,
+  ): Promise<T> {
     const account = await getInboxAccountById(this.#db, {
-      id: options.id,
-      teamId: options.teamId,
+      id: ref.id,
+      teamId: ref.teamId,
     });
 
     if (!account) {
@@ -125,13 +152,7 @@ export class InboxConnector extends Connector {
     });
 
     try {
-      return await this.#provider.getAttachments({
-        id: account.id,
-        teamId: options.teamId,
-        maxResults: options.maxResults,
-        lastAccessed: account.lastAccessed,
-        fullSync: options.fullSync,
-      });
+      return await call(this.#provider);
     } catch (error) {
       // Handle structured auth errors
       if (error instanceof InboxAuthError) {
@@ -142,7 +163,8 @@ export class InboxConnector extends Connector {
 
         // Try token refresh for potentially transient auth errors
         try {
-          return await this.#retryWithTokenRefresh(options, account);
+          await this.#provider.refreshTokens();
+          return await call(this.#provider);
         } catch (retryError) {
           // Propagate structured errors
           if (
@@ -154,7 +176,7 @@ export class InboxConnector extends Connector {
           throw new InboxSyncError({
             code: "fetch_failed",
             provider: this.#providerName,
-            message: `Failed to fetch attachments after token refresh: ${
+            message: `Failed after token refresh: ${
               retryError instanceof Error ? retryError.message : "Unknown error"
             }`,
             cause: retryError instanceof Error ? retryError : undefined,
@@ -171,31 +193,12 @@ export class InboxConnector extends Connector {
       throw new InboxSyncError({
         code: "fetch_failed",
         provider: this.#providerName,
-        message: `Failed to fetch attachments: ${
+        message: `Failed to read the mailbox: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
         cause: error instanceof Error ? error : undefined,
       });
     }
-  }
-
-  async #retryWithTokenRefresh(
-    options: GetAttachmentsOptions,
-    account: NonNullable<Awaited<ReturnType<typeof getInboxAccountById>>>,
-  ): Promise<Attachment[]> {
-    // Provider already has tokens set from the initial getAttachments call.
-    // Just trigger an explicit refresh and retry the request.
-    // The provider handles all token state internally and persists to DB.
-    await this.#provider.refreshTokens();
-
-    // After successful refresh, retry the request
-    return await this.#provider.getAttachments({
-      id: account.id,
-      teamId: options.teamId,
-      maxResults: options.maxResults,
-      lastAccessed: account.lastAccessed,
-      fullSync: options.fullSync,
-    });
   }
 
   async #saveAccount(params: {

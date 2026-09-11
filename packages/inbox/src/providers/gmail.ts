@@ -38,7 +38,10 @@ const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 const LIST_PAGE_SIZE = 500;
 
 /** The 403 reasons that mean "slow down" rather than "not allowed". */
-const RATE_LIMIT_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded"]);
+const RATE_LIMIT_REASONS = new Set([
+  "rateLimitExceeded",
+  "userRateLimitExceeded",
+]);
 
 /**
  * Google API error structure
@@ -50,9 +53,7 @@ interface GoogleApiError extends Error {
   response?: {
     status?: number;
     data?: {
-      error?:
-        | string
-        | { code?: number; errors?: { reason?: string }[] };
+      error?: string | { code?: number; errors?: { reason?: string }[] };
       error_description?: string;
     };
   };
@@ -68,8 +69,7 @@ function statusOf(error: unknown): number | undefined {
 function reasonOf(error: unknown): string | undefined {
   const googleError = error as GoogleApiError;
   const body = googleError?.response?.data?.error;
-  const errors =
-    typeof body === "object" ? body?.errors : googleError?.errors;
+  const errors = typeof body === "object" ? body?.errors : googleError?.errors;
   return errors?.[0]?.reason;
 }
 

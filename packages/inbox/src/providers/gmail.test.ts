@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import * as gmailModule from "@googleapis/gmail";
+import { InboxSyncError } from "../errors";
+import { GmailProvider } from "./gmail";
+import type { Attachment } from "./types";
 
 // Google's API client is the only thing faked: a mailbox held in memory,
 // answering the three calls a sync makes the way the Gmail API does — newest
@@ -111,16 +115,11 @@ class FakeOAuth2 {
   }
 }
 
-const gmailModule = await import("@googleapis/gmail");
-
 mock.module("@googleapis/gmail", () => ({
   ...gmailModule,
   auth: { ...gmailModule.auth, OAuth2: FakeOAuth2 },
   gmail: () => fakeClient,
 }));
-
-const { GmailProvider } = await import("./gmail");
-const { InboxSyncError } = await import("../errors");
 
 function connectedProvider() {
   const provider = new GmailProvider({} as never);
@@ -183,9 +182,8 @@ describe("reading the attachments of listed messages", () => {
   test("returns each PDF with its sender and the id earlier syncs stored it under", async () => {
     mailbox.push(invoiceEmail("m1", "2026-01-15T09:00:00Z"));
 
-    const [attachment, ...rest] = await connectedProvider().getMessageAttachments(
-      ["m1"],
-    );
+    const [attachment, ...rest] =
+      await connectedProvider().getMessageAttachments(["m1"]);
 
     expect(rest).toEqual([]);
     expect(attachment).toMatchObject({
@@ -208,7 +206,9 @@ describe("reading the attachments of listed messages", () => {
       "kept",
     ]);
 
-    expect(attachments.map((a) => a.filename)).toEqual(["kept.pdf"]);
+    expect(attachments.map((a: Attachment) => a.filename)).toEqual([
+      "kept.pdf",
+    ]);
   });
 
   test("fails rather than skip a message it could not read", async () => {
