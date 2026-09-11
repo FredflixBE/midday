@@ -2,17 +2,21 @@
 
 import { Icons } from "@midday/ui/icons";
 import { SubmitButton } from "@midday/ui/submit-button";
+import { useToast } from "@midday/ui/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useTRPC } from "@/trpc/client";
 
 type Props = {
   redirectPath?: string;
+  /** The date the first sync reads from (YYYY-MM-DD). */
+  since?: string;
 };
 
-export function ConnectGmail({ redirectPath }: Props) {
+export function ConnectGmail({ redirectPath, since }: Props) {
   const trpc = useTRPC();
   const router = useRouter();
+  const { toast } = useToast();
 
   const connectMutation = useMutation(
     trpc.inboxAccounts.connect.mutationOptions({
@@ -20,6 +24,15 @@ export function ConnectGmail({ redirectPath }: Props) {
         if (authUrl) {
           router.push(authUrl);
         }
+      },
+      // A start date the server refuses says why.
+      onError: (error) => {
+        toast({
+          duration: 5000,
+          variant: "error",
+          title: "Could not connect Gmail",
+          description: error.message,
+        });
       },
     }),
   );
@@ -31,7 +44,7 @@ export function ConnectGmail({ redirectPath }: Props) {
       data-track="Inbox Email Connected"
       data-provider="gmail"
       onClick={() =>
-        connectMutation.mutate({ provider: "gmail", redirectPath })
+        connectMutation.mutate({ provider: "gmail", redirectPath, since })
       }
       isSubmitting={connectMutation.isPending}
     >

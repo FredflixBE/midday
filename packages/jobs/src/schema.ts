@@ -170,6 +170,8 @@ export type ReconnectConnectionPayload = z.infer<
 
 export const initialInboxSetupSchema = z.object({
   id: z.string().uuid(), // This is the inbox_account row id
+  // The date the first sync reads from (YYYY-MM-DD), chosen when connecting.
+  since: z.string().optional(),
 });
 
 export type InitialInboxSetupPayload = z.infer<typeof initialInboxSetupSchema>;

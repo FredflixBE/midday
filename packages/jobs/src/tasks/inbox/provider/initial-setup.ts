@@ -14,7 +14,7 @@ export const initialInboxSetup = schemaTask({
     concurrencyLimit: 20,
   },
   run: async (payload) => {
-    const { id } = payload;
+    const { id, since } = payload;
 
     // Schedule the inbox sync task to run quarter-daily (every 6 hours) at a random minute to distribute load
     // Use a deduplication key to prevent duplicate schedules for the same team
@@ -35,6 +35,7 @@ export const initialInboxSetup = schemaTask({
     await syncInboxAccount.trigger({
       id,
       manualSync: true,
+      since,
     });
   },
 });

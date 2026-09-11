@@ -727,6 +727,10 @@ export const mocks = {
   // InboxConnector — its constructor, and revokeAccess, which withdraws access
   // at the mail provider
   constructInboxConnector: mock(() => undefined) as MockFn,
+  // connect(state) returns the provider's authorize URL
+  connectInbox: mock(() =>
+    Promise.resolve("https://accounts.test/authorize"),
+  ) as MockFn,
   revokeInboxAccess: mock(() => Promise.resolve("revoked")) as MockFn,
 
   // Trigger.dev schedules
@@ -1215,7 +1219,7 @@ mock.module("@midday/inbox/connector", () => ({
     constructor() {
       mocks.constructInboxConnector();
     }
-    connect = mock(() => Promise.resolve("https://accounts.test/authorize"));
+    connect = mocks.connectInbox;
     exchangeCodeForAccount = mock(() => Promise.resolve(null));
     revokeAccess = mocks.revokeInboxAccess;
   },

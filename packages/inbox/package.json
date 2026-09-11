@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./connector": "./src/connector.ts",
     "./errors": "./src/errors.ts",
-    "./utils": "./src/utils.ts"
+    "./utils": "./src/utils.ts",
+    "./sync-start": "./src/sync-start.ts"
   },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",

@@ -10,6 +10,8 @@ export interface OAuthStatePayload {
   provider: "gmail" | "outlook";
   source: "inbox" | "apps";
   redirectPath?: string;
+  /** The date the first sync reads from (YYYY-MM-DD), when the user chose one. */
+  since?: string;
 }
 
 /**

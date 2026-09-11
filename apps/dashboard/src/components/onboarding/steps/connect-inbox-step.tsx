@@ -9,14 +9,18 @@ import {
 } from "@midday/ui/accordion";
 import { motion } from "framer-motion";
 import { CopyInput } from "@/components/copy-input";
-import { ConnectGmail } from "@/components/inbox/connect-gmail";
-import { ConnectOutlook } from "@/components/inbox/connect-outlook";
+import { ConnectMailbox } from "@/components/inbox/connect-mailbox";
 import { ConnectSlack } from "@/components/inbox/connect-slack";
+import {
+  formatSyncStart,
+  useSyncStart,
+} from "@/components/inbox/sync-start-picker";
 import { useUserQuery } from "@/hooks/use-user";
 
 export function ConnectInboxStep() {
   const { data: user } = useUserQuery();
   const inboxEmail = getInboxEmail(user?.team?.inboxId ?? "");
+  const [since, setSince] = useSyncStart();
 
   return (
     <div className="space-y-4">
@@ -35,8 +39,9 @@ export function ConnectInboxStep() {
         transition={{ duration: 0.4, delay: 0.2 }}
         className="text-sm text-muted-foreground leading-relaxed"
       >
-        Connect email and we'll find receipts for your last 30 days
-        automatically.
+        Connect email and we'll find your receipts from{" "}
+        {formatSyncStart(since, user?.dateFormat)} automatically. Choose how far
+        back below, up to a year.
       </motion.p>
 
       <motion.ul
@@ -94,10 +99,12 @@ export function ConnectInboxStep() {
         transition={{ duration: 0.4, delay: 0.7 }}
         className="!mt-6"
       >
-        <div className="flex gap-2">
-          <ConnectGmail redirectPath="/onboarding?s=connect-inbox" />
-          <ConnectOutlook redirectPath="/onboarding?s=connect-inbox" />
-        </div>
+        <ConnectMailbox
+          redirectPath="/onboarding?s=connect-inbox"
+          layout="row"
+          since={since}
+          onSinceChange={setSince}
+        />
 
         <Accordion type="single" collapsible className="border-t pt-2 mt-4">
           <AccordionItem value="more-options" className="border-0">

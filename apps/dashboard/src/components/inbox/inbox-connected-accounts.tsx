@@ -30,8 +30,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSyncStatus } from "@/hooks/use-sync-status";
 import { useTRPC } from "@/trpc/client";
 import { ConnectEmailModal } from "./connect-email-modal";
-import { ConnectGmail } from "./connect-gmail";
-import { ConnectOutlook } from "./connect-outlook";
+import { ConnectMailbox } from "./connect-mailbox";
 import { DeleteInboxAccount } from "./delete-inbox-account";
 import { InboxAccountsListSkeleton } from "./inbox-connected-accounts-skeleton";
 import { SyncInboxAccount } from "./sync-inbox-account";
@@ -236,9 +235,8 @@ function InboxAccountsList() {
   if (!data?.length) {
     return (
       <div className="px-6 py-8 pb-12 text-center flex flex-col items-center">
-        <div className="w-full max-w-[300px] flex flex-col space-y-3">
-          <ConnectGmail />
-          <ConnectOutlook />
+        <div className="w-full max-w-[300px]">
+          <ConnectMailbox />
         </div>
       </div>
     );

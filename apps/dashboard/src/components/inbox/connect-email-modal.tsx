@@ -8,8 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@midday/ui/dialog";
-import { ConnectGmail } from "./connect-gmail";
-import { ConnectOutlook } from "./connect-outlook";
+import { ConnectMailbox } from "./connect-mailbox";
 
 type ConnectEmailModalProps = {
   children: React.ReactNode;
@@ -29,9 +28,8 @@ export function ConnectEmailModal({ children }: ConnectEmailModalProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col space-y-3 pt-4">
-            <ConnectGmail />
-            <ConnectOutlook />
+          <div className="pt-4">
+            <ConnectMailbox />
           </div>
         </div>
       </DialogContent>

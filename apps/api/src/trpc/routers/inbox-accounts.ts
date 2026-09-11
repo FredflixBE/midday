@@ -11,6 +11,7 @@ import {
   getInboxAccounts,
 } from "@midday/db/queries";
 import { InboxConnector } from "@midday/inbox/connector";
+import { syncStartProblem } from "@midday/inbox/sync-start";
 import { encryptOAuthState } from "@midday/inbox/utils";
 import { createLoggerWithContext } from "@midday/logger";
 import { schedules, tasks } from "@trigger.dev/sdk";
@@ -33,6 +34,14 @@ export const inboxAccountsRouter = createTRPCRouter({
         });
       }
 
+      // Refused here rather than by the first sync, which only runs once the
+      // user is back from the provider's login and would fail out of sight.
+      const sinceProblem =
+        input.since !== undefined && syncStartProblem(input.since, new Date());
+      if (sinceProblem) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: sinceProblem });
+      }
+
       try {
         // Encrypt state to prevent tampering with teamId
         const state = encryptOAuthState({
@@ -40,6 +49,7 @@ export const inboxAccountsRouter = createTRPCRouter({
           provider: input.provider,
           source: "inbox",
           redirectPath: input.redirectPath,
+          since: input.since,
         });
 
         const connector = new InboxConnector(input.provider, db);
