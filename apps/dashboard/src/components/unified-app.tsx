@@ -34,6 +34,7 @@ import {
   WindsurfSetupInstructions,
   ZedSetupInstructions,
 } from "./mcp-setup-instructions";
+import { YukiConnectDialog } from "./yuki-connect-dialog";
 
 // OAuth app configuration
 const oauthAppConfig: Record<
@@ -208,6 +209,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isLoading, setLoading] = useState(false);
+  const [isYukiDialogOpen, setYukiDialogOpen] = useState(false);
   const [params, setParams] = useQueryStates({
     app: parseAsString,
     settings: parseAsBoolean,
@@ -339,6 +341,12 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
   };
 
   const handleOnInitialize = async () => {
+    // Yuki has no OAuth: it connects with an access key, in a form.
+    if (app.id === "yuki") {
+      setYukiDialogOpen(true);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -460,6 +468,12 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
 
   return (
     <Card key={app.id} className="w-full flex flex-col">
+      {app.id === "yuki" && (
+        <YukiConnectDialog
+          open={isYukiDialogOpen}
+          onOpenChange={setYukiDialogOpen}
+        />
+      )}
       <Sheet open={params.app === app.id} onOpenChange={() => setParams(null)}>
         <div className="pt-6 px-6 h-16 flex items-center justify-between">
           {app.type === "official" &&
@@ -498,6 +512,9 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
         </CardHeader>
         <CardContent className="text-xs text-[#878787] pb-4">
           <p>{app.short_description}</p>
+          {app.installed && app.connectedAs && (
+            <p className="mt-2 text-primary">Connected to {app.connectedAs}</p>
+          )}
         </CardContent>
 
         <div className="px-6 pb-6 flex gap-2 mt-auto">

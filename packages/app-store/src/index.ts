@@ -21,6 +21,7 @@ import slackApp from "./slack/config-client";
 import stripePaymentsApp from "./stripe-payments/config-client";
 import windsurfMcpApp from "./windsurf-mcp/config";
 import xeroApp from "./xero/config-client";
+import yukiApp from "./yuki/config";
 import zapierMcpApp from "./zapier-mcp/config";
 import zedMcpApp from "./zed-mcp/config";
 
@@ -31,6 +32,7 @@ export const apps = [
   quickBooksApp,
   xeroApp,
   fortnoxApp,
+  yukiApp,
   stripePaymentsApp,
   middayDesktopApp,
   eInvoiceApp,
