@@ -1,6 +1,7 @@
 import { createClient } from "@api/services/supabase";
 import type { Session } from "@api/utils/auth";
 import { verifyAccessToken } from "@api/utils/auth";
+import { isDeveloper } from "@api/utils/developer";
 import { getGeoContext } from "@api/utils/geo";
 import { getRequestTrace } from "@api/utils/request-trace";
 import { safeCompare } from "@api/utils/safe-compare";
@@ -123,6 +124,27 @@ export const protectedProcedure = t.procedure
       },
     });
   });
+
+/**
+ * Procedure for the maintenance actions on Settings → Admin.
+ *
+ * These start jobs that act on the whole deployment rather than on the caller's
+ * team, so a signed-in team member is not enough. Who the developer is comes
+ * from `DEVELOPER_EMAIL`; see `isDeveloper`.
+ *
+ * The dashboard hides the tab from everyone else, but hiding is not a guard —
+ * this is, and it is the one that has to hold.
+ */
+export const developerProcedure = protectedProcedure.use(async (opts) => {
+  if (!isDeveloper(opts.ctx.session.user.email)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Only the developer of this installation can do that",
+    });
+  }
+
+  return opts.next();
+});
 
 /**
  * Internal procedure for service-to-service calls ONLY.

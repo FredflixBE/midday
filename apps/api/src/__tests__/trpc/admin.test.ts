@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { createCallerFactory } from "../../trpc/init";
 import { adminRouter } from "../../trpc/routers/admin";
 import { createTestContext } from "../helpers/test-context";
@@ -6,8 +6,21 @@ import { mocks } from "../setup";
 
 const createCaller = createCallerFactory(adminRouter);
 
+/** The address `createTestContext` signs the caller in as. */
+const DEVELOPER = "test@example.com";
+const originalDeveloperEmail = process.env.DEVELOPER_EMAIL;
+
+afterAll(() => {
+  if (originalDeveloperEmail === undefined) {
+    delete process.env.DEVELOPER_EMAIL;
+  } else {
+    process.env.DEVELOPER_EMAIL = originalDeveloperEmail;
+  }
+});
+
 describe("tRPC: admin.runMaintenanceTask", () => {
   beforeEach(() => {
+    process.env.DEVELOPER_EMAIL = DEVELOPER;
     mocks.triggerTask.mockClear();
   });
 
@@ -58,6 +71,32 @@ describe("tRPC: admin.runMaintenanceTask", () => {
     expect(first?.[2]?.idempotencyKeyTTL).toBe("5m");
   });
 
+  test("refuses a team member who is not the developer", async () => {
+    // Hiding the tab is not a guard: the mutation stays reachable, so this is
+    // the check that has to hold.
+    process.env.DEVELOPER_EMAIL = "someone-else@example.com";
+
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.runMaintenanceTask({ action: "sync-banks" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
+  test("refuses everyone when no developer is configured", async () => {
+    delete process.env.DEVELOPER_EMAIL;
+
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.runMaintenanceTask({ action: "sync-banks" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
   test("refuses a task that is not in the maintenance list", async () => {
     const caller = createCaller(createTestContext());
 
@@ -68,5 +107,23 @@ describe("tRPC: admin.runMaintenanceTask", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
     expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+});
+
+describe("tRPC: admin.isDeveloper", () => {
+  test("tells the developer that they are one", async () => {
+    process.env.DEVELOPER_EMAIL = DEVELOPER;
+
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.isDeveloper()).toBe(true);
+  });
+
+  test("tells everyone else that they are not", async () => {
+    process.env.DEVELOPER_EMAIL = "someone-else@example.com";
+
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.isDeveloper()).toBe(false);
   });
 });

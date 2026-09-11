@@ -1,20 +1,18 @@
-import { SecondaryMenu } from "@/components/secondary-menu";
+import { SettingsMenu } from "@/components/settings-menu";
+import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="max-w-[800px]">
-      <SecondaryMenu
-        items={[
-          { path: "/settings", label: "General" },
-          { path: "/settings/accounts", label: "Bank Connections" },
-          { path: "/settings/members", label: "Members" },
-          { path: "/settings/notifications", label: "Notifications" },
-          { path: "/settings/developer", label: "Developer" },
-          { path: "/settings/admin", label: "Admin" },
-        ]}
-      />
+  // Prefetched so the Admin tab is there on first paint rather than appearing
+  // a moment later.
+  prefetch(trpc.admin.isDeveloper.queryOptions());
 
-      <main className="mt-8">{children}</main>
-    </div>
+  return (
+    <HydrateClient>
+      <div className="max-w-[800px]">
+        <SettingsMenu />
+
+        <main className="mt-8">{children}</main>
+      </div>
+    </HydrateClient>
   );
 }
