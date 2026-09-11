@@ -149,10 +149,11 @@ export async function upsertInboxAccount(
     })
     .onConflictDoUpdate({
       target: inboxAccounts.externalId,
+      // lastAccessed is left alone: reconnecting reads nothing, so moving it
+      // to now would skip every message since the account's last sync.
       set: {
         accessToken: params.accessToken,
         refreshToken: params.refreshToken,
-        lastAccessed: params.lastAccessed,
         expiryDate: params.expiryDate,
         status: "connected",
         errorMessage: null,
