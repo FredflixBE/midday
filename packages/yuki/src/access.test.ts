@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { verifyAccess, YukiAccessError } from "./access";
+import { verifyAccess } from "./access";
 import type { FetchLike } from "./client";
+import { YukiAccessError } from "./errors";
 import { YUKI_NAMESPACE } from "./soap";
 
 type Answer = { result: string } | { fault: string };

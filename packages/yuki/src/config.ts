@@ -1,4 +1,6 @@
-export type YukiRegion = "be" | "nl";
+export const YUKI_REGIONS = ["be", "nl"] as const;
+
+export type YukiRegion = (typeof YUKI_REGIONS)[number];
 
 export interface YukiConfig {
   accessKey: string;

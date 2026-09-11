@@ -28,5 +28,6 @@ export { Logo as StripeLogo } from "./stripe/assets/logo";
 export { Logo as StripePaymentsLogo } from "./stripe-payments/assets/logo";
 export { Logo as WindsurfMcpLogo } from "./windsurf-mcp/assets/logo";
 export { Logo as XeroLogo } from "./xero/assets/logo";
+export { Logo as YukiLogo } from "./yuki/assets/logo";
 export { Logo as ZapierMcpLogo } from "./zapier-mcp/assets/logo";
 export { Logo as ZedMcpLogo } from "./zed-mcp/assets/logo";

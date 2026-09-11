@@ -34,7 +34,7 @@ mock.module("@midday/db/queries", () => ({
 const { connectYuki, yukiClientForTeam, YukiNotConnectedError } = await import(
   "./team"
 );
-const { YukiAccessError } = await import("./access");
+const { YukiAccessError } = await import("./errors");
 
 const db = {} as never;
 const TEAM = "a0000000-0000-4000-8000-000000000001";

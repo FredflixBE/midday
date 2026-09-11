@@ -34,7 +34,7 @@ import {
   WindsurfSetupInstructions,
   ZedSetupInstructions,
 } from "./mcp-setup-instructions";
-import { YukiConnectDialog } from "./yuki-connect-dialog";
+import { YukiConnectModal } from "./modals/yuki-connect-modal";
 
 // OAuth app configuration
 const oauthAppConfig: Record<
@@ -469,7 +469,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
   return (
     <Card key={app.id} className="w-full flex flex-col">
       {app.id === "yuki" && (
-        <YukiConnectDialog
+        <YukiConnectModal
           open={isYukiDialogOpen}
           onOpenChange={setYukiDialogOpen}
         />

@@ -34,7 +34,7 @@ type Props = {
  * with Yuki first, read-only, and the administration it reads is shown so the
  * user can confirm the company before anything is saved.
  */
-export function YukiConnectDialog({ open, onOpenChange }: Props) {
+export function YukiConnectModal({ open, onOpenChange }: Props) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -45,8 +45,12 @@ export function YukiConnectDialog({ open, onOpenChange }: Props) {
 
   const verify = useMutation(
     trpc.apps.verifyYuki.mutationOptions({
+      // With several administrations the user picks one; nothing is chosen
+      // for them, since Connect would otherwise take the first on one click.
       onSuccess: ({ administrations }) => {
-        setAdministrationId(administrations[0]?.id);
+        setAdministrationId(
+          administrations.length === 1 ? administrations[0]?.id : undefined,
+        );
       },
     }),
   );

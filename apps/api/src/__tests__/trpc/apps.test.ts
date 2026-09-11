@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import * as queries from "@midday/db/queries";
 import { decrypt } from "@midday/encryption";
 import { createCallerFactory } from "../../trpc/init";
 import { appsRouter } from "../../trpc/routers/apps";
@@ -68,6 +69,52 @@ describe("tRPC: apps.get", () => {
       },
     ]);
   });
+});
+
+// Every route that hands a row back, not only `get`.
+describe("tRPC: apps routes that return the stored row", () => {
+  const storedYukiRow = {
+    id: "row-1",
+    teamId: "test-team-id",
+    appId: "yuki",
+    settings: [],
+    config: {
+      encryptedAccessKey: "ciphertext",
+      region: "be",
+      administrationId: "11111111-1111-1111-1111-111111111111",
+      administrationName: "Acme BV",
+    },
+  };
+
+  const answers = {
+    disconnect: (caller: ReturnType<typeof createCaller>) =>
+      caller.disconnect({ appId: "yuki" }),
+    update: (caller: ReturnType<typeof createCaller>) =>
+      caller.update({ appId: "yuki", option: { id: "x", value: true } }),
+    updateSettings: (caller: ReturnType<typeof createCaller>) =>
+      caller.updateSettings({ appId: "yuki", settings: [] }),
+  };
+  const queryFor = {
+    disconnect: queries.disconnectApp,
+    update: queries.updateAppSettings,
+    updateSettings: queries.updateAppSettingsBulk,
+  } as unknown as Record<keyof typeof answers, ReturnType<typeof spyOn>>;
+
+  for (const route of Object.keys(answers) as (keyof typeof answers)[]) {
+    test(`${route} does not hand back Yuki's key`, async () => {
+      queryFor[route].mockImplementationOnce(() =>
+        Promise.resolve(storedYukiRow),
+      );
+
+      const answer = await answers[route](createCaller(createTestContext()));
+
+      expect(JSON.stringify(answer)).not.toContain("encryptedAccessKey");
+      expect(answer).toMatchObject({
+        appId: "yuki",
+        config: { administrationName: "Acme BV" },
+      });
+    });
+  }
 });
 
 // --- Yuki -------------------------------------------------------------------

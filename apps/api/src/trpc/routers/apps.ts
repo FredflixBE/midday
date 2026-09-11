@@ -15,46 +15,37 @@ import {
   updateAppSettingsBulk,
 } from "@midday/db/queries";
 import { verifyAccess, YukiAccessError, YukiRequestError } from "@midday/yuki";
-import { connectYuki, YUKI_APP_ID } from "@midday/yuki/team";
+import { connectYuki, withoutAccessKey } from "@midday/yuki/team";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 /**
- * The dashboard reads every app row through `get`. Yuki's key stays behind:
- * a connection is shown by its administration, never by its key, encrypted
- * or not.
+ * Runs a call to Yuki and says what went wrong in the user's terms: a refused
+ * key or region is theirs to fix, anything else Yuki answered is not.
  */
-function withoutSecrets<T extends { app_id: string; config: unknown }>(
-  app: T,
-): T {
-  if (app.app_id !== YUKI_APP_ID || !app.config) return app;
-
-  const { encryptedAccessKey: _, ...config } = app.config as Record<
-    string,
-    unknown
-  >;
-  return { ...app, config };
-}
-
-/** A refusal is the user's to fix; anything else Yuki said is not. */
-function toTRPCError(error: unknown): unknown {
-  if (error instanceof YukiAccessError) {
-    return new TRPCError({ code: "BAD_REQUEST", message: error.message });
+async function withYukiErrors<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    if (error instanceof YukiAccessError) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+    }
+    if (error instanceof YukiRequestError) {
+      throw new TRPCError({
+        code: "SERVICE_UNAVAILABLE",
+        message: `Yuki answered with an error: ${error.message}`,
+        cause: error,
+      });
+    }
+    throw error;
   }
-  if (error instanceof YukiRequestError) {
-    return new TRPCError({
-      code: "SERVICE_UNAVAILABLE",
-      message: `Yuki answered with an error: ${error.message}`,
-      cause: error,
-    });
-  }
-  return error;
 }
 
 export const appsRouter = createTRPCRouter({
   get: protectedProcedure.query(async ({ ctx: { db, teamId } }) => {
+    // Every route here that hands back a row drops Yuki's key first.
     const apps = await getApps(db, teamId!);
-    return apps.map(withoutSecrets);
+    return apps.map(withoutAccessKey);
   }),
 
   /**
@@ -68,7 +59,8 @@ export const appsRouter = createTRPCRouter({
     .mutation(async ({ ctx: { db, teamId }, input }) => {
       const { appId } = input;
 
-      return disconnectApp(db, { appId, teamId: teamId! });
+      const row = await disconnectApp(db, { appId, teamId: teamId! });
+      return row && withoutAccessKey(row);
     }),
 
   update: protectedProcedure
@@ -76,11 +68,12 @@ export const appsRouter = createTRPCRouter({
     .mutation(async ({ ctx: { db, teamId }, input }) => {
       const { appId, option } = input;
 
-      return updateAppSettings(db, {
+      const row = await updateAppSettings(db, {
         appId,
         teamId: teamId!,
         option,
       });
+      return withoutAccessKey(row);
     }),
 
   updateSettings: protectedProcedure
@@ -102,11 +95,12 @@ export const appsRouter = createTRPCRouter({
     .mutation(async ({ ctx: { db, teamId }, input }) => {
       const { appId, settings } = input;
 
-      return updateAppSettingsBulk(db, {
+      const row = await updateAppSettingsBulk(db, {
         appId,
         teamId: teamId!,
         settings,
       });
+      return withoutAccessKey(row);
     }),
 
   /**
@@ -115,28 +109,16 @@ export const appsRouter = createTRPCRouter({
    */
   verifyYuki: protectedProcedure
     .input(verifyYukiSchema)
-    .mutation(async ({ input }) => {
-      try {
-        return await verifyAccess(input);
-      } catch (error) {
-        throw toTRPCError(error);
-      }
-    }),
+    .mutation(({ input }) => withYukiErrors(() => verifyAccess(input))),
 
   /** Checks the key again, then connects Yuki to this team, key encrypted. */
   connectYuki: protectedProcedure
     .input(connectYukiSchema)
-    .mutation(async ({ ctx: { db, teamId, session }, input }) => {
-      try {
-        return await connectYuki(db, {
-          ...input,
-          teamId: teamId!,
-          userId: session.user.id,
-        });
-      } catch (error) {
-        throw toTRPCError(error);
-      }
-    }),
+    .mutation(({ ctx: { db, teamId, session }, input }) =>
+      withYukiErrors(() =>
+        connectYuki(db, { ...input, teamId: teamId!, userId: session.user.id }),
+      ),
+    ),
 
   createPlatformLinkToken: protectedProcedure
     .input(createPlatformLinkTokenSchema)

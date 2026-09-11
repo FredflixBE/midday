@@ -1,9 +1,12 @@
 import type { Database } from "@midday/db/client";
 import { createApp, getAppByAppId } from "@midday/db/queries";
 import { decrypt, encrypt } from "@midday/encryption";
-import { verifyAccess, YukiAccessError } from "./access";
+import { verifyAccess } from "./access";
 import { type FetchLike, YukiClient, type YukiClientConfig } from "./client";
 import type { YukiRegion } from "./config";
+import { YukiAccessError, YukiNotConnectedError } from "./errors";
+
+export { YukiNotConnectedError };
 
 /**
  * Yuki is an app a team connects, not a setting of the installation (FF-1516).
@@ -15,17 +18,6 @@ import type { YukiRegion } from "./config";
  */
 
 export const YUKI_APP_ID = "yuki";
-
-/** Raised for a team with no Yuki app. A job should skip that team, not fail. */
-export class YukiNotConnectedError extends Error {
-  readonly teamId: string;
-
-  constructor(teamId: string) {
-    super(`Team ${teamId} has not connected Yuki.`);
-    this.name = "YukiNotConnectedError";
-    this.teamId = teamId;
-  }
-}
 
 /**
  * Checks the key with Yuki, read-only, and only then stores it, encrypted.
@@ -67,6 +59,24 @@ export async function connectYuki(
   });
 
   return { administrationName: administration.name, region };
+}
+
+/**
+ * An `apps` row fit for the browser: the key stays in the database, even
+ * encrypted, and a connection is shown by its administration instead. Rows
+ * of other apps pass through untouched.
+ */
+export function withoutAccessKey<T extends { config?: unknown }>(row: T): T {
+  const config = row.config;
+  if (
+    !config ||
+    typeof config !== "object" ||
+    !("encryptedAccessKey" in config)
+  )
+    return row;
+
+  const { encryptedAccessKey: _, ...rest } = config as Record<string, unknown>;
+  return { ...row, config: rest };
 }
 
 /**

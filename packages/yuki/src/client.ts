@@ -171,7 +171,7 @@ export class YukiClient {
     const id = this.#config.administrationId;
     if (!id) {
       throw new YukiConfigError(
-        "YUKI_ADMINISTRATION_ID is not set. Run the explore script and read it from the 01-administrations probe, then add it to packages/yuki/.env.",
+        "This client has no administration ID. A team's client always has one; for the scripts, read it from the explore script's 01-administrations probe and set YUKI_ADMINISTRATION_ID in packages/yuki/.env.",
       );
     }
     return id;

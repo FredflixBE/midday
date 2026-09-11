@@ -1,38 +1,11 @@
 import { type FetchLike, YukiClient } from "./client";
 import type { YukiRegion } from "./config";
-import { YukiRequestError } from "./errors";
+import { YukiAccessError, YukiRequestError } from "./errors";
 
 export interface YukiAdministration {
   id: string;
   name: string;
   vatNumber?: string;
-}
-
-export type YukiAccessRefusal =
-  | "key_refused"
-  | "wrong_region"
-  | "no_administration"
-  | "unknown_administration";
-
-const REFUSAL_MESSAGES: Record<YukiAccessRefusal, string> = {
-  key_refused:
-    "Yuki did not accept this access key. Copy it again from Settings > Web services in Yuki.",
-  wrong_region:
-    "This key works, but its books are not on this region's servers. Try the other region.",
-  no_administration: "This access key cannot see any administration in Yuki.",
-  unknown_administration:
-    "This access key cannot see the chosen administration. Check the key again and pick one it lists.",
-};
-
-/** The key, region or domain cannot be used; the message is for the user. */
-export class YukiAccessError extends Error {
-  readonly reason: YukiAccessRefusal;
-
-  constructor(reason: YukiAccessRefusal) {
-    super(REFUSAL_MESSAGES[reason]);
-    this.name = "YukiAccessError";
-    this.reason = reason;
-  }
 }
 
 function asArray<T>(value: T | T[] | undefined): T[] {
