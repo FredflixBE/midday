@@ -33,13 +33,19 @@ export const generateInvoiceSchema = z.object({
 export type GenerateInvoicePayload = z.infer<typeof generateInvoiceSchema>;
 
 export const deleteConnectionSchema = z.object({
-  teamId: z.string().uuid(),
+  // Optional for an API one version behind, which does not send it: a
+  // rejected payload would leave the connection at the provider too.
+  teamId: z.string().uuid().optional(),
   referenceId: z.string().optional().nullable(),
   provider: z.enum(["gocardless", "enablebanking"]),
   accessToken: z.string().optional().nullable(),
 });
 
-export type DeleteConnectionPayload = z.infer<typeof deleteConnectionSchema>;
+// What the API must send. The schema also accepts a payload without `teamId`,
+// from an API one version behind; the current one always sends it.
+export type DeleteConnectionPayload = z.infer<typeof deleteConnectionSchema> & {
+  teamId: string;
+};
 
 export const initialBankSetupSchema = z.object({
   teamId: z.string().uuid(),
@@ -70,19 +76,6 @@ export const processAttachmentSchema = z.object({
 });
 
 export type ProcessAttachmentPayload = z.infer<typeof processAttachmentSchema>;
-
-export const deleteTeamSchema = z.object({
-  teamId: z.string().uuid(),
-  connections: z.array(
-    z.object({
-      provider: z.string(),
-      referenceId: z.string().nullable(),
-      accessToken: z.string().nullable(),
-    }),
-  ),
-});
-
-export type DeleteTeamPayload = z.infer<typeof deleteTeamSchema>;
 
 export const inviteTeamMembersSchema = z.object({
   teamId: z.string().uuid(),
