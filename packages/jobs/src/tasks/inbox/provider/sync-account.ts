@@ -92,7 +92,9 @@ export const syncInboxAccount = schemaTask({
       syncBatch: async (messageIds) => {
         const run = await syncInboxMessages.triggerAndWait(
           { id, messageIds },
-          { concurrencyKey: id },
+          // Behind another sync's batch of the same mailbox, a run can wait
+          // longer than the development environment's ten-minute default.
+          { concurrencyKey: id, ttl: "1h" },
         );
         batchesRun++;
 

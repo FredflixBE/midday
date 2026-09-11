@@ -1,3 +1,5 @@
+import { ensureFileExtension } from "@midday/utils";
+
 /**
  * Messages read by one run of `sync-inbox-messages`: small enough that a run
  * stays well inside its max duration, and inside a medium-1x machine's memory
@@ -102,4 +104,23 @@ export async function syncMailbox(
     attachmentsProcessed,
     lastAccessed: coversWatermark ? options.startedAt.toISOString() : null,
   };
+}
+
+/**
+ * The file name a synced attachment is stored under in the team's inbox
+ * folder. Storage paths are flat and uploads overwrite, so two emails that
+ * each attach an `invoice.pdf` would otherwise share one file, and the first
+ * invoice would be lost. The suffix comes from the attachment's reference id,
+ * so syncing the same attachment again writes the same file.
+ */
+export function inboxFileName(attachment: {
+  filename: string;
+  mimeType: string;
+  referenceId: string;
+}): string {
+  const name = ensureFileExtension(attachment.filename, attachment.mimeType);
+  const suffix = attachment.referenceId.slice(0, 8);
+  const extension = name.match(/\.[^.]+$/)?.[0] ?? "";
+
+  return `${name.slice(0, name.length - extension.length)}_${suffix}${extension}`;
 }

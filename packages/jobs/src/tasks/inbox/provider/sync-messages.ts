@@ -3,7 +3,7 @@ import {
   failedBatchItems,
   markAttachmentFailed,
 } from "@jobs/utils/attachment-failure";
-import { MESSAGES_PER_BATCH } from "@jobs/utils/inbox-sync";
+import { inboxFileName, MESSAGES_PER_BATCH } from "@jobs/utils/inbox-sync";
 import { recordSyncFailure } from "@jobs/utils/inbox-sync-failure";
 import { processBatch } from "@jobs/utils/process-batch";
 import { getInboxAccountInfo, getInboxBlocklist } from "@midday/db/queries";
@@ -11,7 +11,6 @@ import { separateBlocklistEntries } from "@midday/db/utils/blocklist";
 import { InboxConnector } from "@midday/inbox/connector";
 import { createClient } from "@midday/supabase/job";
 import { getExistingInboxAttachmentsQuery } from "@midday/supabase/queries";
-import { ensureFileExtension } from "@midday/utils";
 import { AbortTaskRunError, logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { processAttachment } from "../process-attachment";
@@ -177,20 +176,15 @@ export const syncInboxMessages = schemaTask({
         async (batch) => {
           const results = [];
           for (const item of batch) {
-            // Ensure filename has proper extension as final safety check
-            const safeFilename = ensureFileExtension(
-              item.filename,
-              item.mimeType,
-            );
+            const fileName = inboxFileName(item);
 
             const { data: uploadData, error: uploadError } =
               await supabase.storage
                 .from("vault")
-                .upload(
-                  `${accountRow.teamId}/inbox/${safeFilename}`,
-                  item.data,
-                  { contentType: item.mimeType, upsert: true },
-                );
+                .upload(`${accountRow.teamId}/inbox/${fileName}`, item.data, {
+                  contentType: item.mimeType,
+                  upsert: true,
+                });
 
             // An attachment that never reached storage was never read: fail
             // the batch rather than let the sync move past it.
