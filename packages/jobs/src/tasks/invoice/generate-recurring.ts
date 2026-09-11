@@ -31,7 +31,7 @@ import { getStartOfDayUTC } from "@midday/invoice/recurring";
 import { generateToken } from "@midday/invoice/token";
 import { transformCustomerToContent } from "@midday/invoice/utils";
 import { isFlagEnabled } from "@midday/utils/flags";
-import { schedules } from "@trigger.dev/sdk";
+import { task } from "@trigger.dev/sdk";
 import { addDays } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { notification } from "../notifications/notification";
@@ -54,8 +54,7 @@ type ProcessResult = {
 };
 
 /**
- * Scheduled processor that generates invoices from recurring invoice series
- * Runs every 2 hours to find and process due recurring invoices
+ * Generates invoices from recurring invoice series.
  *
  * Duplicate processing is prevented by:
  * 1. BullMQ's upsertJobScheduler (ensures only one scheduler job exists)
@@ -550,11 +549,13 @@ export class InvoiceRecurringSchedulerProcessor extends BaseProcessor<InvoiceRec
 
 const processor = new InvoiceRecurringSchedulerProcessor();
 
-export const invoiceRecurringScheduler = schedules.task({
+// No cron of its own. The recurring-invoice feature has one daily schedule,
+// `invoice-recurring-daily`, which runs this after the upcoming-invoice
+// warnings (FF-1522). Keeping it a task of its own means it can still be run
+// alone, from Settings → Admin or from the Trigger.dev dashboard.
+export const invoiceRecurringScheduler = task({
   id: "invoice-recurring-scheduler",
-  // Hourly on the hour.
-  cron: "0 * * * *",
   maxDuration: 600,
-  run: (_payload, { ctx }) =>
+  run: (_payload: InvoiceRecurringSchedulerPayload, { ctx }) =>
     runProcessor(processor, "invoice-recurring-scheduler", {}, ctx),
 });
