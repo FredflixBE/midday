@@ -16,6 +16,22 @@ export async function getInboxAccounts(db: Database, teamId: string) {
     .where(eq(inboxAccounts.teamId, teamId));
 }
 
+/**
+ * What it takes to withdraw a team's inbox access at the provider. The refresh
+ * tokens stay encrypted.
+ */
+export async function getInboxAccountCredentials(db: Database, teamId: string) {
+  return db
+    .select({
+      id: inboxAccounts.id,
+      provider: inboxAccounts.provider,
+      email: inboxAccounts.email,
+      refreshToken: inboxAccounts.refreshToken,
+    })
+    .from(inboxAccounts)
+    .where(eq(inboxAccounts.teamId, teamId));
+}
+
 type GetInboxAccountByIdParams = {
   id: string;
   teamId: string;

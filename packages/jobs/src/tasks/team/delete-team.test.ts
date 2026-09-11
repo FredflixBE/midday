@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import type { DeleteTeamPayload as Payload } from "@jobs/schemas/teams";
 
 // Everything the cleanup reaches outside this process is faked below: the
 // Trigger.dev schedule API, Supabase Storage, Google's token endpoint, the
@@ -8,6 +9,9 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 process.env.MIDDAY_ENCRYPTION_KEY = "ab".repeat(32);
 process.env.GMAIL_CLIENT_ID ??= "test-gmail-client";
 process.env.GMAIL_CLIENT_SECRET ??= "test-gmail-secret";
+process.env.OUTLOOK_CLIENT_ID ??= "test-outlook-client";
+process.env.OUTLOOK_CLIENT_SECRET ??= "test-outlook-secret";
+process.env.OUTLOOK_REDIRECT_URI ??= "https://midday.test/outlook";
 
 const TEAM_ID = "5f0c3a52-8f4e-4d7b-9c1a-2b6e8d4f7a10";
 const OTHER_TEAM_ID = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -53,6 +57,7 @@ mock.module("@trigger.dev/sdk", () => ({ ...sdk, schedules: fakeSchedules }));
 // --- Supabase Storage ---------------------------------------------------------
 
 let bucketStore: Record<string, Set<string>> = {};
+let storageError: Error | null = null;
 
 function fakeBucket(bucket: string) {
   const files = () => bucketStore[bucket] ?? new Set<string>();
@@ -64,6 +69,8 @@ function fakeBucket(bucket: string) {
       folder: string,
       options?: { limit?: number; offset?: number },
     ) => {
+      if (storageError) return { data: null, error: storageError };
+
       const entries = new Map<string, boolean>();
       for (const path of files()) {
         if (!path.startsWith(`${folder}/`)) continue;
@@ -145,8 +152,6 @@ mock.module("@midday/db/queries", () => ({
 const { encrypt } = await import("@midday/encryption");
 const { DeleteTeamProcessor } = await import("./delete-team");
 
-type Payload = Parameters<DeleteTeamProcessor["process"]>[0]["data"];
-
 function payload(overrides: Partial<Payload> = {}): Payload {
   return {
     teamId: TEAM_ID,
@@ -170,6 +175,7 @@ function runCleanup(data: Payload) {
 beforeEach(() => {
   scheduleStore = [];
   bucketStore = {};
+  storageError = null;
   revokedTokens = [];
   googleRejects = {};
   providerDeletes = [];
@@ -283,5 +289,117 @@ describe("delete-team", () => {
     );
 
     expect(revokedTokens).toEqual(["gmail-refresh-token"]);
+  });
+
+  test("leaves Gmail access alone when the address has been connected again", async () => {
+    // Google revokes every grant the address gave the app, so revoking here
+    // would cut off the team that connected it since.
+    connectedAddresses = new Set(["finance@example.com"]);
+
+    await runCleanup(
+      payload({
+        inboxAccounts: [
+          {
+            id: GMAIL_ACCOUNT_ID,
+            provider: "gmail",
+            email: "finance@example.com",
+            refreshToken: encrypt("gmail-refresh-token"),
+          },
+        ],
+      }),
+    );
+
+    expect(revokedTokens).toEqual([]);
+  });
+
+  test("treats a token Google no longer recognises as already revoked", async () => {
+    googleRejects = {
+      "gmail-refresh-token": Object.assign(new Error("invalid_token"), {
+        response: { status: 400, data: { error: "invalid_token" } },
+      }),
+    };
+
+    await expect(
+      runCleanup(
+        payload({
+          inboxAccounts: [
+            {
+              id: GMAIL_ACCOUNT_ID,
+              provider: "gmail",
+              email: "finance@example.com",
+              refreshToken: encrypt("gmail-refresh-token"),
+            },
+          ],
+        }),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  test("still clears an Outlook inbox's schedule, which is all Microsoft allows", async () => {
+    scheduleStore = [
+      {
+        id: "sched_outlook",
+        task: "inbox-sync-scheduler",
+        externalId: OUTLOOK_ACCOUNT_ID,
+      },
+    ];
+
+    await runCleanup(
+      payload({
+        inboxAccounts: [
+          {
+            id: OUTLOOK_ACCOUNT_ID,
+            provider: "outlook",
+            email: "books@example.com",
+            refreshToken: encrypt("outlook-refresh-token"),
+          },
+        ],
+      }),
+    );
+
+    expect(scheduleStore).toEqual([]);
+    expect(revokedTokens).toEqual([]);
+  });
+
+  test("deletes the team's bank connections at the provider", async () => {
+    await runCleanup(
+      payload({
+        connections: [
+          { referenceId: "req_1", provider: "gocardless", accessToken: null },
+          { referenceId: "sess_2", provider: "enablebanking", accessToken: null },
+        ],
+      }),
+    );
+
+    expect(providerDeletes).toEqual(["req_1", "sess_2"]);
+  });
+
+  test("a step that fails does not stop the others, and the run fails so that it is retried", async () => {
+    scheduleStore = [
+      { id: "sched_bank", task: "bank-sync-scheduler", externalId: TEAM_ID },
+    ];
+    storageError = new Error("Storage is unavailable");
+
+    await expect(
+      runCleanup(
+        payload({
+          connections: [
+            { referenceId: "req_1", provider: "gocardless", accessToken: null },
+          ],
+          inboxAccounts: [
+            {
+              id: GMAIL_ACCOUNT_ID,
+              provider: "gmail",
+              email: "finance@example.com",
+              refreshToken: encrypt("gmail-refresh-token"),
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow("Storage is unavailable");
+
+    expect(scheduleStore).toEqual([]);
+    expect(revokedTokens).toEqual(["gmail-refresh-token"]);
+    expect(providerDeletes).toEqual(["req_1"]);
   });
 });

@@ -19,8 +19,15 @@ const TEAM_BUCKETS = ["vault", "avatars"];
 /**
  * Delete team processor
  *
- * Handles cleanup tasks when a team is deleted:
- * - Delete bank connections via banking API
+ * Deleting a team deletes everything tied to it. The database rows cascade
+ * away with the team; this removes what lives outside the database:
+ * - its sync schedules, and those of its inbox accounts
+ * - its files in storage
+ * - the app's access to its Gmail inboxes, at Google
+ * - its bank connections, at the provider
+ *
+ * Every step runs even when another fails, and is safe to run twice, so a
+ * failed run is retried whole.
  *
  * Note: Subscription cancellation is handled manually by the user via the
  * customer portal before team deletion. The UI prompts users to cancel
@@ -39,6 +46,7 @@ export class DeleteTeamProcessor extends BaseProcessor<DeleteTeamPayload> {
       jobId: job.id,
       teamId,
       connectionsCount: connections.length,
+      inboxAccountsCount: inboxAccounts.length,
     });
 
     // The API starts this job before it deletes the team, so that a
@@ -53,20 +61,37 @@ export class DeleteTeamProcessor extends BaseProcessor<DeleteTeamPayload> {
       );
     }
 
-    await deleteSchedulesFor([
-      teamId,
-      ...inboxAccounts.map((account) => account.id),
-    ]);
+    const failures: unknown[] = [];
+
+    const step = async <T>(name: string, work: () => Promise<T>) => {
+      try {
+        const result = await work();
+        this.logger.info(`Team deletion: ${name}`, { teamId, result });
+      } catch (error) {
+        failures.push(error);
+        this.logger.error(`Team deletion step failed: ${name}`, {
+          teamId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    await step("schedules deleted", () =>
+      deleteSchedulesFor([teamId, ...inboxAccounts.map(({ id }) => id)]),
+    );
 
     const supabase = createClient();
 
     for (const bucket of TEAM_BUCKETS) {
-      await removeFolder(supabase, { bucket, path: [teamId] });
+      await step(`files removed from ${bucket}`, () =>
+        removeFolder(supabase, { bucket, path: [teamId] }),
+      );
     }
 
     for (const account of inboxAccounts) {
-      const connector = new InboxConnector(account.provider, getDb());
-      await connector.revokeAccess(account);
+      await step(`inbox access for ${account.provider}`, () =>
+        new InboxConnector(account.provider, getDb()).revokeAccess(account),
+      );
     }
 
     // Delete bank connections
@@ -74,6 +99,17 @@ export class DeleteTeamProcessor extends BaseProcessor<DeleteTeamPayload> {
       teamId,
       connections,
     );
+
+    if (failures.length === 1) throw failures[0];
+
+    if (failures.length > 1) {
+      throw new AggregateError(
+        failures,
+        failures
+          .map((error) => (error instanceof Error ? error.message : error))
+          .join("; "),
+      );
+    }
 
     this.logger.info("Team deletion cleanup completed", {
       teamId,
@@ -143,7 +179,9 @@ export const deleteTeam = schemaTask({
   schema: deleteTeamSchema,
   maxDuration: 300,
   queue: { concurrencyLimit: 5 },
-  retry: { maxAttempts: 3, minTimeoutInMs: 2000, factor: 2 },
+  // Five attempts wait 2, 4, 8 and 16 seconds between them: half a minute for
+  // the team's deletion to commit before the run gives up on it.
+  retry: { maxAttempts: 5, minTimeoutInMs: 2000, factor: 2 },
   run: (payload, { ctx }) =>
     runProcessor(processor, "delete-team", payload, ctx),
 });

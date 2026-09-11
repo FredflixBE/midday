@@ -25,6 +25,7 @@ import {
   deleteTeamMember,
   getAvailablePlans,
   getBankConnections,
+  getInboxAccountCredentials,
   getInboxAccounts,
   getInvitesByEmail,
   getTeamById,
@@ -172,14 +173,18 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      const bankConnections = await getBankConnections(db, {
-        teamId: input.teamId,
-      });
+      const [bankConnections, inboxAccounts] = await Promise.all([
+        getBankConnections(db, { teamId: input.teamId }),
+        getInboxAccountCredentials(db, input.teamId),
+      ]);
 
       // Trigger cleanup BEFORE deleting the team from the database, so that
       // if Trigger.dev is unreachable the team stays intact and the user can
-      // retry. The cleanup job deletes the bank connections. Subscription
-      // cancellation is done by the user in the customer portal beforehand.
+      // retry. The job waits for the delete to commit, then removes what the
+      // cascade cannot reach: schedules, stored files, inbox access and bank
+      // connections. Both lists go in the payload because their rows cascade
+      // away with the team. Subscription cancellation is done by the user in
+      // the customer portal beforehand.
       await tasks.trigger("delete-team", {
         teamId: input.teamId!,
         connections: bankConnections.map((c) => ({
@@ -187,6 +192,7 @@ export const teamRouter = createTRPCRouter({
           provider: c.provider,
           accessToken: c.accessToken,
         })),
+        inboxAccounts,
       } satisfies DeleteTeamPayload);
 
       const data = await deleteTeam(db, {
