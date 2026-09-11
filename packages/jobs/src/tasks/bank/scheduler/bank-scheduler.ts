@@ -36,9 +36,16 @@ export const bankSyncScheduler = schedules.task({
         tags: ["team_id", teamId],
       }));
 
-      // If there are no bank connections to sync, return
+      // A team with no connections left — its last one deleted, or the team
+      // itself — has nothing to sync again: a new connection gets a new
+      // schedule from its initial setup. Removing this one frees one of the
+      // free plan's ten slots, which the next inbox account may need.
       if (!formattedConnections?.length) {
-        logger.info("No bank connections to sync");
+        logger.info("No bank connections to sync; removing this schedule", {
+          teamId,
+          scheduleId: payload.scheduleId,
+        });
+        await schedules.del(payload.scheduleId);
         return;
       }
 

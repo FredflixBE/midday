@@ -186,11 +186,23 @@ beforeEach(() => {
 describe("delete-team", () => {
   test("removes the schedules of the team and of its inbox accounts, and no other", async () => {
     scheduleStore = [
-      { id: "sched_other_bank", task: "bank-sync-scheduler", externalId: OTHER_TEAM_ID },
+      {
+        id: "sched_other_bank",
+        task: "bank-sync-scheduler",
+        externalId: OTHER_TEAM_ID,
+      },
       { id: "sched_bank", task: "bank-sync-scheduler", externalId: TEAM_ID },
       { id: "sched_cron", task: "ensure-bank-schedulers" },
-      { id: "sched_gmail", task: "inbox-sync-scheduler", externalId: GMAIL_ACCOUNT_ID },
-      { id: "sched_other_inbox", task: "inbox-sync-scheduler", externalId: "someone-else" },
+      {
+        id: "sched_gmail",
+        task: "inbox-sync-scheduler",
+        externalId: GMAIL_ACCOUNT_ID,
+      },
+      {
+        id: "sched_other_inbox",
+        task: "inbox-sync-scheduler",
+        externalId: "someone-else",
+      },
     ];
 
     await runCleanup(
@@ -366,7 +378,11 @@ describe("delete-team", () => {
       payload({
         connections: [
           { referenceId: "req_1", provider: "gocardless", accessToken: null },
-          { referenceId: "sess_2", provider: "enablebanking", accessToken: null },
+          {
+            referenceId: "sess_2",
+            provider: "enablebanking",
+            accessToken: null,
+          },
         ],
       }),
     );

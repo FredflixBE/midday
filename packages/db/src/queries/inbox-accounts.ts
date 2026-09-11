@@ -82,6 +82,10 @@ export async function deleteInboxAccount(
     .returning({
       id: inboxAccounts.id,
       scheduleId: inboxAccounts.scheduleId,
+      // For revoking the app's access once the row is gone. Encrypted.
+      provider: inboxAccounts.provider,
+      email: inboxAccounts.email,
+      refreshToken: inboxAccounts.refreshToken,
     });
 
   return deleted;
