@@ -206,6 +206,8 @@ describe("tRPC: user.delete", () => {
     mocks.resendContactsRemove.mockImplementation(() =>
       Promise.resolve({ data: {}, error: null }),
     );
+    mocks.getSoleMemberTeamIds.mockReset();
+    mocks.getSoleMemberTeamIds.mockImplementation(() => Promise.resolve([]));
   });
 
   test("deletes user and calls deleteUser", async () => {
@@ -223,6 +225,36 @@ describe("tRPC: user.delete", () => {
         email: "test@example.com",
         audienceId: process.env.RESEND_AUDIENCE_ID,
       }),
+    );
+  });
+
+  test("cleans up every team that goes with the user, starting before anything is deleted", async () => {
+    // A team whose only member is this user is deleted with them, and needs
+    // the same cleanup as a team deleted from its settings.
+    const soleTeamId = "e5f6a7b8-c9d0-4123-e456-789012345678";
+    mocks.getSoleMemberTeamIds.mockImplementation(() =>
+      Promise.resolve([soleTeamId]),
+    );
+    mocks.getBankConnections.mockImplementation(() => Promise.resolve([]));
+    mocks.getInboxAccountCredentials.mockImplementation(() =>
+      Promise.resolve([]),
+    );
+    mocks.triggerTask.mockReset();
+    mocks.triggerTask.mockImplementation(() => ({ id: "job-del" }));
+
+    const caller = createCaller(createTestContext());
+    await caller.delete();
+
+    expect(mocks.getSoleMemberTeamIds).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-user-id",
+    );
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
+      "delete-team",
+      expect.objectContaining({ teamId: soleTeamId }),
+    );
+    expect(mocks.triggerTask.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.deleteUser.mock.invocationCallOrder[0]!,
     );
   });
 });

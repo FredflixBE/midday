@@ -62,3 +62,79 @@ describe("tRPC: inboxAccounts.delete", () => {
     expect(await caller.delete({ id: ACCOUNT_ID })).toBeNull();
   });
 });
+
+describe("tRPC: inboxAccounts.delete, cleaning up after the account", () => {
+  const deletedGmail = {
+    id: ACCOUNT_ID,
+    scheduleId: "sched_inbox",
+    provider: "gmail",
+    email: "finance@example.com",
+    refreshToken: "encrypted-refresh-token",
+  };
+
+  beforeEach(() => {
+    mocks.deleteInboxAccount.mockReset();
+    mocks.deleteInboxAccount.mockImplementation(() =>
+      Promise.resolve(deletedGmail),
+    );
+    mocks.deleteSchedule.mockReset();
+    mocks.deleteSchedule.mockImplementation(() => Promise.resolve());
+    mocks.revokeInboxAccess.mockReset();
+    mocks.revokeInboxAccess.mockImplementation(() =>
+      Promise.resolve("revoked"),
+    );
+    mocks.constructInboxConnector.mockReset();
+    mocks.constructInboxConnector.mockImplementation(() => undefined);
+  });
+
+  test("deletes the account's schedule and revokes the app's access to the mailbox", async () => {
+    const caller = createCaller(createTestContext());
+    await caller.delete({ id: ACCOUNT_ID });
+
+    expect(mocks.deleteSchedule).toHaveBeenCalledWith("sched_inbox");
+    expect(mocks.revokeInboxAccess).toHaveBeenCalledWith({
+      email: "finance@example.com",
+      refreshToken: "encrypted-refresh-token",
+    });
+  });
+
+  test("never hands the refresh token back to the browser", async () => {
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.delete({ id: ACCOUNT_ID })).toEqual({
+      id: ACCOUNT_ID,
+      scheduleId: "sched_inbox",
+    });
+  });
+
+  test("still succeeds when the schedule is already gone or the provider is down", async () => {
+    // The row is deleted by then, so failing would only tell the user that
+    // something they can no longer retry went wrong.
+    mocks.deleteSchedule.mockImplementation(() =>
+      Promise.reject(new Error("Schedule not found")),
+    );
+    mocks.revokeInboxAccess.mockImplementation(() =>
+      Promise.reject(new Error("Google is unavailable")),
+    );
+
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.delete({ id: ACCOUNT_ID })).toEqual({
+      id: ACCOUNT_ID,
+      scheduleId: "sched_inbox",
+    });
+  });
+
+  test("still succeeds when the provider's OAuth credentials are not configured", async () => {
+    mocks.constructInboxConnector.mockImplementation(() => {
+      throw new Error("Missing required Gmail OAuth2 credentials");
+    });
+
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.delete({ id: ACCOUNT_ID })).toEqual({
+      id: ACCOUNT_ID,
+      scheduleId: "sched_inbox",
+    });
+  });
+});

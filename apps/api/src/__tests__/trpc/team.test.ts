@@ -370,6 +370,10 @@ describe("tRPC: team.delete", () => {
     );
     mocks.getBankConnections.mockReset();
     mocks.getBankConnections.mockImplementation(() => Promise.resolve([]));
+    mocks.getInboxAccountCredentials.mockReset();
+    mocks.getInboxAccountCredentials.mockImplementation(() =>
+      Promise.resolve([]),
+    );
     mocks.deleteTeam.mockReset();
     mocks.deleteTeam.mockImplementation(() =>
       Promise.resolve({
@@ -410,6 +414,30 @@ describe("tRPC: team.delete", () => {
         teamId: deleteTeamId,
         userId: "test-user-id",
       }),
+    );
+  });
+
+  test("hands the cleanup job the team's inbox accounts, which cascade away with the team", async () => {
+    const inboxAccount = {
+      id: "d4e5f6a7-b8c9-4012-d345-678901234567",
+      provider: "gmail",
+      email: "finance@example.com",
+      refreshToken: "encrypted-refresh-token",
+    };
+    mocks.getInboxAccountCredentials.mockImplementation(() =>
+      Promise.resolve([inboxAccount]),
+    );
+
+    const caller = createCaller(createTestContext());
+    await caller.delete({ teamId: deleteTeamId });
+
+    expect(mocks.getInboxAccountCredentials).toHaveBeenCalledWith(
+      expect.anything(),
+      deleteTeamId,
+    );
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
+      "delete-team",
+      expect.objectContaining({ inboxAccounts: [inboxAccount] }),
     );
   });
 });

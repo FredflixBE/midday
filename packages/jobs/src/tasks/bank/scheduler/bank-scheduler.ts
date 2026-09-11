@@ -36,17 +36,24 @@ export const bankSyncScheduler = schedules.task({
         tags: ["team_id", teamId],
       }));
 
-      // If there are no bank connections to sync, return
-      if (!formattedConnections?.length) {
-        logger.info("No bank connections to sync");
+      if (formattedConnections?.length) {
+        await syncConnection.batchTrigger(formattedConnections);
         return;
       }
-
-      await syncConnection.batchTrigger(formattedConnections);
     } catch (error) {
       logger.error("Failed to sync bank connections", { error });
 
       throw error;
     }
+
+    // A team with no connections left — its last one deleted, or the team
+    // itself — has nothing to sync again: a new connection gets a new schedule
+    // from its initial setup. Removing this one frees one of the free plan's
+    // ten slots.
+    logger.info("No bank connections to sync; removing this schedule", {
+      teamId,
+      scheduleId: payload.scheduleId,
+    });
+    await schedules.del(payload.scheduleId);
   },
 });

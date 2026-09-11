@@ -16,6 +16,22 @@ export async function getInboxAccounts(db: Database, teamId: string) {
     .where(eq(inboxAccounts.teamId, teamId));
 }
 
+/**
+ * What it takes to withdraw a team's inbox access at the provider. The refresh
+ * tokens stay encrypted.
+ */
+export async function getInboxAccountCredentials(db: Database, teamId: string) {
+  return db
+    .select({
+      id: inboxAccounts.id,
+      provider: inboxAccounts.provider,
+      email: inboxAccounts.email,
+      refreshToken: inboxAccounts.refreshToken,
+    })
+    .from(inboxAccounts)
+    .where(eq(inboxAccounts.teamId, teamId));
+}
+
 type GetInboxAccountByIdParams = {
   id: string;
   teamId: string;
@@ -66,6 +82,10 @@ export async function deleteInboxAccount(
     .returning({
       id: inboxAccounts.id,
       scheduleId: inboxAccounts.scheduleId,
+      // For revoking the app's access once the row is gone. Encrypted.
+      provider: inboxAccounts.provider,
+      email: inboxAccounts.email,
+      refreshToken: inboxAccounts.refreshToken,
     });
 
   return deleted;
@@ -145,6 +165,20 @@ export async function upsertInboxAccount(
     });
 
   return result;
+}
+
+/**
+ * Whether any team has this address connected as an inbox. An address belongs
+ * to at most one inbox account, whichever team holds it.
+ */
+export async function isInboxAddressConnected(db: Database, email: string) {
+  const [result] = await db
+    .select({ id: inboxAccounts.id })
+    .from(inboxAccounts)
+    .where(eq(inboxAccounts.email, email))
+    .limit(1);
+
+  return result !== undefined;
 }
 
 type GetInboxAccountInfoParams = {

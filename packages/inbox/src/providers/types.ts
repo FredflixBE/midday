@@ -136,4 +136,23 @@ export interface OAuthProviderInterface {
    * Explicitly refreshes the access token using the refresh token.
    */
   refreshTokens(): Promise<void>;
+
+  /**
+   * Withdraws the access this refresh token grants, at the provider.
+   * @param refreshToken - The decrypted refresh token.
+   */
+  revokeAccess(refreshToken: string): Promise<RevokeAccessResult>;
 }
+
+/**
+ * What became of a mailbox's access when it was disconnected:
+ * - `revoked`: the provider withdrew it.
+ * - `already-revoked`: the provider no longer recognised the token.
+ * - `unsupported`: the provider gives an app no way to revoke its own access.
+ * - `still-connected`: the address is connected again, so it was left alone.
+ */
+export type RevokeAccessResult =
+  | "revoked"
+  | "already-revoked"
+  | "unsupported"
+  | "still-connected";

@@ -27,6 +27,13 @@ connection needs an eleventh schedule, which the free plan will refuse. If you
 hit that, `activity-notification-flush` is the first to drop: it only flushes
 batched Slack notifications, and Slack is on hold in this fork.
 
+The two runtime schedules go with what they belong to. Disconnecting an inbox
+account deletes its schedule; deleting a team's last bank connection deletes the
+team's bank schedule; deleting a team deletes both kinds (`delete-team`, which
+also empties the team's storage folders). Anything those miss removes itself:
+an inbox schedule whose account is gone, or a bank schedule whose team has no
+connections left, deletes its own schedule the next time it fires.
+
 Insight generation is ported and can be triggered by hand, but is deliberately
 registered on no schedule at all.
 

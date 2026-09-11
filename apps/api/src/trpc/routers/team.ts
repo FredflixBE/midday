@@ -13,6 +13,7 @@ import {
 } from "@api/schemas/team";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import { toTriggeredRun } from "@api/utils/jobs";
+import { startTeamCleanup } from "@api/utils/team-cleanup";
 import type { InviteTeamMembersPayload } from "@jobs/schema";
 import { teamCache } from "@midday/cache/team-cache";
 import {
@@ -37,7 +38,6 @@ import {
   updateTeamById,
   updateTeamMember,
 } from "@midday/db/queries";
-import type { DeleteTeamPayload } from "@midday/jobs/schemas/teams";
 import type {
   ExportTeamDataPayload,
   UpdateBaseCurrencyPayload,
@@ -172,22 +172,8 @@ export const teamRouter = createTRPCRouter({
         });
       }
 
-      const bankConnections = await getBankConnections(db, {
-        teamId: input.teamId,
-      });
-
-      // Trigger cleanup BEFORE deleting the team from the database, so that
-      // if Trigger.dev is unreachable the team stays intact and the user can
-      // retry. The cleanup job deletes the bank connections. Subscription
-      // cancellation is done by the user in the customer portal beforehand.
-      await tasks.trigger("delete-team", {
-        teamId: input.teamId!,
-        connections: bankConnections.map((c) => ({
-          referenceId: c.referenceId,
-          provider: c.provider,
-          accessToken: c.accessToken,
-        })),
-      } satisfies DeleteTeamPayload);
+      // Before the delete: see startTeamCleanup.
+      await startTeamCleanup(db, input.teamId);
 
       const data = await deleteTeam(db, {
         teamId: input.teamId,

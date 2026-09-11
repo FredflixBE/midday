@@ -22,6 +22,7 @@ import type {
   EmailAttachment,
   GetAttachmentsOptions,
   OAuthProviderInterface,
+  RevokeAccessResult,
   Tokens,
   UserInfo,
 } from "./types";
@@ -331,6 +332,28 @@ export class GmailProvider implements OAuthProviderInterface {
     }
 
     await this.#refreshTokensInternal();
+  }
+
+  /**
+   * Google withdraws more than this token: revocation "removes all OAuth 2.0
+   * scopes previously granted to a project", so every token the account holds
+   * for this app stops working. Callers must not revoke an address that is
+   * still connected.
+   */
+  async revokeAccess(refreshToken: string): Promise<RevokeAccessResult> {
+    if (!refreshToken) return "already-revoked";
+
+    try {
+      await this.#oauth2Client.revokeToken(refreshToken);
+      return "revoked";
+    } catch (error: unknown) {
+      // An expired or already revoked token has nothing left to withdraw.
+      if ((error as GoogleApiError).response?.data?.error === "invalid_token") {
+        return "already-revoked";
+      }
+
+      throw error;
+    }
   }
 
   async getUserInfo(): Promise<UserInfo | undefined> {

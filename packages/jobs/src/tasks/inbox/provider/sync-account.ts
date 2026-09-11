@@ -19,7 +19,7 @@ import {
 import { createClient } from "@midday/supabase/job";
 import { getExistingInboxAttachmentsQuery } from "@midday/supabase/queries";
 import { ensureFileExtension } from "@midday/utils";
-import { logger, schemaTask, tasks } from "@trigger.dev/sdk";
+import { AbortTaskRunError, logger, schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { processAttachment } from "../process-attachment";
 
@@ -59,8 +59,10 @@ export const syncInboxAccount = schemaTask({
     const accountRow = await getInboxAccountInfo(getDb(), { id });
 
     if (!accountRow) {
-      // TODO: Unregister inbox account scheduler by deduplication key?
-      throw new Error("Account not found");
+      // Retrying cannot bring a deleted account back. Its schedule removes
+      // itself (see inbox-sync-scheduler), so this is only reached by a sync
+      // requested just as the account was deleted.
+      throw new AbortTaskRunError("Account not found");
     }
 
     const connector = new InboxConnector(accountRow.provider, getDb());

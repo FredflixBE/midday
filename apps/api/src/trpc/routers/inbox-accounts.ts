@@ -86,11 +86,41 @@ export const inboxAccountsRouter = createTRPCRouter({
         teamId: teamId!,
       });
 
-      if (data?.scheduleId) {
-        await schedules.del(data.scheduleId);
+      if (!data) {
+        return null;
       }
 
-      return data;
+      // The row is gone by now, so neither failure below is worth failing the
+      // request for: the user could not retry it. A schedule that survives
+      // removes itself the next time it runs and finds no account.
+      if (data.scheduleId) {
+        try {
+          await schedules.del(data.scheduleId);
+        } catch (error) {
+          logger.warn("Failed to delete inbox account schedule", {
+            accountId: data.id,
+            scheduleId: data.scheduleId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      try {
+        // Inside the try: the connector throws on construction when the
+        // provider's OAuth credentials are not configured.
+        await new InboxConnector(data.provider, db).revokeAccess({
+          email: data.email,
+          refreshToken: data.refreshToken,
+        });
+      } catch (error) {
+        logger.warn("Failed to revoke inbox access at the provider", {
+          accountId: data.id,
+          provider: data.provider,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      return { id: data.id, scheduleId: data.scheduleId };
     }),
 
   sync: protectedProcedure

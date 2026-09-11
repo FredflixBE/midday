@@ -71,6 +71,7 @@ export const bankConnectionsRouter = createTRPCRouter({
       // Rows from removed providers (Plaid, Teller) are deleted locally only.
       if (data.provider === "gocardless" || data.provider === "enablebanking") {
         await tasks.trigger("delete-connection", {
+          teamId: teamId!,
           referenceId: data.referenceId,
           provider: data.provider,
           accessToken: data.accessToken,

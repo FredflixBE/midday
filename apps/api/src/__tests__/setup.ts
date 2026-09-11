@@ -327,6 +327,7 @@ export const mocks = {
     }),
   ) as MockFn,
   deleteUser: mock(() => Promise.resolve({ id: "test-user-id" })) as MockFn,
+  getSoleMemberTeamIds: mock(() => Promise.resolve([])) as MockFn,
   supabaseAdminDeleteUser: mock(() =>
     Promise.resolve({ data: {}, error: null }),
   ) as MockFn,
@@ -719,9 +720,17 @@ export const mocks = {
 
   // Inbox accounts (tRPC inbox-accounts router)
   getInboxAccounts: mock(() => Promise.resolve([])) as MockFn,
+  getInboxAccountCredentials: mock(() => Promise.resolve([])) as MockFn,
   deleteInboxAccount: mock(() =>
     Promise.resolve({ id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }),
   ) as MockFn,
+  // InboxConnector — its constructor, and revokeAccess, which withdraws access
+  // at the mail provider
+  constructInboxConnector: mock(() => undefined) as MockFn,
+  revokeInboxAccess: mock(() => Promise.resolve("revoked")) as MockFn,
+
+  // Trigger.dev schedules
+  deleteSchedule: mock(() => Promise.resolve()) as MockFn,
 
   // Banking (exchange rates — internalProcedure.rates)
   getRates: mock(() => Promise.resolve([])) as MockFn,
@@ -883,6 +892,7 @@ const dbQueriesMock = new Proxy(
     getInboxForReprocessing: mocks.getInboxForReprocessing,
     getInboxSearch: mocks.getInboxSearch,
     getInboxAccounts: mocks.getInboxAccounts,
+    getInboxAccountCredentials: mocks.getInboxAccountCredentials,
     getInboxAccountById: createDefaultMock(),
     upsertInboxAccount: createDefaultMock(),
     updateInboxAccount: createDefaultMock(),
@@ -957,6 +967,7 @@ const dbQueriesMock = new Proxy(
     getUserInvites: createDefaultMock(),
     switchUserTeam: mocks.switchUserTeam,
     deleteUser: mocks.deleteUser,
+    getSoleMemberTeamIds: mocks.getSoleMemberTeamIds,
 
     // Transaction categories
     getCategories: createDefaultMock(),
@@ -1193,7 +1204,20 @@ mock.module("@trigger.dev/sdk", () => ({
     cancel: mock(() => Promise.resolve()),
   },
   schedules: {
-    del: mock(() => Promise.resolve()),
+    del: mocks.deleteSchedule,
+  },
+}));
+
+// The mail providers sit behind the connector; the API only asks it to revoke.
+mock.module("@midday/inbox/connector", () => ({
+  InboxConnector: class {
+    // The real one throws here when the provider has no OAuth credentials.
+    constructor() {
+      mocks.constructInboxConnector();
+    }
+    connect = mock(() => Promise.resolve("https://accounts.test/authorize"));
+    exchangeCodeForAccount = mock(() => Promise.resolve(null));
+    revokeAccess = mocks.revokeInboxAccess;
   },
 }));
 

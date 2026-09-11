@@ -1,9 +1,11 @@
 import { updateUserSchema } from "@api/schemas/users";
 import { createAdminClient } from "@api/services/supabase";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
+import { startTeamCleanup } from "@api/utils/team-cleanup";
 import { teamCache } from "@midday/cache/team-cache";
 import {
   deleteUser,
+  getSoleMemberTeamIds,
   getUserById,
   getUserInvites,
   switchUserTeam,
@@ -82,6 +84,14 @@ export const userRouter = createTRPCRouter({
 
   delete: protectedProcedure.mutation(async ({ ctx: { db, session } }) => {
     const supabaseAdmin = await createAdminClient();
+
+    // The teams only this user belongs to are deleted with them, and need the
+    // same cleanup as a team deleted from its settings — started first, so
+    // that a Trigger.dev outage leaves the account and its teams intact.
+    const soleTeamIds = await getSoleMemberTeamIds(db, session.user.id);
+    await Promise.all(
+      soleTeamIds.map((teamId) => startTeamCleanup(db, teamId)),
+    );
 
     const [data] = await Promise.all([
       deleteUser(db, session.user.id),

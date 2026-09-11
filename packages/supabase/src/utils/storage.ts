@@ -1,5 +1,8 @@
 export const EMPTY_FOLDER_PLACEHOLDER_FILE_NAME = ".emptyFolderPlaceholder";
 
+// The most paths Storage lists or removes in one call.
+const STORAGE_PAGE_SIZE = 1000;
+
 type StorageClient = {
   storage: {
     from(bucket: string): any;
@@ -42,6 +45,61 @@ export async function remove(
   return client.storage
     .from(bucket)
     .remove([decodeURIComponent(path.join("/"))]);
+}
+
+type RemoveFolderParams = {
+  path: string[];
+  bucket: string;
+};
+
+/**
+ * Remove every file under a folder, however deeply nested, and return how many
+ * there were.
+ *
+ * Storage has no call that deletes a prefix: `list` returns one level at a
+ * time, with each sub-folder as an entry that has no id, and `remove` takes a
+ * list of file paths. So this walks the tree first and removes afterwards.
+ */
+export async function removeFolder(
+  client: StorageClient,
+  { bucket, path }: RemoveFolderParams,
+): Promise<number> {
+  const storage = client.storage.from(bucket);
+  const files: string[] = [];
+  const folders = [path.join("/")];
+
+  for (let folder = folders.pop(); folder; folder = folders.pop()) {
+    for (let offset = 0; ; offset += STORAGE_PAGE_SIZE) {
+      const { data, error } = await storage.list(folder, {
+        limit: STORAGE_PAGE_SIZE,
+        offset,
+      });
+
+      if (error) throw error;
+
+      for (const entry of data as { name: string; id: string | null }[]) {
+        const entryPath = `${folder}/${entry.name}`;
+
+        if (entry.id === null) {
+          folders.push(entryPath);
+        } else {
+          files.push(entryPath);
+        }
+      }
+
+      if (data.length < STORAGE_PAGE_SIZE) break;
+    }
+  }
+
+  for (let start = 0; start < files.length; start += STORAGE_PAGE_SIZE) {
+    const { error } = await storage.remove(
+      files.slice(start, start + STORAGE_PAGE_SIZE),
+    );
+
+    if (error) throw error;
+  }
+
+  return files.length;
 }
 
 type DownloadParams = {
