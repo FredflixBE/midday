@@ -17,8 +17,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { YukiClient } from "../src/client";
-import { configFromEnv } from "../src/config";
 import { YUKI_FOLDERS } from "../src/types";
+import { configFromEnv } from "./env";
 
 // `bun run --cwd packages/yuki explore` puts cwd at the package root.
 const OUT = join(process.cwd(), ".explore-output");

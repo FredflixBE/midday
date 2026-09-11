@@ -29,6 +29,9 @@ export interface UnifiedApp {
   // Inbox app specific (Gmail/Outlook)
   inboxAccountId?: string;
 
+  // What a connected app is connected to, e.g. Yuki's administration
+  connectedAs?: string;
+
   // External app specific
   clientId?: string;
   scopes?: string[];

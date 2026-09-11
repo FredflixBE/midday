@@ -101,6 +101,11 @@ export function Apps() {
     "stripe-payments": "stripe",
   };
 
+  // Yuki's row carries the administration it reads, never its key.
+  const yukiConnection = installedOfficialApps?.find(
+    (installed) => installed.app_id === "yuki",
+  )?.config as { administrationName?: string } | null | undefined;
+
   // Transform official apps
   const transformedOfficialApps: UnifiedApp[] = appStoreApps
     .filter((app) => {
@@ -158,6 +163,8 @@ export function Apps() {
             ?.settings as Record<string, any>) || undefined,
         // Include inbox account ID for Gmail/Outlook disconnect
         inboxAccountId: inboxAccount?.id,
+        connectedAs:
+          app.id === "yuki" ? yukiConnection?.administrationName : undefined,
         // Include installUrl for apps with external download pages
         installUrl:
           "installUrl" in app && typeof app.installUrl === "string"

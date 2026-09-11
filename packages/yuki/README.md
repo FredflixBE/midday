@@ -14,13 +14,45 @@ So the client refuses any operation that is not on the read allowlist in
 genuinely needs a write names it:
 
 ```ts
-const client = new YukiClient({ ...config, allowWriteOperations: ["UploadDocument"] });
+const client = await yukiClientForTeam(db, teamId, {
+  allowWriteOperations: ["UploadDocument"],
+});
 ```
 
 and gets that one operation and nothing else. Unknown operations fail closed,
 on the grounds that an unclassified operation might be a write.
 
-## Setup
+## Yuki belongs to a team
+
+Yuki is an app a team connects in the app store, not a setting of the
+installation (FF-1516). A team's access key, region and administration live in
+its own `apps` row, with the key encrypted. A second team sees nothing from
+Yuki until it connects an administration of its own.
+
+Inside Midday there is one way to get a client:
+
+```ts
+import { yukiClientForTeam, YukiNotConnectedError } from "@midday/yuki/team";
+
+const client = await yukiClientForTeam(db, teamId);
+```
+
+It throws `YukiNotConnectedError` for a team without a Yuki app, before
+anything reaches the network. A scheduled Yuki job runs as **one** schedule
+(the Trigger.dev free plan has no room for one per team) that fans out over
+`getTeamIdsWithApp(db, "yuki")`, so an unconnected team is never in the list.
+A per-team run that meets `YukiNotConnectedError` anyway — the team
+disconnected in between — skips that team rather than failing.
+
+`verifyAccess` is what the connect form calls: `Authenticate`,
+`Administrations` and `DocumentFolders`, all reads. The last is there because a
+wrong region passes the first two and fails only once the books are read.
+
+## Setup, for the scripts
+
+The scripts below are the only code that reads credentials from the
+environment; `configFromEnv` lives in `scripts/` so that nothing in Midday can
+import it.
 
 ```sh
 cp packages/yuki/.env.example packages/yuki/.env
