@@ -16,6 +16,7 @@ import type {
   OAuthProviderInterface,
   OutlookAttachment,
   OutlookMessage,
+  RevokeAccessResult,
   Tokens,
   UserInfo,
 } from "./types";
@@ -461,6 +462,16 @@ export class OutlookProvider implements OAuthProviderInterface {
     }
 
     await this.#refreshTokensInternal();
+  }
+
+  /**
+   * Microsoft offers an app no way to revoke its own access for one user:
+   * only the user, in their account's app permissions, or an admin can. Its
+   * "revoke sign-in sessions" call signs the user out of every app, not this
+   * one. Deleting the stored tokens is all that is left to do.
+   */
+  async revokeAccess(): Promise<RevokeAccessResult> {
+    return "unsupported";
   }
 
   async getUserInfo(): Promise<UserInfo | undefined> {

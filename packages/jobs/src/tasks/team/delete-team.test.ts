@@ -206,4 +206,82 @@ describe("delete-team", () => {
       "sched_other_inbox",
     ]);
   });
+
+  test("removes the team's files from the vault and avatars buckets, however deeply nested, and no one else's", async () => {
+    bucketStore = {
+      vault: new Set([
+        `${TEAM_ID}/inbox/receipt.pdf`,
+        `${TEAM_ID}/transactions/2026/09/invoice.pdf`,
+        `${TEAM_ID}/insights/weekly.mp3`,
+        `${TEAM_ID}/.emptyFolderPlaceholder`,
+        `${OTHER_TEAM_ID}/inbox/receipt.pdf`,
+      ]),
+      avatars: new Set([
+        `${TEAM_ID}/logo.png`,
+        `${TEAM_ID}/invoice/logo.png`,
+        `${USER_ID}/me.png`,
+        `${OTHER_TEAM_ID}/logo.png`,
+      ]),
+    };
+
+    await runCleanup(payload());
+
+    expect([...(bucketStore.vault ?? [])]).toEqual([
+      `${OTHER_TEAM_ID}/inbox/receipt.pdf`,
+    ]);
+    expect([...(bucketStore.avatars ?? [])]).toEqual([
+      `${USER_ID}/me.png`,
+      `${OTHER_TEAM_ID}/logo.png`,
+    ]);
+  });
+
+  test("touches nothing while the team still exists, and fails so that it runs again", async () => {
+    teamStillExists = true;
+    scheduleStore = [
+      { id: "sched_bank", task: "bank-sync-scheduler", externalId: TEAM_ID },
+    ];
+    bucketStore = { vault: new Set([`${TEAM_ID}/inbox/receipt.pdf`]) };
+
+    await expect(
+      runCleanup(
+        payload({
+          connections: [
+            { referenceId: "req_1", provider: "gocardless", accessToken: null },
+          ],
+          inboxAccounts: [
+            {
+              id: GMAIL_ACCOUNT_ID,
+              provider: "gmail",
+              email: "finance@example.com",
+              refreshToken: encrypt("gmail-refresh-token"),
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow();
+
+    expect(scheduleStore).toHaveLength(1);
+    expect([...(bucketStore.vault ?? [])]).toEqual([
+      `${TEAM_ID}/inbox/receipt.pdf`,
+    ]);
+    expect(providerDeletes).toEqual([]);
+    expect(revokedTokens).toEqual([]);
+  });
+
+  test("revokes the app's access to each Gmail inbox the team connected", async () => {
+    await runCleanup(
+      payload({
+        inboxAccounts: [
+          {
+            id: GMAIL_ACCOUNT_ID,
+            provider: "gmail",
+            email: "finance@example.com",
+            refreshToken: encrypt("gmail-refresh-token"),
+          },
+        ],
+      }),
+    );
+
+    expect(revokedTokens).toEqual(["gmail-refresh-token"]);
+  });
 });

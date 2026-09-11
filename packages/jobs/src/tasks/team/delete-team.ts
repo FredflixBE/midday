@@ -1,10 +1,20 @@
+import { getDb } from "@jobs/init";
 import { BaseProcessor } from "@jobs/processors/base";
 import { runProcessor } from "@jobs/processors/run";
 import type { JobContext } from "@jobs/processors/types";
 import { type DeleteTeamPayload, deleteTeamSchema } from "@jobs/schemas/teams";
 import { deleteSchedulesFor } from "@jobs/utils/schedules";
+import { getTeamById } from "@midday/db/queries";
+import { InboxConnector } from "@midday/inbox/connector";
+import { createClient } from "@midday/supabase/job";
+import { removeFolder } from "@midday/supabase/storage";
 import { trpc } from "@midday/trpc";
 import { schemaTask } from "@trigger.dev/sdk";
+
+// The buckets that file a team's objects under a folder named for its id. The
+// avatars bucket also holds user avatars, under the user's id; those outlive
+// the team.
+const TEAM_BUCKETS = ["vault", "avatars"];
 
 /**
  * Delete team processor
@@ -31,10 +41,33 @@ export class DeleteTeamProcessor extends BaseProcessor<DeleteTeamPayload> {
       connectionsCount: connections.length,
     });
 
+    // The API starts this job before it deletes the team, so that a
+    // Trigger.dev outage leaves the team whole rather than half-deleted. Every
+    // step below is irreversible, so none may run until the team is really
+    // gone: a delete that then failed would leave a live team without its
+    // files, schedules or bank connections. Throwing spends a retry; a team
+    // that never goes costs a failed run and nothing else.
+    if (await getTeamById(getDb(), teamId)) {
+      throw new Error(
+        "The team still exists; waiting for its deletion to commit",
+      );
+    }
+
     await deleteSchedulesFor([
       teamId,
       ...inboxAccounts.map((account) => account.id),
     ]);
+
+    const supabase = createClient();
+
+    for (const bucket of TEAM_BUCKETS) {
+      await removeFolder(supabase, { bucket, path: [teamId] });
+    }
+
+    for (const account of inboxAccounts) {
+      const connector = new InboxConnector(account.provider, getDb());
+      await connector.revokeAccess(account);
+    }
 
     // Delete bank connections
     const connectionsDeleted = await this.deleteBankConnections(

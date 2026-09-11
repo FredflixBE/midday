@@ -147,6 +147,20 @@ export async function upsertInboxAccount(
   return result;
 }
 
+/**
+ * Whether any team has this address connected as an inbox. An address belongs
+ * to at most one inbox account, whichever team holds it.
+ */
+export async function isInboxAddressConnected(db: Database, email: string) {
+  const [result] = await db
+    .select({ id: inboxAccounts.id })
+    .from(inboxAccounts)
+    .where(eq(inboxAccounts.email, email))
+    .limit(1);
+
+  return result !== undefined;
+}
+
 type GetInboxAccountInfoParams = {
   id: string;
 };

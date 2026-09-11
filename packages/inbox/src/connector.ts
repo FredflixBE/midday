@@ -1,5 +1,9 @@
 import type { Database } from "@midday/db/client";
-import { getInboxAccountById, upsertInboxAccount } from "@midday/db/queries";
+import {
+  getInboxAccountById,
+  isInboxAddressConnected,
+  upsertInboxAccount,
+} from "@midday/db/queries";
 import { decrypt, encrypt } from "@midday/encryption";
 import { InboxAuthError, InboxSyncError } from "./errors";
 import { GmailProvider } from "./providers/gmail";
@@ -12,6 +16,7 @@ import {
   type GetAttachmentsOptions,
   type OAuthProvider,
   type OAuthProviderInterface,
+  type RevokeAccessResult,
 } from "./providers/types";
 
 export class InboxConnector extends Connector {
@@ -70,6 +75,25 @@ export class InboxConnector extends Connector {
       provider: account.provider as OAuthProvider,
       external_id: account.external_id,
     };
+  }
+
+  /**
+   * Withdraw the app's access to a mailbox, at the provider, once its inbox
+   * account is gone. Call it after the row is deleted.
+   *
+   * Google revokes every grant the address gave the app, not one token, so an
+   * address that is connected again — reconnected, or connected by a new team
+   * in the meantime — is left alone.
+   */
+  async revokeAccess(account: {
+    email: string;
+    refreshToken: string;
+  }): Promise<RevokeAccessResult> {
+    if (await isInboxAddressConnected(this.#db, account.email)) {
+      return "still-connected";
+    }
+
+    return this.#provider.revokeAccess(decrypt(account.refreshToken));
   }
 
   async getAttachments(options: GetAttachmentsOptions): Promise<Attachment[]> {
