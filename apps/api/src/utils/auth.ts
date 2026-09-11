@@ -10,6 +10,8 @@ export type Session = {
 };
 
 type SupabaseJWTPayload = JWTPayload & {
+  /** Supabase's standard top-level claim; not set on every token. */
+  email?: string;
   user_metadata?: {
     email?: string;
     full_name?: string;
@@ -34,7 +36,11 @@ function extractSession(payload: JWTPayload): Session {
   return {
     user: {
       id: p.sub!,
-      email: p.user_metadata?.email,
+      // `user_metadata.email` first, because that is where a signup writes it
+      // and what every existing caller has been reading. The top-level claim
+      // is the fallback: tokens that carry only it used to reach the API with
+      // no email at all, which now decides whether someone is the developer.
+      email: p.user_metadata?.email ?? p.email,
       full_name: p.user_metadata?.full_name,
     },
   };

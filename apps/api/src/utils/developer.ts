@@ -1,7 +1,3 @@
-import { createLoggerWithContext } from "@midday/logger";
-
-const logger = createLoggerWithContext("developer");
-
 /**
  * Who counts as the developer of this installation.
  *
@@ -14,16 +10,14 @@ const logger = createLoggerWithContext("developer");
  * **Unset means nobody.** Failing open would give every member of every team
  * the buttons, which is the thing this is here to prevent, and would do it
  * silently. Failing closed is visible the moment someone looks for the tab.
+ *
+ * Deliberately silent: this is asked on every settings page load, and the
+ * refusal that matters is logged where it happens, in `developerProcedure`.
  */
 export function isDeveloper(email: string | null | undefined): boolean {
   const developer = process.env.DEVELOPER_EMAIL?.trim().toLowerCase();
 
-  if (!developer) {
-    logger.warn(
-      "DEVELOPER_EMAIL is not set; Settings → Admin is hidden from everyone",
-    );
-    return false;
-  }
+  if (!developer) return false;
 
   return !!email && email.trim().toLowerCase() === developer;
 }

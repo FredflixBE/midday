@@ -16,6 +16,7 @@ import { withTeamPermission } from "./middleware/team-permission";
 
 const DEBUG_PERF = process.env.DEBUG_PERF === "true";
 const perfLogger = createLoggerWithContext("perf:trpc");
+const logger = createLoggerWithContext("trpc");
 
 type TRPCContext = {
   session: Session | null;
@@ -136,7 +137,18 @@ export const protectedProcedure = t.procedure
  * this is, and it is the one that has to hold.
  */
 export const developerProcedure = protectedProcedure.use(async (opts) => {
-  if (!isDeveloper(opts.ctx.session.user.email)) {
+  const email = opts.ctx.session.user.email;
+
+  if (!isDeveloper(email)) {
+    // Logged because the two ways to be refused by accident look identical
+    // from the browser: no DEVELOPER_EMAIL set, and a session carrying no
+    // email at all. Both would otherwise be a tab that silently never appears.
+    logger.warn("Refused a maintenance action", {
+      path: opts.path,
+      callerEmail: email ?? null,
+      developerConfigured: !!process.env.DEVELOPER_EMAIL?.trim(),
+    });
+
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "Only the developer of this installation can do that",

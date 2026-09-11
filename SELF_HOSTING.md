@@ -207,7 +207,7 @@ same value everywhere the name appears.
 | `PLAIN_API_KEY` | no | Plain support tickets; the API only probes it for health. |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI` | yes for Gmail inbox | The internal Google OAuth client with Gmail scopes (FF-1407); same values as the dashboard. |
 | `TRIGGER_SECRET_KEY` | yes | Trigger.dev project, production environment. |
-| `DEVELOPER_EMAIL` | for Settings → Admin | The one email address allowed to run the maintenance jobs by hand. Those jobs act on the whole deployment, not on one team. Unset means nobody: the Admin tab is hidden and its mutations refuse. |
+| `DEVELOPER_EMAIL` | for Settings → Admin | The one email address allowed to run the maintenance jobs by hand. Those jobs act on the whole deployment, not on one team. Unset means nobody: the Admin tab is hidden and its mutations refuse. A refusal is logged with the address it saw, so a mismatch is one log line rather than a tab that never appears. |
 | `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, `OUTLOOK_REDIRECT_URI` | no | Azure app registration for Outlook inbox sync. |
 | `SLACK_*` | no | A Slack app, if you use the Slack inbox. |
 | `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | no | Accounting integrations. |
