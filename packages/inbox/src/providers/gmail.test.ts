@@ -148,7 +148,7 @@ beforeEach(() => {
 
 describe("listing the messages to sync", () => {
   test("returns every match since the date, however many there are", async () => {
-    const since = new Date("2025-10-01T00:00:00Z");
+    const since = new Date("2025-01-01T00:00:00Z");
     // 1,203 invoices after the date, spread over three pages, and one before.
     for (let i = 0; i < 1203; i++) {
       mailbox.push(
@@ -158,7 +158,7 @@ describe("listing the messages to sync", () => {
         ),
       );
     }
-    mailbox.push(invoiceEmail("too-old", "2025-09-30T23:00:00Z"));
+    mailbox.push(invoiceEmail("too-old", "2024-12-31T23:00:00Z"));
 
     const ids = await connectedProvider().listMessageIds({ since });
 
@@ -169,11 +169,11 @@ describe("listing the messages to sync", () => {
 
   test("keeps the search to PDFs that someone else sent", async () => {
     await connectedProvider().listMessageIds({
-      since: new Date("2025-10-01T00:00:00Z"),
+      since: new Date("2025-01-01T00:00:00Z"),
     });
 
     expect(queries).toEqual([
-      "-from:me has:attachment filename:pdf after:1759276800",
+      "-from:me has:attachment filename:pdf after:1735689600",
     ]);
   });
 });

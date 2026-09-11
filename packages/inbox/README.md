@@ -67,7 +67,7 @@ watermark once every batch is read and never before.
 const messageIds = await connector.listMessageIds({
   id: accountId,
   teamId: "team_123",
-  since: new Date("2025-10-01T00:00:00Z"),
+  since: new Date("2025-01-01T00:00:00Z"),
 });
 
 const attachments = await connector.getMessageAttachments({

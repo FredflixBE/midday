@@ -152,7 +152,7 @@ beforeEach(() => {
 
 describe("listing the messages to sync", () => {
   test("returns every match since the date that someone else sent", async () => {
-    const since = new Date("2025-10-01T00:00:00Z");
+    const since = new Date("2025-01-01T00:00:00Z");
     for (let i = 0; i < 1203; i++) {
       mailbox.push(
         invoiceEmail(
@@ -161,7 +161,7 @@ describe("listing the messages to sync", () => {
         ),
       );
     }
-    mailbox.push(invoiceEmail("too-old", "2025-09-30T23:00:00Z"));
+    mailbox.push(invoiceEmail("too-old", "2024-12-31T23:00:00Z"));
     mailbox.push(invoiceEmail("own", "2026-01-15T09:00:00Z", OWN_ADDRESS));
 
     const ids = await connectedProvider().listMessageIds({ since });

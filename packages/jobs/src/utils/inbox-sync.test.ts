@@ -36,14 +36,14 @@ describe("a backfill", () => {
 
     const result = await syncMailbox({
       lastAccessed: "2026-09-11T06:00:00.000Z",
-      since: "2025-10-01",
+      since: "2025-01-01",
       fullSync: false,
       startedAt: STARTED_AT,
       listMessageIds: mail.listMessageIds,
       syncBatch: mail.syncBatch,
     });
 
-    expect(mail.listedSince).toEqual([new Date("2025-10-01T00:00:00Z")]);
+    expect(mail.listedSince).toEqual([new Date("2025-01-01T00:00:00Z")]);
     expect(mail.batches.map((batch) => batch.length)).toEqual([20, 20, 5]);
     expect(mail.batches.flat()).toEqual(ids(45));
     expect(result).toMatchObject({
