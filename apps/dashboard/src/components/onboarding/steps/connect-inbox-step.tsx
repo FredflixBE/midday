@@ -11,11 +11,16 @@ import { motion } from "framer-motion";
 import { CopyInput } from "@/components/copy-input";
 import { ConnectMailbox } from "@/components/inbox/connect-mailbox";
 import { ConnectSlack } from "@/components/inbox/connect-slack";
+import {
+  formatSyncStart,
+  useSyncStart,
+} from "@/components/inbox/sync-start-picker";
 import { useUserQuery } from "@/hooks/use-user";
 
 export function ConnectInboxStep() {
   const { data: user } = useUserQuery();
   const inboxEmail = getInboxEmail(user?.team?.inboxId ?? "");
+  const [since, setSince] = useSyncStart();
 
   return (
     <div className="space-y-4">
@@ -34,8 +39,9 @@ export function ConnectInboxStep() {
         transition={{ duration: 0.4, delay: 0.2 }}
         className="text-sm text-muted-foreground leading-relaxed"
       >
-        Connect email and we'll find your receipts automatically, as far back as
-        you choose, up to a year.
+        Connect email and we'll find your receipts from{" "}
+        {formatSyncStart(since, user?.dateFormat)} automatically. Choose how far
+        back below, up to a year.
       </motion.p>
 
       <motion.ul
@@ -95,7 +101,9 @@ export function ConnectInboxStep() {
       >
         <ConnectMailbox
           redirectPath="/onboarding?s=connect-inbox"
-          className="flex-row space-y-0 gap-2"
+          layout="row"
+          since={since}
+          onSinceChange={setSince}
         />
 
         <Accordion type="single" collapsible className="border-t pt-2 mt-4">

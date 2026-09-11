@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, setSystemTime, test } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  setSystemTime,
+  test,
+} from "bun:test";
 import { decryptOAuthState } from "@midday/inbox/utils";
 import { createCallerFactory } from "../../trpc/init";
 import { inboxAccountsRouter } from "../../trpc/routers/inbox-accounts";
@@ -6,6 +13,9 @@ import { createTestContext } from "../helpers/test-context";
 import { mocks } from "../setup";
 
 const ACCOUNT_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+
+// connect encrypts the OAuth state it hands to the provider.
+process.env.MIDDAY_ENCRYPTION_KEY ??= "ab".repeat(32);
 
 const createCaller = createCallerFactory(inboxAccountsRouter);
 
@@ -39,9 +49,12 @@ describe("tRPC: inboxAccounts.get", () => {
 
 describe("tRPC: inboxAccounts.connect", () => {
   beforeEach(() => {
-    process.env.MIDDAY_ENCRYPTION_KEY ??= "ab".repeat(32);
     setSystemTime(new Date("2026-09-11T12:00:00Z"));
     mocks.connectInbox.mockClear();
+  });
+
+  afterEach(() => {
+    setSystemTime();
   });
 
   /** The OAuth state the provider's login will hand back to the callback. */

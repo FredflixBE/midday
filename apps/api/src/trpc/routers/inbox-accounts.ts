@@ -37,7 +37,7 @@ export const inboxAccountsRouter = createTRPCRouter({
       // Refused here rather than by the first sync, which only runs once the
       // user is back from the provider's login and would fail out of sight.
       const sinceProblem =
-        input.since && syncStartProblem(input.since, new Date());
+        input.since !== undefined && syncStartProblem(input.since, new Date());
       if (sinceProblem) {
         throw new TRPCError({ code: "BAD_REQUEST", message: sinceProblem });
       }

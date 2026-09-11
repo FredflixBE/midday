@@ -12,13 +12,16 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** What a first sync reaches back to when the user picks nothing. */
-const SUGGESTED_DAYS = 30;
+/**
+ * How far back a sync looks when nothing says otherwise: a first sync the
+ * user chose no date for, and a manual sync.
+ */
+export const DEFAULT_SYNC_DAYS = 30;
 
-const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const CALENDAR_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-function parse(date: string): Date | null {
-  const match = CALENDAR_DATE.exec(date);
+function parseCalendarDate(date: string): Date | null {
+  const match = CALENDAR_DATE_PATTERN.exec(date);
   if (!match) return null;
 
   const [, year, month, day] = match.map(Number) as [
@@ -33,22 +36,24 @@ function parse(date: string): Date | null {
   return parsed.getUTCMonth() === month - 1 ? parsed : null;
 }
 
-function format(date: Date): string {
+function toCalendarDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
 function addDays(date: string, days: number): string {
-  return format(new Date(parse(date)!.getTime() + days * DAY_MS));
+  return toCalendarDate(
+    new Date(parseCalendarDate(date)!.getTime() + days * DAY_MS),
+  );
 }
 
 /** The same calendar day a year earlier; the 28th for a leap day. */
 function yearBefore(date: string): string {
-  const today = parse(date)!;
+  const today = parseCalendarDate(date)!;
   const year = today.getUTCFullYear() - 1;
   const month = today.getUTCMonth();
   const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
-  return format(
+  return toCalendarDate(
     new Date(Date.UTC(year, month, Math.min(today.getUTCDate(), lastDay))),
   );
 }
@@ -64,7 +69,7 @@ export function syncStartBounds(today: string): {
   return {
     earliest: yearBefore(today),
     latest: today,
-    suggested: addDays(today, -SUGGESTED_DAYS),
+    suggested: addDays(today, -DEFAULT_SYNC_DAYS),
   };
 }
 
@@ -76,9 +81,10 @@ export function syncStartBounds(today: string): {
  * rather than refuse a date the picker offered.
  */
 export function syncStartProblem(since: string, now: Date): string | null {
-  if (!parse(since)) return `${since} is not a date; use YYYY-MM-DD.`;
+  if (!parseCalendarDate(since))
+    return `${since} is not a date; use YYYY-MM-DD.`;
 
-  const today = format(now);
+  const today = toCalendarDate(now);
   const earliest = yearBefore(today);
 
   if (since < addDays(earliest, -1)) {

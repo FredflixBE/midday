@@ -44,7 +44,8 @@ export const syncInboxAccount = schemaTask({
 
     // The API refuses the same dates when the user picks one; this is the
     // check a sync triggered by hand, with any date, cannot get around.
-    const sinceProblem = since && syncStartProblem(since, startedAt);
+    const sinceProblem =
+      since !== undefined && syncStartProblem(since, startedAt);
     if (sinceProblem) {
       throw new AbortTaskRunError(sinceProblem);
     }

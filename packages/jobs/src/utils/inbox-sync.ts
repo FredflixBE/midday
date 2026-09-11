@@ -1,3 +1,4 @@
+import { DEFAULT_SYNC_DAYS } from "@midday/inbox/sync-start";
 import { ensureFileExtension } from "@midday/utils";
 
 /**
@@ -40,9 +41,6 @@ export type MailboxSyncResult = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** How far back a manual or first sync looks. */
-const FULL_SYNC_DAYS = 30;
-
 /**
  * The start of the sync's window. Without a backfill date that is the day
  * before the watermark — an overlap, which the dedup on reference ids makes
@@ -52,7 +50,7 @@ function windowStart(options: MailboxSyncOptions): Date {
   if (options.since) return new Date(`${options.since}T00:00:00Z`);
 
   const lookBack = new Date(
-    options.startedAt.getTime() - FULL_SYNC_DAYS * DAY_MS,
+    options.startedAt.getTime() - DEFAULT_SYNC_DAYS * DAY_MS,
   );
   if (!options.lastAccessed) return lookBack;
 

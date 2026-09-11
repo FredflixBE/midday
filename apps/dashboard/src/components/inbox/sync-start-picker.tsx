@@ -9,10 +9,15 @@ import { format, parse } from "date-fns";
 import { useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 
-const CALENDAR_DATE = "yyyy-MM-dd";
+const CALENDAR_DATE_FORMAT = "yyyy-MM-dd";
 
 function toDate(value: string) {
-  return parse(value, CALENDAR_DATE, new Date());
+  return parse(value, CALENDAR_DATE_FORMAT, new Date());
+}
+
+/** A sync start date as the user reads dates. */
+export function formatSyncStart(value: string, dateFormat?: string | null) {
+  return format(toDate(value), dateFormat ?? "MMM d, yyyy");
 }
 
 /**
@@ -21,7 +26,7 @@ function toDate(value: string) {
  */
 export function useSyncStart() {
   return useState(
-    () => syncStartBounds(format(new Date(), CALENDAR_DATE)).suggested,
+    () => syncStartBounds(format(new Date(), CALENDAR_DATE_FORMAT)).suggested,
   );
 }
 
@@ -38,7 +43,7 @@ export function SyncStartPicker({ value, onChange }: Props) {
   const { data: user } = useUserQuery();
   const [isOpen, setIsOpen] = useState(false);
 
-  const bounds = syncStartBounds(format(new Date(), CALENDAR_DATE));
+  const bounds = syncStartBounds(format(new Date(), CALENDAR_DATE_FORMAT));
   const earliest = toDate(bounds.earliest);
   const latest = toDate(bounds.latest);
   const selected = toDate(value);
@@ -54,7 +59,7 @@ export function SyncStartPicker({ value, onChange }: Props) {
             className="h-8 px-3 font-normal"
             data-track="Inbox Sync Start Opened"
           >
-            {format(selected, user?.dateFormat ?? "MMM d, yyyy")}
+            {formatSyncStart(value, user?.dateFormat)}
             <Icons.ChevronDown className="size-4 ml-2 text-muted-foreground" />
           </Button>
         </PopoverTrigger>
@@ -70,7 +75,7 @@ export function SyncStartPicker({ value, onChange }: Props) {
             disabled={[{ before: earliest }, { after: latest }]}
             onSelect={(date) => {
               if (date) {
-                onChange(format(date, CALENDAR_DATE));
+                onChange(format(date, CALENDAR_DATE_FORMAT));
                 setIsOpen(false);
               }
             }}
