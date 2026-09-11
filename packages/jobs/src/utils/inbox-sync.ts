@@ -54,9 +54,7 @@ function windowStart(options: MailboxSyncOptions): Date {
   );
   if (!options.lastAccessed) return lookBack;
 
-  const watermark = new Date(
-    new Date(options.lastAccessed).getTime() - DAY_MS,
-  );
+  const watermark = new Date(new Date(options.lastAccessed).getTime() - DAY_MS);
   return options.fullSync && lookBack < watermark ? lookBack : watermark;
 }
 

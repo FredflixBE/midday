@@ -59,12 +59,21 @@ const account = await connector.exchangeCodeForAccount({
 
 ### Syncing Attachments
 
+A sync is two calls: list every message in the window, then read their
+attachments a batch at a time. Listing has no cap, so a caller can move its
+watermark once every batch is read and never before.
+
 ```typescript
-const attachments = await connector.getAttachments({
+const messageIds = await connector.listMessageIds({
   id: accountId,
   teamId: "team_123",
-  maxResults: 50,
-  fullSync: false, // true for initial/manual sync
+  since: new Date("2025-10-01T00:00:00Z"),
+});
+
+const attachments = await connector.getMessageAttachments({
+  id: accountId,
+  teamId: "team_123",
+  messageIds: messageIds.slice(0, 20),
 });
 
 for (const attachment of attachments) {
@@ -72,6 +81,12 @@ for (const attachment of attachments) {
   // attachment.data contains the file buffer
 }
 ```
+
+`getMessageAttachments` throws rather than skip a message it could not read;
+only a message deleted since it was listed is passed over.
+
+In the jobs package, `sync-inbox-account` does this: pass it `since`
+(YYYY-MM-DD) to backfill an account from that date.
 
 ## Error Handling
 
@@ -87,7 +102,7 @@ Authentication and authorization errors. Check `requiresReauth` to determine if 
 import { InboxAuthError, isInboxAuthError } from "@midday/inbox/errors";
 
 try {
-  await connector.getAttachments(options);
+  await connector.getMessageAttachments(options);
 } catch (error) {
   if (isInboxAuthError(error)) {
     console.log(error.code);          // "token_expired" | "refresh_token_invalid" | ...

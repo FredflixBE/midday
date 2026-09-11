@@ -11,7 +11,7 @@
  * import { InboxAuthError, isInboxAuthError } from "@midday/inbox/errors";
  *
  * try {
- *   await connector.getAttachments(options);
+ *   await connector.getMessageAttachments(options);
  * } catch (error) {
  *   if (isInboxAuthError(error)) {
  *     if (error.requiresReauth) {
