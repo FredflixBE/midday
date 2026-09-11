@@ -15,3 +15,14 @@ export const updateAppSettingsSchema = z.object({
 export const createPlatformLinkTokenSchema = z.object({
   provider: z.enum(["slack"]),
 });
+
+const yukiCredentialsSchema = z.object({
+  accessKey: z.string().trim().min(1, "Paste the access key from Yuki."),
+  region: z.enum(["be", "nl"]),
+});
+
+export const verifyYukiSchema = yukiCredentialsSchema;
+
+export const connectYukiSchema = yukiCredentialsSchema.extend({
+  administrationId: z.string().min(1),
+});

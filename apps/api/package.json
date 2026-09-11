@@ -45,6 +45,7 @@
     "@midday/notifications": "workspace:*",
     "@midday/supabase": "workspace:*",
     "@midday/utils": "workspace:*",
+    "@midday/yuki": "workspace:*",
     "@modelcontextprotocol/ext-apps": "^1.3.2",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "@scalar/hono-api-reference": "^0.10.5",

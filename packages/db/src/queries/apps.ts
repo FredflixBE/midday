@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { AppConfigFor } from "../app-config";
 import type { Database } from "../client";
 import { apps, platformIdentities } from "../schema";
@@ -61,6 +61,23 @@ export const getApps = async (db: Database, teamId: string) => {
     .where(eq(apps.teamId, teamId));
 
   return result;
+};
+
+/**
+ * The teams that connected an app, for a scheduled job to fan out over. A
+ * per-team integration's schedule reaches these teams and no others.
+ */
+export const getTeamIdsWithApp = async (
+  db: Database,
+  appId: string,
+): Promise<string[]> => {
+  const rows = await db
+    .select({ teamId: apps.teamId })
+    .from(apps)
+    .where(and(eq(apps.appId, appId), isNotNull(apps.teamId)))
+    .orderBy(apps.teamId);
+
+  return rows.map((row) => row.teamId as string);
 };
 
 export type GetAppByAppIdParams<TAppId extends string = string> = {
