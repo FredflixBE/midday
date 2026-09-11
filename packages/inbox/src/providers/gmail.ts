@@ -20,7 +20,7 @@ import { generateDeterministicId } from "../generate-id";
 import type {
   Attachment,
   EmailAttachment,
-  GetAttachmentsOptions,
+  ListMessagesOptions,
   OAuthProviderInterface,
   RevokeAccessResult,
   Tokens,
@@ -34,18 +34,43 @@ import type {
  */
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 
+/** The most ids `messages.list` returns in one page. */
+const LIST_PAGE_SIZE = 500;
+
+/** The 403 reasons that mean "slow down" rather than "not allowed". */
+const RATE_LIMIT_REASONS = new Set(["rateLimitExceeded", "userRateLimitExceeded"]);
+
 /**
  * Google API error structure
  */
 interface GoogleApiError extends Error {
-  code?: number;
+  code?: number | string;
+  status?: number;
+  errors?: { reason?: string }[];
   response?: {
     status?: number;
     data?: {
-      error?: string;
+      error?:
+        | string
+        | { code?: number; errors?: { reason?: string }[] };
       error_description?: string;
     };
   };
+}
+
+function statusOf(error: unknown): number | undefined {
+  const googleError = error as GoogleApiError;
+  if (typeof googleError?.status === "number") return googleError.status;
+  if (typeof googleError?.code === "number") return googleError.code;
+  return googleError?.response?.status;
+}
+
+function reasonOf(error: unknown): string | undefined {
+  const googleError = error as GoogleApiError;
+  const body = googleError?.response?.data?.error;
+  const errors =
+    typeof body === "object" ? body?.errors : googleError?.errors;
+  return errors?.[0]?.reason;
 }
 
 export class GmailProvider implements OAuthProviderInterface {
@@ -380,7 +405,40 @@ export class GmailProvider implements OAuthProviderInterface {
     }
   }
 
-  async getAttachments(options: GetAttachmentsOptions): Promise<Attachment[]> {
+  async listMessageIds(options: ListMessagesOptions): Promise<string[]> {
+    const client = await this.#client();
+
+    // Epoch seconds rather than a date: Gmail reads a date as midnight in
+    // California, which would start the window up to nine hours off.
+    const after = Math.floor(options.since.getTime() / 1000);
+    const q = `-from:me has:attachment filename:pdf after:${after}`;
+
+    const ids: string[] = [];
+    let pageToken: string | undefined;
+
+    try {
+      do {
+        const { data } = await client.users.messages.list({
+          userId: "me",
+          q,
+          maxResults: LIST_PAGE_SIZE,
+          pageToken,
+        });
+
+        for (const message of data.messages ?? []) {
+          if (message.id) ids.push(message.id);
+        }
+
+        pageToken = data.nextPageToken ?? undefined;
+      } while (pageToken);
+    } catch (error: unknown) {
+      throw this.#toInboxError(error, "Failed to list messages");
+    }
+
+    return ids;
+  }
+
+  async #client(): Promise<gmail_v1.Gmail> {
     if (!this.#gmail) {
       throw new Error("Gmail client not initialized. Set tokens first.");
     }
@@ -388,175 +446,126 @@ export class GmailProvider implements OAuthProviderInterface {
     // Proactively refresh token if expired or expiring soon
     await this.#ensureValidAccessToken();
 
-    const { maxResults = 50, lastAccessed, fullSync = false } = options;
+    return this.#gmail;
+  }
 
-    // Build date filter based on sync type and lastAccessed
-    let dateFilter = "";
-    if (fullSync || !lastAccessed) {
-      // For full syncs (initial or manual) or accounts without lastAccessed, fetch last 30 days to capture recent business documents
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const formattedDate = thirtyDaysAgo.toISOString().split("T")[0];
-      dateFilter = `after:${formattedDate}`;
-    } else {
-      // For subsequent syncs, sync from last access date
-      // Subtract 1 day to make it inclusive since Gmail's "after:" is exclusive
-      const lastAccessDate = new Date(lastAccessed);
-      lastAccessDate.setDate(lastAccessDate.getDate() - 1);
-      const formattedDate = lastAccessDate.toISOString().split("T")[0]; // YYYY-MM-DD format
-      dateFilter = `after:${formattedDate}`;
-    }
+  async getMessageAttachments(messageIds: string[]): Promise<Attachment[]> {
+    const client = await this.#client();
 
     try {
-      const query = `-from:me has:attachment filename:pdf ${dateFilter}`;
-
-      // Fetch messages with pagination to handle high-volume days
-      const allMessages: gmail_v1.Schema$Message[] = [];
-      let nextPageToken: string | undefined;
-      const maxPagesToFetch = 3; // Limit to prevent infinite loops
-      let pagesFetched = 0;
-
-      do {
-        const listResponse = await this.#gmail.users.messages.list({
-          userId: "me",
-          maxResults: Math.min(maxResults, 50), // Gmail API max per request
-          q: query,
-          pageToken: nextPageToken,
-        });
-
-        if (listResponse.data.messages) {
-          allMessages.push(...listResponse.data.messages);
-        }
-
-        nextPageToken = listResponse.data.nextPageToken ?? undefined;
-        pagesFetched++;
-
-        // Stop if we have enough messages or hit our page limit
-      } while (
-        nextPageToken &&
-        allMessages.length < maxResults &&
-        pagesFetched < maxPagesToFetch
+      const messages = await Promise.all(
+        messageIds.map(async (id) => {
+          try {
+            const { data } = await client.users.messages.get({
+              userId: "me",
+              id,
+              format: "full",
+            });
+            return data;
+          } catch (error: unknown) {
+            // Deleted since it was listed: there is nothing left to read.
+            if (statusOf(error) === 404) return null;
+            throw error;
+          }
+        }),
       );
 
-      // Limit to maxResults to respect our system limits
-      const messages = allMessages.slice(0, maxResults);
-
-      if (!messages || messages.length === 0) {
-        console.log(
-          "No emails found with PDF attachments matching the criteria.",
-        );
-        return [];
-      }
-
-      const messageDetailsPromises = messages
-        .map((m: gmail_v1.Schema$Message) => m.id!)
-        .filter((id): id is string => Boolean(id))
-        .map((id: string) =>
-          this.#gmail!.users.messages.get({
-            userId: "me",
-            id: id,
-            format: "full",
-          })
-            .then((res) => res.data)
-            .catch((err: unknown) => {
-              console.error(
-                `Failed to fetch message ${id}:`,
-                err instanceof Error ? err.message : err,
-              );
-              return null;
-            }),
-        );
-
-      const fetchedMessages = (
-        await Promise.all(messageDetailsPromises)
-      ).filter((msg): msg is gmail_v1.Schema$Message => msg !== null);
-
-      if (fetchedMessages.length === 0) {
-        console.log("All filtered messages failed to fetch details.");
-        return [];
-      }
-
-      const allAttachmentsPromises = fetchedMessages.map((message) =>
-        this.#processMessageToAttachments(message),
+      const attachments = await Promise.all(
+        messages
+          .filter((message): message is gmail_v1.Schema$Message =>
+            Boolean(message),
+          )
+          .map((message) => this.#processMessageToAttachments(message)),
       );
 
-      const attachmentsArray = await Promise.all(allAttachmentsPromises);
-      const flattenedAttachments = attachmentsArray.flat();
-
-      return flattenedAttachments;
+      return attachments.flat();
     } catch (error: unknown) {
-      // Re-throw InboxAuthError and InboxSyncError as-is
-      if (error instanceof InboxAuthError || error instanceof InboxSyncError) {
-        throw error;
-      }
+      throw this.#toInboxError(error, "Failed to fetch attachments");
+    }
+  }
 
-      // Extract Google API error properties for reliable error detection
-      const googleError = error as GoogleApiError;
-      const statusCode = googleError.code ?? googleError.response?.status;
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+  /**
+   * Classify a failed Gmail call as an auth or a sync error. Which one decides
+   * whether the account is marked disconnected, so a quota error must never
+   * read as an auth error.
+   */
+  #toInboxError(
+    error: unknown,
+    context: string,
+  ): InboxAuthError | InboxSyncError {
+    if (error instanceof InboxAuthError || error instanceof InboxSyncError) {
+      return error;
+    }
 
-      // Log the full error for debugging
-      console.error("Gmail API error:", {
-        statusCode,
-        errorMessage,
-        accountId: this.#accountId,
-        timestamp: new Date().toISOString(),
-      });
+    const statusCode = statusOf(error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    const cause = error instanceof Error ? error : undefined;
 
-      // Use status codes for reliable detection, not message parsing
-      // 401 = Unauthorized (token issues)
-      if (statusCode === 401) {
-        throw new InboxAuthError({
-          code: "token_expired",
-          provider: "gmail",
-          message:
-            "Access token is invalid or expired. Authentication required.",
-          requiresReauth: true,
-          cause: error instanceof Error ? error : undefined,
-        });
-      }
+    // Log the full error for debugging
+    console.error("Gmail API error:", {
+      statusCode,
+      reason: reasonOf(error),
+      errorMessage,
+      accountId: this.#accountId,
+      timestamp: new Date().toISOString(),
+    });
 
-      // 403 = Forbidden (permission issues or quota)
-      if (statusCode === 403) {
-        throw new InboxAuthError({
-          code: "forbidden",
-          provider: "gmail",
-          message: "Insufficient permissions or quota exceeded.",
-          requiresReauth: true,
-          cause: error instanceof Error ? error : undefined,
-        });
-      }
-
-      // 400 = Bad request (could be token issues)
-      if (statusCode === 400 && errorMessage.includes("invalid_grant")) {
-        throw new InboxAuthError({
-          code: "refresh_token_expired",
-          provider: "gmail",
-          message:
-            "Refresh token is invalid or expired. Re-authentication required.",
-          requiresReauth: true,
-          cause: error instanceof Error ? error : undefined,
-        });
-      }
-
-      // 429 = Rate limited
-      if (statusCode === 429) {
-        throw new InboxSyncError({
-          code: "rate_limited",
-          provider: "gmail",
-          message: "Gmail API rate limit exceeded. Please try again later.",
-          cause: error instanceof Error ? error : undefined,
-        });
-      }
-
-      throw new InboxSyncError({
-        code: "fetch_failed",
+    // Gmail answers a per-user quota breach with 403 as well as 429. It is
+    // over in a second, and must not disconnect the account.
+    if (
+      statusCode === 429 ||
+      (statusCode === 403 && RATE_LIMIT_REASONS.has(reasonOf(error) ?? ""))
+    ) {
+      return new InboxSyncError({
+        code: "rate_limited",
         provider: "gmail",
-        message: `Failed to fetch attachments: ${errorMessage}`,
-        cause: error instanceof Error ? error : undefined,
+        message: "Gmail API rate limit exceeded. Please try again later.",
+        cause,
       });
     }
+
+    // Use status codes for reliable detection, not message parsing
+    // 401 = Unauthorized (token issues)
+    if (statusCode === 401) {
+      return new InboxAuthError({
+        code: "token_expired",
+        provider: "gmail",
+        message: "Access token is invalid or expired. Authentication required.",
+        requiresReauth: true,
+        cause,
+      });
+    }
+
+    // 403 = Forbidden (permission issues)
+    if (statusCode === 403) {
+      return new InboxAuthError({
+        code: "forbidden",
+        provider: "gmail",
+        message: "Insufficient permissions.",
+        requiresReauth: true,
+        cause,
+      });
+    }
+
+    // 400 = Bad request (could be token issues)
+    if (statusCode === 400 && errorMessage.includes("invalid_grant")) {
+      return new InboxAuthError({
+        code: "refresh_token_expired",
+        provider: "gmail",
+        message:
+          "Refresh token is invalid or expired. Re-authentication required.",
+        requiresReauth: true,
+        cause,
+      });
+    }
+
+    return new InboxSyncError({
+      code: "fetch_failed",
+      provider: "gmail",
+      message: `${context}: ${errorMessage}`,
+      cause,
+    });
   }
 
   async #processMessageToAttachments(
@@ -595,39 +604,28 @@ export class GmailProvider implements OAuthProviderInterface {
       }
     }
 
-    try {
-      const rawAttachments = await this.#fetchAttachments(
-        message.id,
-        message.payload.parts,
-      );
+    // A failure here fails the batch: swallowing it would let the sync move
+    // past a message whose invoice it never saw.
+    const rawAttachments = await this.#fetchAttachments(
+      message.id,
+      message.payload.parts,
+    );
 
-      const attachments: Attachment[] = rawAttachments.map((att) => {
-        const filename = ensureFileExtension(att.filename, att.mimeType);
-        const referenceId = generateDeterministicId(
-          `${message.id}_${filename}`,
-        );
+    return rawAttachments.map((att) => {
+      const filename = ensureFileExtension(att.filename, att.mimeType);
+      const referenceId = generateDeterministicId(`${message.id}_${filename}`);
 
-        return {
-          id: referenceId,
-          filename,
-          mimeType: att.mimeType,
-          size: att.size,
-          data: decodeBase64Url(att.data),
-          website: senderDomain,
-          senderEmail: senderEmail,
-          referenceId: referenceId,
-        };
-      });
-
-      return attachments;
-    } catch (error: unknown) {
-      const messageText =
-        error instanceof Error ? error.message : "Unknown error";
-      console.error(
-        `Failed to process attachments for message ${message.id}: ${messageText}`,
-      );
-      return [];
-    }
+      return {
+        id: referenceId,
+        filename,
+        mimeType: att.mimeType,
+        size: att.size,
+        data: decodeBase64Url(att.data),
+        website: senderDomain,
+        senderEmail: senderEmail,
+        referenceId: referenceId,
+      };
+    });
   }
 
   async #fetchAttachments(
@@ -675,13 +673,11 @@ export class GmailProvider implements OAuthProviderInterface {
             attachmentsCount++;
           }
         } catch (error: unknown) {
-          const attachmentIdentifier =
-            part.filename || `attachment with ID ${part.body.attachmentId}`;
-          const message =
-            error instanceof Error ? error.message : "Unknown error";
-          console.error(
-            `Failed to fetch ${attachmentIdentifier} for message ${messageId}: ${message}`,
-            error,
+          // Only an attachment that no longer exists may be passed over.
+          if (statusOf(error) !== 404) throw error;
+
+          console.warn(
+            `Attachment ${part.filename} of message ${messageId} no longer exists`,
           );
         }
       }

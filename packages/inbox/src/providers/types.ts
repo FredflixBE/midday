@@ -22,6 +22,11 @@ export interface Account {
   external_id: string;
 }
 
+export interface ListMessagesOptions {
+  /** The start of the window. Mail received before it is not listed. */
+  since: Date;
+}
+
 export interface GetAttachmentsOptions {
   id: string;
   teamId: string;
