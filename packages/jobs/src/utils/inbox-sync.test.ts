@@ -176,6 +176,26 @@ describe("the name a synced attachment is stored under", () => {
     expect(february).toBe("invoice_a7c64b1e.pdf");
   });
 
+  test("is one Storage accepts, whatever the email called it", () => {
+    // Storage refuses a key outside ASCII letters, digits and a short list of
+    // punctuation; "Fréderik" stopped a live backfill.
+    const name = (filename: string) =>
+      inboxFileName({
+        filename,
+        mimeType: "application/pdf",
+        referenceId:
+          "407b44dcb584cff4aaa71a961d5929ad48725802888d30f59b9def9c0f6d672b",
+      });
+
+    expect(name("Fredflix B.V. - Architect - Fréderik Noels.pdf")).toBe(
+      "Fredflix B.V. - Architect - Frederik Noels_407b44dc.pdf",
+    );
+    expect(name("Rechnung Müller & Söhne #42 [März].pdf")).toBe(
+      "Rechnung Muller & Sohne _42 _Marz__407b44dc.pdf",
+    );
+    expect(name("発票.pdf")).toBe("___407b44dc.pdf");
+  });
+
   test("gains its extension when the email left it off", () => {
     expect(
       inboxFileName({

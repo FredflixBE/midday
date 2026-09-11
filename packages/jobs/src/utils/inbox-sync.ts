@@ -105,6 +105,24 @@ export async function syncMailbox(
 }
 
 /**
+ * The characters Supabase Storage accepts in an object key; it answers any
+ * other with "Invalid key". Mirrors `isValidKey` in storage-api.
+ */
+const STORAGE_KEY_CHARACTER = /[\w/!\-.*'() &$@=;:+,?]/;
+
+/**
+ * A file name Storage accepts: accents dropped (é → e), and whatever it would
+ * still refuse replaced by an underscore.
+ */
+function storageSafe(name: string): string {
+  return Array.from(name.normalize("NFKD").replace(/\p{M}/gu, ""))
+    .map((character) =>
+      STORAGE_KEY_CHARACTER.test(character) ? character : "_",
+    )
+    .join("");
+}
+
+/**
  * The file name a synced attachment is stored under in the team's inbox
  * folder. Storage paths are flat and uploads overwrite, so two emails that
  * each attach an `invoice.pdf` would otherwise share one file, and the first
@@ -116,7 +134,9 @@ export function inboxFileName(attachment: {
   mimeType: string;
   referenceId: string;
 }): string {
-  const name = ensureFileExtension(attachment.filename, attachment.mimeType);
+  const name = storageSafe(
+    ensureFileExtension(attachment.filename, attachment.mimeType),
+  );
   const suffix = attachment.referenceId.slice(0, 8);
   const extension = name.match(/\.[^.]+$/)?.[0] ?? "";
 
