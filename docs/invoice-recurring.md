@@ -30,6 +30,8 @@ graph TB
     end
     
     subgraph jobs [Trigger.dev tasks]
+        Daily[invoice-recurring-daily]
+        Notifier[invoice-upcoming-notification]
         Scheduler[invoice-recurring-scheduler]
         Generator[generate-invoice]
         EmailSender[send-invoice-email]
@@ -40,7 +42,9 @@ graph TB
     Router --> Schema
     Router --> RecurringTable
     
-    Schedule[["cron 0 * * * *"]] --> Scheduler
+    Schedule[["cron 0 5 * * *"]] --> Daily
+    Daily -->|"first"| Notifier
+    Daily -->|"then"| Scheduler
     Scheduler -->|"query due series"| RecurringTable
     Scheduler -->|"create invoice"| InvoicesTable
     Scheduler -->|"trigger"| Generator
@@ -207,8 +211,9 @@ sequenceDiagram
 
 The system prevents duplicate invoice generation through multiple mechanisms:
 
-1. **Schedule level**: the cron is declared on the task itself, so exactly one
-   schedule exists per deployment — there is nothing to register twice
+1. **Schedule level**: the cron is declared on `invoice-recurring-daily`, so
+   exactly one schedule exists per deployment — there is nothing to register
+   twice
 2. **Invoice level**: `checkInvoiceExists(recurringId, sequence)` check before creation
 3. **Transaction**: invoice creation and counter update are atomic
 
@@ -260,7 +265,7 @@ To prevent overwhelming the system when many invoices are due at once, processin
 
 **Design rationale:**
 - Prevents memory pressure from processing thousands of series at once
-- Distributes load over time (the scheduler runs hourly)
+- Distributes load over time (the scheduler runs once a day, and reports `hasMore`)
 - Older due invoices are processed first (ordered by `nextScheduledAt`)
 - Jobs return `hasMore: true` when additional items remain for the next run
 
@@ -268,19 +273,19 @@ To prevent overwhelming the system when many invoices are due at once, processin
 
 ### Upcoming Invoice Notification
 
-A separate schedule runs hourly at :30, offset from the generation scheduler
-on the hour, to send 24-hour advance notifications:
+`invoice-recurring-daily` runs this before the generation, so that within one
+run no series is invoiced before the notice that it was coming:
 
 ```mermaid
 sequenceDiagram
-    participant Cron as Trigger.dev schedule (:30)
+    participant Cron as invoice-recurring-daily (05:00 UTC)
     participant Task as invoice-upcoming-notification
     participant DB as Database
     participant Email as Email Service
     
-    Cron->>Task: Hourly at :30
-    Task->>DB: Find series due within 24h
-    Note over DB: WHERE next_scheduled_at <= now + 24h<br/>AND upcoming_notification_sent_at IS NULL
+    Cron->>Task: Daily, before the generation
+    Task->>DB: Find series due within 48h
+    Note over DB: WHERE next_scheduled_at BETWEEN now AND now + 48h<br/>AND not already warned for this cycle
     
     loop For each series
         Task->>Email: Send upcoming invoice email
@@ -288,7 +293,17 @@ sequenceDiagram
     end
 ```
 
-The `upcoming_notification_sent_at` field prevents duplicate notifications and is reset when a new invoice is generated.
+The look-ahead is **48 hours**, not 24. It was 24 while this ran hourly, which
+warned every series between 23 and 24 hours ahead. Once a day, a 24-hour window
+warns about almost nothing: a series due 25 hours after one run is outside the
+window today, and one hour away by tomorrow's. At 48 every series is warned
+between 24 and 48 hours out — at least the day ahead the feature promises.
+
+The `upcoming_notification_sent_at` field prevents duplicate notifications and
+is reset when a new invoice is generated. A notification sent less than
+`LOOK_AHEAD_HOURS + 1` before the due date belongs to this cycle rather than
+the last, which is the boundary both the query and the processor's own filter
+derive from the constant.
 
 ### Activity Notifications
 
@@ -335,8 +350,10 @@ When creating a recurring series from a draft invoice:
 | [`apps/dashboard/src/components/sheets/edit-recurring-sheet.tsx`](../apps/dashboard/src/components/sheets/edit-recurring-sheet.tsx) | Sheet for editing existing recurring series |
 | [`apps/api/src/trpc/routers/invoice-recurring.ts`](../apps/api/src/trpc/routers/invoice-recurring.ts) | tRPC router with all API endpoints |
 | [`apps/api/src/schemas/invoice-recurring.ts`](../apps/api/src/schemas/invoice-recurring.ts) | Zod validation schemas |
-| [`packages/jobs/src/tasks/invoice/generate-recurring.ts`](../packages/jobs/src/tasks/invoice/generate-recurring.ts) | Scheduled job that generates invoices |
-| [`packages/jobs/src/tasks/invoice/upcoming-notification.ts`](../packages/jobs/src/tasks/invoice/upcoming-notification.ts) | 24-hour advance notification scheduler |
+| [`packages/jobs/src/tasks/invoice/recurring-daily-scheduler.ts`](../packages/jobs/src/tasks/invoice/recurring-daily-scheduler.ts) | The feature's one schedule: warnings, then generation |
+| [`packages/jobs/src/utils/recurring-invoice-day.ts`](../packages/jobs/src/utils/recurring-invoice-day.ts) | The order of the two halves, and what happens when one fails |
+| [`packages/jobs/src/tasks/invoice/generate-recurring.ts`](../packages/jobs/src/tasks/invoice/generate-recurring.ts) | Generates the invoices that are due |
+| [`packages/jobs/src/tasks/invoice/upcoming-notification.ts`](../packages/jobs/src/tasks/invoice/upcoming-notification.ts) | Warns a team about invoices coming inside the look-ahead |
 | [`packages/db/src/queries/invoice-recurring.ts`](../packages/db/src/queries/invoice-recurring.ts) | Database queries (CRUD, state transitions) |
 | [`packages/db/src/utils/invoice-recurring.ts`](../packages/db/src/utils/invoice-recurring.ts) | Date calculation utilities |
 | [`packages/invoice/src/utils/recurring.ts`](../packages/invoice/src/utils/recurring.ts) | Shared utilities (labels, preview calculations, date handling) |
