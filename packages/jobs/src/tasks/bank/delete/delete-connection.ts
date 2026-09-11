@@ -22,19 +22,19 @@ export const deleteConnection = schemaTask({
     //
     // An API one version behind sends no team id. Then the schedule, if it is
     // the last, removes itself on its next run instead.
-    const remaining = teamId
-      ? await getBankConnections(getDb(), { teamId })
-      : undefined;
+    if (teamId) {
+      const remaining = await getBankConnections(getDb(), { teamId });
 
-    if (teamId && remaining?.length === 0) {
-      const deleted = await deleteSchedulesByExternalId([teamId]);
-      logger.info(
-        "Deleted the bank sync schedule of a team with no connections",
-        {
-          teamId,
-          deleted,
-        },
-      );
+      if (remaining.length === 0) {
+        const deleted = await deleteSchedulesByExternalId([teamId]);
+        logger.info(
+          "Deleted the bank sync schedule of a team with no connections",
+          {
+            teamId,
+            deleted,
+          },
+        );
+      }
     }
 
     await trpc.banking.deleteConnection.mutate({

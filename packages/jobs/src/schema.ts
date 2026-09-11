@@ -41,7 +41,11 @@ export const deleteConnectionSchema = z.object({
   accessToken: z.string().optional().nullable(),
 });
 
-export type DeleteConnectionPayload = z.infer<typeof deleteConnectionSchema>;
+// What the API must send. The schema also accepts a payload without `teamId`,
+// from an API one version behind; the current one always sends it.
+export type DeleteConnectionPayload = z.infer<typeof deleteConnectionSchema> & {
+  teamId: string;
+};
 
 export const initialBankSetupSchema = z.object({
   teamId: z.string().uuid(),
@@ -72,19 +76,6 @@ export const processAttachmentSchema = z.object({
 });
 
 export type ProcessAttachmentPayload = z.infer<typeof processAttachmentSchema>;
-
-export const deleteTeamSchema = z.object({
-  teamId: z.string().uuid(),
-  connections: z.array(
-    z.object({
-      provider: z.string(),
-      referenceId: z.string().nullable(),
-      accessToken: z.string().nullable(),
-    }),
-  ),
-});
-
-export type DeleteTeamPayload = z.infer<typeof deleteTeamSchema>;
 
 export const inviteTeamMembersSchema = z.object({
   teamId: z.string().uuid(),

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { DeleteTeamPayload as Payload } from "@jobs/schemas/teams";
+import {
+  deleteTeamSchema,
+  type DeleteTeamPayload as Payload,
+} from "@jobs/schemas/teams";
 
 // Everything the cleanup reaches outside this process is faked below: the
 // Trigger.dev schedule API, Supabase Storage, Google's token endpoint, the
@@ -151,7 +154,6 @@ mock.module("@midday/db/queries", () => ({
 
 const { encrypt } = await import("@midday/encryption");
 const { DeleteTeamProcessor } = await import("./delete-team");
-const { deleteTeamSchema } = await import("@jobs/schemas/teams");
 
 function gmailAccount(): Payload["inboxAccounts"][number] {
   return {
@@ -198,20 +200,19 @@ describe("delete-team", () => {
     // The payload the API sent before FF-1501, as Trigger.dev validates it.
     // On 2026-09-11 a stale API dev server sent exactly this, and the run was
     // rejected before any cleanup ran.
-    const payloadFromOlderApi = deleteTeamSchema.safeParse({
+    const payloadFromOlderApi = deleteTeamSchema.parse({
       teamId: TEAM_ID,
       connections: [
         { referenceId: "req_1", provider: "enablebanking", accessToken: null },
       ],
     });
-    expect(payloadFromOlderApi.success).toBe(true);
 
     scheduleStore = [
       { id: "sched_bank", task: "bank-sync-scheduler", externalId: TEAM_ID },
     ];
     bucketStore = { vault: new Set([`${TEAM_ID}/inbox/receipt.pdf`]) };
 
-    await runCleanup(payloadFromOlderApi.data as Payload);
+    await runCleanup(payloadFromOlderApi);
 
     expect(scheduleStore).toEqual([]);
     expect([...(bucketStore.vault ?? [])]).toEqual([]);

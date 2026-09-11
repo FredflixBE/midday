@@ -22,10 +22,11 @@ const inboxAccountSchema = z.object({
 export const deleteTeamSchema = z.object({
   teamId: z.string().uuid(),
   connections: z.array(bankConnectionSchema),
-  // Optional for an API one version behind, which sends no inbox accounts:
-  // the API and the worker deploy separately, and a rejected payload skips
-  // the whole cleanup. Their schedules still remove themselves on their next
-  // run; only revoking their access is lost.
+  // None, when an API one version behind sends no inbox accounts: the API and
+  // the worker deploy separately, and a rejected payload skips the whole
+  // cleanup. Their schedules still remove themselves on their next run; only
+  // revoking their access is lost. The parsed type still requires the field,
+  // so the current API cannot forget it.
   inboxAccounts: z.array(inboxAccountSchema).default([]),
 });
 
