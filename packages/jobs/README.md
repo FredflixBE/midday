@@ -86,9 +86,20 @@ change, and one schedule.
 Insight generation is ported and can be triggered by hand too, but is
 deliberately registered on no schedule at all.
 
-**Removing a cron does not remove the schedule that is already registered.** A
-schedule that disappears from the code stays in the Trigger.dev dashboard, and
-keeps counting against the ten, until it is deleted there by hand.
+**A cron removed from the code is removed from Trigger.dev by the next `dev` or
+`deploy`.** The schedules in the table above are *declarative* — declared with
+`cron` on a `schedules.task` — and those two commands sync them, so adding,
+changing or removing one takes effect without anyone touching the dashboard.
+They cannot be edited or deleted there either: the code is the only place they
+are managed.
+
+Verified on 2026-09-12, when FF-1521 removed five of them: the running
+`trigger dev` dropped all five on its next sync, leaving exactly the four
+above, and `activity-notification-flush` stopped firing that minute.
+
+**The two runtime schedules are the opposite.** They are *imperative*, created
+by `schedules.create()`, and no deploy ever removes one — which is why deleting
+a team or an inbox account has to delete its schedule explicitly.
 
 The off switches read through `isFlagEnabled()` in `@midday/utils/flags`: unset
 means **on**, and only `false`, `0`, `no` or `off` turn a job off. The one
