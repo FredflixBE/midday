@@ -262,7 +262,7 @@ const { charges, settlements } = readCardLedger({
 });
 ```
 
-### Four things that are easy to get wrong here too
+### Five things that are easy to get wrong here too
 
 **Decide on the sub-type, never on the words.** `GetGLAccountScheme` gives every
 account a numeric `subtype` — 52 is a credit card, 2 suppliers, 4 internal
@@ -290,6 +290,14 @@ the backlog is an identifier. The pair is still checked for an identical
 description and exactly opposite amounts, and a failed check sends the charge to
 *Needs attention* rather than guessing — the `hID` adjacency is observed rather
 than documented, which is exactly why the verification stays.
+
+**Money arriving on the card that will not pair is held back, not imported.**
+A settlement and a refund are both money coming in, and the only thing that
+tells them apart is the counterpart line — which is exactly what is missing
+when a pairing fails. Importing a settlement counts a whole month of charges
+twice, and no status undoes that, so those lines come back in
+`undecidedCredits` instead. A *charge* that will not pair is imported as usual
+and marked *Needs attention*: money leaving the card is never a settlement.
 
 `documentMatched.matchDate` is empty on every line. It is **not** an invoice
 flag; do not read it. Nor is `foreignCurrency`: on all 159 measured card lines it
