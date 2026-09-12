@@ -154,7 +154,7 @@ async function buildCandidates(
       type: document.type,
       documentText: null,
       // Midday has no Peppol ingestion yet, so nothing arrives as structured
-      // data and nothing skips rule 1's text check. When FF-1453 adds one, this
+      // data and nothing skips rule 1's text check. When FF-1450 adds one, this
       // is the line it sets — and until then saying so explicitly is better
       // than letting the field default and reading as if it were considered.
       structured: false,

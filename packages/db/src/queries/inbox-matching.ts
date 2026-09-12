@@ -532,12 +532,13 @@ export type InboxDocumentForYukiDelivery = {
  * already picks a primary by type, but that is a display heuristic, and letting
  * it decide here would deliver whichever it happened to prefer.
  *
- * Nothing filters out documents that came *from* Yuki, because nothing in
- * Midday creates any: there is no Yuki importer, and the inbox's own prefix
- * convention is `slack_`/`dashboard_` on `referenceId`. When FF-1453 adds an
- * importer, this is where its rows get excluded — and the exclusion should be
- * written against whatever that importer actually writes, not guessed at now.
- * A filter matching a prefix nobody produces reads as protection and is not.
+ * Documents pulled *out of* Yuki are **not** filtered out, and that is a change
+ * from the abandoned branch, which excluded `referenceId like 'yuki:%'`.
+ * Nothing writes that prefix today — FF-1450 is the importer that will — but
+ * excluding those rows was the wrong instinct even so. A document Midday pulled
+ * from Yuki is one rule 3 answers perfectly: it finds the invoice in the
+ * archive and reports `in_yuki` with the document id. Filtering it out instead
+ * produces no decision at all, and therefore no status for FF-1499 to show.
  */
 export async function getInboxDocumentsForYukiDelivery(
   db: Database,
