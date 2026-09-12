@@ -4,6 +4,18 @@ export type { FetchLike, YukiCallOptions, YukiClientConfig } from "./client";
 export { YukiClient } from "./client";
 export type { YukiConfig, YukiRegion } from "./config";
 export { baseUrlFor, YUKI_REGIONS } from "./config";
+export type {
+  YukiAttentionReason,
+  YukiDeliveryAction,
+  YukiDeliveryCandidate,
+  YukiDeliveryDecision,
+  YukiNotApplicableReason,
+} from "./decide";
+export {
+  DEFAULT_BOOKING_GRACE_DAYS,
+  decideYukiDelivery,
+  MINIMUM_COMPARABLE_REFERENCE_LENGTH,
+} from "./decide";
 export type { YukiAccessRefusal } from "./errors";
 export {
   YukiAccessError,
