@@ -372,6 +372,7 @@ export async function getInboxByStatus(
       | "analyzing"
       | "suggested_match"
       | "no_match"
+      | "no_charge"
       | "done"
       | "deleted"
       | "other"
