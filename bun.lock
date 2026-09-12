@@ -697,6 +697,7 @@
       "dependencies": {
         "@midday/db": "workspace:*",
         "@midday/encryption": "workspace:*",
+        "@midday/utils": "workspace:*",
         "fast-xml-parser": "catalog:",
       },
       "devDependencies": {
