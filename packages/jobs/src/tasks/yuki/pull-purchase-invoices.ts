@@ -7,12 +7,7 @@ import {
   yukiPullPurchaseInvoicesSchema,
 } from "@jobs/schemas/yuki";
 import { inboxFileName } from "@jobs/utils/inbox-sync";
-import {
-  DEFAULT_YUKI_PULL_CUTOFF,
-  DEFAULT_YUKI_PULL_LIMIT,
-  planYukiPull,
-  type YukiPullCandidate,
-} from "@jobs/utils/yuki-pull";
+import { planYukiPull, type YukiPullCandidate } from "@jobs/utils/yuki-pull";
 import {
   calculateInboxSuggestions,
   createYukiInboxDocument,
@@ -21,6 +16,7 @@ import {
   yukiInboxReference,
 } from "@midday/db/queries";
 import { createClient } from "@midday/supabase/job";
+import { isYukiDailyLimit } from "@midday/yuki";
 import { readYukiArchive } from "@midday/yuki/archive";
 import type { YukiDocumentReader } from "@midday/yuki/documents";
 import { fetchDocumentBinary } from "@midday/yuki/documents";
@@ -52,6 +48,9 @@ import { processDocument } from "../document/process-document";
 /** How many rows the matcher is run over at once. */
 const MATCHING_CONCURRENCY = 3;
 
+/** How many indexing runs are started at once. */
+const INDEXING_CONCURRENCY = 5;
+
 type PulledDocument = {
   inboxId: string;
   documentId: string;
@@ -64,11 +63,9 @@ type PulledDocument = {
 
 export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPurchaseInvoicesPayload> {
   async process(job: JobContext<YukiPullPurchaseInvoicesPayload>) {
-    const {
-      teamId,
-      cutoff = DEFAULT_YUKI_PULL_CUTOFF,
-      limit = DEFAULT_YUKI_PULL_LIMIT,
-    } = job.data;
+    // Both default in the payload schema, so they are values here whether the
+    // caller had an opinion or not.
+    const { teamId, cutoff, limit } = job.data;
 
     // `getDb()` at each use rather than held in a variable, the same way
     // `sync-card-charges.ts` does it and for the same reason: a task that
@@ -95,10 +92,25 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     // does the pull and FF-1493's decision in one process reads it once for
     // both — which is what keeps two steps of a run from seeing two different
     // archives. Across separate task runs it is 15 calls each, of 1,000 a day.
-    const [archive, inboxRows] = await Promise.all([
-      readYukiArchive(client),
-      getInboxRowsForYukiPull(getDb(), { teamId }),
-    ]);
+    let archive: Awaited<ReturnType<typeof readYukiArchive>>;
+    let inboxRows: Awaited<ReturnType<typeof getInboxRowsForYukiPull>>;
+    try {
+      [archive, inboxRows] = await Promise.all([
+        readYukiArchive(client),
+        getInboxRowsForYukiPull(getDb(), { teamId }),
+      ]);
+    } catch (error) {
+      // Yuki's allowance for the day is spent. Nothing is wrong and nothing is
+      // lost — every document not pulled is still not pulled, and tomorrow's
+      // run takes exactly those — so this is an outcome rather than a failure.
+      if (isYukiDailyLimit(error)) {
+        this.logger.warn("Yuki's call allowance for today is spent", {
+          teamId,
+        });
+        return { teamId, skipped: true as const, dailyLimit: true as const };
+      }
+      throw error;
+    }
 
     const plan = planYukiPull({ archive, inboxRows, cutoff, limit });
 
@@ -115,6 +127,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     const supabase = createClient();
     const pulled: PulledDocument[] = [];
     const failed: string[] = [];
+    let dailyLimit = false;
 
     // One document at a time. Yuki's allowance is generous but its patience is
     // not, and a run that is slower than it could be still finishes the backlog
@@ -125,6 +138,19 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
           await this.pullOne({ teamId, client, supabase, candidate }),
         );
       } catch (error) {
+        // The allowance ran out part way through. Every document after this one
+        // would fault the same way, so the run stops fetching and finishes what
+        // it already has — the rows it created still need matching and closing.
+        if (isYukiDailyLimit(error)) {
+          dailyLimit = true;
+          this.logger.warn("Yuki's call allowance ran out during the run", {
+            teamId,
+            pulled: pulled.length,
+            ofPlanned: plan.pull.length,
+          });
+          break;
+        }
+
         // One document that cannot be fetched or stored must not abandon the
         // other forty-nine. It has no inbox row, so the next run tries again.
         failed.push(candidate.document.documentId);
@@ -136,7 +162,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       }
     }
 
-    const indexed = await this.index(teamId, pulled);
+    const indexStarted = await this.index(teamId, pulled);
 
     // A copy of an invoice Midday already holds is closed without being
     // matched. The row it was grouped onto already carries Midday's match, and
@@ -158,10 +184,11 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       pulled: pulled.length,
       failed: failed.length,
       copies: copies.length,
-      indexed,
-      matched: toFinish.length,
+      indexStarted,
+      closed: toFinish.length,
       ...matched,
-      remaining: plan.counts.remaining,
+      dailyLimit,
+      remaining: plan.counts.eligible - pulled.length,
     });
 
     return {
@@ -172,9 +199,22 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       pulled: pulled.length,
       failed: failed.length,
       copies: copies.length,
-      indexed,
-      matched: toFinish.length,
+      // Indexing runs started, which is not the same as documents indexed: a
+      // run already started for this file today is deduplicated by its key.
+      indexStarted,
+      /** Rows run through the matcher and closed, pulled now or left by a run
+       * that stopped part way. */
+      closed: toFinish.length,
+      // What the matcher found, per row: autoMatched, suggested, unmatched.
       ...matched,
+      // Whether Yuki stopped answering because the day's allowance is spent.
+      dailyLimit,
+      // What is left for the next run. Counted from what was actually pulled
+      // rather than from what was planned, so a run that stopped early — or
+      // that could not fetch a document — says so here rather than reporting
+      // the backlog it meant to clear. `counts.remaining` is the plan's own
+      // view, before any of that happened.
+      remaining: plan.counts.eligible - pulled.length,
     };
   }
 
@@ -283,10 +323,18 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
    * file with its own vault row, and an untitled file in the vault is exactly
    * the defect this fixes, whatever the inbox thinks of the row beside it.
    *
+   * **Silently**, which is the one thing it does differently from every other
+   * caller. Indexing announces itself in the activity feed, once on arrival and
+   * once when it finishes — right for a document somebody just uploaded, wrong
+   * for three hundred invoices the accountant dealt with months ago, which
+   * would bury everything else in the feed to announce work nobody has to do.
+   * The same reasoning that keeps the matcher off `batch-process-matching`.
+   *
    * Started rather than waited for, with the same idempotency key the mailbox
-   * path uses, so one file is processed once however many runs touch it. A
-   * failure to start does not fail the pull — the document is in the vault and
-   * in the inbox either way, and only its title is missing.
+   * path uses, so one file is processed once however many runs touch it — which
+   * also means the count below is runs *started*, not work done. A failure to
+   * start does not fail the pull: the document is in the vault and in the inbox
+   * either way, and only its title is missing.
    */
   private async index(
     teamId: string,
@@ -294,29 +342,34 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
   ): Promise<number> {
     let started = 0;
 
-    for (const document of pulled) {
-      const path = document.filePath.join("/");
+    for (let i = 0; i < pulled.length; i += INDEXING_CONCURRENCY) {
+      await Promise.all(
+        pulled.slice(i, i + INDEXING_CONCURRENCY).map(async (document) => {
+          const path = document.filePath.join("/");
 
-      try {
-        await processDocument.trigger(
-          {
-            mimetype: document.contentType,
-            filePath: document.filePath,
-            teamId,
-          },
-          {
-            idempotencyKey: `process-doc_${teamId}_${path}`,
-            idempotencyKeyTTL: "24h",
-          },
-        );
-        started += 1;
-      } catch (error) {
-        this.logger.warn("Could not start indexing for a pulled document", {
-          teamId,
-          documentId: document.documentId,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
+          try {
+            await processDocument.trigger(
+              {
+                mimetype: document.contentType,
+                filePath: document.filePath,
+                teamId,
+                notify: false,
+              },
+              {
+                idempotencyKey: `process-doc_${teamId}_${path}`,
+                idempotencyKeyTTL: "24h",
+              },
+            );
+            started += 1;
+          } catch (error) {
+            this.logger.warn("Could not start indexing for a pulled document", {
+              teamId,
+              documentId: document.documentId,
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          }
+        }),
+      );
     }
 
     return started;

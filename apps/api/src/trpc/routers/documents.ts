@@ -19,7 +19,7 @@ import {
   updateDocuments,
 } from "@midday/db/queries";
 import { isMimeTypeSupportedForProcessing } from "@midday/documents/utils";
-import type { ProcessDocumentPayload } from "@midday/jobs/schemas/documents";
+import type { ProcessDocumentInput } from "@midday/jobs/schemas/documents";
 import { remove, signedUrl } from "@midday/supabase/storage";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
@@ -126,7 +126,7 @@ export const documentsRouter = createTRPCRouter({
               filePath: item.filePath,
               mimetype: item.mimetype,
               teamId: teamId!,
-            } satisfies ProcessDocumentPayload,
+            } satisfies ProcessDocumentInput,
             {
               idempotencyKey: `process-doc_${teamId}_${item.filePath.join("/")}`,
               idempotencyKeyTTL: "24h",
@@ -195,7 +195,7 @@ export const documentsRouter = createTRPCRouter({
         filePath: document.pathTokens,
         mimetype,
         teamId: teamId!,
-      } satisfies ProcessDocumentPayload);
+      } satisfies ProcessDocumentInput);
 
       return {
         success: true,

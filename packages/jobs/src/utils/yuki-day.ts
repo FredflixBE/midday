@@ -79,6 +79,44 @@ export function totalCardCharges(result: YukiDayResult): {
   return totals;
 }
 
+/**
+ * Adds up what the per-team pulls reported, for the sentence Settings → Admin
+ * shows when the button finishes (FF-1541).
+ *
+ * `remaining` is the one to read: it says whether the backlog is gone or wants
+ * another run, which is the only reason a person is watching.
+ */
+export function totalPulledInvoices(result: YukiDayResult): {
+  pulled: number;
+  failed: number;
+  remaining: number;
+  matched: number;
+  /** Whether any team stopped because Yuki's allowance for the day is spent. */
+  dailyLimit: boolean;
+} {
+  const totals = {
+    pulled: 0,
+    failed: 0,
+    remaining: 0,
+    matched: 0,
+    dailyLimit: false,
+  };
+
+  for (const outcome of result.outcomes) {
+    const output = outcome.output;
+    if (!output || typeof output !== "object") continue;
+
+    const fields = output as Record<string, unknown>;
+    totals.pulled += number(fields.pulled);
+    totals.failed += number(fields.failed);
+    totals.remaining += number(fields.remaining);
+    totals.matched += number(fields.autoMatched) + number(fields.suggested);
+    if (fields.dailyLimit === true) totals.dailyLimit = true;
+  }
+
+  return totals;
+}
+
 function number(value: unknown): number {
   return typeof value === "number" ? value : 0;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { runYukiDay, totalCardCharges } from "./yuki-day";
+import { runYukiDay, totalCardCharges, totalPulledInvoices } from "./yuki-day";
 
 describe("a Yuki day", () => {
   test("runs every team, in order", async () => {
@@ -75,6 +75,75 @@ describe("what the Admin button will say", () => {
       charges: 0,
       invoiceMissing: 0,
       needsAttention: 0,
+    });
+  });
+});
+
+describe("totalling what the invoice pull did", () => {
+  test("adds up the teams, and what the matcher made of them", async () => {
+    const result = await runYukiDay(["a", "b"], async (teamId) => ({
+      ok: true,
+      output:
+        teamId === "a"
+          ? {
+              pulled: 50,
+              failed: 1,
+              remaining: 240,
+              autoMatched: 2,
+              suggested: 8,
+              unmatched: 40,
+            }
+          : {
+              pulled: 3,
+              failed: 0,
+              remaining: 0,
+              autoMatched: 0,
+              suggested: 1,
+              unmatched: 2,
+            },
+    }));
+
+    expect(totalPulledInvoices(result)).toEqual({
+      pulled: 53,
+      failed: 1,
+      remaining: 240,
+      // A suggestion is a payment found; confirming it is the human's click.
+      matched: 11,
+      dailyLimit: false,
+    });
+  });
+
+  test("reads a skipped team and a failed one as nothing, not as zero", async () => {
+    const result = await runYukiDay(["a", "b"], async (teamId) => {
+      if (teamId === "a") return { ok: true, output: { skipped: true } };
+      throw new Error("nope");
+    });
+
+    expect(totalPulledInvoices(result)).toEqual({
+      pulled: 0,
+      failed: 0,
+      remaining: 0,
+      matched: 0,
+      dailyLimit: false,
+    });
+  });
+
+  test("carries one team's spent allowance to the whole run", async () => {
+    // Yuki's limit is per domain and a team is a domain, so one team stopping
+    // says nothing about another — but the person reading the summary has to
+    // be told that some of it did not happen.
+    const result = await runYukiDay(["a", "b"], async (teamId) => ({
+      ok: true,
+      output:
+        teamId === "a"
+          ? { pulled: 12, failed: 0, remaining: 102, dailyLimit: true }
+          : { pulled: 3, failed: 0, remaining: 0, suggested: 1 },
+    }));
+
+    expect(totalPulledInvoices(result)).toMatchObject({
+      pulled: 15,
+      remaining: 102,
+      dailyLimit: true,
     });
   });
 });

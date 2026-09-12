@@ -1,4 +1,8 @@
 import {
+  DEFAULT_YUKI_PULL_CUTOFF,
+  DEFAULT_YUKI_PULL_LIMIT,
+} from "@jobs/schemas/yuki";
+import {
   type InboxRowForYukiPull,
   yukiDocumentIdFrom,
 } from "@midday/db/queries";
@@ -23,37 +27,6 @@ import { MINIMUM_COMPARABLE_REFERENCE_LENGTH } from "@midday/yuki/decide";
  * existed only in Yuki. Those 690 are why Midday counts 284 transactions as
  * "invoice missing" while Yuki is waiting on 81.
  */
-
-/**
- * How far back a pull reaches, by invoice date.
- *
- * The archive goes back five years; Midday's transactions go back one
- * (2025-08-08 at the time of writing). 404 of the 696 missing invoices predate
- * any transaction Midday will ever hold, so pulling them would put documents in
- * the inbox that can never match anything — noise in every count this epic is
- * trying to make honest.
- *
- * 2025-01-01 rather than the transaction window's own start, because an invoice
- * is often paid months after its date, and rather than "the last 13 months",
- * because whole fiscal years are how the books are closed and how an accountant
- * reads them. It is a parameter rather than a constant because the useful
- * cutoff moves: an Enable Banking backfill or more card history (FF-1517) both
- * widen Midday's window, and widening this is then a re-run rather than a code
- * change — the reference id makes re-running fetch only what is new.
- */
-export const DEFAULT_YUKI_PULL_CUTOFF = "2025-01-01";
-
-/**
- * How many documents one run pulls.
- *
- * The first run has a backlog of roughly 290 documents, each a SOAP call, a
- * decode and a file into storage, and the task has ten minutes. Draining it
- * over a few days costs nothing — the pull is keyed on the Yuki document id, so
- * every run picks up where the last one stopped — and a bounded run is also
- * what keeps a first live run from being the largest thing this integration has
- * ever done.
- */
-export const DEFAULT_YUKI_PULL_LIMIT = 50;
 
 /**
  * Whether a row this job pulled earlier was left unfinished by a run that

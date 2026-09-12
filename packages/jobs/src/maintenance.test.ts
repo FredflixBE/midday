@@ -1,9 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import {
+  defaultMaintenanceOptions,
   getMaintenanceAction,
   MAINTENANCE_ACTION_IDS,
   MAINTENANCE_ACTIONS,
+  maintenanceOptions,
+  maintenanceRunKey,
 } from "./maintenance";
+import {
+  DEFAULT_YUKI_PULL_CUTOFF,
+  DEFAULT_YUKI_PULL_LIMIT,
+  MAX_YUKI_PULL_LIMIT,
+} from "./schemas/yuki";
 
 describe("maintenance registry", () => {
   test("lists every declared id, in order", () => {
@@ -27,6 +35,9 @@ describe("maintenance registry", () => {
       "invoice-recurring-daily",
     );
     expect(getMaintenanceAction("sync-yuki").task).toBe("yuki-daily");
+    expect(getMaintenanceAction("pull-invoices").task).toBe(
+      "yuki-pull-invoices",
+    );
   });
 
   test("rejects an id that is not in the registry", () => {
@@ -135,5 +146,204 @@ describe("summarizing a run", () => {
       expect(summary.length).toBeGreaterThan(0);
       expect(summary.endsWith(".")).toBe(true);
     }
+  });
+});
+
+describe("summarizing the invoice pull", () => {
+  const pull = (outcomes: unknown[], failed = 0) =>
+    getMaintenanceAction("pull-invoices").summarize({
+      teams: 1,
+      failed,
+      outcomes,
+    });
+
+  test("says what arrived and what is still to come", () => {
+    expect(
+      pull([
+        {
+          teamId: "team-a",
+          ok: true,
+          output: {
+            pulled: 50,
+            failed: 0,
+            remaining: 264,
+            autoMatched: 1,
+            suggested: 9,
+          },
+        },
+      ]),
+    ).toBe(
+      "Pulled 50 invoices, and matched 10 documents to a payment. 264 invoices are still to come — run it again.",
+    );
+  });
+
+  test("says plainly when the backlog is gone", () => {
+    // The one thing a person pressing this repeatedly is waiting to read.
+    expect(
+      pull([
+        {
+          teamId: "team-a",
+          ok: true,
+          output: {
+            pulled: 1,
+            failed: 0,
+            remaining: 0,
+            autoMatched: 0,
+            suggested: 1,
+          },
+        },
+      ]),
+    ).toBe(
+      "Pulled 1 invoice, and matched 1 document to a payment. Nothing is left to pull.",
+    );
+  });
+
+  test("says the books stopped for the day rather than claiming it is done", () => {
+    // What a real run answered on 2026-09-12 once the domain's 1,000 calls
+    // were spent: it must not read as "finished".
+    expect(
+      pull(
+        [
+          {
+            teamId: "team-a",
+            ok: true,
+            output: {
+              pulled: 0,
+              failed: 0,
+              remaining: 114,
+              dailyLimit: true,
+            },
+          },
+        ],
+        0,
+      ),
+    ).toBe(
+      "Pulled 0 invoices, and matched 0 documents to a payment. The books stopped answering for today — their daily limit is spent, so run it again tomorrow.",
+    );
+  });
+
+  test("does not claim nothing is left when a team never reported", () => {
+    // A failed team contributes no backlog, which is not the same as an empty
+    // one — and this is exactly what a spent allowance looked like before the
+    // run learned to say so.
+    expect(pull([], 1)).toBe(
+      "Pulled 0 invoices, and matched 0 documents to a payment. What it reached is done. 1 team failed — see the run's logs.",
+    );
+  });
+
+  test("names both kinds of trouble, and points at the logs", () => {
+    expect(
+      pull(
+        [
+          {
+            teamId: "team-a",
+            ok: true,
+            output: {
+              pulled: 8,
+              failed: 2,
+              remaining: 0,
+              autoMatched: 0,
+              suggested: 0,
+            },
+          },
+        ],
+        1,
+      ),
+    ).toBe(
+      // Not "nothing is left": two documents were not fetched and a team never
+      // reported, so what is left is precisely what this run cannot say.
+      "Pulled 8 invoices, and matched 0 documents to a payment. What it reached is done. 2 documents could not be fetched, 1 team failed — see the run's logs.",
+    );
+  });
+
+  test("says plainly that nobody has connected the books", () => {
+    expect(getMaintenanceAction("pull-invoices").summarize({ teams: 0 })).toBe(
+      "No team has the accounting integration connected, so there was nothing to pull.",
+    );
+  });
+});
+
+describe("the answers a job is started with", () => {
+  const pullAction = getMaintenanceAction("pull-invoices");
+  const syncBanks = getMaintenanceAction("sync-banks");
+
+  test("fills in the task's own defaults when nothing was chosen", () => {
+    expect(maintenanceOptions(pullAction, undefined)).toEqual({
+      cutoff: DEFAULT_YUKI_PULL_CUTOFF,
+      limit: DEFAULT_YUKI_PULL_LIMIT,
+    });
+  });
+
+  test("starts the form on those same defaults", () => {
+    // The form and an empty payload have to agree, or pressing the button
+    // without touching anything would not be the run the schedule makes.
+    expect(defaultMaintenanceOptions(pullAction)).toEqual(
+      maintenanceOptions(pullAction, undefined) as Record<string, string>,
+    );
+  });
+
+  test("keeps what was chosen", () => {
+    expect(
+      maintenanceOptions(pullAction, { cutoff: "2024-01-01", limit: 200 }),
+    ).toEqual({ cutoff: "2024-01-01", limit: 200 });
+  });
+
+  test("refuses a date the task would refuse", () => {
+    expect(() =>
+      maintenanceOptions(pullAction, { cutoff: "01/01/2024" }),
+    ).toThrow();
+  });
+
+  test("refuses a run larger than the task can finish", () => {
+    expect(() =>
+      maintenanceOptions(pullAction, { limit: MAX_YUKI_PULL_LIMIT + 1 }),
+    ).toThrow();
+  });
+
+  test("hands a job that takes nothing an empty payload", () => {
+    // Including when something was sent for it anyway.
+    expect(maintenanceOptions(syncBanks, { cutoff: "2024-01-01" })).toEqual({});
+    expect(defaultMaintenanceOptions(syncBanks)).toEqual({});
+  });
+});
+
+describe("a job meant to be pressed again", () => {
+  test("is the one that reports a backlog", () => {
+    // The pull says what is left and asks to be run again; the window its key
+    // lives for is shortened for that, in the router.
+    expect(getMaintenanceAction("pull-invoices").repeatable).toBe(true);
+  });
+
+  test("is not the default", () => {
+    expect(getMaintenanceAction("sync-banks").repeatable).toBeUndefined();
+    expect(getMaintenanceAction("sync-yuki").repeatable).toBeUndefined();
+  });
+});
+
+describe("the key one press runs under", () => {
+  test("is the job's id alone when it takes no answers", () => {
+    // Unchanged from before there were any, so a double-click still lands on
+    // the run that is already going.
+    expect(maintenanceRunKey(getMaintenanceAction("sync-banks"), {})).toBe(
+      "maintenance:sync-banks",
+    );
+  });
+
+  test("separates two runs of one job with different answers", () => {
+    const action = getMaintenanceAction("pull-invoices");
+
+    const first = maintenanceRunKey(action, {
+      cutoff: "2025-01-01",
+      limit: 50,
+    });
+    const second = maintenanceRunKey(action, {
+      cutoff: "2020-01-01",
+      limit: 50,
+    });
+
+    expect(first).not.toBe(second);
+    // Changing the cutoff and pressing again inside the window must start a
+    // new run, not hand back the previous one.
+    expect(first).toBe("maintenance:pull-invoices:cutoff=2025-01-01,limit=50");
   });
 });

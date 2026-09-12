@@ -29,6 +29,26 @@ export class YukiRequestError extends Error {
   }
 }
 
+/**
+ * Whether Yuki refused because the domain's allowance for the day is spent.
+ *
+ * Yuki allows 1,000 calls a day per domain on the free tier and then faults
+ * every operation with `Daily limit exceeded` until midnight. Measured on
+ * 2026-09-12, pulling 200 purchase invoices: a document is one call each, on
+ * top of the fifteen an archive read costs, and the day's other jobs.
+ *
+ * It is worth telling apart from every other fault because it is not a failure
+ * of anything — nothing is wrong, nothing is lost, and the answer is to run the
+ * job again tomorrow. A caller that treats it as an error reports a broken
+ * integration to somebody whose integration is fine.
+ */
+export function isYukiDailyLimit(error: unknown): boolean {
+  return (
+    error instanceof YukiRequestError &&
+    /daily limit exceeded/i.test(error.message)
+  );
+}
+
 /** Missing or malformed configuration. */
 export class YukiConfigError extends Error {
   constructor(message: string) {

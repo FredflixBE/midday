@@ -44,6 +44,7 @@ export type { YukiDocumentReader } from "./documents";
 export { fetchDocumentBinary, MAX_DOCUMENT_BYTES } from "./documents";
 export type { YukiAccessRefusal } from "./errors";
 export {
+  isYukiDailyLimit,
   YukiAccessError,
   YukiConfigError,
   YukiNotConnectedError,
