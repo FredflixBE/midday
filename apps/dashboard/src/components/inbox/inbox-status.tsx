@@ -162,7 +162,15 @@ export function InboxStatus({ item }: Props) {
     );
   }
 
-  if (item.status === "done" || item?.transactionId) {
+  // Read from the transaction, not from the status. These two used to be the
+  // same thing — `done` was only ever reached through `matchTransaction`, which
+  // sets both — and the badge was written as `status === "done" || transactionId`
+  // on that basis. FF-1450 gave `done` a second meaning: an invoice pulled from
+  // the books is closed on arrival, because the accountant already has it and it
+  // must not sit in the inbox looking like work. 200 such rows then claimed to
+  // be "successfully matched to a transaction" while 82 of them had matched
+  // nothing at all.
+  if (item?.transactionId) {
     return (
       <TooltipProvider delayDuration={0}>
         <Tooltip>
@@ -176,6 +184,30 @@ export function InboxStatus({ item }: Props) {
             <p>
               This file has been successfully <br />
               matched to a transaction
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  // Closed, with nothing attached. Today that is an invoice pulled from the
+  // books, and the sentence says only what is true of any such row: it is dealt
+  // with, and no transaction hangs off it. It deliberately does not name the
+  // accounting system — FF-1499's rule is that no status may.
+  if (item.status === "done") {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex space-x-1.5 items-center px-1.5 py-0.5 text-[10px] cursor-default border text-[#878787]">
+              <span>Filed</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={10} className="text-xs max-w-[260px]">
+            <p>
+              Dealt with, so nothing here is waiting on you. No transaction is
+              attached to it.
             </p>
           </TooltipContent>
         </Tooltip>
