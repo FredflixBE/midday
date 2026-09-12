@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./archive": "./src/archive.ts",
     "./team": "./src/team.ts"
   },
   "scripts": {
@@ -14,11 +15,13 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test --exit src",
     "explore": "bun run scripts/explore.ts",
+    "archive": "bun run scripts/archive.ts",
     "backlog": "bun run scripts/backlog.ts"
   },
   "dependencies": {
     "@midday/db": "workspace:*",
     "@midday/encryption": "workspace:*",
+    "@midday/utils": "workspace:*",
     "fast-xml-parser": "catalog:"
   },
   "devDependencies": {

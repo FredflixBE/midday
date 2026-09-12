@@ -22,6 +22,7 @@
     "./flags": "./src/flags.ts",
     "./format": "./src/format.ts",
     "./inbox-failure": "./src/inbox-failure.ts",
+    "./invoice-reference": "./src/invoice-reference.ts",
     "./resend": "./src/resend.ts",
     "./sanitize-redirect": "./src/sanitize-redirect.ts",
     "./tax": "./src/tax.ts"

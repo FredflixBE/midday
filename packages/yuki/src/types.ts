@@ -27,9 +27,14 @@ export type OutstandingItemsSortOrder =
   | "DateDesc";
 
 /**
- * Yuki's system document folders. These carry `ProcessedByYuki: "True"` and
- * appear to be fixed across domains; user-created folders are numbered from
- * 100 upwards.
+ * Yuki's system document folders, for the code that wants to name one.
+ *
+ * **This is not the list of a domain's folders.** Anything that has to cover
+ * the archive asks `DocumentFolders` instead (`archive.ts`): a domain also has
+ * folders the team made, and on the one measured on 2026-09-12 those held 44
+ * documents, 14 of them carrying a reference. Folder 6 turned out to be one of
+ * them — it reports `ProcessedByYuki: "False"` — so even the split between
+ * system and user folders is per domain rather than fixed.
  *
  * Note that 7 is "Uitzoeken Yuki" — documents Yuki is still sorting — and not
  * the purchase folder, which an earlier draft of the design assumed.

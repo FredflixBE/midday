@@ -48,6 +48,91 @@ disconnected in between — skips that team rather than failing.
 `Administrations` and `DocumentFolders`, all reads. The last is there because a
 wrong region passes the first two and fails only once the books are read.
 
+## The archive
+
+Yuki cannot be asked whether it already holds invoice number X. `SearchDocuments`
+answers `Invalid Tab ID` for every tab tried, and there is no other keyed lookup.
+
+It does not have to be asked. The whole archive is small enough to read entire —
+**1,815 documents across 12 folders in 15 calls**, against a free allowance of
+1,000 a day — so a job that needs the answer reads it, keeps it for the length of
+its run, and asks it in memory (FF-1498):
+
+```ts
+const archive = await readYukiArchive(client);
+
+archive.findInvoices("#SBIE-1234"); // the invoices carrying that number
+```
+
+### Why it is not a table
+
+The first design mirrored the archive into `yuki_archive_documents` and kept it
+current with a per-folder cursor. That was dropped, and the reason is worth
+keeping, because a table looks like the obvious answer:
+
+**Nothing needs one.** Every consumer — the decision pass (FF-1493), the Peppol
+pull (FF-1450), the period audit (FF-1460) — is a batch job with nobody waiting.
+The one screen showing Yuki's state (FF-1499) reads the document id already
+stored on Midday's inbox row plus `OutstandingCreditorItems`, not the archive.
+No page load has to answer from it, so fifteen calls in a job costs nothing
+anyone can feel.
+
+**And a stale answer here cannot be taken back.** A wrong *no* to "does Yuki
+already hold this invoice?" uploads a duplicate into live books that Yuki has no
+delete operation to remove. A mirror answers from yesterday when Yuki is
+unreachable; a live read simply fails and the run is retried. Refusing to decide
+is the right behaviour, and only this shape gets it for free.
+
+The ticket asked for the mirror to be refreshed immediately before every use,
+which is a cache with a lifetime of zero. If a synchronous, user-facing read of
+the archive ever appears, that is the fact that reopens this. Nothing else does.
+
+### Four things that are easy to get wrong
+
+**Ask which folders exist.** Not `YUKI_FOLDERS` — that is Yuki's system set. A
+domain also has folders the team made, and on the measured one those held 44
+documents, 14 carrying a reference. Folder 6 turned out to be a user folder too.
+A folder you do not read is a document you upload twice.
+
+**Read from the epoch, not from a date window.** `ModifiedDocumentsInFolder` with
+`modifiedSince` at `2000-01-01T00:00:00` returns a folder entire — verified
+against Aankoop, which answered with all 722 of its documents. The alternative,
+`DocumentsInFolder`, takes a start and an end date, and a date window is a way to
+miss a document: the spike's 120-day check of the purchase folder missed an
+OpenAI invoice from January that Yuki already held.
+
+**Only `Type` 2 and 6 are invoices.** The numeric code is stable and
+language-independent; `TypeDescription` is a display label in the session's
+language, like the outstanding-item labels. It matters: 870 of the archive's
+references sit on documents of every kind — bank statements, VAT returns,
+journal entries — and 9 of those collide with an invoice number. Without the
+type filter, "does Yuki already hold this invoice?" is sometimes answered by a
+bank statement.
+
+**A reference with nothing comparable in it matches nothing.** One made only of
+punctuation normalises to the empty string, and so does every unnumbered document
+in the archive — so a lookup that accepted one would report that Yuki already
+holds all of them.
+
+Yuki's timestamps (`2026-09-06T11:31:38`, no timezone) are kept **as the strings
+Yuki sent**. A `Date` would be a claim about which clock wrote them, invisible
+once made. Amounts and dates are text for a different reason: they are for
+display only, and a string is a value nothing can accidentally decide on
+(FF-1493).
+
+### Reading the archive against a real domain
+
+```sh
+bun run --cwd packages/yuki archive
+```
+
+Prints what it found: documents per folder, the type breakdown, how many carry an
+invoice number and how many of those are not unique. It then checks the lookup
+end to end — every invoice number in the archive, asked for exactly as Yuki wrote
+it, must find the document it came from — because normalisation that loses a
+document is what ends in a duplicate upload. Reads only, writes nothing, and
+prints no supplier, amount or invoice number: this repository is public.
+
 ## Setup, for the scripts
 
 The scripts below are the only code that reads credentials from the
@@ -112,8 +197,12 @@ Several operations return a *string* containing further XML rather than nested
 elements; call `parseXml` on those results to go a level deeper.
 
 `sortOrder` parameters are **string enums**, not integers — see `src/types.ts`.
-Not every operation takes `administrationID`: `DocumentsInFolder` and
-`CostCategories` do not.
+Not every operation takes `administrationID`: `DocumentsInFolder`,
+`ModifiedDocumentsInFolder`, `DocumentFolders` and `CostCategories` do not.
+
+A list of one comes back as the element itself rather than an array of one, and
+an empty list as `""` rather than an absent element — `{ "Documents": "" }`. Any
+parser of a Yuki list has to handle all three.
 
 The GL account scheme spells one of its own fields `descripton`.
 
