@@ -10,6 +10,8 @@
     "test": "bun test --exit src",
     "verify-yuki": "bun run scripts/verify-yuki-delivery.ts",
     "verify-yuki-pull": "bun run scripts/verify-yuki-pull.ts",
+    "confirm-matches": "bun run scripts/confirm-suggested-matches.ts",
+    "rematch-filed": "bun run scripts/rematch-filed-invoices.ts",
     "typecheck": "tsc --noEmit"
   },
   "exports": {
