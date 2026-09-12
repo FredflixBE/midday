@@ -65,6 +65,24 @@ archive.findInvoices("#SBIE-1234");  // invoices carrying that number
 archive.findDocuments("#SBIE-1234"); // anything carrying it, of any type
 ```
 
+**Asking twice with the same client reads once.** The archive is held against
+the client, which `yukiClientForTeam` builds per run, so a step that wants it can
+just ask rather than have it threaded through every signature — and a loop over
+200 inbox documents costs fifteen calls, not three thousand. Two steps starting
+concurrently share one read instead of racing into two.
+
+A deliberate re-read says so, and replaces what the client holds:
+
+```ts
+await readYukiArchive(client, { refresh: true });
+```
+
+That case is real — FF-1458 re-reads immediately before an upload run so an
+invoice that arrived over Peppol minutes ago is not missed — and it has to be
+sayable, or the reuse above would quietly defeat the freshness this design
+exists for. A read that *fails* is never kept: the next caller tries again, and
+if Yuki is down it fails too, rather than being handed a cached failure.
+
 **Ask both, and treat the gap as a refusal to decide.** `findInvoices` answers
 the question the books care about; `findDocuments` catches the document Yuki is
 holding but has not classified as an invoice yet. The purchase folder has 5 of

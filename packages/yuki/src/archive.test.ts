@@ -278,7 +278,7 @@ describe("readArchiveFolder", () => {
       call: async () => documents(document({ "@ID": "a" })),
     };
 
-    expect(
+    await expect(
       readArchiveFolder(alwaysFull, { folderId: 1, pageSize: 1 }),
     ).rejects.toThrow(YukiRequestError);
   });
@@ -538,6 +538,81 @@ describe("readYukiArchive", () => {
     const archive = await readYukiArchive(reader, { pageSize: 2 });
 
     expect(archive.calls).toBe(3);
+  });
+
+  it("reads once however many times the same client is asked", async () => {
+    // The point of the whole design: a loop over 200 inbox documents costs
+    // fifteen calls, not three thousand.
+    const reader = fakeReader([
+      { DocumentFolders: { DocumentFolder: folder(1, "Aankoop") } },
+      documents(document({ "@ID": "a", Reference: "INV-1001" })),
+    ]);
+
+    const first = await readYukiArchive(reader);
+    const second = await readYukiArchive(reader);
+    const third = await readYukiArchive(reader);
+
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+    expect(reader.requests).toHaveLength(2);
+    expect(third.findInvoices("INV-1001")).toHaveLength(1);
+  });
+
+  it("has two concurrent askers share one read rather than racing into two", async () => {
+    const reader = fakeReader([
+      { DocumentFolders: { DocumentFolder: folder(1, "Aankoop") } },
+      documents(document({ "@ID": "a" })),
+    ]);
+
+    const [first, second] = await Promise.all([
+      readYukiArchive(reader),
+      readYukiArchive(reader),
+    ]);
+
+    expect(second).toBe(first);
+    expect(reader.requests).toHaveLength(2);
+  });
+
+  it("reads again when a caller deliberately asks for a refresh", async () => {
+    // FF-1458 re-reads immediately before an upload run, so that an invoice
+    // that arrived over Peppol minutes ago is not missed. Reuse must not
+    // quietly defeat that.
+    const reader = fakeReader([
+      { DocumentFolders: { DocumentFolder: folder(1, "Aankoop") } },
+      documents(document({ "@ID": "a" })),
+      { DocumentFolders: { DocumentFolder: folder(1, "Aankoop") } },
+      documents(document({ "@ID": "a" }), document({ "@ID": "b" })),
+    ]);
+
+    const before = await readYukiArchive(reader);
+    const after = await readYukiArchive(reader, { refresh: true });
+
+    expect(before.documents).toHaveLength(1);
+    expect(after.documents).toHaveLength(2);
+    expect(after).not.toBe(before);
+
+    // And the refreshed one is what everything afterwards sees.
+    expect(await readYukiArchive(reader)).toBe(after);
+  });
+
+  it("does not keep a failed read, so the next caller gets to try again", async () => {
+    // A cached failure would outlive the outage that caused it, and every
+    // decision for the rest of the run would be made without the archive.
+    let attempts = 0;
+    const flaky: YukiArchiveReader = {
+      async call(operation) {
+        if (operation === "DocumentFolders") {
+          attempts++;
+          if (attempts === 1) throw new Error("Yuki is down");
+          return { DocumentFolders: { DocumentFolder: folder(1, "Aankoop") } };
+        }
+        return documents(document({ "@ID": "a" }));
+      },
+    };
+
+    await expect(readYukiArchive(flaky)).rejects.toThrow("Yuki is down");
+    await expect(readYukiArchive(flaky)).resolves.toBeDefined();
+    expect(attempts).toBe(2);
   });
 
   it("stamps when it was read, because everything in it is exactly that old", async () => {

@@ -435,15 +435,28 @@ export function buildYukiArchive(params: {
 /**
  * Reads the whole archive: which folders exist, then each of them entire.
  *
+ * **Asking twice with the same client reads once.** The result is held against
+ * the client, so a step that wants the archive can simply ask for it rather
+ * than having it threaded through every signature — and a loop over 200 inbox
+ * documents costs fifteen calls, not three thousand. Concurrent askers share
+ * one read rather than racing into two.
+ *
+ * **A deliberate re-read says so:** `{ refresh: true }`. That case is real —
+ * FF-1458 wants the archive re-read immediately before an upload run, so that
+ * an invoice which arrived over Peppol minutes ago is not missed — and it has
+ * to be possible to say, or the reuse above would quietly defeat the freshness
+ * this whole design exists for. It replaces what the client holds, so everything
+ * asking afterwards sees the new read.
+ *
  * The folders are asked for rather than assumed. `YUKI_FOLDERS` is Yuki's
  * system set, and a domain also has folders the team made — on the one measured
  * they held 44 documents, 14 carrying a reference, and folder 6 turned out to
  * be one of them. A read that covered only the known folders would miss those,
  * and missing a document means uploading it again.
  */
-export async function readYukiArchive(
+async function readEveryFolder(
   client: YukiArchiveReader,
-  options: { pageSize?: number } = {},
+  options: { pageSize?: number },
 ): Promise<YukiArchive> {
   const folders = await listArchiveFolders(client);
   const documents: YukiArchiveDocument[] = [];
@@ -460,4 +473,38 @@ export async function readYukiArchive(
   }
 
   return buildYukiArchive({ folders, documents, calls });
+}
+
+/**
+ * The archive each client has already read, so that asking twice does not read
+ * twice.
+ *
+ * A client is built per run by `yukiClientForTeam`, so this is scoped to a run
+ * and dies with it — a `WeakMap` rather than a cache with a lifetime, because
+ * the client's own lifetime is exactly the right one.
+ *
+ * The **promise** is stored rather than the archive, so that two steps starting
+ * concurrently share one read instead of both firing fifteen calls.
+ */
+const archiveReads = new WeakMap<YukiArchiveReader, Promise<YukiArchive>>();
+
+export async function readYukiArchive(
+  client: YukiArchiveReader,
+  options: { pageSize?: number; refresh?: boolean } = {},
+): Promise<YukiArchive> {
+  if (!options.refresh) {
+    const alreadyReading = archiveReads.get(client);
+    if (alreadyReading) return alreadyReading;
+  }
+
+  const read = readEveryFolder(client, options).catch((error: unknown) => {
+    // A failed read must not become the answer for the rest of the run. The
+    // next caller should get to try again — and if Yuki is down, it should
+    // fail too, rather than be handed a cached failure or, worse, nothing.
+    archiveReads.delete(client);
+    throw error;
+  });
+
+  archiveReads.set(client, read);
+  return read;
 }
