@@ -48,9 +48,17 @@ export const yukiSyncCardCharges = schemaTask({
     connectionId: z.string().uuid().optional(),
   }),
   run: async ({ teamId, connectionId }) => {
-    const db = getDb();
-
-    const cards = await getYukiCardConnections(db, { teamId, connectionId });
+    // `getDb()` is called at each use rather than held in a variable, and that
+    // is load-bearing: `triggerAndWait` below suspends the run, and the `onWait`
+    // hook in `@jobs/init` closes the connection pool while it is suspended. A
+    // handle taken before the wait points at a pool that has been ended, so the
+    // first query after it fails — which is exactly what happened on the first
+    // live run (FF-1517), silently costing every status write and the
+    // settlement marking while the import itself looked fine.
+    const cards = await getYukiCardConnections(getDb(), {
+      teamId,
+      connectionId,
+    });
 
     if (cards.length === 0) {
       // Not a failure. A team can have Yuki connected and no card linked yet,
@@ -65,7 +73,7 @@ export const yukiSyncCardCharges = schemaTask({
     // client per card would turn a handful of calls into a multiple of them.
     let client: Awaited<ReturnType<typeof yukiClientForTeam>>;
     try {
-      client = await yukiClientForTeam(db, teamId);
+      client = await yukiClientForTeam(getDb(), teamId);
     } catch (error) {
       if (error instanceof YukiNotConnectedError) {
         // The team disconnected Yuki between the fan-out and this run. Skip it
@@ -108,7 +116,7 @@ export const yukiSyncCardCharges = schemaTask({
       // ago, so the backfill arrives already marked as notified — exactly what
       // a manual sync does, and for the same reason.
       const backfill =
-        (await getLatestCardChargeDate(db, {
+        (await getLatestCardChargeDate(getDb(), {
           teamId,
           bankAccountId: card.bankAccountId,
         })) === null;
@@ -125,7 +133,7 @@ export const yukiSyncCardCharges = schemaTask({
       // Written after the import and separately from it, because the import
       // skips rows it already has: a charge's status moves every time the
       // accountant books an invoice against it, long after it first arrived.
-      const statusesWritten = await setTransactionsBooksStatus(db, {
+      const statusesWritten = await setTransactionsBooksStatus(getDb(), {
         teamId,
         entries: toBooksStatusEntries(ledger.charges),
       });
@@ -133,13 +141,13 @@ export const yukiSyncCardCharges = schemaTask({
       // The bank took one lump sum from the current account to pay the card
       // off, and Midday already has that transaction. Left alone, every charge
       // would be counted twice.
-      const settlements = await markCardSettlementsAsInternal(db, {
+      const settlements = await markCardSettlementsAsInternal(getDb(), {
         teamId,
         cardBankAccountId: card.bankAccountId,
         settlements: ledger.settlements,
       });
 
-      await markYukiCardSynced(db, { connectionId: card.id, teamId });
+      await markYukiCardSynced(getDb(), { connectionId: card.id, teamId });
 
       logger.info("Synced a Yuki card", {
         teamId,
