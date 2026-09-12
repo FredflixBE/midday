@@ -3,6 +3,7 @@ const config = {
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
+  allowedDevOrigins: ["dev.fredflix.be"],
 
   // Use git commit SHA as build ID so all replicas share the same ID.
   // Without this, each replica generates a different build ID, causing
