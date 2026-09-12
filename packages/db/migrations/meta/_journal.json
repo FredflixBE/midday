@@ -50,6 +50,13 @@
       "when": 1789060922353,
       "tag": "0006_inbox_failed_status",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789218915141,
+      "tag": "0007_inbox_no_charge_status",
+      "breakpoints": true
     }
   ]
 }

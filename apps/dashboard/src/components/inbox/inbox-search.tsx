@@ -23,6 +23,7 @@ const statusFilters = [
   { id: "pending", name: "Pending" },
   { id: "suggested_match", name: "Suggested Match" },
   { id: "no_match", name: "Unmatched" },
+  { id: "no_charge", name: "No charge" },
   { id: "failed", name: "Failed" },
 ];
 
@@ -112,6 +113,7 @@ export function InboxSearch() {
                               | "pending"
                               | "suggested_match"
                               | "no_match"
+                              | "no_charge"
                               | "failed"),
                     })
                   }

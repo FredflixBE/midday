@@ -309,6 +309,12 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
         return; // Skip embedding and transaction matching for non-financial documents
       }
 
+      // Same rule as process-attachment: a document that charges nothing has no
+      // payment to be matched to, and matching would overwrite the status on
+      // its way past. Both ingestion paths have to agree, or where a document
+      // came from would decide what it is.
+      const chargesNothing = result.amount === 0;
+
       // Update inbox with extracted data
       const updatedInbox = await updateInboxWithProcessedData(db, {
         id: inboxData.id,
@@ -322,7 +328,9 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
         taxType: result.tax_type ?? undefined,
         type: result.type as "invoice" | "expense" | null | undefined,
         invoiceNumber: result.invoice_number ?? undefined,
-        status: "analyzing", // Keep analyzing until matching is complete
+        // "analyzing" keeps it there until matching completes; "no_charge" is
+        // already the final answer.
+        status: chargesNothing ? "no_charge" : "analyzing",
       });
 
       // Group related inbox items
@@ -524,15 +532,22 @@ Focus on what was purchased (e.g., "office supplies", "software subscription", "
       });
 
       // Trigger matching immediately in V2 (no embed-inbox dependency).
-      await batchProcessMatching.trigger({
-        teamId,
-        inboxIds: [inboxData.id],
-      });
+      if (chargesNothing) {
+        this.logger.info(
+          "Document charges nothing, skipping transaction matching",
+          { inboxId: inboxData.id, teamId },
+        );
+      } else {
+        await batchProcessMatching.trigger({
+          teamId,
+          inboxIds: [inboxData.id],
+        });
 
-      this.logger.info("Triggered batch-process-matching", {
-        inboxId: inboxData.id,
-        teamId,
-      });
+        this.logger.info("Triggered batch-process-matching", {
+          inboxId: inboxData.id,
+          teamId,
+        });
+      }
 
       this.logger.info("Slack upload processed successfully", {
         inboxId: inboxData.id,
