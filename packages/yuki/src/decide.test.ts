@@ -4,6 +4,7 @@ import { buildYukiArchive } from "./archive";
 import {
   decideYukiDelivery,
   MINIMUM_COMPARABLE_REFERENCE_LENGTH,
+  requiresDocumentText,
   type YukiDeliveryCandidate,
 } from "./decide";
 
@@ -476,5 +477,41 @@ describe("the set as a whole", () => {
 
   test("an empty set decides nothing", () => {
     expect(decide([])).toEqual([]);
+  });
+});
+
+describe("requiresDocumentText", () => {
+  test("yes for a document that will reach rule 1's check", () => {
+    expect(requiresDocumentText(candidate({ id: "a" }))).toBe(true);
+  });
+
+  test("no for one that cannot reach it", () => {
+    const skipped = [
+      candidate({ id: "a", type: "other" }),
+      candidate({ id: "a", type: null }),
+      candidate({ id: "a", structured: true }),
+      candidate({ id: "a", deliveredOn: "2026-09-01" }),
+      candidate({ id: "a", invoiceNumber: null }),
+      candidate({ id: "a", invoiceNumber: "///" }),
+      candidate({ id: "a", invoiceNumber: "AB" }),
+    ];
+
+    for (const document of skipped) {
+      expect(requiresDocumentText(document)).toBe(false);
+    }
+  });
+
+  test("skipping the download does not change the decision", () => {
+    // The optimisation has to be invisible: a document it says no about must
+    // decide the same way whether or not its text was fetched.
+    for (const document of [
+      candidate({ id: "a", type: "other" }),
+      candidate({ id: "a", structured: true }),
+      candidate({ id: "a", invoiceNumber: "AB" }),
+    ]) {
+      expect(only([{ ...document, documentText: null }])).toEqual(
+        only([document]),
+      );
+    }
   });
 });

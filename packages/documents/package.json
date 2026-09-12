@@ -8,7 +8,8 @@
     "./loader": "./src/loaders/loader.ts",
     "./classifier": "./src/classifier/classifier.ts",
     "./embed": "./src/embed/embed.ts",
-    "./utils": "./src/utils.ts"
+    "./utils": "./src/utils.ts",
+    "./pdf-text": "./src/utils/pdf-text-extract.ts"
   },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",

@@ -322,6 +322,31 @@ function preclassify(document: YukiDeliveryCandidate): Prepared {
   return { kind: "open", document, reference, delivered };
 }
 
+/**
+ * Whether this document's text layer is worth fetching before deciding.
+ *
+ * Reading a text layer means downloading the file, and an inbox holds thousands
+ * of them. Only rule 1's check ever looks at it, so only a document that
+ * reaches rule 1 needs one: in scope, carrying a usable number, not Peppol, not
+ * already delivered.
+ *
+ * It is exported so a caller can skip the download, **not** so it can skip the
+ * check. A document this says no about still gets decided; it just gets decided
+ * on something other than its text. Passing `documentText: null` for one is
+ * correct and changes nothing.
+ */
+export function requiresDocumentText(
+  document: Pick<
+    YukiDeliveryCandidate,
+    "invoiceNumber" | "type" | "structured" | "deliveredOn"
+  >,
+): boolean {
+  if (!isInScope(document.type)) return false;
+  if (document.structured) return false;
+  if (document.deliveredOn) return false;
+  return usableReference(document.invoiceNumber).ok;
+}
+
 function isInScope(type: YukiDeliveryCandidate["type"]): boolean {
   // Expenses are receipts, and a receipt is a purchase document Yuki wants just
   // as much as an invoice. Only `other` — Midday's "not a financial document" —

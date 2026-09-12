@@ -42,6 +42,7 @@
     "@midday/invoice": "workspace:*",
     "@midday/notifications": "workspace:*",
     "@midday/supabase": "workspace:*",
+    "@midday/yuki": "workspace:*",
     "@midday/trpc": "workspace:*",
     "@midday/utils": "workspace:*",
     "@sindresorhus/slugify": "catalog:",

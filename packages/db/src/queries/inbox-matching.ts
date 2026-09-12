@@ -1,5 +1,5 @@
 import { createLoggerWithContext } from "@midday/logger";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, notLike, or, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { inbox, transactionMatchSuggestions } from "../schema";
 import { createActivity } from "./activities";
@@ -476,4 +476,80 @@ export async function getSuggestionByInboxAndTransaction(
     .limit(1);
 
   return result || null;
+}
+
+/**
+ * The inbox statuses a document has reached once its extraction has finished.
+ *
+ * A row still being read has no invoice number yet, and one the pipeline gave
+ * up on never will — neither can be decided on, and including them would only
+ * produce a pile of "not extracted" that means "come back later".
+ */
+const EXTRACTED_INBOX_STATUSES = [
+  "pending",
+  "suggested_match",
+  "no_match",
+  "done",
+] as const;
+
+export type InboxDocumentForYukiDelivery = {
+  id: string;
+  filePath: string[] | null;
+  contentType: string | null;
+  invoiceNumber: string | null;
+  type: "invoice" | "expense" | "other" | null;
+  displayName: string | null;
+  /** Context for a human only. Nothing in FF-1493 decides on a date... */
+  date: string | null;
+  /** ...or on an amount. */
+  amount: number | null;
+  currency: string | null;
+  website: string | null;
+};
+
+/**
+ * Every document of a team's inbox that the Yuki purchase decision has to rule
+ * on (FF-1493).
+ *
+ * **There is no date window, and that is the point.** The previous version of
+ * this query took a `from` and a `to` derived from Yuki's oldest outstanding
+ * payment. A window is a way to miss a document: the FF-1448 spike's 120-day
+ * check missed an OpenAI invoice from January that Yuki already held, and would
+ * have delivered a duplicate. The archive is read whole (FF-1498) precisely so
+ * nothing here has to be bounded by a date.
+ *
+ * Grouped siblings are **kept**, unlike before. Two documents sharing an
+ * invoice number is rule 2, and it is a question for a person — which of these
+ * is the invoice, and which is the billing statement? Midday's own grouping
+ * already picks a primary by type, but that is a display heuristic, and letting
+ * it decide here would deliver whichever it happened to prefer.
+ *
+ * Documents pulled *out of* Yuki are left out: they are in Yuki by definition,
+ * and sending one back would be a duplicate with extra steps.
+ */
+export async function getInboxDocumentsForYukiDelivery(
+  db: Database,
+  params: { teamId: string },
+): Promise<InboxDocumentForYukiDelivery[]> {
+  return db
+    .select({
+      id: inbox.id,
+      filePath: inbox.filePath,
+      contentType: inbox.contentType,
+      invoiceNumber: inbox.invoiceNumber,
+      type: inbox.type,
+      displayName: inbox.displayName,
+      date: inbox.date,
+      amount: inbox.amount,
+      currency: inbox.currency,
+      website: inbox.website,
+    })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        inArray(inbox.status, [...EXTRACTED_INBOX_STATUSES]),
+        or(isNull(inbox.referenceId), notLike(inbox.referenceId, "yuki:%")),
+      ),
+    );
 }
