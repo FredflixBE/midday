@@ -26,9 +26,10 @@ import { yukiPullPurchaseInvoices } from "./pull-purchase-invoices";
 export const yukiPullInvoices = schemaTask({
   id: "yuki-pull-invoices",
   schema: yukiPullInvoicesSchema,
-  // Mostly spent waiting on the per-team runs, each of which is bounded at ten
-  // minutes by its own maxDuration.
-  maxDuration: 1800,
+  // Waiting on the per-team runs is wall-clock rather than compute, and this
+  // task spends almost none of either itself — the same reasoning `daily.ts`
+  // runs under, and the same number.
+  maxDuration: 600,
   // One at a time. Every run is safe to repeat — the reference id is unique —
   // but two at once would fetch the same documents twice.
   queue: { concurrencyLimit: 1 },

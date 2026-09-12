@@ -9,7 +9,7 @@
  * It lives in `@midday/jobs` rather than in the API or the dashboard because
  * both ends need it and they have to agree: the API validates the requested
  * action against it, and the dashboard renders one card per entry. Adding a
- * fourth maintenance job is therefore one entry here and nothing else.
+ * maintenance job is therefore one entry here and nothing else.
  *
  * Keep this module free of server-only imports — the dashboard bundles it.
  */
@@ -78,6 +78,17 @@ export interface MaintenanceAction {
   label: string;
   /** What the card asks for before starting it. Absent means "just run it". */
   fields?: readonly MaintenanceField[];
+  /**
+   * Whether pressing this again straight away is the point of it.
+   *
+   * A maintenance run is normally pressed once, so its idempotency key lives
+   * five minutes and a reload followed by a second press lands on the run
+   * already going. A job that drains a backlog is the opposite: it reports what
+   * is left and asks to be run again, and a five-minute window would hand back
+   * the run that just finished — the button would appear to do nothing. This
+   * shortens the window to long enough for a reload and no longer.
+   */
+  repeatable?: boolean;
   /**
    * The task's own payload schema, which is what the answers are validated
    * against. Sharing the task's schema rather than restating the rules here is
@@ -177,7 +188,7 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
       "Read the card charges the bank will not share out of the accountant's books, and say which of them still have no invoice. This is the daily job, run now.",
     label: "Run now",
     summarize: (output) => {
-      const { teams, failed, outcomes } = fields(output);
+      const { teams, failed } = fields(output);
 
       if (count(teams) === 0) {
         return "No team has the accounting integration connected, so there was nothing to read.";
@@ -185,9 +196,9 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
 
       // The counts live on the per-team runs; the day itself only knows how
       // many teams it visited.
-      const { charges, invoiceMissing, needsAttention } = totalCardCharges({
-        outcomes: Array.isArray(outcomes) ? outcomes : [],
-      } as YukiDayResult);
+      const { charges, invoiceMissing, needsAttention } = totalCardCharges(
+        outcomesOf(output),
+      );
 
       const summary = `Read ${plural(charges, "card charge", "card charges")} across ${plural(
         count(teams),
@@ -207,6 +218,8 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
     description:
       "Bring in the purchase invoices the accountant already has and Midday does not — the ones that arrived over Peppol, were keyed in, or were sent to the accountant directly. Each one is filed, matched to its payment where there is one, and closed. Safe to run again: a document already pulled is never fetched twice.",
     label: "Pull invoices",
+    // Pressed again, on purpose, until the backlog is gone — see `repeatable`.
+    repeatable: true,
     fields: [
       {
         name: "cutoff",
@@ -240,8 +253,16 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
         failed: documentsFailed,
       } = totalPulledInvoices(outcomesOf(output));
 
+      // Two counts, not a ratio: what arrived this run, and what the matcher
+      // found across everything it looked at — which also includes rows an
+      // earlier run left unfinished, and excludes the copies that are never
+      // matched. "50 pulled, 10 of which" would be a claim about neither.
       const summary = [
-        `Pulled ${plural(pulled, "invoice", "invoices")}, ${matched} of which found a payment.`,
+        `Pulled ${plural(pulled, "invoice", "invoices")}, and matched ${plural(
+          matched,
+          "document",
+          "documents",
+        )} to a payment.`,
         remaining > 0
           ? `${plural(remaining, "invoice is", "invoices are")} still to come — run it again.`
           : "Nothing is left to pull.",

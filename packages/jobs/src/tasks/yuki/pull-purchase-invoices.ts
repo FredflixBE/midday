@@ -47,6 +47,9 @@ import { processDocument } from "../document/process-document";
 /** How many rows the matcher is run over at once. */
 const MATCHING_CONCURRENCY = 3;
 
+/** How many indexing runs are started at once. */
+const INDEXING_CONCURRENCY = 5;
+
 type PulledDocument = {
   inboxId: string;
   documentId: string;
@@ -129,7 +132,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       }
     }
 
-    const indexed = await this.index(teamId, pulled);
+    const indexStarted = await this.index(teamId, pulled);
 
     // A copy of an invoice Midday already holds is closed without being
     // matched. The row it was grouped onto already carries Midday's match, and
@@ -151,7 +154,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       pulled: pulled.length,
       failed: failed.length,
       copies: copies.length,
-      indexed,
+      indexStarted,
       closed: toFinish.length,
       ...matched,
       remaining: plan.counts.remaining,
@@ -165,7 +168,9 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       pulled: pulled.length,
       failed: failed.length,
       copies: copies.length,
-      indexed,
+      // Indexing runs started, which is not the same as documents indexed: a
+      // run already started for this file today is deduplicated by its key.
+      indexStarted,
       /** Rows run through the matcher and closed, pulled now or left by a run
        * that stopped part way. */
       closed: toFinish.length,
@@ -283,10 +288,18 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
    * file with its own vault row, and an untitled file in the vault is exactly
    * the defect this fixes, whatever the inbox thinks of the row beside it.
    *
+   * **Silently**, which is the one thing it does differently from every other
+   * caller. Indexing announces itself in the activity feed, once on arrival and
+   * once when it finishes — right for a document somebody just uploaded, wrong
+   * for three hundred invoices the accountant dealt with months ago, which
+   * would bury everything else in the feed to announce work nobody has to do.
+   * The same reasoning that keeps the matcher off `batch-process-matching`.
+   *
    * Started rather than waited for, with the same idempotency key the mailbox
-   * path uses, so one file is processed once however many runs touch it. A
-   * failure to start does not fail the pull — the document is in the vault and
-   * in the inbox either way, and only its title is missing.
+   * path uses, so one file is processed once however many runs touch it — which
+   * also means the count below is runs *started*, not work done. A failure to
+   * start does not fail the pull: the document is in the vault and in the inbox
+   * either way, and only its title is missing.
    */
   private async index(
     teamId: string,
@@ -294,29 +307,34 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
   ): Promise<number> {
     let started = 0;
 
-    for (const document of pulled) {
-      const path = document.filePath.join("/");
+    for (let i = 0; i < pulled.length; i += INDEXING_CONCURRENCY) {
+      await Promise.all(
+        pulled.slice(i, i + INDEXING_CONCURRENCY).map(async (document) => {
+          const path = document.filePath.join("/");
 
-      try {
-        await processDocument.trigger(
-          {
-            mimetype: document.contentType,
-            filePath: document.filePath,
-            teamId,
-          },
-          {
-            idempotencyKey: `process-doc_${teamId}_${path}`,
-            idempotencyKeyTTL: "24h",
-          },
-        );
-        started += 1;
-      } catch (error) {
-        this.logger.warn("Could not start indexing for a pulled document", {
-          teamId,
-          documentId: document.documentId,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
+          try {
+            await processDocument.trigger(
+              {
+                mimetype: document.contentType,
+                filePath: document.filePath,
+                teamId,
+                notify: false,
+              },
+              {
+                idempotencyKey: `process-doc_${teamId}_${path}`,
+                idempotencyKeyTTL: "24h",
+              },
+            );
+            started += 1;
+          } catch (error) {
+            this.logger.warn("Could not start indexing for a pulled document", {
+              teamId,
+              documentId: document.documentId,
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          }
+        }),
+      );
     }
 
     return started;

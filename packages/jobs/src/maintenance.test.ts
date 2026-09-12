@@ -173,7 +173,7 @@ describe("summarizing the invoice pull", () => {
         },
       ]),
     ).toBe(
-      "Pulled 50 invoices, 10 of which found a payment. 264 invoices are still to come — run it again.",
+      "Pulled 50 invoices, and matched 10 documents to a payment. 264 invoices are still to come — run it again.",
     );
   });
 
@@ -194,7 +194,7 @@ describe("summarizing the invoice pull", () => {
         },
       ]),
     ).toBe(
-      "Pulled 1 invoice, 1 of which found a payment. Nothing is left to pull.",
+      "Pulled 1 invoice, and matched 1 document to a payment. Nothing is left to pull.",
     );
   });
 
@@ -217,7 +217,7 @@ describe("summarizing the invoice pull", () => {
         1,
       ),
     ).toBe(
-      "Pulled 8 invoices, 0 of which found a payment. Nothing is left to pull. 2 documents could not be fetched, 1 team failed — see the run's logs.",
+      "Pulled 8 invoices, and matched 0 documents to a payment. Nothing is left to pull. 2 documents could not be fetched, 1 team failed — see the run's logs.",
     );
   });
 
@@ -269,6 +269,19 @@ describe("the answers a job is started with", () => {
     // Including when something was sent for it anyway.
     expect(maintenanceOptions(syncBanks, { cutoff: "2024-01-01" })).toEqual({});
     expect(defaultMaintenanceOptions(syncBanks)).toEqual({});
+  });
+});
+
+describe("a job meant to be pressed again", () => {
+  test("is the one that reports a backlog", () => {
+    // The pull says what is left and asks to be run again; the window its key
+    // lives for is shortened for that, in the router.
+    expect(getMaintenanceAction("pull-invoices").repeatable).toBe(true);
+  });
+
+  test("is not the default", () => {
+    expect(getMaintenanceAction("sync-banks").repeatable).toBeUndefined();
+    expect(getMaintenanceAction("sync-yuki").repeatable).toBeUndefined();
   });
 });
 

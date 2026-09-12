@@ -100,6 +100,7 @@ export function MaintenanceActionCard({ id }: Props) {
           {action.fields?.map((field) => (
             <MaintenanceInput
               key={field.name}
+              action={action.id}
               field={field}
               value={options[field.name] ?? field.defaultValue}
               disabled={running}
@@ -142,22 +143,26 @@ export function MaintenanceActionCard({ id }: Props) {
  *
  * Deliberately plain: these are developer-only controls on a page only the
  * developer sees, and a date and a number are what the jobs actually ask for.
- * A number empties to its own default rather than to nothing, because an empty
+ * Either kind empties to its own default rather than to nothing: an empty
  * numeric input would otherwise send `NaN` to a job the whole point of which is
- * that it is bounded.
+ * that it is bounded, and an empty date is not a date the job accepts.
  */
 function MaintenanceInput({
+  action,
   field,
   value,
   disabled,
   onChange,
 }: {
+  action: string;
   field: MaintenanceField;
   value: string | number;
   disabled: boolean;
   onChange: (value: string | number) => void;
 }) {
-  const inputId = `maintenance-${field.name}`;
+  // Namespaced by the job, because two of them may well both ask for a limit
+  // and two inputs sharing an id makes one label point at the wrong one.
+  const inputId = `maintenance-${action}-${field.name}`;
 
   return (
     <div className="space-y-2">
@@ -170,7 +175,12 @@ function MaintenanceInput({
           className="w-[200px]"
           value={String(value)}
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
+          // Cleared with the input's own × , it empties to its default rather
+          // than to nothing, for the same reason the number below does: an
+          // empty string is not a date the job would accept.
+          onChange={(event) =>
+            onChange(event.target.value || field.defaultValue)
+          }
         />
       ) : (
         <Input

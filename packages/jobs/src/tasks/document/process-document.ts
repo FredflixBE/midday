@@ -55,7 +55,7 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
 
   async process(job: JobContext<ProcessDocumentPayload>): Promise<void> {
     const processStartTime = Date.now();
-    const { mimetype, filePath, teamId } = job.data;
+    const { mimetype, filePath, teamId, notify } = job.data;
     const supabase = createClient();
     const db = getDb();
     const fileName = filePath.join("/");
@@ -69,13 +69,15 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
 
     // Create activity for document upload
     try {
-      await tasks.trigger("notification", {
-        type: "document_uploaded",
-        teamId,
-        fileName: filePath.join("/"),
-        filePath: filePath,
-        mimeType: mimetype,
-      });
+      if (notify) {
+        await tasks.trigger("notification", {
+          type: "document_uploaded",
+          teamId,
+          fileName: filePath.join("/"),
+          filePath: filePath,
+          mimeType: mimetype,
+        });
+      }
     } catch (error) {
       // Don't fail the entire process if notification fails
       this.logger.warn("Failed to trigger document_uploaded notification", {
@@ -548,15 +550,17 @@ export class ProcessDocumentProcessor extends BaseProcessor<ProcessDocumentPaylo
 
       // Create activity for successful document processing
       try {
-        await tasks.trigger("notification", {
-          type: "document_processed",
-          teamId,
-          fileName,
-          filePath: filePath,
-          mimeType: mimetype,
-          contentLength: document.length,
-          sampleLength: sample.length,
-        });
+        if (notify) {
+          await tasks.trigger("notification", {
+            type: "document_processed",
+            teamId,
+            fileName,
+            filePath: filePath,
+            mimeType: mimetype,
+            contentLength: document.length,
+            sampleLength: sample.length,
+          });
+        }
       } catch (error) {
         // Don't fail the entire process if notification fails
         this.logger.warn("Failed to trigger document_processed notification", {

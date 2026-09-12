@@ -102,6 +102,20 @@ describe("tRPC: admin.runMaintenanceTask", () => {
     );
   });
 
+  test("lets a job that reports a backlog be pressed again sooner", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.runMaintenanceTask({ action: "pull-invoices" });
+    await caller.runMaintenanceTask({ action: "sync-banks" });
+
+    const [pull, sync] = mocks.triggerTask.mock.calls;
+
+    // Long enough for a reload mid-run, short enough that reading the result
+    // and pressing again is a new run rather than the one that just finished.
+    expect(pull?.[2]?.idempotencyKeyTTL).toBe("30s");
+    expect(sync?.[2]?.idempotencyKeyTTL).toBe("5m");
+  });
+
   test("refuses an answer the task itself would refuse", async () => {
     const caller = createCaller(createTestContext());
 
@@ -110,7 +124,12 @@ describe("tRPC: admin.runMaintenanceTask", () => {
         action: "pull-invoices",
         options: { cutoff: "01/01/2024" },
       }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      // One sentence, because the card prints it as one — a ZodError's own
+      // message is its whole issue list as JSON.
+      message: "cutoff must be YYYY-MM-DD",
+    });
 
     expect(mocks.triggerTask).not.toHaveBeenCalled();
   });
