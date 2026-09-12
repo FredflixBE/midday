@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@types/archiver": "^7.0.0",
-    "@types/bun": "latest",
+    "@types/bun": "1.4.2",
     "@types/papaparse": "^5.5.2",
     "esbuild": "^0.27.3"
   }

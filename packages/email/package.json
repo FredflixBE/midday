@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@react-email/preview-server": "5.2.10",
-    "@types/node": "^25.5.0",
+    "@types/node": "25.5.2",
     "typescript": "catalog:"
   }
 }
