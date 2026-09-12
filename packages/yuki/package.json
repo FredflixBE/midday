@@ -18,6 +18,7 @@
     "explore": "bun run scripts/explore.ts",
     "archive": "bun run scripts/archive.ts",
     "backlog": "bun run scripts/backlog.ts",
+    "card": "bun run scripts/card.ts",
     "team-archive": "bun run scripts/team-archive.ts"
   },
   "dependencies": {

@@ -233,6 +233,81 @@ documentation rather than read off a published signature. A wrong name comes
 back as a SOAP fault naming the parameter, so a first run is expected to have
 failures; each probe reports and continues.
 
+## The card the bank will not share
+
+KBC's open-banking consent page offers the current account and not the business
+Mastercard, so Midday sees the monthly settlement and none of the charges behind
+it — 68 of the 81 payments the books are waiting on an invoice for were card
+charges nothing in Midday could see. Yuki has them, because the accountant
+receives the card statement every month (FF-1517).
+
+`src/card.ts` reads them. A card charge is **one booking with two lines**: the
+card line on the card's own GL account, and a counterpart line for whatever the
+money was spent on. Pairing those two produces everything:
+
+```ts
+const [scheme, lines, outstanding] = await Promise.all([
+  fetchGLAccountScheme(client),
+  fetchLedgerLines(client, { from: "2025-09-01", to: "2026-09-12" }),
+  fetchOutstandingCreditorItems(client),
+]);
+
+const { charges, settlements } = readCardLedger({
+  lines,
+  cardAccountCode: findCardGLAccounts(scheme)[0].code,
+  scheme,
+  outstandingItemIds: new Set(
+    outstanding.filter((i) => i.kind === "payment_awaiting_invoice").map((i) => i.id),
+  ),
+});
+```
+
+### Four things that are easy to get wrong here too
+
+**Decide on the sub-type, never on the words.** `GetGLAccountScheme` gives every
+account a numeric `subtype` — 52 is a credit card, 2 suppliers, 4 internal
+transfers, 49 the current account — and those are stable and language
+independent. The account's `descripton` (Yuki's own spelling) and the
+description on a line ("Kaartverrichtingen", "Betaling — Uitgavenstaat") are
+display strings in the session's language, the same trap as the outstanding-item
+labels. Which card lines are charges and which are the monthly settlement is
+decided on the counterpart account's sub-type alone.
+
+**Pair against the adjacent line whatever account it landed on.** Two of 147
+measured charges were booked straight to a cost account with no supplier line at
+all. Pairing only against suppliers leaves those two unpaired, and unpaired means
+*Needs attention* — someone asked to look at something perfectly in order.
+
+**Read the ledger entire, not per account.** It follows from the above: the
+counterpart can be anywhere. A year of a small company's books is 1,750 lines
+and under a megabyte, in well under a second, so asking for everything costs one
+call rather than two.
+
+**The outstanding item's `ID` is the supplier line's id.** That is the whole
+mechanism behind the status, verified across all 68: no amount is ever compared
+across systems, because both lines come from one Yuki booking and the link into
+the backlog is an identifier. The pair is still checked for an identical
+description and exactly opposite amounts, and a failed check sends the charge to
+*Needs attention* rather than guessing — the `hID` adjacency is observed rather
+than documented, which is exactly why the verification stays.
+
+`documentMatched.matchDate` is empty on every line. It is **not** an invoice
+flag; do not read it. Nor is `foreignCurrency`: on all 159 measured card lines it
+answered `EUR` at rate 1.000000, *including* the 59 charges made in dollars,
+because it describes the booking rather than the card transaction. The original
+currency is in the description and nowhere else.
+
+### Checking it against a real domain
+
+```sh
+bun run --cwd packages/yuki card
+```
+
+Reports the cards it found, how each charge came out, and two cross-checks: that
+nothing landed in Needs attention, and that the charges with no invoice are
+exactly the card payments `backlog` counts. Exits non-zero if either fails.
+Read-only, three calls, and it prints no merchant, supplier or invoice number.
+
 ## Measuring the purchase backlog
 
 ```sh
