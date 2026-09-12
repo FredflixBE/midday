@@ -3,6 +3,7 @@ import { triggerSequenceAndWait } from "@jobs/utils/trigger-sequence";
 import { createClient } from "@midday/supabase/job";
 import { trpc } from "@midday/trpc";
 import { logger, schemaTask } from "@trigger.dev/sdk";
+import { yukiSyncCardCharges } from "../../yuki/sync-card-charges";
 import { transactionNotifications } from "../notifications/transactions";
 import { syncAccount } from "./account";
 
@@ -28,6 +29,19 @@ export const syncConnection = schemaTask({
       if (!data) {
         logger.error("Connection not found");
         throw new Error("Connection not found");
+      }
+
+      // A card read out of the accountant's books is a bank connection like
+      // any other as far as the rest of Midday is concerned, but it has no
+      // open-banking provider behind it to ask for a status. Handling it here
+      // is what makes the per-team bank schedule and the connection's own sync
+      // button work without either of them knowing about Yuki (FF-1517).
+      if (data.provider === "yuki") {
+        await yukiSyncCardCharges.triggerAndWait({
+          teamId: data.team_id,
+          connectionId,
+        });
+        return;
       }
 
       const connectionResult = await trpc.banking.connectionStatus.query({

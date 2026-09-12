@@ -4247,7 +4247,8 @@ export type Database = {
         | "plaid"
         | "teller"
         | "enablebanking"
-        | "pluggy";
+        | "pluggy"
+        | "yuki";
       bankProviders: "gocardless" | "plaid" | "teller";
       connection_status: "disconnected" | "connected" | "unknown";
       document_processing_status:
@@ -4546,6 +4547,7 @@ export const Constants = {
         "teller",
         "enablebanking",
         "pluggy",
+        "yuki",
       ],
       bankProviders: ["gocardless", "plaid", "teller"],
       connection_status: ["disconnected", "connected", "unknown"],

@@ -14,10 +14,13 @@
  * Keep this module free of server-only imports — the dashboard bundles it.
  */
 
+import { totalCardCharges, type YukiDayResult } from "./utils/yuki-day";
+
 export const MAINTENANCE_ACTION_IDS = [
   "sync-banks",
   "check-bank-schedules",
   "run-recurring-invoices",
+  "sync-yuki",
 ] as const;
 
 export type MaintenanceActionId = (typeof MAINTENANCE_ACTION_IDS)[number];
@@ -113,6 +116,37 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
         "invoice",
         "invoices",
       )}.`;
+    },
+  },
+  {
+    id: "sync-yuki",
+    task: "yuki-daily",
+    title: "Sync from the books",
+    description:
+      "Read the card charges the bank will not share out of the accountant's books, and say which of them still have no invoice. This is the daily job, run now.",
+    label: "Run now",
+    summarize: (output) => {
+      const { teams, failed, outcomes } = fields(output);
+
+      if (count(teams) === 0) {
+        return "No team has the accounting integration connected, so there was nothing to read.";
+      }
+
+      // The counts live on the per-team runs; the day itself only knows how
+      // many teams it visited.
+      const { charges, invoiceMissing, needsAttention } = totalCardCharges({
+        outcomes: Array.isArray(outcomes) ? outcomes : [],
+      } as YukiDayResult);
+
+      const summary = `Read ${plural(charges, "card charge", "card charges")} across ${plural(
+        count(teams),
+        "team",
+        "teams",
+      )}; ${invoiceMissing} still have no invoice, and ${needsAttention} need a look.`;
+
+      return count(failed) > 0
+        ? `${summary} ${plural(count(failed), "team", "teams")} failed — see the run's logs.`
+        : summary;
     },
   },
 ];

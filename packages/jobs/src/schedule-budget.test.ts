@@ -7,18 +7,23 @@ import { MAINTENANCE_ACTIONS } from "./maintenance";
  * The Trigger.dev free plan allows ten schedules, and a schedule declared in
  * the code counts against that even when its run exits immediately on a flag.
  * Two more are created at runtime — one per team with a bank connection, one
- * per inbox account — and the Yuki integration wants one for itself.
+ * per inbox account.
  *
  * So the declared ones are a budget, not a detail, and the only way to spend a
  * slot by accident is to add a `schedules.task` without noticing. This test is
  * what makes that visible: it lists what is registered rather than counting,
  * so the diff says which job appeared.
+ *
+ * `yuki-daily` is the whole Yuki integration's share, and it stays one:
+ * everything Yuki syncs fans out inside that run rather than asking for a cron
+ * of its own (FF-1517).
  */
 const DECLARED_SCHEDULES = [
   "invoice-recurring-daily",
   "invoice-scheduler",
   "no-match-scheduler",
   "rates-scheduler",
+  "yuki-daily",
 ];
 
 /** Registered at runtime, one per entity, and not part of the budget above. */
@@ -84,12 +89,21 @@ describe("the schedule budget", () => {
     expect((await scheduleTaskIds()).length).toBeGreaterThan(0);
   });
 
-  test("leaves room for Yuki under the plan's ten", async () => {
+  test("stays under the plan's ten", async () => {
     // The declared ones, plus one bank schedule and one inbox schedule for
     // the single team this fork serves.
     const inUse = (await scheduleTaskIds()).length;
 
     expect(inUse).toBeLessThan(10);
+  });
+
+  test("gives the whole Yuki integration exactly one schedule", async () => {
+    // Yuki is connected per team, so a schedule per team is the shape that
+    // suggests itself and the one there is no room for. Every later Yuki sync
+    // becomes a step inside `yuki-daily`, never a second cron.
+    const yuki = (await scheduleTaskIds()).filter((id) => id.includes("yuki"));
+
+    expect(yuki).toEqual(["yuki-daily"]);
   });
 });
 

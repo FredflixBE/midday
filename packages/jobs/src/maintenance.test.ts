@@ -26,6 +26,7 @@ describe("maintenance registry", () => {
     expect(getMaintenanceAction("run-recurring-invoices").task).toBe(
       "invoice-recurring-daily",
     );
+    expect(getMaintenanceAction("sync-yuki").task).toBe("yuki-daily");
   });
 
   test("rejects an id that is not in the registry", () => {
@@ -99,10 +100,40 @@ describe("summarizing a run", () => {
     ).toBe("Part of the run failed — see the run's logs.");
   });
 
+  test("reports what the books said, per status", () => {
+    expect(
+      getMaintenanceAction("sync-yuki").summarize({
+        teams: 1,
+        failed: 0,
+        outcomes: [
+          {
+            teamId: "team-a",
+            ok: true,
+            output: { charges: 147, invoiceMissing: 68, needsAttention: 0 },
+          },
+        ],
+      }),
+    ).toBe(
+      "Read 147 card charges across 1 team; 68 still have no invoice, and 0 need a look.",
+    );
+  });
+
+  test("says plainly that nobody has connected the books", () => {
+    // Zero teams and zero charges are different answers, and "read 0 charges"
+    // reads like a sync that is broken.
+    expect(getMaintenanceAction("sync-yuki").summarize({ teams: 0 })).toBe(
+      "No team has the accounting integration connected, so there was nothing to read.",
+    );
+  });
+
   test("survives a run that returned nothing", () => {
     // A task whose flag is off, or an older deployment, returns undefined.
+    // It must still say something, and it must not throw.
     for (const action of MAINTENANCE_ACTIONS) {
-      expect(action.summarize(undefined)).toContain("0");
+      const summary = action.summarize(undefined);
+
+      expect(summary.length).toBeGreaterThan(0);
+      expect(summary.endsWith(".")).toBe(true);
     }
   });
 });
