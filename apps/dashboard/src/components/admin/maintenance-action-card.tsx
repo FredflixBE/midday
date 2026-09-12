@@ -1,6 +1,9 @@
 "use client";
 
-import type { MaintenanceAction } from "@midday/jobs/maintenance";
+import {
+  getMaintenanceAction,
+  type MaintenanceActionId,
+} from "@midday/jobs/maintenance";
 import { Button } from "@midday/ui/button";
 import {
   Card,
@@ -17,18 +20,23 @@ import { useJobStatus } from "@/hooks/use-job-status";
 import { useTRPC } from "@/trpc/client";
 
 type Props = {
-  action: MaintenanceAction;
+  id: MaintenanceActionId;
 };
 
 /**
  * One maintenance job: a button that starts it, and what the run did
  * underneath.
  *
+ * Takes the id rather than the action, and looks the action up here, because
+ * the list that renders these is a server component and an action carries a
+ * `summarize` function — which does not survive that boundary (FF-1525).
+ *
  * The card holds the run it started rather than lifting that state up. Two
  * jobs started from this page are unrelated, and each only has to be followed
  * for as long as its own card is on screen.
  */
-export function MaintenanceActionCard({ action }: Props) {
+export function MaintenanceActionCard({ id }: Props) {
+  const action = getMaintenanceAction(id);
   const trpc = useTRPC();
   const [run, setRun] = useState<{ id: string; accessToken: string }>();
 
