@@ -109,6 +109,7 @@ describe("totalling what the invoice pull did", () => {
       remaining: 240,
       // A suggestion is a payment found; confirming it is the human's click.
       matched: 11,
+      dailyLimit: false,
     });
   });
 
@@ -123,6 +124,26 @@ describe("totalling what the invoice pull did", () => {
       failed: 0,
       remaining: 0,
       matched: 0,
+      dailyLimit: false,
+    });
+  });
+
+  test("carries one team's spent allowance to the whole run", async () => {
+    // Yuki's limit is per domain and a team is a domain, so one team stopping
+    // says nothing about another — but the person reading the summary has to
+    // be told that some of it did not happen.
+    const result = await runYukiDay(["a", "b"], async (teamId) => ({
+      ok: true,
+      output:
+        teamId === "a"
+          ? { pulled: 12, failed: 0, remaining: 102, dailyLimit: true }
+          : { pulled: 3, failed: 0, remaining: 0, suggested: 1 },
+    }));
+
+    expect(totalPulledInvoices(result)).toMatchObject({
+      pulled: 15,
+      remaining: 102,
+      dailyLimit: true,
     });
   });
 });

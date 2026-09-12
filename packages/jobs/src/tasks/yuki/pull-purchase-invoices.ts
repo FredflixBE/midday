@@ -16,6 +16,7 @@ import {
   yukiInboxReference,
 } from "@midday/db/queries";
 import { createClient } from "@midday/supabase/job";
+import { isYukiDailyLimit } from "@midday/yuki";
 import { readYukiArchive } from "@midday/yuki/archive";
 import type { YukiDocumentReader } from "@midday/yuki/documents";
 import { fetchDocumentBinary } from "@midday/yuki/documents";
@@ -91,10 +92,25 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     // does the pull and FF-1493's decision in one process reads it once for
     // both — which is what keeps two steps of a run from seeing two different
     // archives. Across separate task runs it is 15 calls each, of 1,000 a day.
-    const [archive, inboxRows] = await Promise.all([
-      readYukiArchive(client),
-      getInboxRowsForYukiPull(getDb(), { teamId }),
-    ]);
+    let archive: Awaited<ReturnType<typeof readYukiArchive>>;
+    let inboxRows: Awaited<ReturnType<typeof getInboxRowsForYukiPull>>;
+    try {
+      [archive, inboxRows] = await Promise.all([
+        readYukiArchive(client),
+        getInboxRowsForYukiPull(getDb(), { teamId }),
+      ]);
+    } catch (error) {
+      // Yuki's allowance for the day is spent. Nothing is wrong and nothing is
+      // lost — every document not pulled is still not pulled, and tomorrow's
+      // run takes exactly those — so this is an outcome rather than a failure.
+      if (isYukiDailyLimit(error)) {
+        this.logger.warn("Yuki's call allowance for today is spent", {
+          teamId,
+        });
+        return { teamId, skipped: true as const, dailyLimit: true as const };
+      }
+      throw error;
+    }
 
     const plan = planYukiPull({ archive, inboxRows, cutoff, limit });
 
@@ -111,6 +127,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     const supabase = createClient();
     const pulled: PulledDocument[] = [];
     const failed: string[] = [];
+    let dailyLimit = false;
 
     // One document at a time. Yuki's allowance is generous but its patience is
     // not, and a run that is slower than it could be still finishes the backlog
@@ -121,6 +138,19 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
           await this.pullOne({ teamId, client, supabase, candidate }),
         );
       } catch (error) {
+        // The allowance ran out part way through. Every document after this one
+        // would fault the same way, so the run stops fetching and finishes what
+        // it already has — the rows it created still need matching and closing.
+        if (isYukiDailyLimit(error)) {
+          dailyLimit = true;
+          this.logger.warn("Yuki's call allowance ran out during the run", {
+            teamId,
+            pulled: pulled.length,
+            ofPlanned: plan.pull.length,
+          });
+          break;
+        }
+
         // One document that cannot be fetched or stored must not abandon the
         // other forty-nine. It has no inbox row, so the next run tries again.
         failed.push(candidate.document.documentId);
@@ -157,7 +187,8 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       indexStarted,
       closed: toFinish.length,
       ...matched,
-      remaining: plan.counts.remaining,
+      dailyLimit,
+      remaining: plan.counts.eligible - pulled.length,
     });
 
     return {
@@ -176,10 +207,14 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       closed: toFinish.length,
       // What the matcher found, per row: autoMatched, suggested, unmatched.
       ...matched,
-      // Eligible documents this run left for the next one. The number that says
-      // whether the backlog is gone, so it is at the top rather than inside
-      // `counts` only.
-      remaining: plan.counts.remaining,
+      // Whether Yuki stopped answering because the day's allowance is spent.
+      dailyLimit,
+      // What is left for the next run. Counted from what was actually pulled
+      // rather than from what was planned, so a run that stopped early — or
+      // that could not fetch a document — says so here rather than reporting
+      // the backlog it meant to clear. `counts.remaining` is the plan's own
+      // view, before any of that happened.
+      remaining: plan.counts.eligible - pulled.length,
     };
   }
 

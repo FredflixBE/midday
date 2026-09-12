@@ -91,8 +91,16 @@ export function totalPulledInvoices(result: YukiDayResult): {
   failed: number;
   remaining: number;
   matched: number;
+  /** Whether any team stopped because Yuki's allowance for the day is spent. */
+  dailyLimit: boolean;
 } {
-  const totals = { pulled: 0, failed: 0, remaining: 0, matched: 0 };
+  const totals = {
+    pulled: 0,
+    failed: 0,
+    remaining: 0,
+    matched: 0,
+    dailyLimit: false,
+  };
 
   for (const outcome of result.outcomes) {
     const output = outcome.output;
@@ -103,6 +111,7 @@ export function totalPulledInvoices(result: YukiDayResult): {
     totals.failed += number(fields.failed);
     totals.remaining += number(fields.remaining);
     totals.matched += number(fields.autoMatched) + number(fields.suggested);
+    if (fields.dailyLimit === true) totals.dailyLimit = true;
   }
 
   return totals;

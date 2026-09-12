@@ -250,8 +250,10 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
         pulled,
         remaining,
         matched,
+        dailyLimit,
         failed: documentsFailed,
       } = totalPulledInvoices(outcomesOf(output));
+      const teamsFailed = count(failed);
 
       // Two counts, not a ratio: what arrived this run, and what the matcher
       // found across everything it looked at — which also includes rows an
@@ -263,17 +265,34 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
           "document",
           "documents",
         )} to a payment.`,
-        remaining > 0
-          ? `${plural(remaining, "invoice is", "invoices are")} still to come — run it again.`
-          : "Nothing is left to pull.",
+        nextStep(),
       ].join(" ");
+
+      function nextStep(): string {
+        // The books allow 1,000 calls a day and a document is one of them, so
+        // a large run can end here. Nothing is wrong and nothing is lost.
+        if (dailyLimit) {
+          return "The books stopped answering for today — their daily limit is spent, so run it again tomorrow.";
+        }
+
+        if (remaining > 0) {
+          return `${plural(remaining, "invoice is", "invoices are")} still to come — run it again.`;
+        }
+
+        // "Nothing is left" is a claim about what was looked at, so it may only
+        // be made when everything was: a team that failed reported no backlog
+        // rather than an empty one.
+        return teamsFailed > 0 || documentsFailed > 0
+          ? "What it reached is done."
+          : "Nothing is left to pull.";
+      }
 
       const trouble = [
         documentsFailed > 0
           ? `${plural(documentsFailed, "document", "documents")} could not be fetched`
           : null,
-        count(failed) > 0
-          ? `${plural(count(failed), "team", "teams")} failed`
+        teamsFailed > 0
+          ? `${plural(teamsFailed, "team", "teams")} failed`
           : null,
       ].filter(Boolean);
 

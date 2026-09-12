@@ -198,6 +198,39 @@ describe("summarizing the invoice pull", () => {
     );
   });
 
+  test("says the books stopped for the day rather than claiming it is done", () => {
+    // What a real run answered on 2026-09-12 once the domain's 1,000 calls
+    // were spent: it must not read as "finished".
+    expect(
+      pull(
+        [
+          {
+            teamId: "team-a",
+            ok: true,
+            output: {
+              pulled: 0,
+              failed: 0,
+              remaining: 114,
+              dailyLimit: true,
+            },
+          },
+        ],
+        0,
+      ),
+    ).toBe(
+      "Pulled 0 invoices, and matched 0 documents to a payment. The books stopped answering for today — their daily limit is spent, so run it again tomorrow.",
+    );
+  });
+
+  test("does not claim nothing is left when a team never reported", () => {
+    // A failed team contributes no backlog, which is not the same as an empty
+    // one — and this is exactly what a spent allowance looked like before the
+    // run learned to say so.
+    expect(pull([], 1)).toBe(
+      "Pulled 0 invoices, and matched 0 documents to a payment. What it reached is done. 1 team failed — see the run's logs.",
+    );
+  });
+
   test("names both kinds of trouble, and points at the logs", () => {
     expect(
       pull(
@@ -217,7 +250,9 @@ describe("summarizing the invoice pull", () => {
         1,
       ),
     ).toBe(
-      "Pulled 8 invoices, and matched 0 documents to a payment. Nothing is left to pull. 2 documents could not be fetched, 1 team failed — see the run's logs.",
+      // Not "nothing is left": two documents were not fetched and a team never
+      // reported, so what is left is precisely what this run cannot say.
+      "Pulled 8 invoices, and matched 0 documents to a payment. What it reached is done. 2 documents could not be fetched, 1 team failed — see the run's logs.",
     );
   });
 
