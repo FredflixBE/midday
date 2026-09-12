@@ -138,6 +138,12 @@ jobs:
       - name: Check every dependency names a version
         run: bun scripts/check-dependency-pins.ts
 
+      # `scripts/` is outside the workspaces, so turbo reaches neither its
+      # types nor its tests — and one of these scripts decides what the
+      # shipping container installs from.
+      - name: Test the build scripts
+        run: bun test scripts
+
       - name: Typecheck
         run: bunx turbo typecheck
 

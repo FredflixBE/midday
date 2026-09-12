@@ -18,10 +18,16 @@
  * and stay silent — exactly when a *different*, brand new package is the one
  * introducing the floating spec.
  */
-import { readdir } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { relative } from "node:path";
 
-/** Specs that resolve to whatever the registry is serving at install time. */
+/**
+ * Specs that resolve to whatever the registry is serving at install time.
+ *
+ * Ranges — `^4.1.0`, `~2.3`, `>=1` — are a smaller version of the same
+ * problem and are deliberately not here: this repo still uses them widely,
+ * and a check that failed on them would fail on everything. What it catches
+ * is the spec that pins nothing at all.
+ */
 const FLOATING = new Set(["latest", "*", "x", "X", ""]);
 
 const DEPENDENCY_FIELDS = [
@@ -31,34 +37,43 @@ const DEPENDENCY_FIELDS = [
   "optionalDependencies",
 ] as const;
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = new URL("..", import.meta.url).pathname;
 
-/** Directories that hold no source of ours, and plenty of other package.json. */
-const SKIP = new Set([
-  "node_modules",
-  ".git",
-  ".turbo",
-  ".next",
-  "dist",
-  "build",
-  "out",
-  "target",
-]);
+/**
+ * Every manifest this repo owns: the root one, plus whatever its `workspaces`
+ * globs match.
+ *
+ * Reading the set from `workspaces` rather than walking the tree is what
+ * makes this self-maintaining — a new workspace glob is covered the day it is
+ * added — and it is also what keeps the check off manifests we did not write,
+ * which a walk would have to be taught to skip one build directory at a time.
+ */
+async function manifests(): Promise<string[]> {
+  const root = `${ROOT}package.json`;
+  const { workspaces } = await Bun.file(root).json();
 
-async function manifests(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
+  if (!Array.isArray(workspaces) || workspaces.length === 0) {
+    throw new Error(
+      "The root package.json declares no workspaces, so this check would only ever read one file.",
+    );
+  }
 
   const found = await Promise.all(
-    entries.map(async (entry) => {
-      if (entry.isDirectory()) {
-        return SKIP.has(entry.name) ? [] : manifests(join(dir, entry.name));
+    workspaces.map(async (pattern: string) => {
+      const glob = new Bun.Glob(`${pattern}/package.json`);
+      const matches = await Array.fromAsync(glob.scan({ cwd: ROOT }));
+
+      // A glob that matches nothing would make this pass by having nothing to
+      // check, which is the one way a guard like this fails silently.
+      if (matches.length === 0) {
+        throw new Error(`Workspace glob "${pattern}" matched no package.json.`);
       }
 
-      return entry.name === "package.json" ? [join(dir, entry.name)] : [];
+      return matches.map((match) => `${ROOT}${match}`);
     }),
   );
 
-  return found.flat();
+  return [root, ...found.flat()];
 }
 
 type Violation = { file: string; field: string; name: string; spec: string };
@@ -67,7 +82,9 @@ async function violations(file: string): Promise<Violation[]> {
   const manifest = await Bun.file(file).json();
   const found: Violation[] = [];
 
-  for (const field of DEPENDENCY_FIELDS) {
+  // The root `catalog` is a dependency declaration like any other: every
+  // `"catalog:"` in the workspaces resolves through it.
+  for (const field of [...DEPENDENCY_FIELDS, "catalog"]) {
     for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
       if (typeof spec === "string" && FLOATING.has(spec.trim())) {
         found.push({ file: relative(ROOT, file), field, name, spec });
@@ -75,28 +92,10 @@ async function violations(file: string): Promise<Violation[]> {
     }
   }
 
-  // The root `catalog` is a dependency declaration like any other: every
-  // `"catalog:"` in the workspaces resolves through it.
-  for (const [name, spec] of Object.entries(manifest.catalog ?? {})) {
-    if (typeof spec === "string" && FLOATING.has(spec.trim())) {
-      found.push({ file: relative(ROOT, file), field: "catalog", name, spec });
-    }
-  }
-
   return found;
 }
 
-const files = await manifests(ROOT);
-
-// A glob that matched nothing would make this pass by finding no violations,
-// which is the one way a guard like this fails silently.
-if (files.length < 10) {
-  console.error(
-    `Found only ${files.length} package.json files — this check is not looking where it thinks it is.`,
-  );
-  process.exit(1);
-}
-
+const files = await manifests();
 const found = (await Promise.all(files.map(violations))).flat();
 
 if (found.length === 0) {
@@ -106,16 +105,15 @@ if (found.length === 0) {
   process.exit(0);
 }
 
-console.error(
-  "Floating dependency specs found. Every version has to be written down:\n",
-);
+console.error("Floating dependency specs found:\n");
 
 for (const { file, field, name, spec } of found) {
   console.error(`  ${file} → ${field}.${name} = "${spec}"`);
 }
 
 console.error(
-  "\nReplace each with the exact version it resolves to today, then run `bun install` and commit bun.lock.\nA range is not a decision: it lets an install change what the code is built against without anyone choosing it.",
+  "\nReplace each with the exact version it resolves to today, then run `bun install` and commit bun.lock.\n" +
+    "A spec that pins nothing is not a decision: it lets an install change what the code is built against without anyone choosing it.",
 );
 
 process.exit(1);

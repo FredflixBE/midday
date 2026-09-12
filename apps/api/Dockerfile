@@ -3,7 +3,11 @@ FROM oven/bun:1.3.10 AS base
 
 # Install turbo CLI globally
 FROM base AS turbo-cli
-RUN bun add -g turbo
+# Pinned to the same turbo the repo builds with. Unpinned, this line
+# installed whatever the dist-tag pointed at on the day the image was
+# built — the very defect the rest of this change removes — and the two
+# versions do not prune alike: see scripts/repair-pruned-lockfile.ts.
+RUN bun add -g turbo@2.9.3
 
 # Builder stage - prune API workspace
 FROM turbo-cli AS builder

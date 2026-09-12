@@ -2,12 +2,12 @@
 /**
  * Put back the lockfile entries `turbo prune` mangles on its way out.
  *
- * A dependency resolved from a tarball URL rather than from the registry is
+ * A dependency fetched from a tarball URL rather than from the registry is
  * recorded by bun as a two-element entry — the spec, then the package info:
  *
  *   "xlsx": ["xlsx@https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz", { "bin": … }],
  *
- * `turbo prune` re-emits every entry in the four-element registry shape,
+ * turbo 2.9.3 re-emits every entry in the four-element registry shape instead,
  * padding the registry and integrity fields it has no values for:
  *
  *   "xlsx": ["xlsx@https://cdn.sheetjs.com/…tgz", "", { "bin": … }, ""],
@@ -18,38 +18,44 @@
  * rather than what the lockfile pins, silently, on every build. Under
  * `--frozen-lockfile` it fails the build outright instead.
  *
- * This rewrites those entries into the shape bun wrote them in. Only entries
- * whose version is not a plain registry version are touched; everything else
- * is copied through byte for byte.
- *
- * Reproduced with turbo 2.9.3 and 2.10.12 and bun 1.3.10/1.3.11. When turbo
- * learns to prune non-registry entries correctly this stops matching anything
- * and can go; the `bun install --frozen-lockfile` that follows it in both
- * Dockerfiles is what proves it is still needed.
+ * turbo 2.10.12 prunes these correctly, so this stops being needed the moment
+ * the repo's turbo moves past 2.9.3 — at which point it reports "nothing to
+ * repair" and can be deleted along with its two Dockerfile lines. Both
+ * Dockerfiles pin `bun add -g turbo@2.9.3` precisely so that which of those
+ * two behaviours a build gets is a decision and not a dist-tag lookup.
  */
 
 /**
  * A whole entry line: indent, key, and the four-element array turbo emits,
  * with both the registry and the integrity empty. The info object is matched
- * greedily up to the trailing `, ""]` so that nested braces survive.
+ * greedily, which the `, ""],` anchor makes correct even when the object
+ * contains a `}` inside a string.
  */
 const MANGLED_ENTRY =
   /^(\s*)("(?:[^"\\]|\\.)*"): \[("(?:[^"\\]|\\.)*"), "", (\{.*\}), ""\](,?)$/;
 
-/**
- * `name@version`, where a registry version is a bare `1.2.3` and anything bun
- * had to fetch from elsewhere carries a protocol — `https:`, `github:`, `file:`.
- * The leading `@` of a scoped name is skipped, so `@types/bun@1.4.2` splits at
- * the second one.
- */
-function isNonRegistrySpec(quotedSpec: string): boolean {
-  const spec = quotedSpec.slice(1, -1);
-  const at = spec.lastIndexOf("@");
+/** The protocols whose two-element shape this script knows how to restore. */
+const TARBALL = /^https?:\/\//;
 
-  return at > 0 && spec.slice(at + 1).includes(":");
+/**
+ * The version half of a `name@version` key.
+ *
+ * The split is on the *first* `@` after position 0, not the last: a scoped
+ * name starts with one, and a tarball URL may well contain one
+ * (`https://user@host/x.tgz`), so `lastIndexOf` finds the wrong boundary for
+ * exactly the entries this script exists to fix.
+ */
+export function versionOf(quotedSpec: string): string {
+  const spec = quotedSpec.slice(1, -1);
+  const at = spec.indexOf("@", 1);
+
+  return at === -1 ? "" : spec.slice(at + 1);
 }
 
-function repair(lockfile: string): { text: string; repaired: string[] } {
+export function repair(lockfile: string): {
+  text: string;
+  repaired: string[];
+} {
   const repaired: string[] = [];
 
   const text = lockfile
@@ -60,10 +66,24 @@ function repair(lockfile: string): { text: string; repaired: string[] } {
       if (!match) return line;
 
       const [, indent, key, spec, info, comma] = match;
+      const version = versionOf(spec as string);
 
-      if (!isNonRegistrySpec(spec!)) return line;
+      // A plain registry version in this shape is an ordinary entry that
+      // happens to carry no integrity, not something turbo mangled.
+      if (!version.includes(":")) return line;
 
-      repaired.push(key!.slice(1, -1));
+      // Anything else non-registry — git, `npm:` aliases, `file:` — bun
+      // stores in a shape this script has never seen, so guessing at it would
+      // write a lockfile that is wrong rather than merely unreadable. Stop
+      // instead, and let whoever added the dependency decide.
+      if (!TARBALL.test(version)) {
+        throw new Error(
+          `${key}: don't know how to restore a non-tarball entry (${version}). ` +
+            "Teach this script that protocol's shape before depending on it.",
+        );
+      }
+
+      repaired.push((key as string).slice(1, -1));
 
       return `${indent}${key}: [${spec}, ${info}]${comma}`;
     })
@@ -72,23 +92,22 @@ function repair(lockfile: string): { text: string; repaired: string[] } {
   return { text, repaired };
 }
 
-const path = process.argv[2];
+if (import.meta.main) {
+  const path = process.argv[2];
 
-if (!path) {
-  console.error(
-    "usage: bun scripts/repair-pruned-lockfile.ts <path-to-bun.lock>",
-  );
-  process.exit(1);
-}
+  if (!path) {
+    console.error(
+      "usage: bun scripts/repair-pruned-lockfile.ts <path-to-bun.lock>",
+    );
+    process.exit(1);
+  }
 
-const before = await Bun.file(path).text();
-const { text, repaired } = repair(before);
+  const { text, repaired } = repair(await Bun.file(path).text());
 
-if (repaired.length === 0) {
-  console.log(`${path}: nothing to repair`);
-} else {
-  await Bun.write(path, text);
-  console.log(
-    `${path}: repaired ${repaired.length} entry/entries: ${repaired.join(", ")}`,
-  );
+  if (repaired.length === 0) {
+    console.log(`${path}: nothing to repair`);
+  } else {
+    await Bun.write(path, text);
+    console.log(`${path}: restored ${repaired.length}: ${repaired.join(", ")}`);
+  }
 }
