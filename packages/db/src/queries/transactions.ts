@@ -92,7 +92,9 @@ export type GetTransactionsParams = {
   /** Midday's own answer about the invoice; see `invoiceStatusSql` (FF-1499). */
   invoiceStatuses?: InvoiceStatus[] | null;
   /** The accountant's answer, where the books have one. */
-  booksStatuses?: ("invoice_missing" | "in_the_books" | "needs_attention")[] | null;
+  booksStatuses?:
+    | ("invoice_missing" | "in_the_books" | "needs_attention")[]
+    | null;
   /** The "Missing an invoice" view: only what still needs a person. */
   needsInvoice?: boolean | null;
 };

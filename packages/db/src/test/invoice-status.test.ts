@@ -159,7 +159,11 @@ describe.skipIf(SKIP)("invoice status", () => {
 
     test("a pending suggestion is a separate state from missing", async () => {
       await makeTransaction(db, { id: T.suggested, name: "Suggested" });
-      await suggestMatch(db, T.suggested, "d0000000-0000-0000-0000-0000000000a1");
+      await suggestMatch(
+        db,
+        T.suggested,
+        "d0000000-0000-0000-0000-0000000000a1",
+      );
 
       expect((await statusOf(db, T.suggested))?.invoiceStatus).toBe(
         "invoice_pending",
@@ -169,7 +173,11 @@ describe.skipIf(SKIP)("invoice status", () => {
     test("an attachment outranks a suggestion still hanging around", async () => {
       await makeTransaction(db, { id: T.attached, name: "Both" });
       await attachDocument(db, T.attached);
-      await suggestMatch(db, T.attached, "d0000000-0000-0000-0000-0000000000a2");
+      await suggestMatch(
+        db,
+        T.attached,
+        "d0000000-0000-0000-0000-0000000000a2",
+      );
 
       expect((await statusOf(db, T.attached))?.invoiceStatus).toBe(
         "invoice_attached",
@@ -217,7 +225,11 @@ describe.skipIf(SKIP)("invoice status", () => {
 
     test("counts a suggestion separately, because it is one click rather than a hunt", async () => {
       await makeTransaction(db, { id: T.suggested, name: "Suggested" });
-      await suggestMatch(db, T.suggested, "d0000000-0000-0000-0000-0000000000a3");
+      await suggestMatch(
+        db,
+        T.suggested,
+        "d0000000-0000-0000-0000-0000000000a3",
+      );
 
       expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
         missing: 0,
@@ -246,7 +258,11 @@ describe.skipIf(SKIP)("invoice status", () => {
         name: "Settled, unconfirmed",
         booksStatus: "in_the_books",
       });
-      await suggestMatch(db, T.suggested, "d0000000-0000-0000-0000-0000000000a4");
+      await suggestMatch(
+        db,
+        T.suggested,
+        "d0000000-0000-0000-0000-0000000000a4",
+      );
 
       expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
         missing: 0,
@@ -310,7 +326,11 @@ describe.skipIf(SKIP)("invoice status", () => {
     test("accepts more than one at a time", async () => {
       await makeTransaction(db, { id: T.nothing, name: "Nothing" });
       await makeTransaction(db, { id: T.suggested, name: "Suggested" });
-      await suggestMatch(db, T.suggested, "d0000000-0000-0000-0000-0000000000a5");
+      await suggestMatch(
+        db,
+        T.suggested,
+        "d0000000-0000-0000-0000-0000000000a5",
+      );
       await makeTransaction(db, { id: T.attached, name: "Attached" });
       await attachDocument(db, T.attached);
 
@@ -384,7 +404,11 @@ describe.skipIf(SKIP)("invoice status", () => {
 
     test("one charging nothing is not, and neither is something that is not an invoice", async () => {
       await makeDocument({ id: D.chargesNothing, status: "no_charge" });
-      await makeDocument({ id: D.notAnInvoice, status: "other", type: "other" });
+      await makeDocument({
+        id: D.notAnInvoice,
+        status: "other",
+        type: "other",
+      });
 
       expect(await count()).toBe(0);
     });

@@ -152,7 +152,14 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       // Otherwise use default pagination for browsing
       pageSize: hasFilters ? 10000 : undefined,
     };
-  }, [filter, deferredSearch, params.sort, isReviewTab, isMissingTab, hasFilters]);
+  }, [
+    filter,
+    deferredSearch,
+    params.sort,
+    isReviewTab,
+    isMissingTab,
+    hasFilters,
+  ]);
 
   const infiniteQueryOptions = trpc.transactions.get.infiniteQueryOptions(
     queryFilter,

@@ -63,17 +63,17 @@ export async function getOverviewSummary(
     runwayResult,
     missingInvoices,
   ] = await Promise.all([
-      getInvoiceSummary(db, {
-        teamId,
-        statuses: ["draft", "scheduled", "unpaid"],
-      }),
-      getBillableHours(db, { teamId, date: today, view: "month" }),
-      getInboxByStatus(db, { teamId, status: "pending" }),
-      getTransactionsReadyForExportCount(db, teamId),
-      getCashBalance(db, { teamId, currency }),
-      getRunway(db, { teamId, currency }),
-      countMissingInvoices(db, { teamId }),
-    ]);
+    getInvoiceSummary(db, {
+      teamId,
+      statuses: ["draft", "scheduled", "unpaid"],
+    }),
+    getBillableHours(db, { teamId, date: today, view: "month" }),
+    getInboxByStatus(db, { teamId, status: "pending" }),
+    getTransactionsReadyForExportCount(db, teamId),
+    getCashBalance(db, { teamId, currency }),
+    getRunway(db, { teamId, currency }),
+    countMissingInvoices(db, { teamId }),
+  ]);
 
   return {
     openInvoices: {

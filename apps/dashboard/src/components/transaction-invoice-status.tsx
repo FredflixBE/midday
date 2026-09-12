@@ -11,7 +11,10 @@ export type InvoiceStatus =
   | "invoice_attached"
   | "no_invoice_needed";
 
-export type BooksStatus = "invoice_missing" | "in_the_books" | "needs_attention";
+export type BooksStatus =
+  | "invoice_missing"
+  | "in_the_books"
+  | "needs_attention";
 
 /**
  * Midday's own answer about a transaction's invoice, with the accountant's
@@ -68,7 +71,10 @@ type Props = {
   booksStatus?: BooksStatus | null;
 };
 
-export function TransactionInvoiceStatus({ invoiceStatus, booksStatus }: Props) {
+export function TransactionInvoiceStatus({
+  invoiceStatus,
+  booksStatus,
+}: Props) {
   const label = INVOICE_LABELS[invoiceStatus];
   const colour = INVOICE_COLOURS[invoiceStatus];
 

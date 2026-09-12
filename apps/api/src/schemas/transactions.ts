@@ -204,7 +204,9 @@ export const getTransactionsSchema = z.object({
     .array(z.enum(["invoice_missing", "in_the_books", "needs_attention"]))
     .nullable()
     .optional()
-    .describe("Filter by where the transaction stands in the accountant's books.")
+    .describe(
+      "Filter by where the transaction stands in the accountant's books.",
+    )
     .openapi({
       description:
         "Array of books statuses to filter by: 'invoice_missing', 'in_the_books', 'needs_attention'",
