@@ -12,6 +12,7 @@
  *
  * Read-only. Prints to stdout and writes nothing.
  */
+import { parseCardChargeDescription } from "../src/card";
 import { YukiClient } from "../src/client";
 import {
   fetchOutstandingCreditorItems,
@@ -19,13 +20,20 @@ import {
 } from "../src/outstanding";
 import { configFromEnv } from "./env";
 
-/** Card-statement lines carry the merchant in the description, not a contact. */
+/**
+ * Card-statement lines carry the merchant in the description, not a contact.
+ *
+ * This used to be a regex of its own, which stopped at the first run of two
+ * spaces and so truncated any merchant with an internal double space —
+ * "PRISMA DATA  INC." counted as "PRISMA DATA". It now uses the parser the
+ * card import is built on (FF-1517), which splits on the description's own
+ * segments and is tested against the foreign-currency shape as well.
+ */
 function counterparty(item: YukiOutstandingItem): string {
   if (item.contact) return item.contact;
-  const merchant = item.description?.match(
-    /Kaartverrichtingen - ([A-Za-z][\w .&*-]{2,30}?)\s{2,}/,
-  )?.[1];
-  return (merchant ?? item.description ?? "unknown").trim().slice(0, 34);
+  if (!item.description) return "unknown";
+
+  return parseCardChargeDescription(item.description).merchant.slice(0, 34);
 }
 
 const euro = (n: number) =>
