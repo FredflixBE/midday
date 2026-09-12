@@ -24,8 +24,8 @@ import { YukiNotConnectedError } from "@midday/yuki";
 import { readYukiArchive } from "@midday/yuki/archive";
 import { fetchDocumentBinary } from "@midday/yuki/documents";
 import { YUKI_APP_ID, yukiClientForTeam } from "@midday/yuki/team";
-import { inboxFileName } from "../src/utils/inbox-sync";
 import { DEFAULT_YUKI_PULL_CUTOFF } from "../src/schemas/yuki";
+import { inboxFileName } from "../src/utils/inbox-sync";
 import { planYukiPull } from "../src/utils/yuki-pull";
 
 const short = (id: string) => `${id.slice(0, 8)}…`;
