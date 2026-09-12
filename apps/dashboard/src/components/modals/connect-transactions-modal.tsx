@@ -10,6 +10,7 @@ import {
 import { useConnectParams } from "@/hooks/use-connect-params";
 import { useTeamQuery } from "@/hooks/use-team";
 import { BankSearchContent } from "../bank-search-content";
+import { ConnectAccountingCard } from "../connect-accounting-card";
 
 export function ConnectTransactionsModal() {
   const { step, setParams } = useConnectParams();
@@ -47,6 +48,14 @@ export function ConnectTransactionsModal() {
             </DialogDescription>
 
             <div className="pt-4">
+              {/* Cards a bank refuses to share over open banking, offered
+                  from the team's own accounting connection. Renders nothing
+                  for a team that has not connected one. */}
+              <ConnectAccountingCard
+                enabled={isOpen}
+                onConnected={handleOnClose}
+              />
+
               <BankSearchContent
                 enabled={isOpen}
                 defaultCountryCode={team?.countryCode ?? ""}

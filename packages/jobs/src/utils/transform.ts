@@ -1,3 +1,4 @@
+import { transactionInternalId } from "@midday/db/queries";
 import type { Database } from "@midday/supabase/types";
 
 type TransformTransactionData = {
@@ -38,7 +39,7 @@ export function transformTransaction({
     amount: transaction.amount,
     currency: transaction.currency,
     method: transaction.method,
-    internal_id: `${teamId}_${transaction.id}`,
+    internal_id: transactionInternalId(teamId, transaction.id),
     category_slug: transaction.category,
     bank_account_id: bankAccountId,
     balance: transaction.balance,

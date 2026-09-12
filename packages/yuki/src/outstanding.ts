@@ -19,6 +19,19 @@ export interface YukiOutstandingItem {
   /** The label as Yuki sent it, kept for reporting. */
   typeLabel: string;
   /**
+   * The item's own id, from the `ID` attribute on the element.
+   *
+   * For a card payment this is the **id of the ledger line** that booked the
+   * payment against the supplier account — verified on 2026-09-12 against all
+   * 68 card payments on a live domain, every one of them matching the line the
+   * card charge pairs with (FF-1517). That is what lets a charge be told
+   * "still waiting for its invoice" without comparing amounts across systems.
+   *
+   * Distinct from `documentId`, which names the statement the payment was
+   * booked from and is shared by every payment on that statement.
+   */
+  id: string;
+  /**
    * Unique per item — confirmed across every payment on a live domain — so it
    * doubles as the item's identity.
    */
@@ -102,6 +115,7 @@ export function parseOutstandingCreditorItems(
     return {
       kind: KIND_BY_LABEL[typeLabel] as YukiOutstandingItemKind,
       typeLabel,
+      id: String(item["@ID"] ?? ""),
       documentId: String(item.DocumentID),
       date: String(item.Date),
       contact: text(item.Contact),

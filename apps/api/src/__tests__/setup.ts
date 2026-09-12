@@ -683,6 +683,16 @@ export const mocks = {
 
   // Apps
   getApps: mock(() => Promise.resolve([])) as MockFn,
+  getAppByAppId: mock(() => Promise.resolve(null)) as MockFn,
+  // Yuki card connections (FF-1517)
+  getYukiCardConnections: mock(() => Promise.resolve([])) as MockFn,
+  getYukiCardReach: mock(() => Promise.resolve([])) as MockFn,
+  createYukiCardConnection: mock(() =>
+    Promise.resolve({
+      connectionId: "connection-1",
+      bankAccountId: "account-1",
+    }),
+  ) as MockFn,
   createApp: mock(() =>
     Promise.resolve({
       config: {},
@@ -1069,8 +1079,17 @@ const dbQueriesMock = new Proxy(
     getAppBySlackTeamId: mocks.getAppBySlackTeamId,
     getPlatformIdentity: mocks.getPlatformIdentity,
     updatePlatformIdentityMetadata: mocks.updatePlatformIdentityMetadata,
-    getAppByAppId: createDefaultMock(),
+    getAppByAppId: mocks.getAppByAppId,
     deleteApp: createDefaultMock(),
+
+    // Yuki card connections
+    getYukiCardConnections: mocks.getYukiCardConnections,
+    getYukiCardReach: mocks.getYukiCardReach,
+    createYukiCardConnection: mocks.createYukiCardConnection,
+    // Pure, and the router hands its answer back — so it is the real shape
+    // rather than a default mock answering undefined.
+    yukiInstitutionId: (code: string) => `yuki:${code}`,
+    YUKI_LOGO_URL: "https://www.yuki.be/apple-touch-icon.png",
 
     // Accounting sync
     getAccountingSyncStatus: createDefaultMock(),

@@ -1,0 +1,396 @@
+import { and, between, eq, inArray, ne, sql } from "drizzle-orm";
+import type { Database } from "../client";
+import { bankAccounts, bankConnections, transactions } from "../schema";
+import { transactionInternalId } from "./transactions";
+
+/**
+ * The card a team reads out of its accountant's books (FF-1517).
+ *
+ * There is no Yuki-shaped transactions table: the card is an ordinary bank
+ * connection whose provider happens to be `yuki`, and its charges are ordinary
+ * transactions. Everything below is about the two things that are *not*
+ * ordinary — how such a connection is made, and the status of a charge, which
+ * Midday cannot work out from its own records.
+ */
+
+/** The institution id a card connection carries. There is no institutions row. */
+export function yukiInstitutionId(glAccountCode: string): string {
+  // `institutions` is shared by every team, so a Yuki entry there would show up
+  // in other teams' bank search. `bank_connections.institution_id` is plain
+  // text with no foreign key, and the connection's own name and logo render the
+  // UI, so a synthetic id is enough. Keying it on the GL account is also what
+  // makes `unique_bank_connections` refuse the same card twice.
+  return `yuki:${glAccountCode}`;
+}
+
+/** Yuki's own logo, for a connection that belongs to no bank. */
+export const YUKI_LOGO_URL = "https://www.yuki.be/apple-touch-icon.png";
+
+export type YukiCardConnection = {
+  id: string;
+  name: string;
+  status: string | null;
+  /** The card's GL account code in Yuki, e.g. `434001`. */
+  glAccountCode: string;
+  bankAccountId: string;
+  currency: string | null;
+  lastAccessed: string | null;
+};
+
+/**
+ * The team's linked cards, one row per card.
+ *
+ * A connection with no account is skipped rather than reported: it cannot be
+ * synced, and it is not a state anything here creates.
+ */
+export async function getYukiCardConnections(
+  db: Database,
+  params: { teamId: string; connectionId?: string },
+): Promise<YukiCardConnection[]> {
+  const rows = await db
+    .select({
+      id: bankConnections.id,
+      name: bankConnections.name,
+      status: bankConnections.status,
+      lastAccessed: bankConnections.lastAccessed,
+      glAccountCode: bankAccounts.accountId,
+      bankAccountId: bankAccounts.id,
+      currency: bankAccounts.currency,
+    })
+    .from(bankConnections)
+    .innerJoin(
+      bankAccounts,
+      eq(bankAccounts.bankConnectionId, bankConnections.id),
+    )
+    .where(
+      and(
+        eq(bankConnections.teamId, params.teamId),
+        eq(bankConnections.provider, "yuki"),
+        eq(bankAccounts.enabled, true),
+        params.connectionId
+          ? eq(bankConnections.id, params.connectionId)
+          : undefined,
+      ),
+    );
+
+  return rows;
+}
+
+export type CreateYukiCardConnectionParams = {
+  teamId: string;
+  userId: string;
+  /** The GL account code of the card in Yuki. One connection per code. */
+  glAccountCode: string;
+  /** What Yuki calls the account, e.g. "KBC-Mastercard A. Example". */
+  cardName: string;
+  currency: string;
+};
+
+/**
+ * Links one card. Answers `null` when that card is already linked — connecting
+ * the same one twice is refused, not silently turned into a second row.
+ */
+export async function createYukiCardConnection(
+  db: Database,
+  params: CreateYukiCardConnectionParams,
+): Promise<{ connectionId: string; bankAccountId: string } | null> {
+  const institutionId = yukiInstitutionId(params.glAccountCode);
+
+  return db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: bankConnections.id })
+      .from(bankConnections)
+      .where(
+        and(
+          eq(bankConnections.teamId, params.teamId),
+          eq(bankConnections.institutionId, institutionId),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length > 0) return null;
+
+    const [connection] = await tx
+      .insert(bankConnections)
+      .values({
+        teamId: params.teamId,
+        institutionId,
+        provider: "yuki",
+        name: `Yuki · ${params.cardName}`,
+        logoUrl: YUKI_LOGO_URL,
+        status: "connected",
+      })
+      .returning({ id: bankConnections.id });
+
+    if (!connection) {
+      // `null` from this function means "already linked", and the router turns
+      // it into a conflict the user is shown. An insert that returned nothing
+      // is not that, and must not be reported as it.
+      throw new Error("Inserting the Yuki card connection returned no row.");
+    }
+
+    const [account] = await tx
+      .insert(bankAccounts)
+      .values({
+        teamId: params.teamId,
+        createdBy: params.userId,
+        bankConnectionId: connection.id,
+        // The GL code is the account's identity in Yuki, and what the sync
+        // reads its lines from.
+        accountId: params.glAccountCode,
+        name: params.cardName,
+        currency: params.currency,
+        type: "credit",
+        subtype: "credit_card",
+        enabled: true,
+        manual: false,
+      })
+      .returning({ id: bankAccounts.id });
+
+    if (!account) {
+      throw new Error("Inserting the Yuki card account returned no row.");
+    }
+
+    return { connectionId: connection.id, bankAccountId: account.id };
+  });
+}
+
+/**
+ * Records that a card was just read, the way every other provider's sync does.
+ *
+ * Without it the connection reads "Never accessed" forever, which is the one
+ * thing on that row a person uses to tell a working sync from a stuck one.
+ */
+export async function markYukiCardSynced(
+  db: Database,
+  params: { connectionId: string; teamId: string },
+): Promise<void> {
+  await db
+    .update(bankConnections)
+    .set({ lastAccessed: new Date().toISOString(), status: "connected" })
+    .where(
+      and(
+        eq(bankConnections.id, params.connectionId),
+        eq(bankConnections.teamId, params.teamId),
+      ),
+    );
+}
+
+export type BooksStatusEntry = {
+  /** The Yuki ledger line id the charge was imported under. */
+  sourceId: string;
+  status: "invoice_missing" | "in_the_books" | "needs_attention";
+  reason?: string;
+};
+
+/**
+ * Writes where each charge stands in the books.
+ *
+ * Kept separate from the import because the two change on different clocks: a
+ * charge is imported once and never again, while its status moves every time
+ * the accountant books an invoice against it. The import job skips duplicates,
+ * so a status can only be kept current by being written on its own.
+ */
+export async function setTransactionsBooksStatus(
+  db: Database,
+  params: { teamId: string; entries: readonly BooksStatusEntry[] },
+): Promise<number> {
+  if (params.entries.length === 0) return 0;
+
+  const byStatus = new Map<string, BooksStatusEntry[]>();
+  for (const entry of params.entries) {
+    // A pair, not a delimited string: no separator character can then
+    // collide with a reason's own text.
+    const key = JSON.stringify([entry.status, entry.reason ?? null]);
+    const group = byStatus.get(key);
+    if (group) group.push(entry);
+    else byStatus.set(key, [entry]);
+  }
+
+  let updated = 0;
+
+  for (const group of byStatus.values()) {
+    const first = group[0] as BooksStatusEntry;
+    const internalIds = group.map((entry) =>
+      transactionInternalId(params.teamId, entry.sourceId),
+    );
+
+    const rows = await db
+      .update(transactions)
+      .set({
+        booksStatus: first.status,
+        booksStatusReason: first.reason ?? null,
+      })
+      .where(
+        and(
+          eq(transactions.teamId, params.teamId),
+          inArray(transactions.internalId, internalIds),
+        ),
+      )
+      .returning({ id: transactions.id });
+
+    updated += rows.length;
+  }
+
+  return updated;
+}
+
+export type Settlement = {
+  /** Positive: the card balance going down. */
+  amount: number;
+  date: string;
+};
+
+/**
+ * How far either side of the date the books gave a settlement to look for the
+ * payment on the current account. The two dates are the same movement seen by
+ * two systems, so they differ by the accountant's booking lag and no more.
+ */
+const SETTLEMENT_WINDOW_DAYS = 5;
+
+export type MarkSettlementsResult = {
+  marked: number;
+  /** Settlements where more than one transaction could have been the one. */
+  ambiguous: number;
+  /** Settlements with nothing to mark — already done, or not imported yet. */
+  unmatched: number;
+};
+
+/**
+ * Marks the monthly card settlement on the current account as an internal
+ * transfer.
+ *
+ * Without this every charge is counted twice: once as the charge itself, and
+ * again inside the lump sum the bank took to pay the card off. The settlement
+ * is found by its exact amount within a few days of the date the books gave
+ * it, and **only when exactly one transaction could be it** — two candidates
+ * mean guessing, and guessing here quietly removes a real cost from the
+ * figures.
+ *
+ * Transactions on the card itself are excluded: the card side of the
+ * settlement is never imported in the first place.
+ *
+ * **This is the one place the integration compares a figure from the books
+ * with a figure of Midday's own**, and the epic bars that comparison as a way
+ * of matching an invoice to a payment (FF-1493: two systems, two sources, two
+ * roundings). It is allowed here for three reasons, and only here: the two
+ * records are the same bank movement rather than two documents about it, the
+ * amount is euro on both sides with no conversion, and what it writes is a
+ * flag a person can clear rather than a permanent write into live books. It
+ * would still be better done on an identifier, and FF-1537 is where that
+ * question lives.
+ */
+export async function markCardSettlementsAsInternal(
+  db: Database,
+  params: {
+    teamId: string;
+    settlements: readonly Settlement[];
+    /** The card's own account, whose transactions can never be the match. */
+    cardBankAccountId: string;
+  },
+): Promise<MarkSettlementsResult> {
+  const result: MarkSettlementsResult = {
+    marked: 0,
+    ambiguous: 0,
+    unmatched: 0,
+  };
+
+  for (const settlement of params.settlements) {
+    const from = shiftDays(settlement.date, -SETTLEMENT_WINDOW_DAYS);
+    const to = shiftDays(settlement.date, SETTLEMENT_WINDOW_DAYS);
+
+    const candidates = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.teamId, params.teamId),
+          ne(transactions.bankAccountId, params.cardBankAccountId),
+          // `internal` is nullable, and rows written before it had a default
+          // hold NULL rather than false. `= false` skips those silently, which
+          // would leave a real settlement counted as an expense forever.
+          ne(sql`coalesce(${transactions.internal}, false)`, true),
+          // The card is paid off from the current account, so the amount there
+          // is the opposite sign of the card's own line.
+          eq(transactions.amount, -settlement.amount),
+          between(transactions.date, from, to),
+        ),
+      )
+      .limit(2);
+
+    if (candidates.length === 0) {
+      result.unmatched += 1;
+      continue;
+    }
+    if (candidates.length > 1) {
+      result.ambiguous += 1;
+      continue;
+    }
+
+    await db
+      .update(transactions)
+      .set({ internal: true })
+      .where(eq(transactions.id, (candidates[0] as { id: string }).id));
+
+    result.marked += 1;
+  }
+
+  return result;
+}
+
+/** `YYYY-MM-DD` plus or minus whole days, without dragging in a date library. */
+function shiftDays(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+/**
+ * How far the card's imported charges reach, for a screen that has to say so.
+ *
+ * Charges only arrive when the accountant receives the monthly statement, so
+ * the newest one is routinely three weeks old. A row that says only "synced an
+ * hour ago" reads as up to date when it is three weeks behind, and a row that
+ * says nothing reads as broken.
+ */
+export async function getLatestCardChargeDate(
+  db: Database,
+  params: { teamId: string; bankAccountId: string },
+): Promise<string | null> {
+  const [row] = await db
+    .select({ latest: sql<string | null>`max(${transactions.date})` })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.teamId, params.teamId),
+        eq(transactions.bankAccountId, params.bankAccountId),
+      ),
+    );
+
+  return row?.latest ?? null;
+}
+
+/** The same, for every card the team has linked, in one query. */
+export async function getYukiCardReach(
+  db: Database,
+  params: { teamId: string },
+): Promise<{ connectionId: string; reachesUpTo: string | null }[]> {
+  return db
+    .select({
+      connectionId: bankConnections.id,
+      reachesUpTo: sql<string | null>`max(${transactions.date})`,
+    })
+    .from(bankConnections)
+    .innerJoin(
+      bankAccounts,
+      eq(bankAccounts.bankConnectionId, bankConnections.id),
+    )
+    .leftJoin(transactions, eq(transactions.bankAccountId, bankAccounts.id))
+    .where(
+      and(
+        eq(bankConnections.teamId, params.teamId),
+        eq(bankConnections.provider, "yuki"),
+      ),
+    )
+    .groupBy(bankConnections.id);
+}

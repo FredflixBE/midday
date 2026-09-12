@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as queries from "@midday/db/queries";
-import { decrypt } from "@midday/encryption";
+import { decrypt, encrypt } from "@midday/encryption";
 import { createCallerFactory } from "../../trpc/init";
 import { appsRouter } from "../../trpc/routers/apps";
 import { createTestContext } from "../helpers/test-context";
@@ -157,6 +157,25 @@ async function fakeYuki(url: string | URL | Request, init?: RequestInit) {
       return String(url).startsWith("https://api.yukiworks.be/")
         ? result("<DocumentFolders />")
         : fault("Domain has no active database");
+    case "GetGLAccountScheme":
+      // Two credit-card accounts (sub-type 52): the unnamed one every Belgian
+      // scheme ships, and a real card.
+      return result(
+        [
+          "<GlAccount>",
+          "<code>434000</code><subtype>52</subtype><isEnabled>true</isEnabled>",
+          "<descripton>(Reserved for credit card)</descripton>",
+          "</GlAccount>",
+          "<GlAccount>",
+          "<code>434001</code><subtype>52</subtype><isEnabled>true</isEnabled>",
+          "<descripton>Example Card Holder</descripton>",
+          "</GlAccount>",
+          "<GlAccount>",
+          "<code>440000</code><subtype>2</subtype><isEnabled>true</isEnabled>",
+          "<descripton>Leveranciers</descripton>",
+          "</GlAccount>",
+        ].join(""),
+      );
     default:
       return fault(`unexpected ${operation}`);
   }
@@ -266,5 +285,162 @@ describe("tRPC: apps.connectYuki", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
     expect(mocks.createApp).not.toHaveBeenCalled();
+  });
+});
+
+// --- The card read out of the books (FF-1517) --------------------------------
+
+/** The team's stored Yuki connection, as `yukiClientForTeam` reads it. */
+const connectedYukiApp = {
+  appId: "yuki",
+  config: {
+    encryptedAccessKey: encrypt(KEY),
+    region: "be" as const,
+    administrationId: ADMIN,
+    administrationName: "Acme BV",
+  },
+};
+
+describe("tRPC: apps.yukiCardAccounts", () => {
+  let fetchSpy: ReturnType<typeof spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+      fakeYuki as typeof fetch,
+    );
+    mocks.getAppByAppId.mockImplementation(() =>
+      Promise.resolve(connectedYukiApp),
+    );
+    mocks.getYukiCardConnections.mockImplementation(() => Promise.resolve([]));
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    mocks.getAppByAppId.mockReset();
+    mocks.getYukiCardConnections.mockReset();
+  });
+
+  test("offers the real cards, and never the scheme's unnamed placeholder", async () => {
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.yukiCardAccounts()).toEqual({
+      accounts: [
+        {
+          glAccountCode: "434001",
+          name: "Example Card Holder",
+          logoUrl: "https://www.yuki.be/apple-touch-icon.png",
+          linked: false,
+        },
+      ],
+    });
+  });
+
+  test("marks a card that is already linked, rather than offering it again", async () => {
+    mocks.getYukiCardConnections.mockImplementation(() =>
+      Promise.resolve([{ glAccountCode: "434001" }]),
+    );
+
+    const caller = createCaller(createTestContext());
+
+    expect((await caller.yukiCardAccounts()).accounts[0]?.linked).toBe(true);
+  });
+
+  test("shows a team without the app no trace of the integration", async () => {
+    // The connect flow asks this to decide whether to offer the option at all,
+    // so an error here would be a Yuki-shaped hole in a stranger's screen.
+    mocks.getAppByAppId.mockImplementation(() => Promise.resolve(null));
+
+    const caller = createCaller(createTestContext());
+
+    expect(await caller.yukiCardAccounts()).toEqual({ accounts: [] });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("tRPC: apps.connectYukiCard", () => {
+  let fetchSpy: ReturnType<typeof spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+      fakeYuki as typeof fetch,
+    );
+    mocks.getAppByAppId.mockImplementation(() =>
+      Promise.resolve(connectedYukiApp),
+    );
+    mocks.createYukiCardConnection.mockImplementation(() =>
+      Promise.resolve({
+        connectionId: "connection-1",
+        bankAccountId: "account-1",
+      }),
+    );
+    mocks.triggerTask.mockClear();
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    mocks.getAppByAppId.mockReset();
+    mocks.createYukiCardConnection.mockReset();
+  });
+
+  test("links the card under a synthetic institution id, and syncs it", async () => {
+    const caller = createCaller(createTestContext({ userId: "user-a" }));
+
+    expect(await caller.connectYukiCard({ glAccountCode: "434001" })).toEqual({
+      connectionId: "connection-1",
+      bankAccountId: "account-1",
+      // No row in the shared `institutions` table: it is global, so an entry
+      // there would put Yuki in every other team's bank search.
+      institutionId: "yuki:434001",
+      name: "Example Card Holder",
+    });
+
+    expect(mocks.createYukiCardConnection).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        teamId: "test-team-id",
+        userId: "user-a",
+        glAccountCode: "434001",
+        cardName: "Example Card Holder",
+        currency: "EUR",
+      }),
+    );
+    expect(mocks.triggerTask).toHaveBeenCalledWith("yuki-sync-card-charges", {
+      teamId: "test-team-id",
+      connectionId: "connection-1",
+    });
+  });
+
+  test("refuses an account that is not a card in this administration", async () => {
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.connectYukiCard({ glAccountCode: "440000" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(mocks.createYukiCardConnection).not.toHaveBeenCalled();
+  });
+
+  test("refuses the same card twice rather than making a second connection", async () => {
+    mocks.createYukiCardConnection.mockImplementation(() =>
+      Promise.resolve(null),
+    );
+
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.connectYukiCard({ glAccountCode: "434001" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
+  test("asks a team with no Yuki to connect it first", async () => {
+    mocks.getAppByAppId.mockImplementation(() => Promise.resolve(null));
+
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.connectYukiCard({ glAccountCode: "434001" }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 });

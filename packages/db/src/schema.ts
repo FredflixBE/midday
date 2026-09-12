@@ -66,6 +66,10 @@ export const bankProvidersEnum = pgEnum("bank_providers", [
   "plaid",
   "teller",
   "enablebanking",
+  // Not open banking at all: the accountant's books, read for the accounts a
+  // bank refuses to share. KBC's consent page offers the current account and
+  // not the business card, so the card's charges only exist in Yuki (FF-1517).
+  "yuki",
 ]);
 
 export const connectionStatusEnum = pgEnum("connection_status", [
@@ -230,6 +234,21 @@ export const transactionMethodsEnum = pgEnum("transactionMethods", [
   "deposit",
   "wire",
   "fee",
+]);
+
+/**
+ * Where a transaction stands in the accountant's books.
+ *
+ * Only set on transactions Midday cannot answer for on its own — today the
+ * card charges, whose invoice is either attached in the books or missing from
+ * them. Midday's own records cannot derive this, which is why it is stored
+ * rather than computed: it is refreshed on every sync, and it never names the
+ * accounting package it came from (FF-1499).
+ */
+export const booksStatusEnum = pgEnum("books_status", [
+  "invoice_missing",
+  "in_the_books",
+  "needs_attention",
 ]);
 
 export const transactionStatusEnum = pgEnum("transactionStatus", [
@@ -424,6 +443,12 @@ export const transactions = pgTable(
       withTimezone: true,
       mode: "string",
     }),
+    // Null for every transaction Midday can answer for by itself. See
+    // `booksStatusEnum`.
+    booksStatus: booksStatusEnum("books_status"),
+    // Why the books could not be read for this one, when the status says so.
+    // A code, not a sentence: the wording is the screen's to choose.
+    booksStatusReason: text("books_status_reason"),
     ftsVector: tsvector("fts_vector")
       .notNull()
       .generatedAlwaysAs(

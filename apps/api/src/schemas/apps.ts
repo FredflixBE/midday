@@ -27,3 +27,8 @@ export const verifyYukiSchema = yukiCredentialsSchema;
 export const connectYukiSchema = yukiCredentialsSchema.extend({
   administrationId: z.string().min(1),
 });
+
+export const connectYukiCardSchema = z.object({
+  /** The GL account code of the card in Yuki, e.g. "434001". */
+  glAccountCode: z.string().trim().min(1),
+});
