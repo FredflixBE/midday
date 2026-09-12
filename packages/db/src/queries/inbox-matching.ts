@@ -507,6 +507,13 @@ const EXTRACTED_INBOX_STATUSES = [
 
 export type InboxDocumentForYukiDelivery = {
   id: string;
+  /**
+   * Where the row came from. `yuki:<documentID>` marks one FF-1450 pulled out
+   * of Yuki's archive, whose invoice number is a field Yuki stores rather than
+   * something read off a page — which is what lets the decision skip rule 1's
+   * text-layer check for it.
+   */
+  referenceId: string | null;
   filePath: string[] | null;
   contentType: string | null;
   invoiceNumber: string | null;
@@ -566,6 +573,7 @@ export async function getInboxDocumentsForYukiDelivery(
   return db
     .select({
       id: inbox.id,
+      referenceId: inbox.referenceId,
       filePath: inbox.filePath,
       contentType: inbox.contentType,
       invoiceNumber: inbox.invoiceNumber,

@@ -69,6 +69,12 @@ export interface YukiArchiveDocument {
    * `OUTSTANDING_ITEM_TYPE_LABELS` in `types.ts`.
    */
   typeDescription: string | null;
+  /**
+   * Yuki's own one-line description of the document. Present on every purchase
+   * invoice of the measured archive (718 of 718, 2026-09-12), where the contact
+   * name is not — so it is what a display name falls back to.
+   */
+  subject: string | null;
   contactName: string | null;
   contactId: string | null;
   /** Yuki's `Reference`, which on an invoice is the invoice number. */
@@ -82,6 +88,17 @@ export interface YukiArchiveDocument {
   documentDate: string | null;
   /** Yuki's own decimal string. For display; nothing decides on it. */
   amount: string | null;
+  /** The VAT of {@link amount}, same rules. Present on all 718 measured. */
+  vatAmount: string | null;
+  /**
+   * The MIME type Yuki stores the file as. Every purchase invoice of the
+   * measured archive is `application/pdf`, but it is read rather than assumed:
+   * a document pulled into Midday's inbox is stored under this type, and
+   * guessing it wrong makes a file the browser cannot open.
+   */
+  contentType: string | null;
+  /** The file's size in bytes, as a string. Present on all 718 measured. */
+  fileSize: string | null;
   createdInYuki: string | null;
   creator: string | null;
   /** Present on every document seen. For display; nothing decides on it. */
@@ -252,6 +269,7 @@ export function parseArchiveDocuments(
       folderId,
       type: required(record, "Type", operation),
       typeDescription: text(record, "TypeDescription"),
+      subject: text(record, "Subject"),
       contactName: text(record, "ContactName"),
       contactId: text(record, "ContactId"),
       reference,
@@ -260,6 +278,9 @@ export function parseArchiveDocuments(
         : null,
       documentDate: text(record, "DocumentDate"),
       amount: text(record, "Amount"),
+      vatAmount: text(record, "VATAmount"),
+      contentType: text(record, "ContentType"),
+      fileSize: text(record, "FileSize"),
       createdInYuki: text(record, "Created"),
       creator: text(record, "Creator"),
       modifiedInYuki: text(record, "Modified"),
