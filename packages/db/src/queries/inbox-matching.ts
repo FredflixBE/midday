@@ -513,6 +513,20 @@ export type InboxDocumentForYukiDelivery = {
   amount: number | null;
   currency: string | null;
   website: string | null;
+  /**
+   * The Midday transaction this document was matched to, or null.
+   *
+   * **Decided 2026-09-12, and reported rather than acted on.** A document
+   * matched to a real transaction is a purchase the business demonstrably made,
+   * which is the second identifier FF-1493 wants before delivering anything —
+   * and unlike an amount it is a link Midday itself created, so it is allowed
+   * to decide. It does not yet: only 5 of 131 inbox documents match one today,
+   * because KBC's open banking consent does not expose the business Mastercard
+   * and 68 of Yuki's 81 missing payments are card charges. Gating on it now
+   * would block the entire backlog it exists to clear. FF-1517 connects the
+   * card; after that this becomes the gate.
+   */
+  matchedTransactionId: string | null;
 };
 
 /**
@@ -556,6 +570,7 @@ export async function getInboxDocumentsForYukiDelivery(
       amount: inbox.amount,
       currency: inbox.currency,
       website: inbox.website,
+      matchedTransactionId: inbox.transactionId,
     })
     .from(inbox)
     .where(

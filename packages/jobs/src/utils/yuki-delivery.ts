@@ -27,6 +27,29 @@ import { decideYukiDelivery, requiresDocumentText } from "@midday/yuki/decide";
 /** How many text layers to fetch at once. */
 const TEXT_EXTRACTION_CONCURRENCY = 5;
 
+/**
+ * A decision, plus the one fact about the document that is not yet allowed to
+ * change it (FF-1493, decided 2026-09-12).
+ *
+ * A document matched to a real Midday transaction is a purchase the business
+ * demonstrably made. That is a second identifier — a link Midday created, not
+ * an amount — and it is the gate this integration wants before delivering
+ * anything into live books: *Yuki does not have it* **and** *we really bought
+ * it*. The first live run turned up a 8,712 EUR document that passes every rule
+ * here, matches no transaction, and is not an invoice at all.
+ *
+ * It is reported and not enforced because it cannot be satisfied yet. Five of
+ * 131 inbox documents match a transaction, since KBC's open banking consent
+ * does not expose the business Mastercard and 68 of Yuki's 81 missing payments
+ * are card charges. Gating on it today would block 49 of the 51 deliverable
+ * documents — the whole backlog the epic exists to clear. FF-1517 connects the
+ * card as a bank connection; once the match rate is real, this becomes a
+ * condition in `decideYukiDelivery` rather than a column in a report.
+ */
+export type YukiDeliveryDecisionWithContext = YukiDeliveryDecision & {
+  matchedTransactionId: string | null;
+};
+
 export interface YukiDeliveryReport {
   teamId: string;
   /** What the archive read cost and how fresh it is, for the run log. */
@@ -36,7 +59,15 @@ export interface YukiDeliveryReport {
   counts: Record<YukiDeliveryAction, number>;
   /** Per reason code, across `needs_attention` and `not_applicable`. */
   reasons: Record<string, number>;
-  decisions: YukiDeliveryDecision[];
+  /**
+   * How many of the `send` documents match no Midday transaction.
+   *
+   * The number to watch, and today it is nearly all of them. See
+   * {@link YukiDeliveryDecisionWithContext} for why that is expected and what
+   * changes it.
+   */
+  sendWithoutTransaction: number;
+  decisions: YukiDeliveryDecisionWithContext[];
 }
 
 /**
@@ -96,11 +127,22 @@ export async function summariseYukiDelivery(params: {
   const { teamId, documents, archive, readDocumentText, now } = params;
 
   const candidates = await buildCandidates(documents, readDocumentText);
-  const decisions = decideYukiDelivery({
+  const decided = decideYukiDelivery({
     documents: candidates,
     archive,
     now,
   });
+
+  // The match is attached here rather than passed into the decision, so that a
+  // field which must not decide anything yet is not even in front of the code
+  // that decides.
+  const matchedById = new Map(
+    documents.map((d) => [d.id, d.matchedTransactionId]),
+  );
+  const decisions: YukiDeliveryDecisionWithContext[] = decided.map((d) => ({
+    ...d,
+    matchedTransactionId: matchedById.get(d.id) ?? null,
+  }));
 
   return {
     teamId,
@@ -111,6 +153,9 @@ export async function summariseYukiDelivery(params: {
     },
     counts: countActions(decisions),
     reasons: countBy(decisions, (d) => d.reason),
+    sendWithoutTransaction: decisions.filter(
+      (d) => d.action === "send" && d.matchedTransactionId === null,
+    ).length,
     decisions,
   };
 }
@@ -121,7 +166,7 @@ export async function summariseYukiDelivery(params: {
  * is normal while the second is a bug.
  */
 function countActions(
-  decisions: readonly YukiDeliveryDecision[],
+  decisions: readonly YukiDeliveryDecisionWithContext[],
 ): Record<YukiDeliveryAction, number> {
   const counts: Record<YukiDeliveryAction, number> = {
     send: 0,

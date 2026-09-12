@@ -86,6 +86,7 @@ export class YukiDecideDeliveryProcessor extends BaseProcessor<YukiDecideDeliver
       teamId,
       ...report.counts,
       reasons: report.reasons,
+      sendWithoutTransaction: report.sendWithoutTransaction,
       archiveDocuments: report.archive.documents,
       archiveCalls: report.archive.calls,
       textLayersRead: report.textLayersRead,
