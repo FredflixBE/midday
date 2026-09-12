@@ -10,6 +10,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           { path: "/settings/members", label: "Members" },
           { path: "/settings/notifications", label: "Notifications" },
           { path: "/settings/developer", label: "Developer" },
+          { path: "/settings/admin", label: "Admin" },
         ]}
       />
 

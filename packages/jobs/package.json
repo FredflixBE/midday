@@ -12,6 +12,7 @@
   },
   "exports": {
     "./schema": "./src/schema.ts",
+    "./maintenance": "./src/maintenance.ts",
     "./run-status": "./src/run-status.ts",
     "./schemas/accounting": "./src/schemas/accounting.ts",
     "./schemas/customers": "./src/schemas/customers.ts",

@@ -2,7 +2,7 @@ import { getDb } from "@jobs/init";
 import { generateCronTag } from "@jobs/utils/generate-cron-tag";
 import { getTeamsWithBankConnections } from "@midday/db/queries";
 import { isFlagEnabled } from "@midday/utils/flags";
-import { logger, schedules } from "@trigger.dev/sdk";
+import { logger, schedules, task } from "@trigger.dev/sdk";
 import { bankSyncScheduler } from "./bank-scheduler";
 
 async function getRegisteredTeamIds(): Promise<Set<string>> {
@@ -31,19 +31,43 @@ async function getRegisteredTeamIds(): Promise<Set<string>> {
   return registeredIds;
 }
 
-// Daily verification job that ensures every eligible team (pro/starter/active trial
-// with at least one bank connection) has a registered bank-sync-scheduler.
-// Compares eligible teams against existing schedules and only creates missing ones.
-export const ensureBankSchedulers = schedules.task({
+/** What a run did, for whoever pressed the button in Settings → Admin. */
+export interface EnsureBankSchedulersResult {
+  /** Teams with at least one bank connection. */
+  eligible: number;
+  /** Of those, the ones that already had a schedule. */
+  registered: number;
+  created: number;
+  failed: number;
+}
+
+const NOTHING_TO_DO: EnsureBankSchedulersResult = {
+  eligible: 0,
+  registered: 0,
+  created: 0,
+  failed: 0,
+};
+
+// Verifies that every eligible team (pro/starter/active trial with at least one
+// bank connection) has a registered bank-sync-scheduler, and creates the ones
+// that are missing.
+//
+// Started by hand from Settings → Admin, not on a cron: it is a safety net for
+// a deployment with many teams, connecting a bank already creates the schedule,
+// and FF-1501 cleans up properly on deletion. A declared schedule costs one of
+// the ten the free plan allows even when its run does nothing (FF-1521).
+export const ensureBankSchedulers = task({
   id: "ensure-bank-schedulers",
-  cron: "0 3 * * *",
   maxDuration: 300,
-  run: async () => {
+  // One at a time: two concurrent runs would both see the same team as missing
+  // a schedule and race to create it.
+  queue: { concurrencyLimit: 1 },
+  run: async (): Promise<EnsureBankSchedulersResult> => {
     if (!isFlagEnabled("BANK_SYNC_SCHEDULER_ENABLED")) {
       logger.info(
         "Skipping bank scheduler registration: BANK_SYNC_SCHEDULER_ENABLED is off",
       );
-      return;
+      return NOTHING_TO_DO;
     }
 
     const db = getDb();
@@ -64,7 +88,14 @@ export const ensureBankSchedulers = schedules.task({
         missing: missingTeams.length,
       });
 
-      if (missingTeams.length === 0) return;
+      const counted = (created: number, failed: number) => ({
+        eligible: eligibleTeams.length,
+        registered: registeredTeamIds.size,
+        created,
+        failed,
+      });
+
+      if (missingTeams.length === 0) return counted(0, 0);
 
       let created = 0;
       let failed = 0;
@@ -92,6 +123,8 @@ export const ensureBankSchedulers = schedules.task({
         created,
         failed,
       });
+
+      return counted(created, failed);
     } catch (error) {
       logger.error("Failed to run ensure-bank-schedulers", {
         error: error instanceof Error ? error.message : "Unknown error",

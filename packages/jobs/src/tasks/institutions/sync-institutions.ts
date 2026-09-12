@@ -9,15 +9,15 @@ import {
   upsertInstitutions,
 } from "@midday/db/queries";
 import { isFlagEnabled } from "@midday/utils/flags";
-import { schedules } from "@trigger.dev/sdk";
+import { task } from "@trigger.dev/sdk";
 
 type SyncInstitutionsPayload = Record<string, never>;
 
 /**
- * Scheduled processor that syncs institutions from banking providers
- * into the PostgreSQL institutions table.
+ * Syncs institutions from banking providers into the PostgreSQL institutions
+ * table.
  *
- * Runs daily to:
+ * Each run:
  * 1. Fetch latest institutions from all providers
  * 2. Upsert new/updated institutions (preserving popularity)
  * 3. Mark removed institutions as status: "removed"
@@ -93,14 +93,18 @@ export class SyncInstitutionsProcessor extends BaseProcessor<SyncInstitutionsPay
 
 const processor = new SyncInstitutionsProcessor();
 
-// Gated on
-// SYNC_INSTITUTIONS_ENABLED inside the processor.
-export const syncInstitutions = schedules.task({
+// Started by hand from Settings → Admin, not on a cron: the list of banks
+// barely changes, and a declared schedule costs one of the ten the free plan
+// allows even when the run exits immediately on its flag (FF-1521).
+//
+// Still gated on SYNC_INSTITUTIONS_ENABLED inside the processor.
+export const syncInstitutions = task({
   id: "sync-institutions",
-  // Daily at 03:00 UTC.
-  cron: "0 3 * * *",
   // Fetching every institution from every provider takes a while.
   maxDuration: 600,
-  run: (_payload, { ctx }) =>
+  // One at a time: a second run started while the first is still fetching
+  // would race it on the same upsert-and-mark-removed transaction.
+  queue: { concurrencyLimit: 1 },
+  run: (_payload: Record<string, never>, { ctx }) =>
     runProcessor(processor, "sync-institutions", {}, ctx),
 });
