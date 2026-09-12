@@ -129,7 +129,7 @@ export function WidgetCards() {
         detail={unbilledDetail}
       />
       <WidgetCard
-        label="Invoices Missing"
+        label="Missing Invoices"
         href="/transactions?tab=missing"
         value={missingValue}
         detail={missingDetail}

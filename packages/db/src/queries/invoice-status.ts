@@ -7,6 +7,7 @@ import {
   transactionMatchSuggestions,
   transactions,
 } from "../schema";
+import { YUKI_INBOX_REFERENCE_PREFIX } from "./yuki-inbox";
 
 /**
  * Where a transaction stands on its invoice, as far as **Midday's own records**
@@ -34,9 +35,12 @@ export const INVOICE_STATUSES = [
 
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
-/** A document is filed against this transaction. */
-function hasAttachment(teamId: string): SQL {
-  return sql`EXISTS (
+/**
+ * A document is filed against this transaction — on its own, *not* conflated
+ * with `completed` the way `isFulfilled` is.
+ */
+export function hasAttachmentSql(teamId: string): SQL<boolean> {
+  return sql<boolean>`EXISTS (
     SELECT 1 FROM ${transactionAttachments}
     WHERE ${transactionAttachments.transactionId} = ${transactions.id}
       AND ${transactionAttachments.teamId} = ${teamId}
@@ -44,8 +48,8 @@ function hasAttachment(teamId: string): SQL {
 }
 
 /** The matcher offered a document and nobody has answered yet. */
-function hasPendingSuggestion(teamId: string): SQL {
-  return sql`EXISTS (
+export function hasPendingSuggestionSql(teamId: string): SQL<boolean> {
+  return sql<boolean>`EXISTS (
     SELECT 1 FROM ${transactionMatchSuggestions}
     WHERE ${transactionMatchSuggestions.transactionId} = ${transactions.id}
       AND ${transactionMatchSuggestions.teamId} = ${teamId}
@@ -54,25 +58,46 @@ function hasPendingSuggestion(teamId: string): SQL {
 }
 
 /**
- * The four values, in precedence order.
+ * What can have a supplier invoice at all.
  *
- * `completed` is first because it is the only one a person sets by hand, and it
- * is how a bank fee leaves the work list for good. An attachment outranks a
- * suggestion so that a document already filed is never described as something
- * still waiting to be confirmed — 1 transaction on the live books has both.
+ * Money coming in has no supplier invoice to find, and neither does a transfer
+ * between your own accounts: `internal` catches the pairs Midday recognised,
+ * and the `transfer` category catches the rest — 4 own-account withdrawals on
+ * the live books are in the second group only.
+ *
+ * `IS DISTINCT FROM`, not `<>`: an uncategorised expense has a NULL slug, and
+ * `<>` would drop it silently rather than keep it as work.
  */
-export function invoiceStatusSql(teamId: string): SQL<InvoiceStatus> {
-  return sql<InvoiceStatus>`CASE
-    WHEN ${transactions.status} = 'completed' THEN 'no_invoice_needed'
-    WHEN ${hasAttachment(teamId)} THEN 'invoice_attached'
-    WHEN ${hasPendingSuggestion(teamId)} THEN 'invoice_pending'
-    ELSE 'invoice_missing'
-  END`;
+export function isExpenseSql(): SQL<boolean> {
+  return sql<boolean>`(
+    ${transactions.amount} < 0
+    AND COALESCE(${transactions.internal}, false) = false
+    AND ${transactions.categorySlug} IS DISTINCT FROM 'transfer'
+  )`;
 }
 
-/** Whether a document is filed, on its own — *not* conflated with `completed`. */
-export function hasAttachmentSql(teamId: string): SQL<boolean> {
-  return sql<boolean>`${hasAttachment(teamId)}`;
+/**
+ * The four values, in precedence order.
+ *
+ * **Null for anything that is not an expense.** Money coming in has no supplier
+ * invoice, so "Invoice missing" would be a false alarm on every sale. Null means
+ * the question does not apply, and the screen shows nothing.
+ *
+ * A filed document outranks everything: a transaction that has an attachment
+ * *and* was marked done by hand is *Invoice attached*, because the document is
+ * demonstrably there and "No invoice needed" would contradict it. `completed`
+ * answers for the rest, which is how a bank fee leaves the work list for good.
+ * A suggestion is last, so a document already filed is never described as one
+ * still waiting to be confirmed — 1 transaction on the live books has both.
+ */
+export function invoiceStatusSql(teamId: string): SQL<InvoiceStatus | null> {
+  return sql<InvoiceStatus | null>`CASE
+    WHEN NOT ${isExpenseSql()} THEN NULL
+    WHEN ${hasAttachmentSql(teamId)} THEN 'invoice_attached'
+    WHEN ${transactions.status} = 'completed' THEN 'no_invoice_needed'
+    WHEN ${hasPendingSuggestionSql(teamId)} THEN 'invoice_pending'
+    ELSE 'invoice_missing'
+  END`;
 }
 
 export function invoiceStatusFilterSql(
@@ -90,8 +115,9 @@ export function invoiceStatusFilterSql(
  *
  * Two things leave it out that a naive "no attachment" count would keep:
  *
- * - **Money coming in, and internal transfers.** Neither has a supplier invoice
- *   to find.
+ * - **Anything that is not an expense**, per `isExpenseSql`. Without that, 4
+ *   own-account withdrawals on the live books sit in the view forever, because
+ *   no invoice for them will ever arrive.
  * - **What the books have already settled.** 5 card charges on the live books
  *   are settled by the accountant with no document in Midday. Listing those as
  *   work would be asking for something that is already done, and it is the
@@ -99,18 +125,25 @@ export function invoiceStatusFilterSql(
  *
  * A *suggestion* the books have settled does stay in, because confirming it is
  * one click and it is Midday's own completeness rather than the accountant's.
+ *
+ * Built on `invoiceStatusSql` rather than on the same facts spelled out again,
+ * so the list and the count cannot disagree about a row. Spelling them out
+ * separately got `completed` wrong: a transaction marked done by hand that still
+ * had a suggestion hanging off it appeared in the list while neither count
+ * included it, and its own status cell read "No invoice needed" from inside a
+ * list of things that need an invoice.
  */
 export function needsInvoiceSql(teamId: string): SQL {
   return sql`(
-    ${transactions.amount} < 0
-    AND COALESCE(${transactions.internal}, false) = false
+    ${isExpenseSql()}
     AND COALESCE(${transactions.status}::text, 'posted') NOT IN ('excluded', 'archived')
+    AND ${invoiceStatusFilterSql(teamId, ["invoice_missing", "invoice_pending"])}
+    -- IS DISTINCT FROM, because books_status is null on every bank transaction,
+    -- and comparing null with = yields null rather than false, which would make
+    -- this whole AND chain null and quietly empty the view.
     AND (
-      ${hasPendingSuggestion(teamId)} AND NOT ${hasAttachment(teamId)}
-      OR (
-        ${invoiceStatusSql(teamId)} = 'invoice_missing'
-        AND ${transactions.booksStatus} IS DISTINCT FROM 'in_the_books'
-      )
+      ${invoiceStatusSql(teamId)} <> 'invoice_missing'
+      OR ${transactions.booksStatus} IS DISTINCT FROM 'in_the_books'
     )
   )`;
 }
@@ -179,7 +212,10 @@ export async function countMissingInvoices(
 export function inboxNeedsHandlingSql(): SQL {
   return sql`(
     ${inbox.status}::text NOT IN ('done', 'deleted', 'archived', 'no_charge', 'other')
-    AND (${inbox.type}::text = 'invoice' OR ${inbox.status}::text = 'failed')
+    -- Exclude what is known *not* to be an invoice, rather than requiring that
+    -- it is one: type is null until a document has been read, so demanding
+    -- 'invoice' would hide everything that has only just arrived.
+    AND ${inbox.type}::text IS DISTINCT FROM 'other' 
     AND NOT EXISTS (
       SELECT 1 FROM ${inbox} member
       WHERE (member.id = ${inbox.id} OR member.grouped_inbox_id = ${inbox.id})

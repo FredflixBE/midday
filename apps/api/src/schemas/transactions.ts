@@ -1,3 +1,4 @@
+import { INVOICE_STATUSES } from "@midday/db/queries";
 import { z } from "@hono/zod-openapi";
 
 const createTransactionAttachmentSchema = z
@@ -181,14 +182,7 @@ export const getTransactionsSchema = z.object({
       },
     }),
   invoiceStatuses: z
-    .array(
-      z.enum([
-        "invoice_missing",
-        "invoice_pending",
-        "invoice_attached",
-        "no_invoice_needed",
-      ]),
-    )
+    .array(z.enum(INVOICE_STATUSES))
     .nullable()
     .optional()
     .describe(
@@ -442,18 +436,11 @@ export const transactionResponseSchema = z
       description: "Whether the transaction has been fulfilled or processed",
       example: true,
     }),
-    invoiceStatus: z
-      .enum([
-        "invoice_missing",
-        "invoice_pending",
-        "invoice_attached",
-        "no_invoice_needed",
-      ])
-      .openapi({
-        description:
-          "Where the transaction stands on its invoice, from Midday's own records: invoice_missing (nothing attached), invoice_pending (a suggested match is waiting to be confirmed), invoice_attached, no_invoice_needed (marked done without one).",
-        example: "invoice_missing",
-      }),
+    invoiceStatus: z.enum(INVOICE_STATUSES).nullable().openapi({
+      description:
+        "Where the transaction stands on its invoice, from Midday's own records: invoice_missing (nothing attached), invoice_pending (a suggested match is waiting to be confirmed), invoice_attached, no_invoice_needed (marked done without one). Null for anything that cannot have a supplier invoice — money coming in, and transfers between your own accounts.",
+      example: "invoice_missing",
+    }),
     booksStatus: z
       .enum(["invoice_missing", "in_the_books", "needs_attention"])
       .nullable()

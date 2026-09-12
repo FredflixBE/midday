@@ -67,7 +67,7 @@ const BOOKS_EXPLANATIONS: Record<BooksStatus, string> = {
 };
 
 type Props = {
-  invoiceStatus: InvoiceStatus;
+  invoiceStatus: InvoiceStatus | null;
   booksStatus?: BooksStatus | null;
 };
 
@@ -75,6 +75,13 @@ export function TransactionInvoiceStatus({
   invoiceStatus,
   booksStatus,
 }: Props) {
+  // Null means the question does not apply — money coming in, or a transfer
+  // between your own accounts. Saying nothing is the honest answer; saying
+  // "Invoice missing" would raise a false alarm on every sale.
+  if (!invoiceStatus) {
+    return <span className="text-[#878787]">—</span>;
+  }
+
   const label = INVOICE_LABELS[invoiceStatus];
   const colour = INVOICE_COLOURS[invoiceStatus];
 

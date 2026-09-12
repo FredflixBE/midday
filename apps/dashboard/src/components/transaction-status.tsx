@@ -69,8 +69,8 @@ type Props = {
   exportErrorCode?: string | null;
   exportProvider?: string | null;
   exportedAt?: string | null;
-  /** Midday's own answer about the invoice (FF-1499). */
-  invoiceStatus: InvoiceStatus;
+  /** Midday's own answer about the invoice; null when it cannot have one. */
+  invoiceStatus: InvoiceStatus | null;
   /** The accountant's answer, where the books have one. */
   booksStatus?: BooksStatus | null;
 };

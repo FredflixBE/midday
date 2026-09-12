@@ -38,11 +38,11 @@ function ReviewCount() {
  */
 function MissingCount() {
   const trpc = useTRPC();
-  const { data } = useQuery(trpc.overview.summary.queryOptions());
+  const { data } = useQuery(
+    trpc.transactions.missingInvoiceCount.queryOptions(),
+  );
 
-  const total = data
-    ? data.missingInvoices.missing + data.missingInvoices.toConfirm
-    : 0;
+  const total = data ? data.missing + data.toConfirm : 0;
 
   if (total === 0) {
     return null;
