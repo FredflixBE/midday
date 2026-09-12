@@ -11,7 +11,7 @@ import {
   type YukiArchiveDocument,
   type YukiArchiveReader,
 } from "./archive";
-import { YukiRequestError } from "./errors";
+import { YukiReferenceError, YukiRequestError } from "./errors";
 
 /**
  * Fixtures are invented — the suppliers, numbers and amounts below are not
@@ -283,6 +283,29 @@ describe("readArchiveFolder", () => {
     ).rejects.toThrow(YukiRequestError);
   });
 
+  it("accepts a folder that ends exactly on the last allowed page", async () => {
+    // The bound is on whether the folder ended, not on how many pages it took.
+    // Counting alone would fail a read that finished correctly on page 40.
+    let served = 0;
+    const exactly40Pages: YukiArchiveReader = {
+      async call() {
+        served++;
+        // 39 full pages of one, then a short page that ends it: 40 calls.
+        return served <= 39
+          ? documents(document({ "@ID": `d${served}` }))
+          : { Documents: "" };
+      },
+    };
+
+    const result = await readArchiveFolder(exactly40Pages, {
+      folderId: 1,
+      pageSize: 1,
+    });
+
+    expect(result.calls).toBe(40);
+    expect(result.documents).toHaveLength(39);
+  });
+
   it("reads an empty folder without complaining", async () => {
     const reader = fakeReader([{ Documents: "" }]);
 
@@ -392,19 +415,37 @@ describe("findInvoices", () => {
     ]);
   });
 
-  it("refuses a reference with nothing comparable in it", () => {
-    // The one that matters: a reference of only punctuation normalises to the
-    // empty string, and so does every unnumbered document in Yuki. Matching
-    // them would answer "Yuki already has this" for all of them.
+  it("never indexes a document whose reference has nothing comparable in it", () => {
+    // A reference of only punctuation normalises to the empty string, and so
+    // does every unnumbered document in Yuki. Indexing them under that key
+    // would answer "Yuki already has this" for all of them at once.
     const archive = archiveOf(
-      parsed({ "@ID": "a", Reference: "###" }),
-      parsed({ "@ID": "b", Reference: "" }),
-      parsed({ "@ID": "c", Reference: "INV-1001" }),
+      parsed({ "@ID": "punctuation", Reference: "###" }),
+      parsed({ "@ID": "none", Reference: "" }),
+      parsed({ "@ID": "numbered", Reference: "INV-1001" }),
     );
 
+    expect(archive.findInvoices("INV-1001").map((d) => d.documentId)).toEqual([
+      "numbered",
+    ]);
+    expect(archive.documents).toHaveLength(3);
+  });
+
+  it("refuses to answer at all when asked with nothing comparable", () => {
+    // The answer must not be `[]`. Empty means "Yuki does not hold this",
+    // which the caller acts on by delivering the invoice — and Yuki has no
+    // delete operation, so a blank number taking that path is a permanent
+    // duplicate. "I cannot answer" is a different thing from "no".
+    const archive = archiveOf(parsed({ Reference: "INV-1001" }));
+
     for (const asked of ["", "   ", "###", "-"]) {
-      expect(archive.findInvoices(asked)).toEqual([]);
+      expect(() => archive.findInvoices(asked)).toThrow(YukiReferenceError);
+      expect(() => archive.findDocuments(asked)).toThrow(YukiReferenceError);
     }
+
+    // And a number Yuki genuinely does not hold still answers empty, because
+    // that one really is a "no".
+    expect(archive.findInvoices("INV-9999")).toEqual([]);
   });
 
   it("does not answer for a document Yuki has not classified as an invoice", () => {
@@ -465,13 +506,13 @@ describe("findDocuments", () => {
     expect(archive.findDocuments("INV-9999")).toEqual([]);
   });
 
-  it("refuses a reference with nothing comparable in it, like findInvoices", () => {
+  it("refuses an uncomparable reference rather than calling it a miss", () => {
     const archive = archiveOf(
       parsed({ "@ID": "a", Type: "0", Reference: "###" }),
     );
 
-    expect(archive.findDocuments("###")).toEqual([]);
-    expect(archive.findDocuments("")).toEqual([]);
+    expect(() => archive.findDocuments("###")).toThrow(YukiReferenceError);
+    expect(() => archive.findDocuments("")).toThrow(YukiReferenceError);
   });
 });
 

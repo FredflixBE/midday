@@ -10,6 +10,7 @@ export {
   YukiConfigError,
   YukiNotConnectedError,
   YukiOperationNotAllowedError,
+  YukiReferenceError,
   YukiRequestError,
 } from "./errors";
 export type {
