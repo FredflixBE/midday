@@ -2,7 +2,7 @@ import { getDb } from "@jobs/init";
 import { inbox } from "@midday/db/schema";
 import { isFlagEnabled } from "@midday/utils/flags";
 import { logger, schedules } from "@trigger.dev/sdk";
-import { subDays } from "date-fns";
+import { subDays, subHours } from "date-fns";
 import { and, eq, lt, sql } from "drizzle-orm";
 
 export const noMatchScheduler = schedules.task({
@@ -21,7 +21,7 @@ export const noMatchScheduler = schedules.task({
 
     try {
       const ninetyDaysAgo = subDays(new Date(), 90);
-      const yesterday = subDays(new Date(), 1);
+      const anHourAgo = subHours(new Date(), 1);
 
       logger.info("Starting no-match scheduler", {
         cutoffDate: ninetyDaysAgo.toISOString(),
@@ -47,11 +47,18 @@ export const noMatchScheduler = schedules.task({
               sql`coalesce(${inbox.date}, ${inbox.createdAt}::date)`,
               ninetyDaysAgo.toISOString(),
             ),
-            // But never on the day it arrived. Matching runs asynchronously
-            // after ingestion, so a document imported minutes ago has not been
-            // looked at yet, and declaring it unmatched would be a guess about
-            // work that has not finished.
-            lt(inbox.createdAt, yesterday.toISOString()),
+            // But not in the minutes after it arrived. Matching runs
+            // asynchronously after ingestion, so a document imported moments
+            // ago has not been looked at yet and calling it unmatched would be
+            // a guess about work still in flight.
+            //
+            // An hour rather than a day, and the margin is deliberate in both
+            // directions. Extraction and matching finish in minutes, this runs
+            // once a day, so the only exposure is a document ingested just
+            // before 02:00 — and `no_match` is not terminal anyway, since
+            // matching keeps running and will still claim it. A day's floor
+            // bought nothing and hid an 18-hour-old backfill from its own fix.
+            lt(inbox.createdAt, anHourAgo.toISOString()),
             sql`${inbox.transactionId} IS NULL`,
           ),
         )
