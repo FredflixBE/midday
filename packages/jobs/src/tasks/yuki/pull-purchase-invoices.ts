@@ -26,6 +26,7 @@ import type { YukiDocumentReader } from "@midday/yuki/documents";
 import { fetchDocumentBinary } from "@midday/yuki/documents";
 import { YukiNotConnectedError, yukiClientForTeam } from "@midday/yuki/team";
 import { schemaTask } from "@trigger.dev/sdk";
+import { processDocument } from "../document/process-document";
 
 /**
  * Pulls the purchase invoices Yuki holds and Midday does not (FF-1450).
@@ -37,10 +38,11 @@ import { schemaTask } from "@trigger.dev/sdk";
  * "invoice missing" while Yuki is waiting on 81 payments.
  *
  * What the run does to each document: fetch the PDF, store it in the team's
- * vault, insert an inbox row keyed on the Yuki document id, run Midday's own
- * matcher over it, and mark it done. Done whatever the matcher found, because
- * the accountant has already booked these — they must not sit in the inbox
- * looking like work.
+ * vault, insert an inbox row keyed on the Yuki document id, send the file for
+ * indexing so the vault can find it by its contents, run Midday's own matcher
+ * over it, and mark it done. Done whatever the matcher found, because the
+ * accountant has already booked these — they must not sit in the inbox looking
+ * like work.
  *
  * **It writes nothing to Yuki.** Every operation it issues is on the read
  * allowlist; the only writes are Midday's own rows and files, which Midday can
@@ -53,6 +55,9 @@ const MATCHING_CONCURRENCY = 3;
 type PulledDocument = {
   inboxId: string;
   documentId: string;
+  /** Where the file was stored, which is what the vault indexes it by. */
+  filePath: string[];
+  contentType: string;
   /** True when this is a second copy of a document Midday already holds. */
   duplicate: boolean;
 };
@@ -131,6 +136,8 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       }
     }
 
+    const indexed = await this.index(teamId, pulled);
+
     // A copy of an invoice Midday already holds is closed without being
     // matched. The row it was grouped onto already carries Midday's match, and
     // running the matcher over the copy would offer the same invoice a second
@@ -151,6 +158,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       pulled: pulled.length,
       failed: failed.length,
       copies: copies.length,
+      indexed,
       matched: toFinish.length,
       ...matched,
       remaining: plan.counts.remaining,
@@ -164,6 +172,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       pulled: pulled.length,
       failed: failed.length,
       copies: copies.length,
+      indexed,
       matched: toFinish.length,
       ...matched,
     };
@@ -248,8 +257,69 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     return {
       inboxId: row.id,
       documentId: document.documentId,
+      filePath: data.path.split("/"),
+      contentType,
       duplicate: candidate.groupWith !== null,
     };
+  }
+
+  /**
+   * Sends each stored file for indexing, so the vault can find it by its
+   * contents rather than only by its file name (FF-1540).
+   *
+   * The storage trigger from FF-1440 creates the `documents` row the moment the
+   * file lands, but the row arrives with no title, no summary and no tags —
+   * `process-document` is what reads the file and fills those in, and it is
+   * what every other way into the vault already calls. Without it these are
+   * files nobody can search for, which for a few hundred supplier invoices is
+   * most of what the vault is for.
+   *
+   * It is not the OCR the pull avoids. `getInvoiceOrReceipt` re-reads a
+   * document for the fields Yuki's archive record already carries — supplier,
+   * number, date, total — and runs several passes to do it. This is one pass
+   * for a title, a summary and tags, which the archive carries nothing of.
+   *
+   * Copies of documents Midday already holds are indexed too: a copy is its own
+   * file with its own vault row, and an untitled file in the vault is exactly
+   * the defect this fixes, whatever the inbox thinks of the row beside it.
+   *
+   * Started rather than waited for, with the same idempotency key the mailbox
+   * path uses, so one file is processed once however many runs touch it. A
+   * failure to start does not fail the pull — the document is in the vault and
+   * in the inbox either way, and only its title is missing.
+   */
+  private async index(
+    teamId: string,
+    pulled: readonly PulledDocument[],
+  ): Promise<number> {
+    let started = 0;
+
+    for (const document of pulled) {
+      const path = document.filePath.join("/");
+
+      try {
+        await processDocument.trigger(
+          {
+            mimetype: document.contentType,
+            filePath: document.filePath,
+            teamId,
+          },
+          {
+            idempotencyKey: `process-doc_${teamId}_${path}`,
+            idempotencyKeyTTL: "24h",
+          },
+        );
+        started += 1;
+      } catch (error) {
+        this.logger.warn("Could not start indexing for a pulled document", {
+          teamId,
+          documentId: document.documentId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    return started;
   }
 
   /**
