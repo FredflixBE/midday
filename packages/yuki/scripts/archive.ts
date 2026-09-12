@@ -120,6 +120,19 @@ async function main() {
       : `\n${notFound.length} invoice numbers DO NOT find their own document — the lookup is losing invoices.`,
   );
 
+  // The gap between the two questions, on real data. A number that some
+  // document carries but no *invoice* carries is one where "not in Yuki" would
+  // be the wrong answer and a second delivery the result.
+  const unclassified = documents.filter(
+    (d) =>
+      d.referenceNormalized &&
+      !isInvoiceDocumentType(d.type) &&
+      archive.findInvoices(d.reference as string).length === 0,
+  );
+  console.log(
+    `${unclassified.length} documents carry a number that no invoice carries — findDocuments answers for these, findInvoices does not.`,
+  );
+
   // And the answer must not come from somewhere else: a reference with nothing
   // comparable in it has to match nothing at all.
   console.log(

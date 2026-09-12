@@ -1,8 +1,6 @@
-import {
-  isComparableInvoiceReference,
-  normalizeInvoiceReference,
-} from "@midday/utils/invoice-reference";
+import { comparableInvoiceReference } from "@midday/utils/invoice-reference";
 import { YukiRequestError } from "./errors";
+import type { SoapParams } from "./soap";
 
 /**
  * Reading Yuki's whole document archive, so Midday can ask it questions
@@ -14,30 +12,11 @@ import { YukiRequestError } from "./errors";
  * 2026-09-12, **1,815 documents across 12 folders in 15 calls**, against a free
  * allowance of 1,000 calls a day.
  *
- * ## Why this is read fresh rather than stored
- *
- * The first design mirrored the archive into a table and kept it current with
- * an incremental cursor. It was dropped, deliberately, and the reason is worth
- * keeping because the table looks like the obvious answer:
- *
- * **Nothing needs it.** Every consumer — the decision pass (FF-1493), the
- * Peppol pull (FF-1450), the period audit (FF-1460) — is a batch job with
- * nobody waiting on it. The one screen that shows Yuki's state (FF-1499) reads
- * the document id already stored on Midday's own inbox row, plus
- * `OutstandingCreditorItems`. No page load has to answer from the archive, so
- * fifteen calls in a job is a cost nobody feels.
- *
- * **And a stale answer here is unrecoverable.** The question this answers is
- * "does Yuki already hold this invoice?", and a wrong *no* uploads a duplicate
- * into live books that Yuki has no delete operation to remove. A mirror gives
- * its best stale answer when Yuki is unreachable; reading live simply fails,
- * and the run is retried. Refusing to decide is the correct behaviour, and only
- * this shape gets it for free.
- *
- * The ticket asked for the mirror to be refreshed immediately before every use,
- * which is a cache with a lifetime of zero — a fetch, with extra ways to be
- * wrong. If a synchronous, user-facing read of the archive ever appears, that
- * is the fact that reopens this; nothing else does.
+ * It is read per run rather than mirrored into a table, because a wrong "Yuki
+ * does not hold this" uploads a duplicate into live books that Yuki has no
+ * delete operation to remove — so failing to read beats answering from a stale
+ * copy. The full argument, and the one fact that would reopen it, is under
+ * "Why it is not a table" in this package's README.
  *
  * Everything here is a read, and every operation it issues is on the allowlist
  * in `operations.ts`.
@@ -116,11 +95,14 @@ export interface YukiArchiveDocument {
  * The ones Yuki produced on a real archive: purchase invoices in Aankoop, sales
  * invoices in Verkoop. The codes are language-independent, unlike the labels.
  *
- * This matters more than it looks. 870 of the archive's references sit on
- * documents of all kinds, but only 772 of them on an invoice — a bank
- * statement, a VAT return and a journal entry carry a `Reference` too, and 9 of
- * those collide with an invoice number. Without this filter, "does Yuki already
- * hold this invoice?" would sometimes be answered by a bank statement.
+ * This matters more than it looks. 884 documents of the measured archive carry
+ * a reference, and 106 of them are not invoices — a bank statement, a VAT
+ * return and a journal entry carry a `Reference` too, and 9 of those share a
+ * number with a real invoice. Without this filter, "does Yuki already hold this
+ * invoice?" would sometimes be answered by a bank statement.
+ *
+ * The filter cuts the other way too, which is what {@link YukiArchive.findDocuments}
+ * is for: 97 documents carry a number that no invoice carries.
  */
 export const YUKI_INVOICE_DOCUMENT_TYPES = {
   purchaseInvoice: "2",
@@ -158,7 +140,19 @@ export function isInvoiceDocumentType(type: string): boolean {
 export const YUKI_ARCHIVE_EPOCH = "2000-01-01T00:00:00";
 
 /** How many documents one call asks for. 500 reads the largest folder in two. */
-export const YUKI_ARCHIVE_PAGE_SIZE = 500;
+const YUKI_ARCHIVE_PAGE_SIZE = 500;
+
+/**
+ * A bound on the paging, so a folder that never ends cannot spend the day's
+ * whole allowance.
+ *
+ * The loop's only stop condition is a page shorter than the one asked for,
+ * because Yuki reports no total. That is correct as long as `startRecord`
+ * advances the window — and if it ever did not, the loop would ask the same
+ * question forever at several calls a second. 40 pages of 500 is 20,000
+ * documents, against a real archive of 1,815.
+ */
+const MAX_PAGES_PER_FOLDER = 40;
 
 /**
  * The slice of {@link YukiClient} this module needs.
@@ -167,10 +161,7 @@ export const YUKI_ARCHIVE_PAGE_SIZE = 500;
  * response without a client, a session or a network.
  */
 export interface YukiArchiveReader {
-  call(
-    operation: string,
-    params?: Record<string, string | number | boolean | null | undefined>,
-  ): Promise<unknown>;
+  call(operation: string, params?: SoapParams): Promise<unknown>;
 }
 
 /**
@@ -247,8 +238,9 @@ export function parseArchiveFolders(result: unknown): YukiArchiveFolder[] {
 export function parseArchiveDocuments(
   result: unknown,
   folderId: number,
-  operation = "ModifiedDocumentsInFolder",
 ): YukiArchiveDocument[] {
+  const operation = "ModifiedDocumentsInFolder";
+
   const wrapper = (result as { Documents?: unknown })?.Documents;
   const records = asRecords((wrapper as { Document?: unknown })?.Document);
 
@@ -263,10 +255,9 @@ export function parseArchiveDocuments(
       contactName: text(record, "ContactName"),
       contactId: text(record, "ContactId"),
       reference,
-      referenceNormalized:
-        reference && isComparableInvoiceReference(reference)
-          ? normalizeInvoiceReference(reference)
-          : null,
+      referenceNormalized: reference
+        ? comparableInvoiceReference(reference)
+        : null,
       documentDate: text(record, "DocumentDate"),
       amount: text(record, "Amount"),
       createdInYuki: text(record, "Created"),
@@ -304,7 +295,7 @@ export async function readArchiveFolder(
   let startRecord = 0;
   let calls = 0;
 
-  for (;;) {
+  while (calls < MAX_PAGES_PER_FOLDER) {
     const page = parseArchiveDocuments(
       await client.call("ModifiedDocumentsInFolder", {
         folderID: folderId,
@@ -322,6 +313,13 @@ export async function readArchiveFolder(
     // only end marker there is.
     if (page.length < pageSize) break;
     startRecord += pageSize;
+  }
+
+  if (calls >= MAX_PAGES_PER_FOLDER) {
+    throw new YukiRequestError({
+      operation: "ModifiedDocumentsInFolder",
+      message: `Folder ${folderId} did not end after ${MAX_PAGES_PER_FOLDER} pages of ${pageSize}. Rather than keep asking, this stops: the only way the loop does not end is if Yuki ignores startRecord and returns the same full page forever, and that would spend the day's 1,000 calls in under a minute.`,
+    });
   }
 
   return { documents, calls };
@@ -373,6 +371,25 @@ export interface YukiArchive {
    * judgement, not a lookup's.
    */
   findInvoices(reference: string): readonly YukiArchiveDocument[];
+  /**
+   * Every document carrying this number, **of any type**.
+   *
+   * This exists because "no invoice has this number" and "Yuki has never seen
+   * this number" are different answers, and only one of them means *send it*.
+   *
+   * Measured on the live archive: the purchase folder holds 5 documents of
+   * `Type` 0 (Standaard), 3 of them carrying a reference, and the folder the
+   * team sorts by hand holds 30 more with 13 references. A document that has
+   * arrived but has not yet been classified as an invoice looks exactly like
+   * that — which is the state a freshly delivered invoice passes through.
+   *
+   * So a caller that only asked {@link findInvoices} would be told "not in
+   * Yuki" about a document Yuki is holding, and would deliver it a second time.
+   * Yuki has no delete operation, so that duplicate is permanent. When this
+   * answers something and `findInvoices` answers nothing, the honest outcome is
+   * FF-1493's *Needs attention*, not *send*.
+   */
+  findDocuments(reference: string): readonly YukiArchiveDocument[];
 }
 
 /**
@@ -387,15 +404,20 @@ export function buildYukiArchive(params: {
 }): YukiArchive {
   const { folders, documents, calls, readAt = new Date() } = params;
 
-  const invoicesByReference = new Map<string, YukiArchiveDocument[]>();
+  const byReference = new Map<string, YukiArchiveDocument[]>();
 
   for (const document of documents) {
     if (!document.referenceNormalized) continue;
-    if (!isInvoiceDocumentType(document.type)) continue;
 
-    const held = invoicesByReference.get(document.referenceNormalized);
+    const held = byReference.get(document.referenceNormalized);
     if (held) held.push(document);
-    else invoicesByReference.set(document.referenceNormalized, [document]);
+    else byReference.set(document.referenceNormalized, [document]);
+  }
+
+  function matching(reference: string): readonly YukiArchiveDocument[] {
+    const comparable = comparableInvoiceReference(reference);
+    if (!comparable) return [];
+    return byReference.get(comparable) ?? [];
   }
 
   return {
@@ -404,11 +426,9 @@ export function buildYukiArchive(params: {
     calls,
     readAt,
     findInvoices(reference) {
-      if (!isComparableInvoiceReference(reference)) return [];
-      return (
-        invoicesByReference.get(normalizeInvoiceReference(reference)) ?? []
-      );
+      return matching(reference).filter((d) => isInvoiceDocumentType(d.type));
     },
+    findDocuments: matching,
   };
 }
 

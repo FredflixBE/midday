@@ -270,6 +270,19 @@ describe("readArchiveFolder", () => {
     expect(result.documents).toHaveLength(1);
   });
 
+  it("stops rather than page forever if Yuki ignores startRecord", async () => {
+    // The loop's only end marker is a short page. If Yuki answered every page
+    // with the same full one, an unbounded loop would spend the day's 1,000
+    // calls in under a minute.
+    const alwaysFull: YukiArchiveReader = {
+      call: async () => documents(document({ "@ID": "a" })),
+    };
+
+    expect(
+      readArchiveFolder(alwaysFull, { folderId: 1, pageSize: 1 }),
+    ).rejects.toThrow(YukiRequestError);
+  });
+
   it("reads an empty folder without complaining", async () => {
     const reader = fakeReader([{ Documents: "" }]);
 
@@ -394,6 +407,14 @@ describe("findInvoices", () => {
     }
   });
 
+  it("does not answer for a document Yuki has not classified as an invoice", () => {
+    const archive = archiveOf(
+      parsed({ "@ID": "unsorted", Type: "0", Reference: "INV-1001" }),
+    );
+
+    expect(archive.findInvoices("INV-1001")).toEqual([]);
+  });
+
   it("keeps every document, invoice or not, for the callers that count them", () => {
     // The lookup filters; the archive itself does not. FF-1460 audits folder
     // counts, and FF-1450 pulls documents that are not invoices.
@@ -403,6 +424,54 @@ describe("findInvoices", () => {
     );
 
     expect(archive.documents).toHaveLength(2);
+  });
+});
+
+describe("findDocuments", () => {
+  it("finds what findInvoices will not, so the caller can refuse to decide", () => {
+    // The live purchase folder holds 5 Type 0 "Standaard" documents, 3 of them
+    // carrying a reference: a document that has arrived but has not been
+    // classified as an invoice yet. Answering only "no invoice has this
+    // number" would send it again, and Yuki cannot delete the duplicate.
+    const archive = archiveOf(
+      parsed({ "@ID": "unsorted", Type: "0", Reference: "INV-1001" }),
+    );
+
+    expect(archive.findInvoices("INV-1001")).toEqual([]);
+    expect(archive.findDocuments("INV-1001").map((d) => d.documentId)).toEqual([
+      "unsorted",
+    ]);
+  });
+
+  it("finds invoices too, so the two answers can be compared", () => {
+    const archive = archiveOf(
+      parsed({ "@ID": "invoice", Type: "2", Reference: "INV-1001" }),
+      parsed({ "@ID": "statement", Type: "10", Reference: "INV-1001" }, 3),
+    );
+
+    expect(archive.findDocuments("INV-1001").map((d) => d.documentId)).toEqual([
+      "invoice",
+      "statement",
+    ]);
+    expect(archive.findInvoices("INV-1001").map((d) => d.documentId)).toEqual([
+      "invoice",
+    ]);
+  });
+
+  it("says nothing at all for a number Yuki has never seen", () => {
+    // The only answer that means "send it".
+    const archive = archiveOf(parsed({ Reference: "INV-1001" }));
+
+    expect(archive.findDocuments("INV-9999")).toEqual([]);
+  });
+
+  it("refuses a reference with nothing comparable in it, like findInvoices", () => {
+    const archive = archiveOf(
+      parsed({ "@ID": "a", Type: "0", Reference: "###" }),
+    );
+
+    expect(archive.findDocuments("###")).toEqual([]);
+    expect(archive.findDocuments("")).toEqual([]);
   });
 });
 

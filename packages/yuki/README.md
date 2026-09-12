@@ -61,8 +61,19 @@ its run, and asks it in memory (FF-1498):
 ```ts
 const archive = await readYukiArchive(client);
 
-archive.findInvoices("#SBIE-1234"); // the invoices carrying that number
+archive.findInvoices("#SBIE-1234");  // invoices carrying that number
+archive.findDocuments("#SBIE-1234"); // anything carrying it, of any type
 ```
+
+**Ask both, and treat the gap as a refusal to decide.** `findInvoices` answers
+the question the books care about; `findDocuments` catches the document Yuki is
+holding but has not classified as an invoice yet. The purchase folder has 5 of
+those, 3 carrying a reference, and the folder the team sorts by hand has 30 more
+with 13 references — a delivered invoice sits in exactly that state before Yuki
+books it. A caller that only asked `findInvoices` would be told "not in Yuki"
+about a document Yuki has, and would deliver it a second time; Yuki has no
+delete operation, so that duplicate is permanent. Something from `findDocuments`
+and nothing from `findInvoices` means FF-1493's *Needs attention*, never *send*.
 
 ### Why it is not a table
 
@@ -103,16 +114,18 @@ OpenAI invoice from January that Yuki already held.
 
 **Only `Type` 2 and 6 are invoices.** The numeric code is stable and
 language-independent; `TypeDescription` is a display label in the session's
-language, like the outstanding-item labels. It matters: 870 of the archive's
-references sit on documents of every kind — bank statements, VAT returns,
-journal entries — and 9 of those collide with an invoice number. Without the
-type filter, "does Yuki already hold this invoice?" is sometimes answered by a
-bank statement.
+language, like the outstanding-item labels. It matters: 884 documents carry a
+reference, and 106 of those are not invoices — bank statements, VAT returns,
+journal entries — with 9 of them sharing a number with a real invoice. Without
+the type filter, "does Yuki already hold this invoice?" is sometimes answered by
+a bank statement.
 
 **A reference with nothing comparable in it matches nothing.** One made only of
 punctuation normalises to the empty string, and so does every unnumbered document
 in the archive — so a lookup that accepted one would report that Yuki already
-holds all of them.
+holds all of them. `comparableInvoiceReference` returns `null` rather than `""`
+for exactly this reason: the case has to be handled before the value can be
+compared.
 
 Yuki's timestamps (`2026-09-06T11:31:38`, no timezone) are kept **as the strings
 Yuki sent**. A `Date` would be a claim about which clock wrote them, invisible
@@ -127,11 +140,13 @@ bun run --cwd packages/yuki archive
 ```
 
 Prints what it found: documents per folder, the type breakdown, how many carry an
-invoice number and how many of those are not unique. It then checks the lookup
-end to end — every invoice number in the archive, asked for exactly as Yuki wrote
-it, must find the document it came from — because normalisation that loses a
-document is what ends in a duplicate upload. Reads only, writes nothing, and
-prints no supplier, amount or invoice number: this repository is public.
+invoice number, how many of those are not unique, and how many documents carry a
+number that no *invoice* carries — 97 of them, on the measured domain. It then
+checks the lookup end to end: every invoice number in the archive, asked for
+exactly as Yuki wrote it, must find the document it came from, because
+normalisation that loses a document is what ends in a duplicate upload. Reads
+only, writes nothing, and prints no supplier, amount or invoice number — this
+repository is public.
 
 ## Setup, for the scripts
 
