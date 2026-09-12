@@ -50,8 +50,15 @@ export class YukiDecideDeliveryProcessor extends BaseProcessor<YukiDecideDeliver
       const path = document.filePath?.join("/");
       if (!path) return null;
 
+      // Only a PDF has a text layer. A photographed receipt has no text to
+      // extract and answers null either way, so checking the type here saves a
+      // signed URL and a download per image rather than changing any outcome.
+      if (document.contentType !== "application/pdf") return null;
+
       // Null is a real answer — it becomes "Needs attention: no text layer" —
       // so one unreadable document must not abandon the rest of the inbox.
+      // `extractTextFromPdf` already answers null rather than throwing; the
+      // catch is here for the storage call above it.
       try {
         const { data } = await supabase.storage
           .from("vault")
@@ -84,7 +91,13 @@ export class YukiDecideDeliveryProcessor extends BaseProcessor<YukiDecideDeliver
       textLayersRead: report.textLayersRead,
     });
 
-    return report;
+    // The per-document decisions stay out of the run's return value: an inbox
+    // holds thousands of rows, each decision carries the Yuki documents it
+    // matched, and a run output is not a place to put that. A caller that wants
+    // them calls `reportYukiDelivery` directly — which is what FF-1458 will do,
+    // in the same process, rather than reading them back off a run.
+    const { decisions, ...summary } = report;
+    return { ...summary, documents: decisions.length, skipped: false as const };
   }
 }
 

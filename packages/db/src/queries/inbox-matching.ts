@@ -1,5 +1,5 @@
 import { createLoggerWithContext } from "@midday/logger";
-import { and, desc, eq, inArray, isNull, notLike, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { inbox, transactionMatchSuggestions } from "../schema";
 import { createActivity } from "./activities";
@@ -484,12 +484,20 @@ export async function getSuggestionByInboxAndTransaction(
  * A row still being read has no invoice number yet, and one the pipeline gave
  * up on never will — neither can be decided on, and including them would only
  * produce a pile of "not extracted" that means "come back later".
+ *
+ * `archived` is in the list on purpose. Archiving a document means it is dealt
+ * with *in Midday's inbox*, which says nothing about whether the accountant has
+ * it — and the only scope exclusion FF-1493 states is a document Midday
+ * classified as not an invoice. Leaving archived rows out would hide a real
+ * invoice Yuki is missing, silently, with no status of any kind for FF-1499 to
+ * show.
  */
 const EXTRACTED_INBOX_STATUSES = [
   "pending",
   "suggested_match",
   "no_match",
   "done",
+  "archived",
 ] as const;
 
 export type InboxDocumentForYukiDelivery = {
@@ -524,8 +532,12 @@ export type InboxDocumentForYukiDelivery = {
  * already picks a primary by type, but that is a display heuristic, and letting
  * it decide here would deliver whichever it happened to prefer.
  *
- * Documents pulled *out of* Yuki are left out: they are in Yuki by definition,
- * and sending one back would be a duplicate with extra steps.
+ * Nothing filters out documents that came *from* Yuki, because nothing in
+ * Midday creates any: there is no Yuki importer, and the inbox's own prefix
+ * convention is `slack_`/`dashboard_` on `referenceId`. When FF-1453 adds an
+ * importer, this is where its rows get excluded — and the exclusion should be
+ * written against whatever that importer actually writes, not guessed at now.
+ * A filter matching a prefix nobody produces reads as protection and is not.
  */
 export async function getInboxDocumentsForYukiDelivery(
   db: Database,
@@ -549,7 +561,6 @@ export async function getInboxDocumentsForYukiDelivery(
       and(
         eq(inbox.teamId, params.teamId),
         inArray(inbox.status, [...EXTRACTED_INBOX_STATUSES]),
-        or(isNull(inbox.referenceId), notLike(inbox.referenceId, "yuki:%")),
       ),
     );
 }

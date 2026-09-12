@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, it } from "bun:test";
+import { comparableInvoiceReference } from "@midday/utils/invoice-reference";
 import type { YukiArchiveDocument } from "./archive";
 import { buildYukiArchive } from "./archive";
 import {
@@ -18,9 +19,7 @@ function yukiDocument(
     typeDescription: "Aankoopfactuur",
     contactName: null,
     contactId: null,
-    referenceNormalized: overrides.reference
-      .replace(/[^\p{L}\p{N}]/gu, "")
-      .toUpperCase(),
+    referenceNormalized: comparableInvoiceReference(overrides.reference),
     documentDate: null,
     amount: null,
     createdInYuki: null,
@@ -76,27 +75,27 @@ function only(
 }
 
 describe("scope", () => {
-  test("a document Midday filed as not financial is never sent", () => {
+  it("a document Midday filed as not financial is never sent", () => {
     expect(only([candidate({ id: "a", type: "other" })])).toMatchObject({
       action: "not_applicable",
       reason: "not_an_invoice",
     });
   });
 
-  test("a document still being extracted has no number to decide on", () => {
+  it("a document still being extracted has no number to decide on", () => {
     expect(only([candidate({ id: "a", type: null })])).toMatchObject({
       action: "not_applicable",
       reason: "not_extracted",
     });
   });
 
-  test("a receipt is a purchase document too, and is sent", () => {
+  it("a receipt is a purchase document too, and is sent", () => {
     expect(only([candidate({ id: "a", type: "expense" })])).toMatchObject({
       action: "send",
     });
   });
 
-  test("an out-of-scope document does not make an in-scope one ambiguous", () => {
+  it("an out-of-scope document does not make an in-scope one ambiguous", () => {
     // Rule 2 would otherwise fire on a receipt Midday filed as `other` that
     // happens to carry the same number, and hold up a real invoice.
     const decisions = decide([
@@ -109,21 +108,21 @@ describe("scope", () => {
 });
 
 describe("rule 1 — the number has to be in the document", () => {
-  test("no number extracted at all", () => {
+  it("no number extracted at all", () => {
     expect(only([candidate({ id: "a", invoiceNumber: null })])).toMatchObject({
       action: "needs_attention",
       reason: "no_invoice_number",
     });
   });
 
-  test("a blank number is the same as none", () => {
+  it("a blank number is the same as none", () => {
     expect(only([candidate({ id: "a", invoiceNumber: "   " })])).toMatchObject({
       action: "needs_attention",
       reason: "no_invoice_number",
     });
   });
 
-  test("a number with nothing comparable in it is refused, not looked up", () => {
+  it("a number with nothing comparable in it is refused, not looked up", () => {
     expect(
       only([candidate({ id: "a", invoiceNumber: "--/--" })]),
     ).toMatchObject({
@@ -132,7 +131,7 @@ describe("rule 1 — the number has to be in the document", () => {
     });
   });
 
-  test("a number shorter than the shortest real one is refused", () => {
+  it("a number shorter than the shortest real one is refused", () => {
     const short = "A".repeat(MINIMUM_COMPARABLE_REFERENCE_LENGTH - 1);
     expect(
       only([
@@ -148,7 +147,7 @@ describe("rule 1 — the number has to be in the document", () => {
     });
   });
 
-  test("a number exactly at the floor is usable", () => {
+  it("a number exactly at the floor is usable", () => {
     const shortest = "A".repeat(MINIMUM_COMPARABLE_REFERENCE_LENGTH);
     expect(
       only([
@@ -161,14 +160,14 @@ describe("rule 1 — the number has to be in the document", () => {
     ).toMatchObject({ action: "send" });
   });
 
-  test("a scan has no text layer, so the number cannot be verified", () => {
+  it("a scan has no text layer, so the number cannot be verified", () => {
     expect(only([candidate({ id: "a", documentText: null })])).toMatchObject({
       action: "needs_attention",
       reason: "no_text_layer",
     });
   });
 
-  test("an empty text layer is the same as none", () => {
+  it("an empty text layer is the same as none", () => {
     expect(only([candidate({ id: "a", documentText: "  \n " })])).toMatchObject(
       {
         action: "needs_attention",
@@ -177,7 +176,7 @@ describe("rule 1 — the number has to be in the document", () => {
     );
   });
 
-  test("a number the document does not contain is refused", () => {
+  it("a number the document does not contain is refused", () => {
     expect(
       only([
         candidate({
@@ -192,7 +191,7 @@ describe("rule 1 — the number has to be in the document", () => {
     });
   });
 
-  test("spacing and punctuation do not stop the number being found", () => {
+  it("spacing and punctuation do not stop the number being found", () => {
     // 5 of the 13 measured documents differed from the extracted number only
     // this way.
     expect(
@@ -206,13 +205,13 @@ describe("rule 1 — the number has to be in the document", () => {
     ).toMatchObject({ action: "send" });
   });
 
-  test("a Peppol document needs no text layer, because the number is a field", () => {
+  it("a Peppol document needs no text layer, because the number is a field", () => {
     expect(
       only([candidate({ id: "a", documentText: null, structured: true })]),
     ).toMatchObject({ action: "send" });
   });
 
-  test("a Peppol document is still refused an unusable number", () => {
+  it("a Peppol document is still refused an unusable number", () => {
     expect(
       only([
         candidate({
@@ -230,7 +229,7 @@ describe("rule 1 — the number has to be in the document", () => {
 });
 
 describe("rule 2 — two Midday documents, one number", () => {
-  test("both of them need a human, and neither is sent", () => {
+  it("both of them need a human, and neither is sent", () => {
     const decisions = decide([
       candidate({ id: "invoice", invoiceNumber: "SLACK-77" }),
       candidate({ id: "statement", invoiceNumber: "slack 77" }),
@@ -252,7 +251,7 @@ describe("rule 2 — two Midday documents, one number", () => {
     ]);
   });
 
-  test("a document whose number is not in its own text is not a rival claim", () => {
+  it("a document whose number is not in its own text is not a rival claim", () => {
     // The extractor misread one document and gave it another's number. That is
     // not two documents carrying one number, it is one document and one
     // misreading — so the real invoice goes out rather than waiting on a human.
@@ -273,9 +272,10 @@ describe("rule 2 — two Midday documents, one number", () => {
     });
   });
 
-  test("Yuki already holding the number settles it for both", () => {
-    // Rule 3 runs first: if the invoice is in the books there is nothing to
-    // send, and nothing for a person to choose between.
+  it("still asks, even when Yuki holds that number already", () => {
+    // Yuki holds the invoice, not the statement. Answering "in Yuki" for both
+    // would attach one Yuki document to two Midday rows and claim Yuki holds a
+    // statement it has never seen — so rule 2 runs ahead of the archive.
     const decisions = decide(
       [
         candidate({ id: "invoice", invoiceNumber: "SLACK-77" }),
@@ -284,12 +284,15 @@ describe("rule 2 — two Midday documents, one number", () => {
       archiveOf(yukiDocument({ reference: "SLACK-77" })),
     );
 
-    expect(decisions.map((d) => d.action)).toEqual(["in_yuki", "in_yuki"]);
+    expect(decisions.map((d) => d.reason)).toEqual([
+      "shared_invoice_number",
+      "shared_invoice_number",
+    ]);
   });
 });
 
 describe("rule 3 — Yuki already holds it", () => {
-  test("a purchase invoice with that number stops the delivery", () => {
+  it("a purchase invoice with that number stops the delivery", () => {
     const decision = only(
       [candidate({ id: "a", invoiceNumber: "INV-2026-0042" })],
       archiveOf(yukiDocument({ reference: "inv 2026 0042" })),
@@ -301,7 +304,7 @@ describe("rule 3 — Yuki already holds it", () => {
     ]);
   });
 
-  test("Midday's own sales invoice is never delivered back in as a purchase", () => {
+  it("Midday's own sales invoice is never delivered back in as a purchase", () => {
     expect(
       only(
         [candidate({ id: "a", invoiceNumber: "F2026-001" })],
@@ -316,7 +319,7 @@ describe("rule 3 — Yuki already holds it", () => {
     ).toMatchObject({ action: "in_yuki" });
   });
 
-  test("every document carrying the number is reported, not just the first", () => {
+  it("every document carrying the number is reported, not just the first", () => {
     const decision = only(
       [candidate({ id: "a", invoiceNumber: "REPEAT-9" })],
       archiveOf(
@@ -331,7 +334,7 @@ describe("rule 3 — Yuki already holds it", () => {
     ]);
   });
 
-  test("a bank statement reusing the number does not count as the invoice", () => {
+  it("a bank statement reusing the number does not count as the invoice", () => {
     // 9 references in the measured archive collided this way.
     expect(
       only(
@@ -349,7 +352,7 @@ describe("rule 3 — Yuki already holds it", () => {
 });
 
 describe("rule 3½ — Yuki has the number, but not yet on an invoice", () => {
-  test("it needs a human rather than a second delivery", () => {
+  it("it needs a human rather than a second delivery", () => {
     const decision = only(
       [candidate({ id: "a", invoiceNumber: "INV-2026-0042" })],
       archiveOf(
@@ -368,7 +371,7 @@ describe("rule 3½ — Yuki has the number, but not yet on an invoice", () => {
     expect(decision.yukiDocuments).toHaveLength(1);
   });
 
-  test("an invoice outranks an unclassified document with the same number", () => {
+  it("an invoice outranks an unclassified document with the same number", () => {
     expect(
       only(
         [candidate({ id: "a", invoiceNumber: "INV-2026-0042" })],
@@ -386,7 +389,7 @@ describe("rule 3½ — Yuki has the number, but not yet on an invoice", () => {
 });
 
 describe("rule 4 — send", () => {
-  test("a verified number nothing in Yuki carries", () => {
+  it("a verified number nothing in Yuki carries", () => {
     expect(
       only(
         [candidate({ id: "a" })],
@@ -399,7 +402,7 @@ describe("rule 4 — send", () => {
 describe("rule 5 — did it land?", () => {
   const now = new Date("2026-09-20T12:00:00Z");
 
-  test("a delivered document Yuki has booked is settled", () => {
+  it("a delivered document Yuki has booked is settled", () => {
     expect(
       only(
         [candidate({ id: "a", deliveredOn: "2026-09-19" })],
@@ -409,7 +412,7 @@ describe("rule 5 — did it land?", () => {
     ).toMatchObject({ action: "in_yuki" });
   });
 
-  test("inside the grace window there is simply nothing to do", () => {
+  it("inside the grace window there is simply nothing to do", () => {
     expect(
       only([candidate({ id: "a", deliveredOn: "2026-09-19" })], archiveOf(), {
         now,
@@ -417,7 +420,7 @@ describe("rule 5 — did it land?", () => {
     ).toMatchObject({ action: "not_applicable", reason: "awaiting_yuki" });
   });
 
-  test("past the grace window it needs a human", () => {
+  it("past the grace window it needs a human", () => {
     expect(
       only([candidate({ id: "a", deliveredOn: "2026-09-01" })], archiveOf(), {
         now,
@@ -428,7 +431,7 @@ describe("rule 5 — did it land?", () => {
     });
   });
 
-  test("a delivered document is never sent again, whatever rule 1 now says", () => {
+  it("a delivered document is never sent again, whatever rule 1 now says", () => {
     // The text layer failing to extract on a later run must not be able to
     // turn a delivered document back into a delivery.
     for (const broken of [
@@ -445,7 +448,7 @@ describe("rule 5 — did it land?", () => {
     }
   });
 
-  test("a delivered document does not hold up its own duplicate check", () => {
+  it("a delivered document does not hold up its own duplicate check", () => {
     // Rule 2 runs over the set, and a delivered document is still part of it.
     const decisions = decide(
       [
@@ -465,7 +468,7 @@ describe("rule 5 — did it land?", () => {
 });
 
 describe("the set as a whole", () => {
-  test("one decision per document, in the order given", () => {
+  it("one decision per document, in the order given", () => {
     const decisions = decide([
       candidate({ id: "a", invoiceNumber: "AAAA-1" }),
       candidate({ id: "b", invoiceNumber: "BBBB-2", documentText: "BBBB-2" }),
@@ -475,17 +478,17 @@ describe("the set as a whole", () => {
     expect(decisions.map((d) => d.id)).toEqual(["a", "b", "c"]);
   });
 
-  test("an empty set decides nothing", () => {
+  it("an empty set decides nothing", () => {
     expect(decide([])).toEqual([]);
   });
 });
 
 describe("requiresDocumentText", () => {
-  test("yes for a document that will reach rule 1's check", () => {
+  it("yes for a document that will reach rule 1's check", () => {
     expect(requiresDocumentText(candidate({ id: "a" }))).toBe(true);
   });
 
-  test("no for one that cannot reach it", () => {
+  it("no for one that cannot reach it", () => {
     const skipped = [
       candidate({ id: "a", type: "other" }),
       candidate({ id: "a", type: null }),
@@ -501,7 +504,7 @@ describe("requiresDocumentText", () => {
     }
   });
 
-  test("skipping the download does not change the decision", () => {
+  it("skipping the download does not change the decision", () => {
     // The optimisation has to be invisible: a document it says no about must
     // decide the same way whether or not its text was fetched.
     for (const document of [

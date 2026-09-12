@@ -42,7 +42,7 @@ import type { YukiArchive, YukiArchiveDocument } from "./archive";
  * round number picked for comfort.
  *
  * Below it, neither half of the test means anything. A three-character string
- * appears by accident in almost any PDF text layer, so {@link rule 1}'s check
+ * appears by accident in almost any PDF text layer, so rule 1's check
  * that the number is really in the document stops being evidence; and a
  * three-character lookup against the archive is as likely to hit someone else's
  * number as the right one. The dangerous outcome is the quiet one: a number
@@ -192,7 +192,7 @@ function daysBetween(from: string, to: Date): number {
  * so it can be tested exhaustively without a Yuki session, and the one piece
  * that needs the network is somebody else's problem.
  *
- * Read {@link readYukiArchive} once per run and pass the same archive to every
+ * Read `readYukiArchive` once per run and pass the same archive to every
  * call. Two halves of one decision pass must not see two different archives,
  * and a stale archive must never be reused across runs — deciding to deliver
  * from a mirror that has drifted is precisely how a permanent duplicate is
@@ -404,17 +404,14 @@ function decidePrepared(params: {
     sharedWith: [] as readonly string[],
   };
 
-  // Rule 3 — does Yuki already hold an invoice with this number? This also
-  // catches Midday's own sales invoices, which Yuki files as type 6, so they
-  // are never delivered back in as purchases.
-  const invoices = archive.findInvoices(reference);
-  if (invoices.length > 0) {
-    return { ...base, action: "in_yuki", yukiDocuments: invoices };
-  }
-
-  // Rule 5 — a delivered document Yuki has not booked. Nothing below this line
-  // can produce `send`, which is the point: it has already gone once.
+  // Rule 5 first, but only for a document that has already gone. Once it has,
+  // the sole open question is whether Yuki booked it — and nothing below this
+  // branch can produce `send`, which is the point.
   if (delivered) {
+    const booked = archive.findInvoices(reference);
+    if (booked.length > 0) {
+      return { ...base, action: "in_yuki", yukiDocuments: booked };
+    }
     const deliveredOn = document.deliveredOn as string;
     return daysBetween(deliveredOn, now) > bookingGraceDays
       ? {
@@ -426,8 +423,16 @@ function decidePrepared(params: {
   }
 
   // Rule 2 — does another of Midday's own documents carry this number? An
-  // invoice and its billing statement, for instance. Neither is delivered:
-  // which of them is the invoice is a question only a person can answer.
+  // invoice and its billing statement, for instance.
+  //
+  // This runs ahead of the archive lookup, and the order is load-bearing rather
+  // than cosmetic. Suppose Yuki holds invoice SLACK-77, and Midday has both that
+  // invoice and its billing statement, which prints the same number. Asking the
+  // archive first answers "in Yuki" for *both* — attaching one Yuki document to
+  // two Midday rows and claiming Yuki holds a statement it has never seen.
+  // Nothing would be delivered either way, so this is not a duplicate risk; it
+  // is a reporting one, and FF-1499 shows what this says. The honest answer is
+  // the ticket's: which of these is the invoice?
   const sharing = idsByReference.get(reference) ?? [];
   if (sharing.length > 1) {
     return {
@@ -438,12 +443,20 @@ function decidePrepared(params: {
     };
   }
 
-  // Rule 3\u00bd \u2014 Yuki has the number, but not on an invoice.
+  // Rule 3 — does Yuki already hold an invoice with this number? This also
+  // catches Midday's own sales invoices, which Yuki files as type 6, so they
+  // are never delivered back in as purchases.
+  const invoices = archive.findInvoices(reference);
+  if (invoices.length > 0) {
+    return { ...base, action: "in_yuki", yukiDocuments: invoices };
+  }
+
+  // Rule 3½ — Yuki has the number, but not on an invoice.
   //
   // "No invoice has this number" and "Yuki has never seen this number" are
   // different answers and only the second one means deliver it. A document that
   // has arrived but has not been classified yet looks exactly like this, and it
-  // is the state every freshly delivered invoice passes through \u2014 so treating
+  // is the state every freshly delivered invoice passes through — so treating
   // it as absent is how the same invoice gets delivered twice.
   const anyType = archive.findDocuments(reference);
   if (anyType.length > 0) {
@@ -455,6 +468,6 @@ function decidePrepared(params: {
     };
   }
 
-  // Rule 4 \u2014 nothing in Yuki carries this number, and the number is real.
+  // Rule 4 — nothing in Yuki carries this number, and the number is real.
   return { ...base, action: "send" };
 }

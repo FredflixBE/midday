@@ -146,38 +146,41 @@ async function buildCandidates(
   documents: InboxDocumentForYukiDelivery[],
   readDocumentText: ReadDocumentText,
 ): Promise<YukiDeliveryCandidate[]> {
-  const candidates: YukiDeliveryCandidate[] = documents.map((document) => ({
-    id: document.id,
-    invoiceNumber: document.invoiceNumber,
-    type: document.type,
-    documentText: null,
-    // Midday has no Peppol ingestion yet, so nothing arrives as structured
-    // data and nothing skips rule 1's text check. When FF-1453 adds one, this
-    // is the line it sets — and until then saying so explicitly is better than
-    // letting the field default and reading as if it had been considered.
-    structured: false,
-    // Likewise: no delivery record exists until FF-1458 creates one, so every
-    // document here is undelivered. The decision already refuses to re-send a
-    // delivered document; this is where FF-1458 tells it which those are.
-    deliveredOn: null,
+  const pairs = documents.map((document) => ({
+    document,
+    candidate: {
+      id: document.id,
+      invoiceNumber: document.invoiceNumber,
+      type: document.type,
+      documentText: null,
+      // Midday has no Peppol ingestion yet, so nothing arrives as structured
+      // data and nothing skips rule 1's text check. When FF-1453 adds one, this
+      // is the line it sets — and until then saying so explicitly is better
+      // than letting the field default and reading as if it were considered.
+      structured: false,
+      // Likewise: no delivery record exists until FF-1458 creates one, so every
+      // document here is undelivered. The decision already refuses to re-send a
+      // delivered document; this is where FF-1458 tells it which those are.
+      deliveredOn: null,
+    } satisfies YukiDeliveryCandidate as YukiDeliveryCandidate,
   }));
 
   // Only the documents that will reach rule 1's check are worth downloading.
-  const needed = candidates.filter(requiresDocumentText);
-  const byId = new Map(documents.map((d) => [d.id, d]));
+  const needed = pairs.filter(({ candidate }) =>
+    requiresDocumentText(candidate),
+  );
 
   for (let i = 0; i < needed.length; i += TEXT_EXTRACTION_CONCURRENCY) {
-    const batch = needed.slice(i, i + TEXT_EXTRACTION_CONCURRENCY);
     await Promise.all(
-      batch.map(async (candidate) => {
-        const document = byId.get(candidate.id);
-        if (!document) return;
-        candidate.documentText = await readDocumentText(document);
-      }),
+      needed
+        .slice(i, i + TEXT_EXTRACTION_CONCURRENCY)
+        .map(async ({ document, candidate }) => {
+          candidate.documentText = await readDocumentText(document);
+        }),
     );
   }
 
-  return candidates;
+  return pairs.map(({ candidate }) => candidate);
 }
 
 function countBy<T>(

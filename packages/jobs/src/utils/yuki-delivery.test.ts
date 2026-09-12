@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { InboxDocumentForYukiDelivery } from "@midday/db/queries";
+import { comparableInvoiceReference } from "@midday/utils/invoice-reference";
 import type { YukiArchiveDocument } from "@midday/yuki/archive";
 import { buildYukiArchive } from "@midday/yuki/archive";
 import { summariseYukiDelivery } from "./yuki-delivery";
@@ -30,7 +31,7 @@ function yukiInvoice(reference: string): YukiArchiveDocument {
     contactName: null,
     contactId: null,
     reference,
-    referenceNormalized: reference.replace(/[^\p{L}\p{N}]/gu, "").toUpperCase(),
+    referenceNormalized: comparableInvoiceReference(reference),
     documentDate: null,
     amount: null,
     createdInYuki: null,

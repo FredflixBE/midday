@@ -15,6 +15,7 @@ export {
   DEFAULT_BOOKING_GRACE_DAYS,
   decideYukiDelivery,
   MINIMUM_COMPARABLE_REFERENCE_LENGTH,
+  requiresDocumentText,
 } from "./decide";
 export type { YukiAccessRefusal } from "./errors";
 export {
