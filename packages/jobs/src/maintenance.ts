@@ -14,16 +14,59 @@
  * Keep this module free of server-only imports — the dashboard bundles it.
  */
 
-import { totalCardCharges, type YukiDayResult } from "./utils/yuki-day";
+import type { ZodType } from "zod";
+import {
+  DEFAULT_YUKI_PULL_CUTOFF,
+  DEFAULT_YUKI_PULL_LIMIT,
+  MAX_YUKI_PULL_LIMIT,
+  yukiPullInvoicesSchema,
+} from "./schemas/yuki";
+import {
+  totalCardCharges,
+  totalPulledInvoices,
+  type YukiDayResult,
+} from "./utils/yuki-day";
 
 export const MAINTENANCE_ACTION_IDS = [
   "sync-banks",
   "check-bank-schedules",
   "run-recurring-invoices",
   "sync-yuki",
+  "pull-invoices",
 ] as const;
 
 export type MaintenanceActionId = (typeof MAINTENANCE_ACTION_IDS)[number];
+
+/**
+ * One value a job takes before it runs, as the Admin card asks for it.
+ *
+ * Most maintenance jobs take nothing — they are "do the daily thing now". A
+ * job that does take something states it here, once: the card renders a field
+ * per entry and the API validates what comes back against the task's own
+ * payload schema, so neither end holds its own idea of what the job accepts.
+ *
+ * `defaultValue` is what the field starts on, and it is the same constant the
+ * task defaults to, so the form and an empty payload agree.
+ */
+export type MaintenanceField =
+  | {
+      name: string;
+      kind: "date";
+      label: string;
+      hint: string;
+      defaultValue: string;
+    }
+  | {
+      name: string;
+      kind: "number";
+      label: string;
+      hint: string;
+      defaultValue: number;
+      min: number;
+      max: number;
+    };
+
+export type MaintenanceOptions = Record<string, string | number>;
 
 export interface MaintenanceAction {
   id: MaintenanceActionId;
@@ -33,6 +76,14 @@ export interface MaintenanceAction {
   description: string;
   /** The button's label. */
   label: string;
+  /** What the card asks for before starting it. Absent means "just run it". */
+  fields?: readonly MaintenanceField[];
+  /**
+   * The task's own payload schema, which is what the answers are validated
+   * against. Sharing the task's schema rather than restating the rules here is
+   * what stops the form accepting something the task then refuses.
+   */
+  optionsSchema?: ZodType;
   /**
    * One sentence describing what a finished run did, for the person who
    * pressed the button. Takes the run's output, which arrives over the
@@ -149,7 +200,77 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
         : summary;
     },
   },
+  {
+    id: "pull-invoices",
+    task: "yuki-pull-invoices",
+    title: "Pull invoices from the books",
+    description:
+      "Bring in the purchase invoices the accountant already has and Midday does not — the ones that arrived over Peppol, were keyed in, or were sent to the accountant directly. Each one is filed, matched to its payment where there is one, and closed. Safe to run again: a document already pulled is never fetched twice.",
+    label: "Pull invoices",
+    fields: [
+      {
+        name: "cutoff",
+        kind: "date",
+        label: "Invoices dated from",
+        hint: "Anything older stays in the books. The default is the start of the last closed year; invoices before it predate every transaction Midday holds, so nothing could ever be matched to them.",
+        defaultValue: DEFAULT_YUKI_PULL_CUTOFF,
+      },
+      {
+        name: "limit",
+        kind: "number",
+        label: "At most",
+        hint: `Documents per team, per run. Raise it to clear a backlog in one go; a run has ten minutes, so ${MAX_YUKI_PULL_LIMIT} is the ceiling.`,
+        defaultValue: DEFAULT_YUKI_PULL_LIMIT,
+        min: 1,
+        max: MAX_YUKI_PULL_LIMIT,
+      },
+    ],
+    optionsSchema: yukiPullInvoicesSchema,
+    summarize: (output) => {
+      const { teams, failed } = fields(output);
+
+      if (count(teams) === 0) {
+        return "No team has the accounting integration connected, so there was nothing to pull.";
+      }
+
+      const {
+        pulled,
+        remaining,
+        matched,
+        failed: documentsFailed,
+      } = totalPulledInvoices(outcomesOf(output));
+
+      const summary = [
+        `Pulled ${plural(pulled, "invoice", "invoices")}, ${matched} of which found a payment.`,
+        remaining > 0
+          ? `${plural(remaining, "invoice is", "invoices are")} still to come — run it again.`
+          : "Nothing is left to pull.",
+      ].join(" ");
+
+      const trouble = [
+        documentsFailed > 0
+          ? `${plural(documentsFailed, "document", "documents")} could not be fetched`
+          : null,
+        count(failed) > 0
+          ? `${plural(count(failed), "team", "teams")} failed`
+          : null,
+      ].filter(Boolean);
+
+      return trouble.length > 0
+        ? `${summary} ${trouble.join(", ")} — see the run's logs.`
+        : summary;
+    },
+  },
 ];
+
+/** A day result's outcomes, for a summary reading a run's `unknown` output. */
+function outcomesOf(output: unknown): YukiDayResult {
+  const { outcomes } = fields(output);
+
+  return {
+    outcomes: Array.isArray(outcomes) ? outcomes : [],
+  } as YukiDayResult;
+}
 
 const BY_ID = new Map<MaintenanceActionId, MaintenanceAction>(
   MAINTENANCE_ACTIONS.map((action) => [action.id, action]),
@@ -165,4 +286,62 @@ export function getMaintenanceAction(
   }
 
   return action;
+}
+
+/**
+ * What a job should be started with, given whatever the card sent.
+ *
+ * Validation is the task's own payload schema, so a value the form accepts and
+ * the task refuses cannot exist. An action with no schema takes no options, and
+ * anything sent for it is dropped rather than forwarded — a task that ignores
+ * its payload should not be handed one it never asked for.
+ */
+export function maintenanceOptions(
+  action: MaintenanceAction,
+  requested: MaintenanceOptions | undefined,
+): Record<string, unknown> {
+  if (!action.optionsSchema) return {};
+
+  return action.optionsSchema.parse(requested ?? {}) as Record<string, unknown>;
+}
+
+/**
+ * The defaults the card's fields start on.
+ *
+ * Separate from {@link maintenanceOptions} because it must not run the schema:
+ * the form has to be renderable before anybody has typed anything valid.
+ */
+export function defaultMaintenanceOptions(
+  action: MaintenanceAction,
+): MaintenanceOptions {
+  const options: MaintenanceOptions = {};
+
+  for (const field of action.fields ?? []) {
+    options[field.name] = field.defaultValue;
+  }
+
+  return options;
+}
+
+/**
+ * The idempotency key for one press of one button.
+ *
+ * The options are part of it, because two runs of the same job with different
+ * answers are two different runs — without them, changing the cutoff and
+ * pressing again inside the window would hand back the previous run and look
+ * like the new setting had no effect. A job that takes no options keys on its
+ * id alone, exactly as before.
+ */
+export function maintenanceRunKey(
+  action: MaintenanceAction,
+  options: Record<string, unknown>,
+): string {
+  const fields = action.fields ?? [];
+  if (fields.length === 0) return `maintenance:${action.id}`;
+
+  const answers = fields
+    .map((field) => `${field.name}=${String(options[field.name])}`)
+    .join(",");
+
+  return `maintenance:${action.id}:${answers}`;
 }

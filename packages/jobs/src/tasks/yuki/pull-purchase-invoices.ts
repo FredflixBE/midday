@@ -7,12 +7,7 @@ import {
   yukiPullPurchaseInvoicesSchema,
 } from "@jobs/schemas/yuki";
 import { inboxFileName } from "@jobs/utils/inbox-sync";
-import {
-  DEFAULT_YUKI_PULL_CUTOFF,
-  DEFAULT_YUKI_PULL_LIMIT,
-  planYukiPull,
-  type YukiPullCandidate,
-} from "@jobs/utils/yuki-pull";
+import { planYukiPull, type YukiPullCandidate } from "@jobs/utils/yuki-pull";
 import {
   calculateInboxSuggestions,
   createYukiInboxDocument,
@@ -64,11 +59,9 @@ type PulledDocument = {
 
 export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPurchaseInvoicesPayload> {
   async process(job: JobContext<YukiPullPurchaseInvoicesPayload>) {
-    const {
-      teamId,
-      cutoff = DEFAULT_YUKI_PULL_CUTOFF,
-      limit = DEFAULT_YUKI_PULL_LIMIT,
-    } = job.data;
+    // Both default in the payload schema, so they are values here whether the
+    // caller had an opinion or not.
+    const { teamId, cutoff, limit } = job.data;
 
     // `getDb()` at each use rather than held in a variable, the same way
     // `sync-card-charges.ts` does it and for the same reason: a task that
@@ -159,7 +152,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       failed: failed.length,
       copies: copies.length,
       indexed,
-      matched: toFinish.length,
+      closed: toFinish.length,
       ...matched,
       remaining: plan.counts.remaining,
     });
@@ -173,8 +166,15 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       failed: failed.length,
       copies: copies.length,
       indexed,
-      matched: toFinish.length,
+      /** Rows run through the matcher and closed, pulled now or left by a run
+       * that stopped part way. */
+      closed: toFinish.length,
+      // What the matcher found, per row: autoMatched, suggested, unmatched.
       ...matched,
+      // Eligible documents this run left for the next one. The number that says
+      // whether the backlog is gone, so it is at the top rather than inside
+      // `counts` only.
+      remaining: plan.counts.remaining,
     };
   }
 

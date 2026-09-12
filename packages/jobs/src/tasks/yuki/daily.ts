@@ -7,7 +7,7 @@ import {
 import { getTeamIdsWithApp } from "@midday/db/queries";
 import { YUKI_APP_ID } from "@midday/yuki/team";
 import { logger, schedules } from "@trigger.dev/sdk";
-import { yukiPullPurchaseInvoices } from "./pull-purchase-invoices";
+import { yukiPullInvoices } from "./pull-invoices";
 import { yukiSyncCardCharges } from "./sync-card-charges";
 
 /**
@@ -45,36 +45,39 @@ export const yukiDaily = schedules.task({
 
     logger.info("Yuki day starting", { teams: teamIds.length });
 
-    return runYukiDay(teamIds, async (teamId) => {
+    const day = await runYukiDay(teamIds, async (teamId) => {
       const run = await yukiSyncCardCharges.triggerAndWait({ teamId });
 
       if (!run.ok) {
         logger.error("Yuki sync failed for a team", { teamId });
+        return { ok: false };
       }
 
-      // Started even when the card sync failed, because the two are independent
-      // and this is the only thing that starts the pull. Ordered after it only
-      // so that the day's new card charges are there to be matched against
-      // (FF-1450, FF-1517) — an ordering preference, not a dependency, and a
-      // card sync that fails every day must not also mean no invoice is ever
-      // pulled again.
-      //
-      // Started rather than waited for. The pull is bounded, re-runnable and
-      // picks up where the last run stopped, so nothing is lost by letting it
-      // finish on its own — and the point of there being one Yuki schedule is
-      // that the schedule itself stays small.
-      try {
-        await yukiPullPurchaseInvoices.trigger({ teamId });
-      } catch (error) {
-        // Failing to start the pull does not undo the card sync, and tomorrow's
-        // run starts it again.
-        logger.error("Could not start the Yuki invoice pull for a team", {
-          teamId,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-
-      return run.ok ? { ok: true, output: run.output } : { ok: false };
+      return { ok: true, output: run.output };
     });
+
+    // The invoice pull fans out over the same teams on its own (FF-1541), so
+    // this starts it once rather than per team. After the card syncs, not
+    // before: the invoices it pulls are matched against Midday's transactions,
+    // and the card's charges are most of the ones they belong to. That is an
+    // ordering preference and not a dependency — it is started whatever the
+    // card syncs did, because a card sync that fails every day must not also
+    // mean no invoice is ever pulled again.
+    //
+    // Started rather than waited for. The pull is bounded, re-runnable and
+    // picks up where the last run stopped, so nothing is lost by letting it
+    // finish on its own — and the point of there being one Yuki schedule is
+    // that the schedule itself stays small.
+    try {
+      await yukiPullInvoices.trigger({});
+    } catch (error) {
+      // Failing to start the pull does not undo the card syncs, and tomorrow's
+      // run starts it again.
+      logger.error("Could not start the Yuki invoice pull", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+
+    return day;
   },
 });

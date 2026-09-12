@@ -71,6 +71,66 @@ describe("tRPC: admin.runMaintenanceTask", () => {
     expect(first?.[2]?.idempotencyKeyTTL).toBe("5m");
   });
 
+  test("passes the answers a job asked for to the task", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.runMaintenanceTask({
+      action: "pull-invoices",
+      options: { cutoff: "2024-01-01", limit: 200 },
+    });
+
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
+      "yuki-pull-invoices",
+      { cutoff: "2024-01-01", limit: 200 },
+      // The answers are in the key, so changing one and pressing again starts
+      // a new run rather than returning the previous one.
+      expect.objectContaining({
+        idempotencyKey: "maintenance:pull-invoices:cutoff=2024-01-01,limit=200",
+      }),
+    );
+  });
+
+  test("fills in the task's defaults when the page sent nothing", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.runMaintenanceTask({ action: "pull-invoices" });
+
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
+      "yuki-pull-invoices",
+      { cutoff: "2025-01-01", limit: 50 },
+      expect.anything(),
+    );
+  });
+
+  test("refuses an answer the task itself would refuse", async () => {
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.runMaintenanceTask({
+        action: "pull-invoices",
+        options: { cutoff: "01/01/2024" },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    expect(mocks.triggerTask).not.toHaveBeenCalled();
+  });
+
+  test("hands a job that takes nothing an empty payload", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.runMaintenanceTask({
+      action: "sync-banks",
+      // Sent anyway — a stray value must not reach a task that never asked.
+      options: { cutoff: "2024-01-01" },
+    });
+
+    expect(mocks.triggerTask).toHaveBeenCalledWith(
+      "sync-institutions",
+      {},
+      expect.anything(),
+    );
+  });
+
   test("refuses a team member who is not the developer", async () => {
     // Hiding the tab is not a guard: the mutation stays reachable, so this is
     // the check that has to hold.

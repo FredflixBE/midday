@@ -3,7 +3,8 @@ import type { InboxRowForYukiPull } from "@midday/db/queries";
 import { yukiInboxReference } from "@midday/db/queries";
 import { comparableInvoiceReference } from "@midday/utils/invoice-reference";
 import type { YukiArchiveDocument } from "@midday/yuki/archive";
-import { DEFAULT_YUKI_PULL_CUTOFF, planYukiPull } from "./yuki-pull";
+import { DEFAULT_YUKI_PULL_CUTOFF } from "../schemas/yuki";
+import { planYukiPull } from "./yuki-pull";
 
 function yukiDocument(
   overrides: Partial<YukiArchiveDocument> & { documentId: string },

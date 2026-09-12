@@ -5,9 +5,14 @@ import {
   protectedProcedure,
 } from "@api/trpc/init";
 import { isDeveloper } from "@api/utils/developer";
-import { getMaintenanceAction } from "@midday/jobs/maintenance";
+import {
+  getMaintenanceAction,
+  maintenanceOptions,
+  maintenanceRunKey,
+} from "@midday/jobs/maintenance";
 import { toTriggeredRun } from "@midday/jobs/run-status";
 import { tasks } from "@trigger.dev/sdk";
+import { TRPCError } from "@trpc/server";
 
 /**
  * How long a maintenance run's idempotency key lives.
@@ -47,14 +52,30 @@ export const adminRouter = createTRPCRouter({
     .mutation(async ({ input }) => {
       const action = getMaintenanceAction(input.action);
 
-      const handle = await tasks.trigger(
-        action.task,
-        {},
-        {
-          idempotencyKey: `maintenance:${action.id}`,
-          idempotencyKeyTTL: IDEMPOTENCY_TTL,
-        },
-      );
+      // Validated against the task's own payload schema, so a value this
+      // accepts is one the task accepts. A job that takes no options is handed
+      // none, whatever was sent for it.
+      let options: Record<string, unknown>;
+      try {
+        options = maintenanceOptions(action, input.options);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Those settings are not valid for this job.",
+          cause: error,
+        });
+      }
+
+      const handle = await tasks.trigger(action.task, options, {
+        // The answers are part of the key: two runs of one job with different
+        // settings are two different runs, and without this the second press
+        // would hand back the first run and look like nothing had changed.
+        idempotencyKey: maintenanceRunKey(action, options),
+        idempotencyKeyTTL: IDEMPOTENCY_TTL,
+      });
 
       return toTriggeredRun(handle);
     }),
