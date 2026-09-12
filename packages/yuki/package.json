@@ -16,7 +16,8 @@
     "test": "bun test --exit src",
     "explore": "bun run scripts/explore.ts",
     "archive": "bun run scripts/archive.ts",
-    "backlog": "bun run scripts/backlog.ts"
+    "backlog": "bun run scripts/backlog.ts",
+    "team-archive": "bun run scripts/team-archive.ts"
   },
   "dependencies": {
     "@midday/db": "workspace:*",
