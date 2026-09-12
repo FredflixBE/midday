@@ -33,6 +33,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "1.4.2"
   }
 }
