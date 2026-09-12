@@ -66,10 +66,15 @@ archive.findDocuments("#SBIE-1234"); // anything carrying it, of any type
 ```
 
 **Asking twice with the same client reads once.** The archive is held against
-the client, which `yukiClientForTeam` builds per run, so a step that wants it can
-just ask rather than have it threaded through every signature — and a loop over
-200 inbox documents costs fifteen calls, not three thousand. Two steps starting
-concurrently share one read instead of racing into two.
+the client, so a step that wants it can just ask rather than have it threaded
+through every signature — and a loop over 200 inbox documents costs fifteen
+calls, not three thousand. Two steps starting concurrently share one read
+instead of racing into two.
+
+The reuse is keyed on the **client instance**, and `yukiClientForTeam` builds a
+new client every time it is called. So get the client once per run and pass
+*that* down: a job that fetches its own client per inbox document gets a fresh
+archive each time and never hits the reuse at all.
 
 A deliberate re-read says so, and replaces what the client holds:
 
@@ -138,12 +143,17 @@ journal entries — with 9 of them sharing a number with a real invoice. Without
 the type filter, "does Yuki already hold this invoice?" is sometimes answered by
 a bank statement.
 
-**A reference with nothing comparable in it matches nothing.** One made only of
-punctuation normalises to the empty string, and so does every unnumbered document
-in the archive — so a lookup that accepted one would report that Yuki already
-holds all of them. `comparableInvoiceReference` returns `null` rather than `""`
-for exactly this reason: the case has to be handled before the value can be
-compared.
+**A reference with nothing comparable in it is refused, not answered.** This
+cuts two ways, and they are different. On the *index* side, a document whose
+reference is blank or pure punctuation is never indexed: it would key on the
+empty string, as would all 900 unnumbered documents, and one lookup would claim
+Yuki holds every one of them. On the *ask* side, `findInvoices` and
+`findDocuments` **throw** `YukiReferenceError` rather than answering empty —
+because empty means "Yuki does not hold this", the caller acts on that by
+delivering the invoice, and Yuki has no delete operation. "I cannot answer" is
+not "no". A caller that might hold an unusable number checks
+`comparableInvoiceReference` first; it returns `null` rather than `""` so the
+case cannot be used by accident.
 
 Yuki's timestamps (`2026-09-06T11:31:38`, no timezone) are kept **as the strings
 Yuki sent**. A `Date` would be a claim about which clock wrote them, invisible
