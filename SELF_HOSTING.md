@@ -207,6 +207,7 @@ same value everywhere the name appears.
 | `PLAIN_API_KEY` | no | Plain support tickets; the API only probes it for health. |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI` | yes for Gmail inbox | The internal Google OAuth client with Gmail scopes (FF-1407); same values as the dashboard. |
 | `TRIGGER_SECRET_KEY` | yes | Trigger.dev project, production environment. |
+| `DEVELOPER_EMAIL` | for Settings → Admin | The one email address allowed to run the maintenance jobs by hand. Those jobs act on the whole deployment, not on one team. Unset means nobody: the Admin tab is hidden and its mutations refuse. A refusal is logged with the address it saw, so a mismatch is one log line rather than a tab that never appears. |
 | `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, `OUTLOOK_REDIRECT_URI` | no | Azure app registration for Outlook inbox sync. |
 | `SLACK_*` | no | A Slack app, if you use the Slack inbox. |
 | `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | no | Accounting integrations. |
@@ -253,8 +254,8 @@ Runtime environment:
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
-| `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Scheduled tasks run unless set to `false`. They used to run only in Midday's own production environment. `packages/jobs/README.md` lists every schedule and its cron. |
-| `INVOICE_JOBS_DRY_RUN` | no | Off unless set. Makes the two invoice schedules log which invoices they would generate and who they would email, and send nothing. Worth one run before letting invoicing send for real. |
+| `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Jobs run unless set to `false`. They used to run only in Midday's own production environment. `SYNC_INSTITUTIONS_ENABLED` now gates a task with no cron, started from Settings → Admin, and `BANK_SYNC_SCHEDULER_ENABLED` gates one of each; `packages/jobs/README.md` lists what is scheduled and what is not. |
+| `INVOICE_JOBS_DRY_RUN` | no | Off unless set. Makes the two recurring-invoice jobs log which invoices they would generate and who they would email, and send nothing. Worth one run before letting invoicing send for real. |
 | `INSIGHTS_ENABLED` | no | Weekly insight emails, off unless exactly `true`. No schedule is registered for the dispatcher, so this alone starts nothing. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
 
