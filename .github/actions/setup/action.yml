@@ -23,4 +23,12 @@ runs:
       shell: bash
       # Frozen so a package.json edit without a lockfile update fails here
       # instead of silently resolving to something different from local.
-      run: bun install --frozen-lockfile
+      #
+      # bun's own message for this is "lockfile had changes, but lockfile is
+      # frozen", which names neither a dependency nor a remedy — so the first
+      # place people look is their own diff, which is usually innocent.
+      run: |
+        bun install --frozen-lockfile || {
+          echo "::error title=Lockfile out of date::bun.lock does not match the package.json files. Run 'bun install' locally and commit the updated bun.lock. If your branch changed no dependency, this is main's problem and not yours."
+          exit 1
+        }

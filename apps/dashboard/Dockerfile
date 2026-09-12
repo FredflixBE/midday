@@ -17,6 +17,11 @@ ARG GIT_COMMIT_SHA=""
 RUN [ -f .git-commit-sha ] || printf '%s' "$GIT_COMMIT_SHA" > .git-commit-sha
 # Prune dashboard workspace
 RUN turbo prune @midday/dashboard --docker
+# `turbo prune` emits a bun.lock that bun cannot read back: any dependency
+# resolved from a tarball URL is rewritten into the registry shape, and bun
+# answers by ignoring the lockfile entirely and re-resolving from npm. Put
+# those entries back so the install below has a lockfile to be frozen against.
+RUN bun scripts/repair-pruned-lockfile.ts out/json/bun.lock
 
 # Installer stage
 FROM base AS installer
@@ -27,7 +32,9 @@ COPY --from=builder /app/out/json/ .
 COPY bunfig.toml .
 
 # Install dependencies
-RUN bun install
+# Frozen, so the image installs the versions CI validated rather than
+# whatever the registry serves at build time.
+RUN bun install --frozen-lockfile
 
 # Copy full source from pruned workspace
 COPY --from=builder /app/out/full/ .

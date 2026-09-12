@@ -132,6 +132,12 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # Before the slow steps, and outside turbo so no cache can replay it:
+      # a new package that declares "latest" would not invalidate any existing
+      # package's task, so a cached check would pass while the repo regressed.
+      - name: Check every dependency names a version
+        run: bun scripts/check-dependency-pins.ts
+
       - name: Typecheck
         run: bunx turbo typecheck
 
