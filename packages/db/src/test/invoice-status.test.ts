@@ -15,7 +15,10 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
-import { countMissingInvoices } from "../queries/invoice-status";
+import {
+  countInboxNeedsHandling,
+  countMissingInvoices,
+} from "../queries/invoice-status";
 import { getTransactions } from "../queries/transactions";
 import {
   inbox,
@@ -319,6 +322,98 @@ describe.skipIf(SKIP)("invoice status", () => {
       expect(data.map((row) => row.id).sort()).toEqual(
         [T.nothing, T.suggested].sort(),
       );
+    });
+  });
+
+  describe("the inbox side: documents that still need handling", () => {
+    const D = {
+      open: "e0000000-0000-0000-0000-0000000000b1",
+      fromBooks: "e0000000-0000-0000-0000-0000000000b2",
+      primary: "e0000000-0000-0000-0000-0000000000b3",
+      twin: "e0000000-0000-0000-0000-0000000000b4",
+      notAnInvoice: "e0000000-0000-0000-0000-0000000000b5",
+      chargesNothing: "e0000000-0000-0000-0000-0000000000b6",
+      broken: "e0000000-0000-0000-0000-0000000000b7",
+    };
+
+    async function makeDocument(overrides: {
+      id: string;
+      status?: string;
+      type?: "invoice" | "expense" | "other" | null;
+      referenceId?: string | null;
+      transactionId?: string | null;
+      groupedInboxId?: string | null;
+    }) {
+      await db.insert(inbox).values({
+        id: overrides.id,
+        teamId: TEAM_USD_ID,
+        displayName: "Supplier",
+        amount: 100,
+        currency: "USD",
+        // biome-ignore lint/suspicious/noExplicitAny: the enums are wider than this fixture needs
+        status: (overrides.status ?? "pending") as any,
+        type: (overrides.type ?? "invoice") as any,
+        referenceId: overrides.referenceId ?? `ref-${overrides.id}`,
+        transactionId: overrides.transactionId ?? null,
+        groupedInboxId: overrides.groupedInboxId ?? null,
+      });
+    }
+
+    const count = () => countInboxNeedsHandling(db, { teamId: TEAM_USD_ID });
+
+    test("an open invoice with nothing done to it is work", async () => {
+      await makeDocument({ id: D.open });
+
+      expect(await count()).toBe(1);
+    });
+
+    test("one already matched to a transaction is not", async () => {
+      await makeTransaction(db, { id: T.attached, name: "Paid" });
+      await makeDocument({ id: D.open, transactionId: T.attached });
+
+      expect(await count()).toBe(0);
+    });
+
+    test("one that came from the books is not, even with no transaction", async () => {
+      // Frederik's catch: an invoice with no transaction is not necessarily
+      // unhandled. The accountant has this one and has booked it.
+      await makeDocument({ id: D.fromBooks, referenceId: "yuki:abc-123" });
+
+      expect(await count()).toBe(0);
+    });
+
+    test("one charging nothing is not, and neither is something that is not an invoice", async () => {
+      await makeDocument({ id: D.chargesNothing, status: "no_charge" });
+      await makeDocument({ id: D.notAnInvoice, status: "other", type: "other" });
+
+      expect(await count()).toBe(0);
+    });
+
+    test("a document whose twin in the same group came from the books is not work", async () => {
+      // The group rule. Read one row at a time this looks like an open invoice;
+      // read the group and the accountant already has it.
+      await makeDocument({ id: D.primary, status: "suggested_match" });
+      await makeDocument({
+        id: D.twin,
+        status: "done",
+        referenceId: "yuki:def-456",
+        groupedInboxId: D.primary,
+      });
+
+      expect(await count()).toBe(0);
+    });
+
+    test("a group counts once, never once per copy", async () => {
+      await makeDocument({ id: D.primary });
+      await makeDocument({ id: D.twin, groupedInboxId: D.primary });
+
+      expect(await count()).toBe(1);
+    });
+
+    test("one that failed to process is work, because it wants a retry", async () => {
+      await makeDocument({ id: D.broken, status: "failed", type: null });
+
+      expect(await count()).toBe(1);
     });
   });
 });

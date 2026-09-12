@@ -63,7 +63,7 @@ const COLUMN_IDS = getColumnIds(columns);
 
 type Props = {
   initialSettings?: Partial<TableSettings>;
-  initialTab?: "all" | "review";
+  initialTab?: TransactionTab;
 };
 
 export function DataTable({ initialSettings, initialTab }: Props) {
@@ -107,6 +107,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
   // Use the current tab from URL, falling back to initial value
   const activeTab = (tab ?? initialTab ?? "all") as TransactionTab;
   const isReviewTab = activeTab === "review";
+  const isMissingTab = activeTab === "missing";
 
   // Get tab-specific row selection
   const rowSelection = rowSelectionByTab[activeTab];
@@ -120,6 +121,17 @@ export function DataTable({ initialSettings, initialTab }: Props) {
   // Build query filters based on active tab
   // Review tab: strict export queue (ignore user filters)
   const queryFilter = useMemo(() => {
+    if (isMissingTab) {
+      // The one question this view answers, so user filters are ignored here
+      // for the same reason Review ignores them: a list you have narrowed is a
+      // list you cannot empty.
+      return {
+        sort: params.sort,
+        needsInvoice: true,
+        pageSize: 10000,
+      };
+    }
+
     if (isReviewTab) {
       return {
         // Keep sort only; all filter state is ignored in Review.
@@ -140,7 +152,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       // Otherwise use default pagination for browsing
       pageSize: hasFilters ? 10000 : undefined,
     };
-  }, [filter, deferredSearch, params.sort, isReviewTab, hasFilters]);
+  }, [filter, deferredSearch, params.sort, isReviewTab, isMissingTab, hasFilters]);
 
   const infiniteQueryOptions = trpc.transactions.get.infiniteQueryOptions(
     queryFilter,

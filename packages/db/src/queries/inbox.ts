@@ -14,6 +14,7 @@ const logger = createLoggerWithContext("inbox");
 
 import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
+import { inboxNeedsHandlingSql } from "./invoice-status";
 import { separateBlocklistEntries } from "../utils/blocklist";
 import { buildSearchQuery } from "../utils/search-query";
 import {
@@ -44,7 +45,7 @@ export type GetInboxParams = {
     | "other"
     | "failed"
     | null;
-  tab?: "all" | "other" | null;
+  tab?: "all" | "other" | "needs_handling" | null;
 };
 
 export async function getInbox(db: Database, params: GetInboxParams) {
@@ -102,6 +103,12 @@ export async function getInbox(db: Database, params: GetInboxParams) {
   // Apply status filter
   if (status) {
     whereConditions.push(eq(inbox.status, status));
+  }
+
+  // FF-1499's inbox-zero view: documents that still need a person. See
+  // `inboxNeedsHandlingSql` for why "has no transaction" is not the test.
+  if (tab === "needs_handling") {
+    whereConditions.push(inboxNeedsHandlingSql());
   }
 
   // Apply tab filter

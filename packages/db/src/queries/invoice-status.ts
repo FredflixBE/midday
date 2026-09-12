@@ -1,7 +1,8 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
 import type { Database } from "../client";
 import {
+  inbox,
   transactionAttachments,
   transactionMatchSuggestions,
   transactions,
@@ -147,4 +148,67 @@ export async function countMissingInvoices(
     .where(and(eq(transactions.teamId, teamId), needsInvoiceSql(teamId)));
 
   return { missing: row?.missing ?? 0, toConfirm: row?.toConfirm ?? 0 };
+}
+
+/**
+ * The other half of the same question, on the inbox side: a document exists and
+ * nothing has been done with it.
+ *
+ * It lives beside the transaction view deliberately. The rule that makes both
+ * lists reach zero is that **each piece of work appears on exactly one of
+ * them** — the transactions view owns finding and confirming, this one owns
+ * filing and sending — and a rule split across two files is a rule that drifts.
+ *
+ * ## Why "no transaction" is not the test
+ *
+ * A document with no transaction is not necessarily unfinished. Three reasons
+ * it can be legitimately done, measured on the live inbox:
+ *
+ * - **It came from the books** (78). The accountant has it and has booked it.
+ * - **It charges nothing** (21). No payment was ever going to appear.
+ * - **It is not an invoice** (32).
+ *
+ * ## Judge the group, not the row
+ *
+ * When the pull found an invoice Midday already held, it filed the copy against
+ * the original via `grouped_inbox_id`. So the finishing facts are checked across
+ * every member of the group: today 4 rows sit at `pending`, `suggested_match`
+ * or `analyzing` whose twin in the same group is already booked, and reading
+ * rows one at a time shows all four as work that does not exist.
+ */
+export function inboxNeedsHandlingSql(): SQL {
+  return sql`(
+    ${inbox.status}::text NOT IN ('done', 'deleted', 'archived', 'no_charge', 'other')
+    AND (${inbox.type}::text = 'invoice' OR ${inbox.status}::text = 'failed')
+    AND NOT EXISTS (
+      SELECT 1 FROM ${inbox} member
+      WHERE (member.id = ${inbox.id} OR member.grouped_inbox_id = ${inbox.id})
+        AND member.team_id = ${inbox.teamId}
+        AND (
+          member.transaction_id IS NOT NULL
+          OR member.reference_id LIKE 'yuki:%'
+        )
+    )
+  )`;
+}
+
+/** How much is left in the inbox's "Needs handling" view. */
+export async function countInboxNeedsHandling(
+  db: Database,
+  params: { teamId: string },
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`COUNT(*)::int` })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        // The list only ever renders a group's primary row, so the count has to
+        // agree with it or the tab promises work the list cannot show.
+        isNull(inbox.groupedInboxId),
+        inboxNeedsHandlingSql(),
+      ),
+    );
+
+  return row?.count ?? 0;
 }

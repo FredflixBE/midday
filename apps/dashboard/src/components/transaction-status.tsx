@@ -1,3 +1,8 @@
+import {
+  type BooksStatus,
+  type InvoiceStatus,
+  TransactionInvoiceStatus,
+} from "@/components/transaction-invoice-status";
 import { Icons } from "@midday/ui/icons";
 import {
   Tooltip,
@@ -59,24 +64,26 @@ function formatExportDate(dateStr?: string | null): string {
 
 type Props = {
   rawStatus?: string | null;
-  isFulfilled: boolean;
   isExported: boolean;
   hasExportError?: boolean;
   exportErrorCode?: string | null;
   exportProvider?: string | null;
   exportedAt?: string | null;
-  hasPendingSuggestion?: boolean;
+  /** Midday's own answer about the invoice (FF-1499). */
+  invoiceStatus: InvoiceStatus;
+  /** The accountant's answer, where the books have one. */
+  booksStatus?: BooksStatus | null;
 };
 
 export function TransactionStatus({
   rawStatus,
-  isFulfilled,
   isExported,
   hasExportError,
   exportErrorCode,
   exportProvider,
   exportedAt,
-  hasPendingSuggestion,
+  invoiceStatus,
+  booksStatus,
 }: Props) {
   if (rawStatus === "archived") {
     return <span className="cursor-default text-[#878787]">Archived</span>;
@@ -97,38 +104,6 @@ export function TransactionStatus({
           </TooltipTrigger>
           <TooltipContent sideOffset={10} className="text-xs">
             <p>{getErrorMessage(exportErrorCode)}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
-  if (isFulfilled && !isExported) {
-    return (
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="cursor-default">Ready to export</span>
-          </TooltipTrigger>
-          <TooltipContent sideOffset={10} className="text-xs">
-            <p>Receipt attached. Ready for export.</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
-  if (hasPendingSuggestion) {
-    return (
-      <TooltipProvider delayDuration={0}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span style={{ color: "#ff9800" }} className="cursor-default">
-              Receipt found
-            </span>
-          </TooltipTrigger>
-          <TooltipContent sideOffset={10} className="text-xs">
-            <p>We found a possible receipt. Confirm or dismiss it.</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -163,5 +138,12 @@ export function TransactionStatus({
     );
   }
 
-  return <span className="cursor-default text-[#878787]">No receipt</span>;
+  // Everything that is not an export state answers the two questions this
+  // screen exists for: is the invoice here, and where does it stand.
+  return (
+    <TransactionInvoiceStatus
+      invoiceStatus={invoiceStatus}
+      booksStatus={booksStatus}
+    />
+  );
 }

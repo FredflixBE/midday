@@ -694,15 +694,13 @@ export const columns: ColumnDef<Transaction>[] = [
       return (
         <TransactionStatus
           rawStatus={row.original.status}
-          isFulfilled={
-            row.original.status === "completed" || row.original.isFulfilled
-          }
           isExported={row.original.isExported ?? false}
           hasExportError={row.original.hasExportError}
           exportErrorCode={row.original.exportErrorCode}
           exportProvider={row.original.exportProvider}
           exportedAt={row.original.exportedAt}
-          hasPendingSuggestion={row.original.hasPendingSuggestion}
+          invoiceStatus={row.original.invoiceStatus}
+          booksStatus={row.original.booksStatus}
         />
       );
     },
