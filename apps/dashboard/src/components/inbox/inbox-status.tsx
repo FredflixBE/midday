@@ -117,9 +117,12 @@ export function InboxStatus({ item }: Props) {
   // be matched — and "Pending", which promises we will keep looking, is a lie
   // about it. Free-tier and trial invoices are a standing category rather than
   // an oddity: 21 of 131 documents on the first real inbox, from suppliers that
-  // are otherwise entirely legitimate. Read off the document's own total, not
-  // from a classifier, so there is no judgement in it.
-  if (item.amount === 0 && !item.transactionId) {
+  // are otherwise entirely legitimate.
+  //
+  // Read from the status, not from `amount === 0`. Rendering it off the amount
+  // made the badge say one thing while the row still said "pending" underneath,
+  // so it appeared under the Pending filter and under no filter of its own.
+  if (item.status === "no_charge") {
     return (
       <TooltipProvider delayDuration={0}>
         <Tooltip>

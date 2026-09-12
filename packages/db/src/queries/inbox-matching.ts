@@ -372,6 +372,7 @@ export async function getInboxByStatus(
       | "analyzing"
       | "suggested_match"
       | "no_match"
+      | "no_charge"
       | "done"
       | "deleted"
       | "other"
@@ -498,6 +499,10 @@ const EXTRACTED_INBOX_STATUSES = [
   "no_match",
   "done",
   "archived",
+  // A zero-charge document is still decided, and still answers
+  // `not_applicable`. Leaving it out of the query would be the same answer by
+  // silence, and FF-1499 would have no status to show for it.
+  "no_charge",
 ] as const;
 
 export type InboxDocumentForYukiDelivery = {

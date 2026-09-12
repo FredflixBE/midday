@@ -30,11 +30,19 @@ export const getInboxSchema = z.object({
     .optional()
     .describe("Search query to filter inbox items"),
   status: z
-    .enum(["done", "pending", "suggested_match", "no_match", "other", "failed"])
+    .enum([
+      "done",
+      "pending",
+      "suggested_match",
+      "no_match",
+      "no_charge",
+      "other",
+      "failed",
+    ])
     .nullable()
     .optional()
     .describe(
-      "Filter by processing status: done (processed), pending (awaiting action), suggested_match (auto-matched), no_match (unmatched), other, failed (could not be processed)",
+      "Filter by processing status: done (processed), pending (awaiting action), suggested_match (auto-matched), no_match (unmatched), no_charge (charges nothing, so no payment can ever match it), other, failed (could not be processed)",
     ),
   tab: z
     .enum(["all", "other"])
@@ -274,6 +282,7 @@ export const getInboxByStatusSchema = z.object({
       "analyzing",
       "suggested_match",
       "no_match",
+      "no_charge",
       "done",
       "deleted",
       "other",

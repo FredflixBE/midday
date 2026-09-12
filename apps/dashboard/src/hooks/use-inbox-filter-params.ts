@@ -9,6 +9,7 @@ export const inboxFilterParamsSchema = {
     "pending",
     "suggested_match",
     "no_match",
+    "no_charge",
     "other",
     "failed",
   ]),

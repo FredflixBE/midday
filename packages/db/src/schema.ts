@@ -127,6 +127,19 @@ export const inboxStatusEnum = pgEnum("inbox_status", [
   // and the only status that says so — a run that dies leaves its row at
   // "processing" otherwise, which the UI shows as a spinner forever.
   "failed",
+  // The document charges nothing, so no payment will ever exist for it and no
+  // transaction can ever match it. A free-tier or trial invoice: a real
+  // document from a real supplier that simply settles nothing.
+  //
+  // It is a status rather than something read off the amount at render time
+  // because a status is what the rest of the product filters, sorts and counts
+  // by. Shown as "No charge" while the row still said "pending", it looked
+  // settled and behaved as though it were still being worked on — visible under
+  // the Pending filter, absent from any filter of its own.
+  //
+  // Terminal, like "other": matching is never run for one of these, which also
+  // stops `calculateInboxSuggestions` overwriting the status on its way past.
+  "no_charge",
 ]);
 
 export const inboxTypeEnum = pgEnum("inbox_type", [

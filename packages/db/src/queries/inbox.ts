@@ -40,6 +40,7 @@ export type GetInboxParams = {
     | "analyzing"
     | "suggested_match"
     | "no_match"
+    | "no_charge"
     | "other"
     | "failed"
     | null;
@@ -1077,10 +1078,60 @@ export type UpdateInboxParams = {
     | "pending"
     | "analyzing"
     | "suggested_match"
+    | "no_charge"
     | "other"
     | "failed";
   contentType?: string;
+  /**
+   * The fields the API lets a user correct by hand. They were always written —
+   * `.set(data)` takes everything that is not `id` or `teamId` — but were not
+   * declared, so nothing could reason about them. `amount` now decides a status,
+   * which is reason enough to say it is here.
+   */
+  amount?: number;
+  currency?: string;
+  displayName?: string;
 };
+
+/**
+ * The status an amount edit implies, or null when it implies nothing.
+ *
+ * Returns a status only for the two transitions an amount can justify:
+ * a charged document that becomes free, and a free one that turns out to have
+ * been charged after all. Anything else is left exactly as it was.
+ */
+async function deriveStatusForAmount(
+  db: DatabaseOrTransaction,
+  params: {
+    id: string;
+    teamId: string;
+    amount?: number;
+    explicitStatus?: UpdateInboxParams["status"];
+  },
+): Promise<"no_charge" | "pending" | null> {
+  const { id, teamId, amount, explicitStatus } = params;
+
+  // Nothing to derive from, or the caller said what it wants and means it.
+  if (amount === undefined || explicitStatus !== undefined) return null;
+
+  const [row] = await db
+    .select({ status: inbox.status, transactionId: inbox.transactionId })
+    .from(inbox)
+    .where(and(eq(inbox.id, id), eq(inbox.teamId, teamId)))
+    .limit(1);
+
+  if (!row) return null;
+  if (row.transactionId) return null;
+
+  if (amount === 0) {
+    // Only from a state that is still open. "other", "failed" and "deleted"
+    // were decided by something that outranks the amount.
+    const open = ["pending", "no_match", "suggested_match", "analyzing", "new"];
+    return open.includes(row.status ?? "") ? "no_charge" : null;
+  }
+
+  return row.status === "no_charge" ? "pending" : null;
+}
 
 export async function updateInbox(
   db: DatabaseOrTransaction,
@@ -1146,10 +1197,26 @@ export async function updateInbox(
       );
   }
 
+  // A corrected amount can make "no charge" true, or stop it being true, and a
+  // status nobody recomputes is a status that lies. `no_charge` is derived from
+  // the amount at processing time; this is the one other place the amount can
+  // change, so it is the one other place the derivation has to run.
+  //
+  // Only ever between `no_charge` and `pending`. A row that is matched, deleted,
+  // failed or filed as `other` has been settled by something with more
+  // authority than an arithmetic fact, and an edit to its amount does not
+  // reopen it.
+  const derivedStatus = await deriveStatusForAmount(db, {
+    id,
+    teamId,
+    amount: data.amount,
+    explicitStatus: data.status,
+  });
+
   // Update the inbox record
   await db
     .update(inbox)
-    .set(data)
+    .set(derivedStatus ? { ...data, status: derivedStatus } : data)
     .where(and(eq(inbox.id, id), eq(inbox.teamId, teamId)));
 
   // Return the updated record with transaction data
@@ -2038,7 +2105,8 @@ export type UpdateInboxWithProcessedDataParams = {
     | "done"
     | "deleted"
     | "analyzing"
-    | "other";
+    | "other"
+    | "no_charge";
 };
 
 export async function updateInboxWithProcessedData(

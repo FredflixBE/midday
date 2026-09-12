@@ -365,6 +365,17 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
         return; // Skip embedding and transaction matching for non-financial documents
       }
 
+      // A document that charges nothing settles nothing: no payment will ever
+      // exist for it, so no transaction can ever match it. Free-tier and trial
+      // invoices are a standing category, not an oddity — 21 of the first 131
+      // documents on a real inbox, from suppliers whose other invoices matter.
+      //
+      // Terminal here, like "other" above, and for the same mechanical reason
+      // as well as the honest one: matching would set the status to "analyzing"
+      // and then "pending" on its way past, so a row left to it could not stay
+      // "no_charge" even if it said so now.
+      const chargesNothing = result.amount === 0;
+
       await updateInboxWithProcessedData(db, {
         id: inboxData.id,
         amount: result.amount ?? undefined,
@@ -377,7 +388,9 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
         taxType: result.tax_type ?? undefined,
         type: result.type as "invoice" | "expense" | null | undefined,
         invoiceNumber: result.invoice_number ?? undefined,
-        status: "analyzing", // Keep analyzing until matching is complete
+        // "analyzing" keeps it there until matching completes; "no_charge" is
+        // already the final answer.
+        status: chargesNothing ? "no_charge" : "analyzing",
       });
 
       // Group related inbox items after storing invoice number
@@ -438,50 +451,62 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
           return null;
         });
 
-      try {
-        const matchingJobResult = await batchProcessMatching.trigger({
-          teamId,
-          inboxIds: [inboxData.id],
-        });
-        this.logger.info("Triggered batch-process-matching", {
-          jobId: job.id,
-          inboxId: inboxData.id,
-          matchingJobId: matchingJobResult.id,
-          triggeredJobName: "batch-process-matching",
-        });
-      } catch (error) {
-        this.logger.error("Failed to trigger batch-process-matching job", {
-          jobId: job.id,
-          inboxId: inboxData.id,
-          error: error instanceof Error ? error.message : "Unknown error",
-          errorStack: error instanceof Error ? error.stack : undefined,
-        });
+      if (chargesNothing) {
+        // Not inside the try below: that catch treats any failure as "matching
+        // did not start" and resets the row to "pending", which is precisely
+        // the status this document must not end up with. Skipping is not a
+        // failure, so it does not go near it. The document was still sent for
+        // indexing above — only the matching is pointless.
+        this.logger.info(
+          "Document charges nothing, skipping transaction matching",
+          { jobId: job.id, inboxId: inboxData.id },
+        );
+      } else {
         try {
-          await updateInboxWithProcessedData(db, {
-            id: inboxData.id,
-            status: "pending",
+          const matchingJobResult = await batchProcessMatching.trigger({
+            teamId,
+            inboxIds: [inboxData.id],
           });
-          this.logger.info(
-            "Updated inbox status to pending after matching job failed",
-            {
-              jobId: job.id,
-              inboxId: inboxData.id,
-            },
-          );
-        } catch (updateError) {
-          this.logger.error(
-            "Failed to update inbox status after matching job failure",
-            {
-              jobId: job.id,
-              inboxId: inboxData.id,
-              error:
-                updateError instanceof Error
-                  ? updateError.message
-                  : "Unknown error",
-            },
-          );
+          this.logger.info("Triggered batch-process-matching", {
+            jobId: job.id,
+            inboxId: inboxData.id,
+            matchingJobId: matchingJobResult.id,
+            triggeredJobName: "batch-process-matching",
+          });
+        } catch (error) {
+          this.logger.error("Failed to trigger batch-process-matching job", {
+            jobId: job.id,
+            inboxId: inboxData.id,
+            error: error instanceof Error ? error.message : "Unknown error",
+            errorStack: error instanceof Error ? error.stack : undefined,
+          });
+          try {
+            await updateInboxWithProcessedData(db, {
+              id: inboxData.id,
+              status: "pending",
+            });
+            this.logger.info(
+              "Updated inbox status to pending after matching job failed",
+              {
+                jobId: job.id,
+                inboxId: inboxData.id,
+              },
+            );
+          } catch (updateError) {
+            this.logger.error(
+              "Failed to update inbox status after matching job failure",
+              {
+                jobId: job.id,
+                inboxId: inboxData.id,
+                error:
+                  updateError instanceof Error
+                    ? updateError.message
+                    : "Unknown error",
+              },
+            );
+          }
+          // Don't throw - allow document processing to continue.
         }
-        // Don't throw - allow document processing to continue.
       }
 
       // Wait for document processing to complete (non-blocking, but log completion)
