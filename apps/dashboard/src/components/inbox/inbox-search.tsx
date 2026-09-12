@@ -19,7 +19,11 @@ import { useInboxFilterParams } from "@/hooks/use-inbox-filter-params";
 
 const statusFilters = [
   { id: "all", name: "All" },
-  { id: "done", name: "Matched" },
+  // "Done" rather than "Matched": the status covers both a document matched to
+  // its transaction and one that is simply dealt with — an invoice pulled from
+  // the books, or one marked done by hand. Labelled "Matched" it returned 200
+  // rows with nothing attached to them.
+  { id: "done", name: "Done" },
   { id: "pending", name: "Pending" },
   { id: "suggested_match", name: "Suggested Match" },
   { id: "no_match", name: "Unmatched" },
