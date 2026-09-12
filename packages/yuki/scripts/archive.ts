@@ -133,13 +133,21 @@ async function main() {
     `${unclassified.length} documents carry a number that no invoice carries — findDocuments answers for these, findInvoices does not.`,
   );
 
-  // And the answer must not come from somewhere else: a reference with nothing
-  // comparable in it has to match nothing at all.
+  // And a number with nothing comparable in it must be refused outright, not
+  // answered "no". "No" means deliver the invoice, and Yuki cannot delete the
+  // duplicate that follows.
+  const refused = ["", "   ", "###", "-"].every((asked) => {
+    try {
+      archive.findInvoices(asked);
+      return false;
+    } catch {
+      return true;
+    }
+  });
   console.log(
-    archive.findInvoices("###").length === 0 &&
-      archive.findInvoices("").length === 0
-      ? "An empty or punctuation-only number matches nothing, as it must."
-      : "An empty or punctuation-only number MATCHED something — every unnumbered document is a false positive.",
+    refused
+      ? "An empty or punctuation-only number is refused rather than answered, as it must be."
+      : "An empty or punctuation-only number was ANSWERED — a blank invoice number would be delivered as new.",
   );
 }
 

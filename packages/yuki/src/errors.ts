@@ -64,6 +64,31 @@ export class YukiAccessError extends Error {
   }
 }
 
+/**
+ * The archive was asked about a reference with nothing comparable in it.
+ *
+ * This throws rather than answering "no invoice has that number", because the
+ * two are not the same answer and the caller acts on them differently. "Yuki
+ * does not hold this" means *deliver the invoice*, and Yuki has no delete
+ * operation — so an empty or punctuation-only number quietly taking that path
+ * is a permanent duplicate in live books.
+ *
+ * A caller that may hold an unusable number checks it with
+ * `comparableInvoiceReference` first; FF-1493's rule 1 already routes one to
+ * Needs attention before Yuki is asked at all.
+ */
+export class YukiReferenceError extends Error {
+  readonly reference: string;
+
+  constructor(reference: string) {
+    super(
+      `Cannot look up "${reference}": it has no letter or digit in it, so there is nothing to compare. This is not the same as Yuki not holding it — check comparableInvoiceReference before asking.`,
+    );
+    this.name = "YukiReferenceError";
+    this.reference = reference;
+  }
+}
+
 /** Raised for a team with no Yuki app. A job should skip that team, not fail. */
 export class YukiNotConnectedError extends Error {
   readonly teamId: string;

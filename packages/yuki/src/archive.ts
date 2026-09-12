@@ -1,5 +1,5 @@
 import { comparableInvoiceReference } from "@midday/utils/invoice-reference";
-import { YukiRequestError } from "./errors";
+import { YukiReferenceError, YukiRequestError } from "./errors";
 import type { SoapParams } from "./soap";
 
 /**
@@ -294,6 +294,7 @@ export async function readArchiveFolder(
   const documents: YukiArchiveDocument[] = [];
   let startRecord = 0;
   let calls = 0;
+  let ended = false;
 
   while (calls < MAX_PAGES_PER_FOLDER) {
     const page = parseArchiveDocuments(
@@ -311,11 +312,17 @@ export async function readArchiveFolder(
 
     // A short page is the last page. Yuki reports no total, so this is the
     // only end marker there is.
-    if (page.length < pageSize) break;
+    if (page.length < pageSize) {
+      ended = true;
+      break;
+    }
     startRecord += pageSize;
   }
 
-  if (calls >= MAX_PAGES_PER_FOLDER) {
+  // On whether the folder *ended*, not on how many pages it took. A folder
+  // whose last page happens to be the last allowed one is a complete read,
+  // and reporting it as a runaway would fail a run that did nothing wrong.
+  if (!ended) {
     throw new YukiRequestError({
       operation: "ModifiedDocumentsInFolder",
       message: `Folder ${folderId} did not end after ${MAX_PAGES_PER_FOLDER} pages of ${pageSize}. Rather than keep asking, this stops: the only way the loop does not end is if Yuki ignores startRecord and returns the same full page forever, and that would spend the day's 1,000 calls in under a minute.`,
@@ -360,10 +367,13 @@ export interface YukiArchive {
    * of those collided with a real invoice number — enough for "is this invoice
    * in Yuki?" to be answered yes by a bank statement.
    *
-   * It does not match a reference with nothing comparable in it. A reference of
-   * only punctuation normalises to the empty string, and an empty string equals
-   * every other empty string, so accepting one would report that Yuki already
-   * holds every unnumbered document it has.
+   * It **throws** `YukiReferenceError` for a reference with nothing comparable
+   * in it, rather than answering empty. Empty means "deliver this invoice", and
+   * a blank or punctuation-only number is not evidence of that — it is a
+   * question with no answer, and answering it "no" is how a permanent duplicate
+   * gets into live books. (The archive's own side of this is separate: a
+   * document with no usable reference is never indexed, so it cannot be
+   * matched by anything.)
    *
    * It answers with a list because a number genuinely can sit on more than one
    * invoice — four did on the measured archive, each time on documents of the
@@ -416,7 +426,13 @@ export function buildYukiArchive(params: {
 
   function matching(reference: string): readonly YukiArchiveDocument[] {
     const comparable = comparableInvoiceReference(reference);
-    if (!comparable) return [];
+
+    // Not `[]`. An empty answer means "Yuki does not hold this", which the
+    // caller acts on by delivering the invoice — and a reference with nothing
+    // comparable in it is not evidence of that. It is a question this cannot
+    // answer, and the package says so everywhere else it cannot answer.
+    if (!comparable) throw new YukiReferenceError(reference);
+
     return byReference.get(comparable) ?? [];
   }
 
