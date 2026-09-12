@@ -25,6 +25,15 @@ export {
   serviceFor,
   WRITE_OPERATIONS,
 } from "./operations";
+export type {
+  YukiOutstandingItem,
+  YukiOutstandingItemKind,
+} from "./outstanding";
+export {
+  fetchOutstandingCreditorItems,
+  parseOutstandingCreditorItems,
+  UnrecognisedOutstandingItemTypeError,
+} from "./outstanding";
 export { parseXml } from "./soap";
 export type { DocumentSortOrder, OutstandingItemsSortOrder } from "./types";
 export { OUTSTANDING_ITEM_TYPE_LABELS, YUKI_FOLDERS } from "./types";
