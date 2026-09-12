@@ -56,23 +56,32 @@ export const DEFAULT_YUKI_PULL_CUTOFF = "2025-01-01";
 export const DEFAULT_YUKI_PULL_LIMIT = 50;
 
 /**
- * The statuses a pulled row can be left in by a run that did not finish.
+ * Whether a row this job pulled earlier was left unfinished by a run that
+ * stopped part way.
  *
  * Pulling is three steps — insert the row, run the matcher, mark it done — and
- * a run that dies between them leaves a row that no later run would look at
- * again, because the document id is already taken. So those rows are picked up
- * and finished instead.
+ * a run that dies between them leaves a row no later run would look at again,
+ * because its Yuki document id is taken. So those rows are picked up and
+ * finished rather than left in the inbox looking like work the accountant has
+ * in fact already done.
  *
- * `pending` is in the list because that is where the matcher leaves a document
- * it found nothing for, and a pulled invoice must not sit in the inbox looking
- * like work: the accountant has already booked it. The statuses a person moves
- * a row to by hand — archived, deleted, done — are deliberately not here.
+ * `processing` is a row whose matcher never started, `analyzing` one whose
+ * matcher was in flight.
+ *
+ * `pending` is the delicate one, because two different things put a row there:
+ * the matcher finding nothing, and a person declining the match it offered
+ * (`declineSuggestedMatch`). Only the second leaves a suggestion behind, which
+ * is what separates them — without that test this job would re-match and
+ * re-close, every day, a row somebody had just acted on.
+ *
+ * The statuses a person moves a row to deliberately — archived, deleted, done —
+ * and `suggested_match`, where a real suggestion is waiting for an answer, are
+ * all left alone.
  */
-const UNFINISHED_PULL_STATUSES: ReadonlySet<string> = new Set([
-  "processing",
-  "analyzing",
-  "pending",
-]);
+function isUnfinishedPull(row: InboxRowForYukiPull): boolean {
+  if (row.status === "processing" || row.status === "analyzing") return true;
+  return row.status === "pending" && !row.hasMatchSuggestions;
+}
 
 export interface YukiPullCandidate {
   document: YukiArchiveDocument;
@@ -141,18 +150,22 @@ function inboxRowsByInvoiceNumber(
 ): Map<string, string> {
   const byNumber = new Map<string, string>();
 
+  // Two passes, so the answer does not depend on the order rows arrive in. A
+  // row that is nobody's sibling is a group's primary and wins outright; only
+  // when a number has no such row does a sibling's `groupedInboxId` stand in.
+  // Within each pass the first row wins, and the query orders by creation, so
+  // the same inbox produces the same plan twice.
   for (const row of rows) {
+    if (row.groupedInboxId !== null) continue;
     const number = comparable(row.invoiceNumber);
-    if (!number) continue;
+    if (number && !byNumber.has(number)) byNumber.set(number, row.id);
+  }
 
-    const primary = row.groupedInboxId ?? row.id;
-    const held = byNumber.get(number);
-
-    // A row that is nobody's sibling is the group's primary, so it wins over
-    // one that only points at a primary. Otherwise first seen, which keeps the
-    // plan the same for the same inputs.
-    if (!held || (held !== primary && row.groupedInboxId === null)) {
-      byNumber.set(number, primary);
+  for (const row of rows) {
+    if (row.groupedInboxId === null) continue;
+    const number = comparable(row.invoiceNumber);
+    if (number && !byNumber.has(number)) {
+      byNumber.set(number, row.groupedInboxId);
     }
   }
 
@@ -206,9 +219,7 @@ export function planYukiPull(params: {
     const already = pulledDocumentIds.get(document.documentId);
     if (already) {
       counts.alreadyPulled += 1;
-      if (UNFINISHED_PULL_STATUSES.has(already.status ?? "")) {
-        finish.push(already.id);
-      }
+      if (isUnfinishedPull(already)) finish.push(already.id);
       continue;
     }
 
@@ -235,11 +246,13 @@ export function planYukiPull(params: {
 
   const pull = eligible.slice(0, Math.max(0, limit)).map((document) => {
     const number = comparable(document.reference);
-    const groupWith = number ? (byNumber.get(number) ?? null) : null;
-    if (groupWith) counts.duplicates += 1;
-    return { document, groupWith };
+    return {
+      document,
+      groupWith: number ? (byNumber.get(number) ?? null) : null,
+    };
   });
 
+  counts.duplicates = pull.filter((c) => c.groupWith !== null).length;
   counts.remaining = counts.eligible - pull.length;
 
   return { pull, finish, counts };

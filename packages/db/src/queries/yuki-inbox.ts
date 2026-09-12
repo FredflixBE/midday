@@ -1,6 +1,6 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, asc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../client";
-import { inbox } from "../schema";
+import { inbox, transactionMatchSuggestions } from "../schema";
 
 /**
  * The inbox rows that come out of Yuki's archive rather than out of a mailbox
@@ -44,6 +44,16 @@ export type InboxRowForYukiPull = {
   invoiceNumber: string | null;
   groupedInboxId: string | null;
   status: string | null;
+  /**
+   * Whether Midday's matcher has ever offered this row a transaction.
+   *
+   * It is here to tell two identical-looking rows apart. A pulled row sits at
+   * `pending` both when a run died before closing it and when a person declined
+   * the match it was offered — and `declineSuggestedMatch` is what puts it
+   * there. Only the second has a suggestion behind it, so this is what stops the
+   * next run from re-matching and re-closing a row a person just acted on.
+   */
+  hasMatchSuggestions: boolean;
 };
 
 /**
@@ -59,7 +69,14 @@ export type InboxRowForYukiPull = {
  * `deleted` rows are left out. Deleting a pulled document is how a person says
  * they did not want it, and returning it here would present it as "not pulled
  * yet" on the next run — the one shape of this job that a person cannot undo by
- * repeating themselves.
+ * repeating themselves. A row whose status is null is kept: `ne` answers
+ * unknown for null, so a bare `ne(status, 'deleted')` would drop it, and a row
+ * dropped here is invisible to the deduplication.
+ *
+ * Ordered oldest first, because the plan built from this picks one row per
+ * invoice number and two rows can carry the same one. Unordered, which row that
+ * is would be Postgres's choice and could differ between two runs over
+ * unchanged data.
  */
 export async function getInboxRowsForYukiPull(
   db: Database,
@@ -72,9 +89,16 @@ export async function getInboxRowsForYukiPull(
       invoiceNumber: inbox.invoiceNumber,
       groupedInboxId: inbox.groupedInboxId,
       status: inbox.status,
+      hasMatchSuggestions: sql<boolean>`exists (select 1 from ${transactionMatchSuggestions} where ${transactionMatchSuggestions.inboxId} = ${inbox.id})`,
     })
     .from(inbox)
-    .where(and(eq(inbox.teamId, params.teamId), ne(inbox.status, "deleted")));
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        or(isNull(inbox.status), ne(inbox.status, "deleted")),
+      ),
+    )
+    .orderBy(asc(inbox.createdAt), asc(inbox.id));
 }
 
 export type CreateYukiInboxDocumentParams = {
@@ -133,7 +157,9 @@ export async function createYukiInboxDocument(
       taxAmount: params.taxAmount,
       invoiceNumber: params.invoiceNumber,
       groupedInboxId: params.groupedInboxId,
-      // Yuki's purchase folder is invoices; that is what the type code means.
+      // Yuki's document type 2 is Aankoopfactuur, and only documents of that
+      // type are pulled. The folder says nothing: one of the measured archive's
+      // purchase invoices sits in a folder the team made.
       type: "invoice",
       status: "processing",
     })

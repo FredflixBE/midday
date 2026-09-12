@@ -40,6 +40,7 @@ function inboxRow(
     invoiceNumber: null,
     groupedInboxId: null,
     status: "done",
+    hasMatchSuggestions: false,
     ...overrides,
   };
 }
@@ -160,6 +161,41 @@ describe("planYukiPull", () => {
     expect(plan.finish).toEqual(["row-1", "row-2"]);
   });
 
+  test("leaves a pending row a person declined the match on alone", () => {
+    // `declineSuggestedMatch` puts a row back to pending, which is also where
+    // the matcher leaves one it found nothing for. The suggestion behind it is
+    // what separates them — without this, every declined match would be
+    // re-matched and re-closed the next day.
+    const plan = planYukiPull({
+      archive: archiveOf(yukiDocument({ documentId: "d1" })),
+      inboxRows: [
+        inboxRow({
+          id: "row-1",
+          referenceId: yukiInboxReference("d1"),
+          status: "pending",
+          hasMatchSuggestions: true,
+        }),
+      ],
+    });
+
+    expect(plan.finish).toEqual([]);
+  });
+
+  test("leaves a row with a suggestion waiting for an answer alone", () => {
+    const plan = planYukiPull({
+      archive: archiveOf(yukiDocument({ documentId: "d1" })),
+      inboxRows: [
+        inboxRow({
+          id: "row-1",
+          referenceId: yukiInboxReference("d1"),
+          status: "suggested_match",
+        }),
+      ],
+    });
+
+    expect(plan.finish).toEqual([]);
+  });
+
   test("leaves a row a person moved somewhere alone", () => {
     const plan = planYukiPull({
       archive: archiveOf(
@@ -213,6 +249,27 @@ describe("planYukiPull", () => {
     });
 
     expect(plan.pull[0]?.groupWith).toBe("primary");
+  });
+
+  test("groups onto the first row carrying the number, not an arbitrary one", () => {
+    // Two ungrouped rows carrying one number: the first wins. The query that
+    // feeds this orders by creation, so the row that wins is the oldest, and
+    // two runs over unchanged data plan the same thing.
+    const rows = [
+      inboxRow({ id: "first", invoiceNumber: "INV-9" }),
+      inboxRow({ id: "second", invoiceNumber: "INV-9" }),
+    ];
+    const archive = archiveOf(
+      yukiDocument({ documentId: "d1", reference: "INV-9" }),
+    );
+
+    expect(planYukiPull({ archive, inboxRows: rows }).pull[0]?.groupWith).toBe(
+      "first",
+    );
+    expect(
+      planYukiPull({ archive, inboxRows: [...rows].reverse() }).pull[0]
+        ?.groupWith,
+    ).toBe("second");
   });
 
   test("does not group on a number too short to mean anything", () => {

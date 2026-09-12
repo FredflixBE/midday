@@ -50,7 +50,12 @@ import { schemaTask } from "@trigger.dev/sdk";
 /** How many rows the matcher is run over at once. */
 const MATCHING_CONCURRENCY = 3;
 
-type PulledDocument = { inboxId: string; documentId: string };
+type PulledDocument = {
+  inboxId: string;
+  documentId: string;
+  /** True when this is a second copy of a document Midday already holds. */
+  duplicate: boolean;
+};
 
 export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPurchaseInvoicesPayload> {
   async process(job: JobContext<YukiPullPurchaseInvoicesPayload>) {
@@ -59,11 +64,16 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       cutoff = DEFAULT_YUKI_PULL_CUTOFF,
       limit = DEFAULT_YUKI_PULL_LIMIT,
     } = job.data;
-    const db = getDb();
 
+    // `getDb()` at each use rather than held in a variable, the same way
+    // `sync-card-charges.ts` does it and for the same reason: a task that
+    // suspends has its connection pool closed under it by the `onWait` hook in
+    // `@jobs/init`, and a handle taken beforehand points at a pool that has
+    // ended. This task does not wait today; the next edit that adds one should
+    // not have to rediscover that (FF-1517).
     let client: Awaited<ReturnType<typeof yukiClientForTeam>>;
     try {
-      client = await yukiClientForTeam(db, teamId);
+      client = await yukiClientForTeam(getDb(), teamId);
     } catch (error) {
       // A team that has not connected Yuki is not a failure, it is most teams.
       if (error instanceof YukiNotConnectedError) {
@@ -82,7 +92,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     // archives. Across separate task runs it is 15 calls each, of 1,000 a day.
     const [archive, inboxRows] = await Promise.all([
       readYukiArchive(client),
-      getInboxRowsForYukiPull(db, { teamId }),
+      getInboxRowsForYukiPull(getDb(), { teamId }),
     ]);
 
     const plan = planYukiPull({ archive, inboxRows, cutoff, limit });
@@ -121,16 +131,27 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       }
     }
 
+    // A copy of an invoice Midday already holds is closed without being
+    // matched. The row it was grouped onto already carries Midday's match, and
+    // running the matcher over the copy would offer the same invoice a second
+    // transaction — the matcher has no idea the two rows are one document.
+    const copies = pulled.filter((p) => p.duplicate).map((p) => p.inboxId);
+    await this.close(teamId, copies);
+
     // Rows an earlier run inserted but never finished are matched and closed
     // here too: their document id is taken, so nothing else would look at them.
-    const toFinish = [...pulled.map((p) => p.inboxId), ...plan.finish];
+    const toFinish = [
+      ...pulled.filter((p) => !p.duplicate).map((p) => p.inboxId),
+      ...plan.finish,
+    ];
     const matched = await this.matchAndClose({ teamId, inboxIds: toFinish });
 
     this.logger.info("Pulled Yuki purchase invoices", {
       teamId,
       pulled: pulled.length,
       failed: failed.length,
-      finished: toFinish.length,
+      copies: copies.length,
+      matched: toFinish.length,
       ...matched,
       remaining: plan.counts.remaining,
     });
@@ -142,7 +163,8 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       counts: plan.counts,
       pulled: pulled.length,
       failed: failed.length,
-      finished: toFinish.length,
+      copies: copies.length,
+      matched: toFinish.length,
       ...matched,
     };
   }
@@ -199,14 +221,20 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
         document.subject ??
         document.fileName ??
         fileName,
-      amount: decimal(document.amount),
+      amount: bookedAmount(document.amount),
       // Yuki books a Belgian or Dutch administration in euro, and the archive
-      // record carries no currency of its own. A foreign-currency invoice is
-      // stored here as the euro amount Yuki booked, which is the amount the
-      // bank charged — and the only one Midday's matcher can use.
+      // record carries no currency of its own.
+      //
+      // The ticket says "EUR unless the XML says otherwise", and the XML is not
+      // read — measured on 2026-09-12, `DocumentXMLData` answers real Peppol
+      // UBL for 8 of 25 sampled purchase invoices and an empty string for the
+      // rest, and every one of those 8 declares EUR. If a non-euro invoice ever
+      // turns up, its currency must arrive with its own total: pairing the UBL
+      // currency with the euro amount Yuki booked would label a euro figure as
+      // dollars, which is worse than either source alone.
       currency: "EUR",
       date: document.documentDate,
-      taxAmount: decimal(document.vatAmount),
+      taxAmount: bookedAmount(document.vatAmount),
       invoiceNumber: document.reference,
       groupedInboxId: candidate.groupWith,
     });
@@ -217,7 +245,11 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       );
     }
 
-    return { inboxId: row.id, documentId: document.documentId };
+    return {
+      inboxId: row.id,
+      documentId: document.documentId,
+      duplicate: candidate.groupWith !== null,
+    };
   }
 
   /**
@@ -278,18 +310,33 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
 
     return counts;
   }
+
+  /** Closes rows that are not going through the matcher at all. */
+  private async close(teamId: string, inboxIds: readonly string[]) {
+    const db = getDb();
+    for (const id of inboxIds) {
+      await updateInbox(db, { id, teamId, status: "done" });
+    }
+  }
 }
 
 /**
- * Yuki's decimal string as a number, or null.
+ * An archive amount as a number, or null.
  *
  * The archive keeps amounts as strings on purpose — nothing in this integration
  * may *decide* on an amount, and a string cannot be compared by accident. This
  * is the one place that converts, because Midday's own inbox row stores a
  * number and its own matcher compares it against its own transactions: one
  * system, one currency, no cross-system comparison.
+ *
+ * `Amount` and `VATAmount` are **dot decimals with no thousands separator** —
+ * `36.00`, `1845.25`, measured across all 718 purchase invoices on 2026-09-12.
+ * That is not Yuki being consistent: the amounts inside a card charge's
+ * description are comma decimals, which is why `card.ts` parses those its own
+ * way. A comma here would answer NaN, and this answers null rather than
+ * guessing, so such a row would arrive with no amount instead of a wrong one.
  */
-function decimal(value: string | null): number | null {
+function bookedAmount(value: string | null): number | null {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
