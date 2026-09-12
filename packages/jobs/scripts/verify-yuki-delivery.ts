@@ -103,8 +103,23 @@ async function main() {
     if (sending.length > 0) {
       console.log(`\n  The ${sending.length} it would deliver (inbox ids)\n`);
       for (const decision of sending) {
-        console.log(`    ${short(decision.id)}`);
+        // "no tx" is the flag to read this list by. A document Yuki has never
+        // seen that Midday also cannot tie to a payment it made is the shape of
+        // something that does not belong in the books at all — see FF-1517.
+        const matched = decision.matchedTransactionId
+          ? "        "
+          : "  no tx  ";
+        console.log(`    ${short(decision.id)}${matched}`);
       }
+      console.log(
+        `\n    ${report.sendWithoutTransaction} of ${sending.length} match no Midday transaction.`,
+      );
+      console.log(
+        "    Expected until FF-1517 links the Mastercard: 68 of Yuki's 81",
+      );
+      console.log(
+        "    missing payments are card charges Midday cannot see yet.",
+      );
     }
 
     const attention = report.decisions.filter(

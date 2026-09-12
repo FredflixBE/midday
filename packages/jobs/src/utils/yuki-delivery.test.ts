@@ -18,6 +18,7 @@ function inboxDocument(
     amount: 120,
     currency: "EUR",
     website: null,
+    matchedTransactionId: null,
     ...overrides,
   };
 }
@@ -154,5 +155,46 @@ describe("summariseYukiDelivery", () => {
       calls: 15,
     });
     expect(report.decisions).toEqual([]);
+  });
+
+  test("reports whether a document Midday would send is a purchase it can see", async () => {
+    // Not a rule — a signal. It becomes the gate once FF-1517 links the
+    // Mastercard and the match rate stops being 4%.
+    const report = await summariseYukiDelivery({
+      teamId: "team-1",
+      documents: [
+        inboxDocument({
+          id: "paid",
+          invoiceNumber: "AAAA-1",
+          matchedTransactionId: "tx-1",
+        }),
+        inboxDocument({ id: "unexplained", invoiceNumber: "BBBB-2" }),
+        inboxDocument({ id: "also-unexplained", invoiceNumber: "CCCC-3" }),
+      ],
+      archive: emptyArchive,
+      readDocumentText: readMatchingText,
+    });
+
+    expect(report.counts.send).toBe(3);
+    expect(report.sendWithoutTransaction).toBe(2);
+    expect(report.decisions.map((d) => [d.id, d.matchedTransactionId])).toEqual(
+      [
+        ["paid", "tx-1"],
+        ["unexplained", null],
+        ["also-unexplained", null],
+      ],
+    );
+  });
+
+  test("the signal does not count documents that were never going to be sent", async () => {
+    const report = await summariseYukiDelivery({
+      teamId: "team-1",
+      documents: [inboxDocument({ id: "junk", type: "other" })],
+      archive: emptyArchive,
+      readDocumentText: readMatchingText,
+    });
+
+    expect(report.counts.send).toBe(0);
+    expect(report.sendWithoutTransaction).toBe(0);
   });
 });
