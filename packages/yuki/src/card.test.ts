@@ -141,6 +141,24 @@ describe("the GL account scheme", () => {
     expect(findCardGLAccounts(scheme).map((a) => a.code)).toEqual(["434001"]);
   });
 
+  it("still offers a card whose own name happens to carry brackets", () => {
+    // The placeholder is parenthesised *entire*, which is what makes it the
+    // scheme's own label. Dropping anything with a bracket in it would make
+    // "Mastercard (company)" unlinkable, with no explanation anywhere.
+    const named = parseGLAccountScheme({
+      GlAccount: [
+        {
+          code: "434003",
+          subtype: "52",
+          isEnabled: "true",
+          descripton: "Mastercard (company)",
+        },
+      ],
+    });
+
+    expect(findCardGLAccounts(named).map((a) => a.code)).toEqual(["434003"]);
+  });
+
   it("survives a scheme that answers with a single account", () => {
     expect(
       parseGLAccountScheme({ GlAccount: SCHEME.GlAccount[1] }).map(
@@ -349,6 +367,7 @@ describe("reading a card account's ledger", () => {
     const ledger = read(settlement);
 
     expect(ledger.charges).toEqual([]);
+    expect(ledger.undecidedCredits).toEqual([]);
     expect(ledger.settlements).toEqual([
       {
         id: "card-400",
@@ -380,6 +399,41 @@ describe("reading a card account's ledger", () => {
     expect(read([cardLine as YukiLedgerLine]).charges[0]).toMatchObject({
       status: "needs_attention",
       attentionReason: "no_counterpart_line",
+    });
+  });
+
+  it("holds back money arriving on the card that nothing explains", () => {
+    // A settlement whose counterpart line is missing would otherwise be
+    // imported as an ordinary transaction, which counts a whole month of
+    // charges twice — and no status can undo that. Money *leaving* the card
+    // is never a settlement, so an unpairable charge still comes through.
+    const [settlementLine] = settlement;
+    const ledger = read([settlementLine as YukiLedgerLine]);
+
+    expect(ledger.charges).toEqual([]);
+    expect(ledger.settlements).toEqual([]);
+    expect(ledger.undecidedCredits).toEqual([
+      {
+        id: "card-400",
+        date: "2026-08-16",
+        amount: 281.93,
+        description: settlementLine?.description as string,
+      },
+    ]);
+  });
+
+  it("still imports a refund it could pair, which is also money coming in", () => {
+    const refund = booking({
+      hID: 800,
+      amount: 40,
+      description: "MASTERCARD - Kaartverrichtingen - EXAMPLE SHOP REFUND",
+      counterpartAccount: "440000",
+      counterpartId: "supplier-refund",
+    });
+
+    expect(read(refund).charges[0]).toMatchObject({
+      amount: 40,
+      status: "in_the_books",
     });
   });
 

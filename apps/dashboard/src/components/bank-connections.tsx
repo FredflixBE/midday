@@ -9,8 +9,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@midday/ui/tooltip";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { differenceInDays, formatDistanceToNow } from "date-fns";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { differenceInDays, format, formatDistanceToNow } from "date-fns";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useReconnect } from "@/hooks/use-reconnect";
@@ -45,9 +45,12 @@ type BankConnection = NonNullable<
 function ConnectionState({
   connection,
   isSyncing,
+  reachesUpTo,
 }: {
   connection: BankConnection;
   isSyncing: boolean;
+  /** For a card read out of the books: the date its newest charge carries. */
+  reachesUpTo?: string | null;
 }) {
   const { show, expired } = connectionStatus(connection);
 
@@ -113,12 +116,20 @@ function ConnectionState({
   if (connection.lastAccessed) {
     return (
       <div className="text-xs font-normal flex items-center space-x-1">
-        <span className="text-xs font-normal">{`Updated ${formatDistanceToNow(
-          new Date(connection.lastAccessed),
-          {
-            addSuffix: true,
-          },
-        )}`}</span>
+        {/* How far the charges reach, not when the sync last ran. A card
+            charge only arrives with the accountant's monthly statement, so
+            the newest one is routinely three weeks old and "updated an hour
+            ago" would read as up to date. */}
+        <span className="text-xs font-normal">
+          {reachesUpTo
+            ? `Charges up to ${format(new Date(reachesUpTo), "d MMM")}`
+            : `Updated ${formatDistanceToNow(
+                new Date(connection.lastAccessed),
+                {
+                  addSuffix: true,
+                },
+              )}`}
+        </span>
         <span>via {getProviderName(connection.provider)}</span>
       </div>
     );
@@ -127,7 +138,13 @@ function ConnectionState({
   return <div className="text-xs font-normal">Never accessed</div>;
 }
 
-export function BankConnection({ connection }: { connection: BankConnection }) {
+export function BankConnection({
+  connection,
+  reachesUpTo,
+}: {
+  connection: BankConnection;
+  reachesUpTo?: string | null;
+}) {
   const { show } = connectionStatus(connection);
   const [isAddAccountsOpen, setAddAccountsOpen] = useState(false);
 
@@ -170,6 +187,7 @@ export function BankConnection({ connection }: { connection: BankConnection }) {
                     <ConnectionState
                       connection={connection}
                       isSyncing={isSyncing}
+                      reachesUpTo={reachesUpTo}
                     />
                   </div>
                 </TooltipTrigger>
@@ -272,10 +290,26 @@ export function BankConnections() {
   const trpc = useTRPC();
   const { data } = useSuspenseQuery(trpc.bankConnections.get.queryOptions());
 
+  // Only cards read out of the books have a reach to report, so this asks only
+  // when there is one. It reads the database and never the accounting package.
+  const hasCard = data?.some((connection) => connection.provider === "yuki");
+  const { data: reach } = useQuery(
+    trpc.apps.yukiCardReach.queryOptions(undefined, { enabled: hasCard }),
+  );
+
   return (
     <div className="divide-y">
       {data?.map((connection) => {
-        return <BankConnection key={connection.id} connection={connection} />;
+        return (
+          <BankConnection
+            key={connection.id}
+            connection={connection}
+            reachesUpTo={
+              reach?.find((card) => card.connectionId === connection.id)
+                ?.reachesUpTo
+            }
+          />
+        );
       })}
     </div>
   );

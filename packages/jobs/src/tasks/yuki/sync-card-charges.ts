@@ -21,6 +21,7 @@ import {
 import { YukiNotConnectedError, yukiClientForTeam } from "@midday/yuki/team";
 import { logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
+import { transactionNotifications } from "../bank/notifications/transactions";
 import { upsertTransactions } from "../bank/transactions/upsert";
 
 /**
@@ -90,6 +91,7 @@ export const yukiSyncCardCharges = schemaTask({
     );
 
     const results = [];
+    let notify = false;
 
     for (const card of cards) {
       const ledger = readCardLedger({
@@ -145,7 +147,22 @@ export const yukiSyncCardCharges = schemaTask({
         ...counts,
         statusesWritten,
         settlements,
+        undecidedCredits: ledger.undecidedCredits.length,
       });
+
+      // Money arriving on the card that could not be paired is not imported,
+      // because it cannot be told from the monthly settlement — and importing
+      // one of those counts a month of charges twice. It is said out loud so
+      // that it is a thing someone looks at rather than a silent gap.
+      if (ledger.undecidedCredits.length > 0) {
+        logger.warn("Card credits held back: nothing explains them", {
+          teamId,
+          glAccountCode: card.glAccountCode,
+          lines: ledger.undecidedCredits.map((line) => line.id),
+        });
+      }
+
+      notify ||= !backfill && ledger.charges.length > 0;
 
       results.push({
         connectionId: card.id,
@@ -154,8 +171,17 @@ export const yukiSyncCardCharges = schemaTask({
         statusesWritten,
         settlementsMarked: settlements.marked,
         settlementsAmbiguous: settlements.ambiguous,
+        undecidedCredits: ledger.undecidedCredits.length,
         reachesUpTo: ledger.reachesUpTo ?? null,
       });
+    }
+
+    // Every other provider's sync ends this way, and a card charge is an
+    // ordinary transaction — so it earns the same notification. Not after the
+    // first run, though: that one backfills a year at once, and a hundred
+    // alerts about charges made months ago is not news.
+    if (notify) {
+      await transactionNotifications.trigger({ teamId }, { delay: "5m" });
     }
 
     return {
@@ -172,6 +198,10 @@ export const yukiSyncCardCharges = schemaTask({
       ),
       settlementsMarked: results.reduce(
         (sum, card) => sum + card.settlementsMarked,
+        0,
+      ),
+      undecidedCredits: results.reduce(
+        (sum, card) => sum + card.undecidedCredits,
         0,
       ),
       reachesUpTo: results

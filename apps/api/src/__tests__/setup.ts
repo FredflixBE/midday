@@ -686,6 +686,7 @@ export const mocks = {
   getAppByAppId: mock(() => Promise.resolve(null)) as MockFn,
   // Yuki card connections (FF-1517)
   getYukiCardConnections: mock(() => Promise.resolve([])) as MockFn,
+  getYukiCardReach: mock(() => Promise.resolve([])) as MockFn,
   createYukiCardConnection: mock(() =>
     Promise.resolve({
       connectionId: "connection-1",
@@ -1083,6 +1084,7 @@ const dbQueriesMock = new Proxy(
 
     // Yuki card connections
     getYukiCardConnections: mocks.getYukiCardConnections,
+    getYukiCardReach: mocks.getYukiCardReach,
     createYukiCardConnection: mocks.createYukiCardConnection,
     // Pure, and the router hands its answer back — so it is the real shape
     // rather than a default mock answering undefined.

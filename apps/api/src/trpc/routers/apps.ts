@@ -14,6 +14,7 @@ import {
   disconnectApp,
   getApps,
   getYukiCardConnections,
+  getYukiCardReach,
   updateAppSettings,
   updateAppSettingsBulk,
   YUKI_LOGO_URL,
@@ -174,6 +175,18 @@ export const appsRouter = createTRPCRouter({
         })),
       };
     },
+  ),
+
+  /**
+   * How far each linked card's charges reach.
+   *
+   * Its own query rather than a field on the bank connection, because it is
+   * only meaningful for a card read out of the books: a charge arrives with
+   * the monthly statement, so the newest one is routinely three weeks old and
+   * "synced an hour ago" would read as up to date. Reads nothing from Yuki.
+   */
+  yukiCardReach: protectedProcedure.query(({ ctx: { db, teamId } }) =>
+    getYukiCardReach(db, { teamId: teamId! }),
   ),
 
   /**

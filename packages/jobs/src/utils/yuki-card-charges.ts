@@ -1,4 +1,5 @@
-import type { YukiCardCharge } from "@midday/yuki";
+import type { BooksStatusEntry } from "@midday/db/queries";
+import { YUKI_CARD_HISTORY_DAYS, type YukiCardCharge } from "@midday/yuki";
 
 /**
  * Turning a card charge from the books into an ordinary Midday transaction
@@ -8,17 +9,6 @@ import type { YukiCardCharge } from "@midday/yuki";
  * bank provider's transactions go through — so matching, categories, reports
  * and exports need to know nothing about where these came from.
  */
-
-/**
- * How far back a run reads the books.
- *
- * Charges reach Yuki with the monthly card statement, two to thirty-six days
- * after the charge itself, so a short window would miss a whole month's worth
- * every time the accountant is slow. A year and a bit covers a full fiscal
- * year plus the lag, costs one call either way, and makes the first sync a
- * complete backfill rather than something a person has to go and ask for.
- */
-export const YUKI_CARD_HISTORY_DAYS = 400;
 
 export interface DateWindow {
   from: string;
@@ -100,12 +90,6 @@ export function toUpsertTransactions(
     counterparty_name: charge.contactName ?? charge.merchant,
     merchant_name: charge.contactName ?? null,
   }));
-}
-
-export interface BooksStatusEntry {
-  sourceId: string;
-  status: YukiCardCharge["status"];
-  reason?: string;
 }
 
 export function toBooksStatusEntries(

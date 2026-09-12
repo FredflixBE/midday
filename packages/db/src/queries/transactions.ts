@@ -952,13 +952,29 @@ export async function deleteTransactions(
     });
 }
 
+/**
+ * The id a transaction from a provider is stored under.
+ *
+ * Team-scoped, because provider ids are only unique within a provider, and it
+ * is the conflict target the import upserts on — so a second copy of this
+ * formula that drifts does not fail loudly, it silently stops finding rows.
+ */
+export function transactionInternalId(
+  teamId: string,
+  providerTransactionId: string,
+): string {
+  return `${teamId}_${providerTransactionId}`;
+}
+
 export async function deleteTransactionsByInternalIds(
   db: Database,
   params: { teamId: string; internalIds: string[] },
 ) {
   if (params.internalIds.length === 0) return [];
 
-  const fullIds = params.internalIds.map((id) => `${params.teamId}_${id}`);
+  const fullIds = params.internalIds.map((id) =>
+    transactionInternalId(params.teamId, id),
+  );
 
   return db
     .delete(transactions)

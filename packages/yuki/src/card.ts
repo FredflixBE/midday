@@ -112,10 +112,16 @@ export async function fetchGLAccountScheme(
  *
  * A fresh Belgian scheme ships 434000 as an unnamed placeholder — its
  * description is literally `(Reserved for credit card)`, parenthesised because
- * Yuki has nothing to call it yet. It is enabled and it is sub-type 52, so it
- * would otherwise be offered as a card to link. A name in parentheses is the
- * scheme's own label for an account nobody has used, so it is left out.
+ * Yuki has nothing to call it yet, and the deposit and savings accounts carry
+ * the same shape. It is enabled and it is sub-type 52, so it would otherwise
+ * be offered as a card to link.
+ *
+ * The test is that the name is parenthesised *entire*, which is what makes it
+ * the scheme's own label rather than a name someone chose. A real card called
+ * "Mastercard (company)" is still offered.
  */
+const SCHEME_PLACEHOLDER = /^\([^()]*\)$/;
+
 export function findCardGLAccounts(
   scheme: readonly YukiGLAccount[],
 ): YukiGLAccount[] {
@@ -123,7 +129,7 @@ export function findCardGLAccounts(
     (account) =>
       account.enabled &&
       account.subtype === YUKI_GL_SUBTYPES.creditCard &&
-      !account.description.startsWith("("),
+      !SCHEME_PLACEHOLDER.test(account.description),
   );
 }
 
@@ -212,6 +218,17 @@ export async function fetchLedgerLines(
     }),
   );
 }
+
+/**
+ * How far back a run reads the books.
+ *
+ * Charges reach Yuki with the monthly card statement, two to thirty-six days
+ * after the charge itself, so a short window would miss a whole month's worth
+ * every time the accountant is slow. A year and a bit covers a full fiscal
+ * year plus the lag, costs one call either way, and makes the first sync a
+ * complete backfill rather than something a person has to go and ask for.
+ */
+export const YUKI_CARD_HISTORY_DAYS = 400;
 
 export interface YukiCardForeignAmount {
   /** ISO code as the card statement spelled it, e.g. `USD`. */
@@ -322,18 +339,34 @@ export interface YukiCardCharge {
   description: string;
 }
 
-/** The card balance being paid off from the current account. Not a purchase. */
-export interface YukiCardSettlement {
+/** A card line this does not import, reduced to what a report needs. */
+export interface YukiCardLine {
   id: string;
   date: string;
-  /** Positive: the card debt going down. */
+  /** Positive: money arriving on the card, so the debt going down. */
   amount: number;
   description: string;
 }
 
 export interface YukiCardLedger {
   charges: YukiCardCharge[];
-  settlements: YukiCardSettlement[];
+  /**
+   * The card balance being paid off from the current account. Recognised, and
+   * deliberately not imported: the same movement is already in Midday from the
+   * bank's side, so importing it counts every charge twice.
+   */
+  settlements: YukiCardLine[];
+  /**
+   * Money arriving on the card whose booking could not be paired.
+   *
+   * A settlement and a refund are told apart by the counterpart line, which is
+   * exactly what is missing here — and importing a settlement counts a whole
+   * month of charges twice, which no status can undo. So these are held back
+   * and reported rather than guessed at. A *charge* that could not be paired
+   * is a different matter: money leaving the card is never a settlement, so it
+   * is imported as Needs attention and stays visible.
+   */
+  undecidedCredits: YukiCardLine[];
   /** The newest date any line on the card account carries, or undefined. */
   reachesUpTo?: string;
 }
@@ -394,7 +427,8 @@ export function readCardLedger({
   );
 
   const charges: YukiCardCharge[] = [];
-  const settlements: YukiCardSettlement[] = [];
+  const settlements: YukiCardLine[] = [];
+  const undecidedCredits: YukiCardLine[] = [];
 
   for (const cardLine of cardLines) {
     const siblings = cardLine.statementId
@@ -418,10 +452,24 @@ export function readCardLedger({
       description: cardLine.description,
     };
 
+    const summary: YukiCardLine = {
+      id: cardLine.id,
+      date: cardLine.date,
+      amount: cardLine.amount,
+      description: cardLine.description,
+    };
+
     const attention = (
       attentionReason: YukiCardAttentionReason,
       contactName?: string,
     ) => {
+      // Money arriving on the card that nothing explains could be the monthly
+      // settlement, and importing one of those counts a month of charges twice.
+      if (cardLine.amount > 0) {
+        undecidedCredits.push(summary);
+        return;
+      }
+
       charges.push({
         ...base,
         contactName,
@@ -447,12 +495,7 @@ export function readCardLedger({
     if (
       OWN_MONEY_SUBTYPES.has(subtypeByCode.get(counterpart.glAccountCode) ?? "")
     ) {
-      settlements.push({
-        id: cardLine.id,
-        date: cardLine.date,
-        amount: cardLine.amount,
-        description: cardLine.description,
-      });
+      settlements.push(summary);
       continue;
     }
 
@@ -478,5 +521,10 @@ export function readCardLedger({
 
   const dates = cardLines.map((line) => line.date).sort();
 
-  return { charges, settlements, reachesUpTo: dates.at(-1) };
+  return {
+    charges,
+    settlements,
+    undecidedCredits,
+    reachesUpTo: dates.at(-1),
+  };
 }

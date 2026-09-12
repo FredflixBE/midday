@@ -8,7 +8,7 @@ export type {
   YukiCardDescription,
   YukiCardForeignAmount,
   YukiCardLedger,
-  YukiCardSettlement,
+  YukiCardLine,
   YukiGLAccount,
   YukiLedgerLine,
 } from "./card";
@@ -20,6 +20,7 @@ export {
   parseGLAccountScheme,
   parseLedgerLines,
   readCardLedger,
+  YUKI_CARD_HISTORY_DAYS,
   YUKI_GL_SUBTYPES,
 } from "./card";
 export type { FetchLike, YukiCallOptions, YukiClientConfig } from "./client";

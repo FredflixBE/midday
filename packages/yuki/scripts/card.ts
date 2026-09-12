@@ -23,14 +23,13 @@ import {
   fetchLedgerLines,
   findCardGLAccounts,
   readCardLedger,
+  YUKI_CARD_HISTORY_DAYS,
   type YukiCardChargeStatus,
 } from "../src/card";
 import { YukiClient } from "../src/client";
 import { fetchOutstandingCreditorItems } from "../src/outstanding";
 import { OUTSTANDING_ITEM_TYPE_LABELS } from "../src/types";
 import { configFromEnv } from "./env";
-
-const HISTORY_DAYS = 400;
 
 const euro = (n: number) =>
   new Intl.NumberFormat("nl-BE", { style: "currency", currency: "EUR" }).format(
@@ -49,7 +48,7 @@ async function main() {
   const [scheme, lines, outstanding] = await Promise.all([
     fetchGLAccountScheme(client),
     fetchLedgerLines(client, {
-      from: isoDaysAgo(HISTORY_DAYS),
+      from: isoDaysAgo(YUKI_CARD_HISTORY_DAYS),
       to: isoDaysAgo(-1),
     }),
     fetchOutstandingCreditorItems(client),
@@ -67,7 +66,7 @@ async function main() {
     `Chart of accounts: ${scheme.length} accounts, ${cards.length} of them a card\n`,
   );
   console.log(
-    `Ledger: ${lines.length} lines over the last ${HISTORY_DAYS} days`,
+    `Ledger: ${lines.length} lines over the last ${YUKI_CARD_HISTORY_DAYS} days`,
   );
   console.log(
     `Outstanding: ${outstandingItemIds.size} payments still waiting for an invoice\n`,
@@ -84,6 +83,7 @@ async function main() {
 
   let missingAcrossCards = 0;
   let attentionAcrossCards = 0;
+  let heldBackAcrossCards = 0;
 
   for (const card of cards) {
     const ledger = readCardLedger({
@@ -102,6 +102,7 @@ async function main() {
     const attention = byStatus.get("needs_attention") ?? 0;
     missingAcrossCards += missing;
     attentionAcrossCards += attention;
+    heldBackAcrossCards += ledger.undecidedCredits.length;
 
     const spent = ledger.charges.reduce(
       (sum, charge) => sum + Math.abs(charge.amount),
@@ -116,6 +117,9 @@ async function main() {
     console.log(`  in another currency ${foreign}`);
     console.log(
       `  settlements       ${ledger.settlements.length} (not imported)`,
+    );
+    console.log(
+      `  held back         ${ledger.undecidedCredits.length} (money in, nothing explains it)`,
     );
     console.log(`  reaches up to     ${ledger.reachesUpTo ?? "—"}\n`);
     console.log(`  invoice missing   ${missing}`);
@@ -149,8 +153,15 @@ async function main() {
       ? "  ✓ every charge paired"
       : `  ✗ ${attentionAcrossCards} charges could not be decided; see above`,
   );
+  console.log(
+    heldBackAcrossCards === 0
+      ? "  ✓ nothing arrived on the card that could not be explained"
+      : `  ✗ ${heldBackAcrossCards} credits held back: each could be the monthly settlement`,
+  );
 
-  if (!agrees || attentionAcrossCards > 0) process.exit(1);
+  if (!agrees || attentionAcrossCards > 0 || heldBackAcrossCards > 0) {
+    process.exit(1);
+  }
 }
 
 main().catch((error) => {
