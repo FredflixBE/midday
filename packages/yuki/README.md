@@ -176,6 +176,30 @@ normalisation that loses a document is what ends in a duplicate upload. Reads
 only, writes nothing, and prints no supplier, amount or invoice number — this
 repository is public.
 
+### Reading it the way Midday will
+
+```sh
+set -a; . apps/api/.env; set +a
+bun run --cwd packages/yuki team-archive
+```
+
+The script above builds its client from `packages/yuki/.env`, which is the one
+thing Midday may never do. This one goes through the team's own connection
+instead — `getTeamIdsWithApp` → `yukiClientForTeam` → `readYukiArchive`, with the
+access key decrypted out of the `apps` row — so it exercises the exact chain the
+first scheduled Yuki job will run.
+
+It also checks the part of that chain which is easy to get wrong: the archive is
+reused per **client instance**, and `yukiClientForTeam` builds a new client on
+every call. Asked twice with one client it reads once; given a second client it
+reads again, because a second client is a second run.
+
+Needs `DATABASE_URL` and `MIDDAY_ENCRYPTION_KEY`, and the key must be the one the
+connection was encrypted with. Read-only on both sides — `SELECT` on `apps`, and
+Yuki operations that are all on the read allowlist. Team ids are truncated in the
+output, for the same reason nothing else here prints a supplier or an invoice
+number.
+
 ## Setup, for the scripts
 
 The scripts below are the only code that reads credentials from the
