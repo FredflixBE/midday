@@ -21,6 +21,7 @@ export const noMatchScheduler = schedules.task({
 
     try {
       const ninetyDaysAgo = subDays(new Date(), 90);
+      const yesterday = subDays(new Date(), 1);
 
       logger.info("Starting no-match scheduler", {
         cutoffDate: ninetyDaysAgo.toISOString(),
@@ -34,7 +35,23 @@ export const noMatchScheduler = schedules.task({
         .where(
           and(
             eq(inbox.status, "pending"),
-            lt(inbox.createdAt, ninetyDaysAgo.toISOString()),
+            // Ninety days is a statement about the **document**: how long a
+            // payment might still turn up for an invoice of this date. It used
+            // to be measured from `created_at`, which is when Midday happened
+            // to import the file — fine while the inbox filled up in real time,
+            // wrong the moment anything is backfilled. FF-1502's Gmail backfill
+            // pulled a year of invoices in on one day, so 126 documents dated
+            // back to September 2025 all claim to be waiting until December.
+            // Fall back to `created_at` only for a document with no date.
+            lt(
+              sql`coalesce(${inbox.date}, ${inbox.createdAt}::date)`,
+              ninetyDaysAgo.toISOString(),
+            ),
+            // But never on the day it arrived. Matching runs asynchronously
+            // after ingestion, so a document imported minutes ago has not been
+            // looked at yet, and declaring it unmatched would be a guess about
+            // work that has not finished.
+            lt(inbox.createdAt, yesterday.toISOString()),
             sql`${inbox.transactionId} IS NULL`,
           ),
         )

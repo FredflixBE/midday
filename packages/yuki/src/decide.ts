@@ -92,6 +92,8 @@ export type YukiNotApplicableReason =
   | "not_an_invoice"
   /** Extraction has not finished, so there is no number to work from. */
   | "not_extracted"
+  /** Nothing was charged, so no payment will ever exist for it. */
+  | "no_payment_expected"
   /** Delivered, and still inside the window Yuki is allowed to take. */
   | "awaiting_yuki";
 
@@ -128,6 +130,33 @@ export interface YukiDeliveryCandidate {
    * against and the number is not an OCR guess in the first place.
    */
   structured?: boolean;
+  /**
+   * True when the document charges nothing — its own total is zero.
+   *
+   * **This is not an amount deciding an action, and the distinction is the
+   * whole reason it is phrased as a fact rather than passed as a number.** The
+   * rule this integration follows forbids deciding on an amount because amounts
+   * cannot be *compared* across two systems: a $20 invoice is €17.21 in Yuki
+   * and €17.19 in Midday, both correct. Zero is not a comparison. It is the
+   * absence of a charge, it is exact in every currency, and it is a property of
+   * one document rather than a relation between two.
+   *
+   * What it means here: a document that charges nothing will never have a
+   * payment, so there is nothing for the accountant to book and nothing for
+   * Yuki's matcher to pair it with. It is the one case where *no matching
+   * transaction* can be proven today rather than after the card is connected —
+   * the same statement, arrived at from the document instead of the bank.
+   *
+   * Measured on the live inbox (2026-09-12): 21 of 131 documents, 11 Atlassian
+   * and 10 Google Cloud — free-tier and trial months from suppliers that are
+   * otherwise entirely legitimate. Being wrong is safe in the direction that
+   * matters: a document not delivered leaves its payment, if one somehow
+   * exists, visible on Yuki's outstanding list.
+   *
+   * Derived by the caller from the inbox row's own total, so that no amount is
+   * ever in front of the code that decides.
+   */
+  zeroTotal?: boolean;
   /**
    * When this document was delivered to Yuki, if it has been (FF-1458), as
    * `YYYY-MM-DD`. Absent means never delivered.
@@ -281,6 +310,14 @@ function preclassify(document: YukiDeliveryCandidate): Prepared {
     return resolve("not_applicable", "not_extracted");
   }
 
+  // A document that charges nothing has no payment to be booked against, so
+  // there is nothing to deliver however good its invoice number is. Ahead of
+  // rule 1 because the number is irrelevant either way, and being told "no text
+  // layer" about a free-tier invoice is a worse answer than the true one.
+  if (document.zeroTotal) {
+    return resolve("not_applicable", "no_payment_expected");
+  }
+
   const checked = usableReference(document.invoiceNumber);
   const delivered = Boolean(document.deliveredOn);
 
@@ -338,10 +375,11 @@ function preclassify(document: YukiDeliveryCandidate): Prepared {
 export function requiresDocumentText(
   document: Pick<
     YukiDeliveryCandidate,
-    "invoiceNumber" | "type" | "structured" | "deliveredOn"
+    "invoiceNumber" | "type" | "structured" | "deliveredOn" | "zeroTotal"
   >,
 ): boolean {
   if (!isInScope(document.type)) return false;
+  if (document.zeroTotal) return false;
   if (document.structured) return false;
   if (document.deliveredOn) return false;
   return usableReference(document.invoiceNumber).ok;

@@ -197,4 +197,54 @@ describe("summariseYukiDelivery", () => {
     expect(report.counts.send).toBe(0);
     expect(report.sendWithoutTransaction).toBe(0);
   });
+
+  test("a zero-amount document is reported as having no payment to expect", async () => {
+    const report = await summariseYukiDelivery({
+      teamId: "team-1",
+      documents: [
+        inboxDocument({ id: "free-tier", invoiceNumber: "AAAA-1", amount: 0 }),
+        inboxDocument({ id: "charged", invoiceNumber: "BBBB-2", amount: 120 }),
+      ],
+      archive: emptyArchive,
+      readDocumentText: readMatchingText,
+    });
+
+    expect(report.counts).toMatchObject({ send: 1, not_applicable: 1 });
+    expect(report.reasons).toEqual({ no_payment_expected: 1 });
+  });
+
+  test("a zero-amount document costs no text-layer download", async () => {
+    const asked: string[] = [];
+    await summariseYukiDelivery({
+      teamId: "team-1",
+      documents: [
+        inboxDocument({ id: "free-tier", invoiceNumber: "AAAA-1", amount: 0 }),
+        inboxDocument({ id: "charged", invoiceNumber: "BBBB-2", amount: 120 }),
+      ],
+      archive: emptyArchive,
+      readDocumentText: async (d) => {
+        asked.push(d.id);
+        return readMatchingText(d);
+      },
+    });
+
+    expect(asked).toEqual(["charged"]);
+  });
+
+  test("a null amount is not a zero amount", async () => {
+    // Extraction finding nothing is a different state from a document that
+    // says zero, and 30 rows in the live inbox are in it. It must not be
+    // silently filed as "no payment expected".
+    const report = await summariseYukiDelivery({
+      teamId: "team-1",
+      documents: [
+        inboxDocument({ id: "unknown", invoiceNumber: "AAAA-1", amount: null }),
+      ],
+      archive: emptyArchive,
+      readDocumentText: readMatchingText,
+    });
+
+    expect(report.counts.not_applicable).toBe(0);
+    expect(report.counts.send).toBe(1);
+  });
 });

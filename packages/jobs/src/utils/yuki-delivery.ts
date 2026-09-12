@@ -203,6 +203,12 @@ async function buildCandidates(
       // is the line it sets — and until then saying so explicitly is better
       // than letting the field default and reading as if it were considered.
       structured: false,
+      // Derived here, where amounts are legitimately in hand for display, so
+      // that the decision is handed a fact — "this charges nothing" — rather
+      // than a number it might be tempted to compare. Zero is exact in every
+      // currency, which is what separates it from the amounts the integration
+      // refuses to decide on.
+      zeroTotal: document.amount === 0,
       // Likewise: no delivery record exists until FF-1458 creates one, so every
       // document here is undelivered. The decision already refuses to re-send a
       // delivered document; this is where FF-1458 tells it which those are.
