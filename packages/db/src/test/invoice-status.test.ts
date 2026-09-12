@@ -97,7 +97,7 @@ async function suggestMatch(
     teamId: TEAM_USD_ID,
     transactionId,
     inboxId,
-    confidenceScore: "0.9",
+    confidenceScore: 0.9,
     matchType: "high_confidence",
     status: "pending",
     userId: TEST_USER_ID,
@@ -117,7 +117,7 @@ describe.skipIf(SKIP)("invoice status", () => {
 
   beforeEach(async () => {
     db = await getTestDatabase();
-    await cleanDatabase(db);
+    await cleanDatabase();
     await seedAll(db);
     // The seed's own transactions would drown the handful this file makes.
     await db.delete(transactions).where(eq(transactions.teamId, TEAM_USD_ID));
