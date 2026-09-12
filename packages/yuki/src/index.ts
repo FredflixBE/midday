@@ -1,5 +1,27 @@
 export type { YukiAdministration } from "./access";
 export { verifyAccess } from "./access";
+export type {
+  ReadCardLedgerParams,
+  YukiCardAttentionReason,
+  YukiCardCharge,
+  YukiCardChargeStatus,
+  YukiCardDescription,
+  YukiCardForeignAmount,
+  YukiCardLedger,
+  YukiCardSettlement,
+  YukiGLAccount,
+  YukiLedgerLine,
+} from "./card";
+export {
+  fetchGLAccountScheme,
+  fetchLedgerLines,
+  findCardGLAccounts,
+  parseCardChargeDescription,
+  parseGLAccountScheme,
+  parseLedgerLines,
+  readCardLedger,
+  YUKI_GL_SUBTYPES,
+} from "./card";
 export type { FetchLike, YukiCallOptions, YukiClientConfig } from "./client";
 export { YukiClient } from "./client";
 export type { YukiConfig, YukiRegion } from "./config";

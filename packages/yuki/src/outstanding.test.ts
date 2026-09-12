@@ -17,6 +17,9 @@ const cardPayment = {
   Type: { "#text": "Creditcardbetaling", "@ID": "" },
   DueDate: "2026-03-14",
   DocumentID: "doc-card-1",
+  // The item's own id is the ledger line that booked the payment against the
+  // supplier account — what pairs it with a card charge (FF-1517).
+  "@ID": "ledger-line-card-1",
 };
 
 describe("parseOutstandingCreditorItems", () => {
@@ -28,6 +31,7 @@ describe("parseOutstandingCreditorItems", () => {
     expect(item).toEqual({
       kind: "payment_awaiting_invoice",
       typeLabel: "Creditcardbetaling",
+      id: "ledger-line-card-1",
       documentId: "doc-card-1",
       date: "2026-03-14",
       contact: "OpenAI",
