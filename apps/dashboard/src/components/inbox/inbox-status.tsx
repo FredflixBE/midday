@@ -113,6 +113,32 @@ export function InboxStatus({ item }: Props) {
     );
   }
 
+  // A document that charges nothing will never have a payment, so it will never
+  // be matched — and "Pending", which promises we will keep looking, is a lie
+  // about it. Free-tier and trial invoices are a standing category rather than
+  // an oddity: 21 of 131 documents on the first real inbox, from suppliers that
+  // are otherwise entirely legitimate. Read off the document's own total, not
+  // from a classifier, so there is no judgement in it.
+  if (item.amount === 0 && !item.transactionId) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="p-1 text-[10px] px-1.5 py-0.5 cursor-default inline-block border text-[#878787]">
+              <span>No charge</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={10} className="text-xs">
+            <p>
+              This document charges nothing, so there is <br />
+              no payment to match it to
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   if (item.status === "pending") {
     return (
       <TooltipProvider delayDuration={0}>

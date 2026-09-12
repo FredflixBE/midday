@@ -107,6 +107,50 @@ describe("scope", () => {
   });
 });
 
+describe("a document that charges nothing", () => {
+  it("has no payment to be booked against, so there is nothing to deliver", () => {
+    expect(only([candidate({ id: "a", zeroTotal: true })])).toMatchObject({
+      action: "not_applicable",
+      reason: "no_payment_expected",
+    });
+  });
+
+  it("is settled before rule 1, so a missing text layer is not the answer given", () => {
+    // "No text layer" about a free-tier invoice is true and useless. The
+    // reason a person needs is that nothing was ever charged.
+    expect(
+      only([candidate({ id: "a", zeroTotal: true, documentText: null })]),
+    ).toMatchObject({ reason: "no_payment_expected" });
+  });
+
+  it("is not a rival claim on its invoice number", () => {
+    // Google issues a 0.00 invoice and a charged one in the same month. The
+    // charged one must still go.
+    const decisions = decide([
+      candidate({ id: "charged", invoiceNumber: "GC-2026-1" }),
+      candidate({
+        id: "free-tier",
+        invoiceNumber: "GC-2026-1",
+        zeroTotal: true,
+      }),
+    ]);
+
+    expect(decisions[0]).toMatchObject({ id: "charged", action: "send" });
+    expect(decisions[1]).toMatchObject({
+      id: "free-tier",
+      action: "not_applicable",
+    });
+  });
+
+  it("does not change what a charged document decides", () => {
+    // Only zero is tested. An amount is never otherwise in play, so a document
+    // that charges something decides exactly as it did before.
+    expect(only([candidate({ id: "a", zeroTotal: false })])).toEqual(
+      only([candidate({ id: "a" })]),
+    );
+  });
+});
+
 describe("rule 1 — the number has to be in the document", () => {
   it("no number extracted at all", () => {
     expect(only([candidate({ id: "a", invoiceNumber: null })])).toMatchObject({
@@ -497,6 +541,7 @@ describe("requiresDocumentText", () => {
       candidate({ id: "a", invoiceNumber: null }),
       candidate({ id: "a", invoiceNumber: "///" }),
       candidate({ id: "a", invoiceNumber: "AB" }),
+      candidate({ id: "a", zeroTotal: true }),
     ];
 
     for (const document of skipped) {
