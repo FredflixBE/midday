@@ -15,9 +15,8 @@ import { MAINTENANCE_ACTIONS } from "./maintenance";
  * so the diff says which job appeared.
  */
 const DECLARED_SCHEDULES = [
-  "invoice-recurring-scheduler",
+  "invoice-recurring-daily",
   "invoice-scheduler",
-  "invoice-upcoming-notification",
   "no-match-scheduler",
   "rates-scheduler",
 ];

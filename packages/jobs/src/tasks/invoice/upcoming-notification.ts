@@ -6,6 +6,7 @@ import {
   type InvoiceUpcomingNotificationPayload,
   invoiceUpcomingNotificationSchema,
 } from "@jobs/schemas/invoices";
+import { WARNING_LOOK_AHEAD_HOURS } from "@jobs/utils/recurring-invoice-day";
 import { sendToProviders } from "@midday/bot/activity-notifications";
 import {
   getUpcomingDueRecurring,
@@ -13,7 +14,7 @@ import {
 } from "@midday/db/queries";
 import { Notifications } from "@midday/notifications";
 import { isFlagEnabled } from "@midday/utils/flags";
-import { schedules } from "@trigger.dev/sdk";
+import { task } from "@trigger.dev/sdk";
 
 type ProcessResult = {
   processed: number;
@@ -24,9 +25,8 @@ type ProcessResult = {
 };
 
 /**
- * Scheduled processor that sends notifications for upcoming recurring invoices
- * Runs every 2 hours (offset from the generation scheduler) to notify users
- * about invoices that will be generated in the next 24 hours
+ * Sends notifications for upcoming recurring invoices, warning a team about
+ * the invoices that its series will generate within the look-ahead window.
  *
  * This gives users time to:
  * - Review the recurring series settings
@@ -64,7 +64,7 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
       );
 
       const { data: upcomingRecurring, hasMore } =
-        await getUpcomingDueRecurring(db, 24);
+        await getUpcomingDueRecurring(db, WARNING_LOOK_AHEAD_HOURS);
 
       if (upcomingRecurring.length === 0) {
         this.logger.info("[DRY RUN] No upcoming invoices to notify about");
@@ -121,10 +121,11 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
 
     this.logger.info("Starting upcoming invoice notification processor");
 
-    // Get recurring invoices due within 24 hours that haven't been notified (batched, default limit: 100)
+    // Series due inside the look-ahead that have not been warned yet for this
+    // cycle (batched, default limit: 100).
     const { data: upcomingRecurring, hasMore } = await getUpcomingDueRecurring(
       db,
-      24,
+      WARNING_LOOK_AHEAD_HOURS,
     );
 
     if (upcomingRecurring.length === 0) {
@@ -150,11 +151,14 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
           recurring.upcomingNotificationSentAt,
         );
         const nextScheduled = new Date(recurring.nextScheduledAt);
-        // If notification was sent within 25 hours of nextScheduled, it's for this cycle
+        // A warning sent inside the look-ahead (plus the hour of slack the
+        // query allows) was for this cycle, not the last one. Derived from
+        // the same constant as the window, so that changing the window cannot
+        // leave this guard behind sending a second warning.
         const hoursDiff =
           (nextScheduled.getTime() - notificationSentAt.getTime()) /
           (1000 * 60 * 60);
-        if (hoursDiff <= 25) {
+        if (hoursDiff < WARNING_LOOK_AHEAD_HOURS + 1) {
           this.logger.info(
             "Notification already sent for this cycle, skipping",
             {
@@ -310,11 +314,13 @@ export class InvoiceUpcomingNotificationProcessor extends BaseProcessor<InvoiceU
 
 const processor = new InvoiceUpcomingNotificationProcessor();
 
-export const invoiceUpcomingNotification = schedules.task({
+// No cron of its own. The recurring-invoice feature has one daily schedule,
+// `invoice-recurring-daily`, which runs this before the generation (FF-1522).
+// Keeping it a task of its own means it can still be run alone, from Settings
+// → Admin or from the Trigger.dev dashboard.
+export const invoiceUpcomingNotification = task({
   id: "invoice-upcoming-notification",
-  // Hourly at :30, offset from the recurring scheduler.
-  cron: "30 * * * *",
   maxDuration: 300,
-  run: (_payload, { ctx }) =>
+  run: (_payload: InvoiceUpcomingNotificationPayload, { ctx }) =>
     runProcessor(processor, "invoice-upcoming-notification", {}, ctx),
 });

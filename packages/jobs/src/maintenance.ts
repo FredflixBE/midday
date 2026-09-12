@@ -17,6 +17,7 @@
 export const MAINTENANCE_ACTION_IDS = [
   "sync-banks",
   "check-bank-schedules",
+  "run-recurring-invoices",
 ] as const;
 
 export type MaintenanceActionId = (typeof MAINTENANCE_ACTION_IDS)[number];
@@ -87,6 +88,31 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
       return failures > 0
         ? `${summary} ${plural(failures, "team", "teams")} failed — see the run's logs.`
         : summary;
+    },
+  },
+  {
+    id: "run-recurring-invoices",
+    task: "invoice-recurring-daily",
+    title: "Run recurring invoices",
+    description:
+      "Warn about the invoices coming tomorrow, then generate the ones that are due. This is the daily job, run now — it is also how the recurring-invoice feature gets tested without waiting until 05:00 UTC.",
+    label: "Run now",
+    summarize: (output) => {
+      const { warned, generated } = fields(output);
+
+      if (warned === null || generated === null) {
+        return "Part of the run failed — see the run's logs.";
+      }
+
+      return `Warned about ${plural(
+        count(fields(warned).processed),
+        "series",
+        "series",
+      )}, and generated ${plural(
+        count(fields(generated).processed),
+        "invoice",
+        "invoices",
+      )}.`;
     },
   },
 ];

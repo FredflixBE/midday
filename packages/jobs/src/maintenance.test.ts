@@ -23,6 +23,9 @@ describe("maintenance registry", () => {
     expect(getMaintenanceAction("check-bank-schedules").task).toBe(
       "ensure-bank-schedulers",
     );
+    expect(getMaintenanceAction("run-recurring-invoices").task).toBe(
+      "invoice-recurring-daily",
+    );
   });
 
   test("rejects an id that is not in the registry", () => {
@@ -74,6 +77,26 @@ describe("summarizing a run", () => {
     ).toBe(
       "Checked 4 teams, and created 1 schedule. 2 teams failed — see the run's logs.",
     );
+  });
+
+  test("reports both halves of the recurring-invoice day", () => {
+    expect(
+      getMaintenanceAction("run-recurring-invoices").summarize({
+        warned: { processed: 2 },
+        generated: { processed: 1 },
+      }),
+    ).toBe("Warned about 2 series, and generated 1 invoice.");
+  });
+
+  test("does not claim a clean day when half of it failed", () => {
+    // The daily job generates invoices even when the warnings failed, so a
+    // run that succeeded is not the same as a run that did everything.
+    expect(
+      getMaintenanceAction("run-recurring-invoices").summarize({
+        warned: null,
+        generated: { processed: 1 },
+      }),
+    ).toBe("Part of the run failed — see the run's logs.");
   });
 
   test("survives a run that returned nothing", () => {
