@@ -9,6 +9,7 @@ import {
   getLatestCardChargeDate,
   getYukiCardConnections,
   markCardSettlementsAsInternal,
+  markYukiCardSynced,
   setTransactionsBooksStatus,
 } from "@midday/db/queries";
 import {
@@ -135,6 +136,8 @@ export const yukiSyncCardCharges = schemaTask({
         cardBankAccountId: card.bankAccountId,
         settlements: ledger.settlements,
       });
+
+      await markYukiCardSynced(db, { connectionId: card.id, teamId });
 
       logger.info("Synced a Yuki card", {
         teamId,

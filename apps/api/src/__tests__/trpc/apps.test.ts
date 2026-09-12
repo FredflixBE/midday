@@ -325,7 +325,12 @@ describe("tRPC: apps.yukiCardAccounts", () => {
 
     expect(await caller.yukiCardAccounts()).toEqual({
       accounts: [
-        { glAccountCode: "434001", name: "Example Card Holder", linked: false },
+        {
+          glAccountCode: "434001",
+          name: "Example Card Holder",
+          logoUrl: "https://www.yuki.be/apple-touch-icon.png",
+          linked: false,
+        },
       ],
     });
   });

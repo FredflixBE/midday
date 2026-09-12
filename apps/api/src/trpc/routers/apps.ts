@@ -16,6 +16,7 @@ import {
   getYukiCardConnections,
   updateAppSettings,
   updateAppSettingsBulk,
+  YUKI_LOGO_URL,
   yukiInstitutionId,
 } from "@midday/db/queries";
 import {
@@ -164,6 +165,9 @@ export const appsRouter = createTRPCRouter({
         accounts: findCardGLAccounts(scheme).map((account) => ({
           glAccountCode: account.code,
           name: account.description,
+          // Handed back so the dashboard needs no constant of its own, and so
+          // the picker and the connection it creates show the same mark.
+          logoUrl: YUKI_LOGO_URL,
           // Connecting the same card twice is refused, so the option is shown
           // as already linked rather than offered and then rejected.
           linked: linkedCodes.has(account.code),

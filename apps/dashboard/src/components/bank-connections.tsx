@@ -29,6 +29,10 @@ function getProviderName(provider: string | null) {
       return "GoCardLess";
     case "enablebanking":
       return "Enable Banking";
+    case "yuki":
+      // Never named to the user as the accounting package it is: this is a
+      // bank connection like any other, and the wording stays Midday's.
+      return "your bookkeeping";
     default:
       return null;
   }
@@ -144,6 +148,12 @@ export function BankConnection({ connection }: { connection: BankConnection }) {
 
   const isConnected = connection.status === "connected" && !show;
 
+  // A card read out of the books has no open-banking provider behind it, so
+  // there is nothing to reconnect and no further account to discover — the
+  // card is the account. Syncing and deleting still mean exactly what they
+  // mean everywhere else.
+  const readFromBooks = connection.provider === "yuki";
+
   return (
     <div className="py-4">
       <div className="flex justify-between items-center">
@@ -171,27 +181,31 @@ export function BankConnection({ connection }: { connection: BankConnection }) {
         <div className="ml-auto flex space-x-2 items-center">
           {connection.status === "disconnected" || show ? (
             <>
-              <ReconnectProvider
-                variant="button"
-                id={connection.id}
-                provider={connection.provider}
-                institutionId={connection.institutionId}
-                onComplete={handleComplete}
-                referenceId={connection.referenceId}
-              />
+              {!readFromBooks && (
+                <ReconnectProvider
+                  variant="button"
+                  id={connection.id}
+                  provider={connection.provider}
+                  institutionId={connection.institutionId}
+                  onComplete={handleComplete}
+                  referenceId={connection.referenceId}
+                />
+              )}
               <DeleteConnection connection={connection} />
             </>
           ) : (
             <>
-              <ReconnectProvider
-                id={connection.id}
-                provider={connection.provider}
-                institutionId={connection.institutionId}
-                onComplete={handleComplete}
-                referenceId={connection.referenceId}
-              />
+              {!readFromBooks && (
+                <ReconnectProvider
+                  id={connection.id}
+                  provider={connection.provider}
+                  institutionId={connection.institutionId}
+                  onComplete={handleComplete}
+                  referenceId={connection.referenceId}
+                />
+              )}
 
-              {isConnected && (
+              {isConnected && !readFromBooks && (
                 <TooltipProvider delayDuration={70}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -236,18 +250,20 @@ export function BankConnection({ connection }: { connection: BankConnection }) {
         })}
       </div>
 
-      <AddBankAccountsModal
-        connectionId={connection.id}
-        provider={connection.provider as "gocardless" | "enablebanking"}
-        accessToken={connection.accessToken}
-        referenceId={connection.referenceId}
-        enrollmentId={connection.enrollmentId}
-        institutionId={connection.institutionId}
-        existingAccounts={connection.bankAccounts}
-        isOpen={isAddAccountsOpen}
-        onOpenChange={setAddAccountsOpen}
-        onAccountsAdded={triggerManualSync}
-      />
+      {!readFromBooks && (
+        <AddBankAccountsModal
+          connectionId={connection.id}
+          provider={connection.provider as "gocardless" | "enablebanking"}
+          accessToken={connection.accessToken}
+          referenceId={connection.referenceId}
+          enrollmentId={connection.enrollmentId}
+          institutionId={connection.institutionId}
+          existingAccounts={connection.bankAccounts}
+          isOpen={isAddAccountsOpen}
+          onOpenChange={setAddAccountsOpen}
+          onAccountsAdded={triggerManualSync}
+        />
+      )}
     </div>
   );
 }

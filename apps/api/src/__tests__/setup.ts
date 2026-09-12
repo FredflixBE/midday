@@ -1087,6 +1087,7 @@ const dbQueriesMock = new Proxy(
     // Pure, and the router hands its answer back — so it is the real shape
     // rather than a default mock answering undefined.
     yukiInstitutionId: (code: string) => `yuki:${code}`,
+    YUKI_LOGO_URL: "https://www.yuki.be/apple-touch-icon.png",
 
     // Accounting sync
     getAccountingSyncStatus: createDefaultMock(),
