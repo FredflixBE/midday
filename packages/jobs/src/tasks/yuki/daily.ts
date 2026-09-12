@@ -7,6 +7,7 @@ import {
 import { getTeamIdsWithApp } from "@midday/db/queries";
 import { YUKI_APP_ID } from "@midday/yuki/team";
 import { logger, schedules } from "@trigger.dev/sdk";
+import { yukiPullPurchaseInvoices } from "./pull-purchase-invoices";
 import { yukiSyncCardCharges } from "./sync-card-charges";
 
 /**
@@ -50,6 +51,25 @@ export const yukiDaily = schedules.task({
       if (!run.ok) {
         logger.error("Yuki sync failed for a team", { teamId });
         return { ok: false };
+      }
+
+      // After the card charges, not before: the invoices this pulls are matched
+      // against Midday's transactions, and the card's charges are most of the
+      // ones they belong to (FF-1450, FF-1517).
+      //
+      // Started rather than waited for. It is bounded, re-runnable and picks up
+      // where the last run stopped, so nothing is lost by letting it finish on
+      // its own — and the point of there being one Yuki schedule is that the
+      // schedule itself stays small.
+      try {
+        await yukiPullPurchaseInvoices.trigger({ teamId });
+      } catch (error) {
+        // The card sync did work; failing to start the pull does not undo it,
+        // and the next day's run starts it again.
+        logger.error("Could not start the Yuki invoice pull for a team", {
+          teamId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
 
       return { ok: true, output: run.output };

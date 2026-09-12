@@ -9,6 +9,7 @@
     "lint:fix": "biome check --write .",
     "test": "bun test --exit src",
     "verify-yuki": "bun run scripts/verify-yuki-delivery.ts",
+    "verify-yuki-pull": "bun run scripts/verify-yuki-pull.ts",
     "typecheck": "tsc --noEmit"
   },
   "exports": {

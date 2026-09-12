@@ -2,6 +2,7 @@ import type { Database } from "@midday/db/client";
 import {
   getInboxDocumentsForYukiDelivery,
   type InboxDocumentForYukiDelivery,
+  yukiDocumentIdFrom,
 } from "@midday/db/queries";
 import type { YukiArchive, YukiArchiveReader } from "@midday/yuki/archive";
 import { readYukiArchive } from "@midday/yuki/archive";
@@ -198,11 +199,12 @@ async function buildCandidates(
       invoiceNumber: document.invoiceNumber,
       type: document.type,
       documentText: null,
-      // Midday has no Peppol ingestion yet, so nothing arrives as structured
-      // data and nothing skips rule 1's text check. When FF-1450 adds one, this
-      // is the line it sets — and until then saying so explicitly is better
-      // than letting the field default and reading as if it were considered.
-      structured: false,
+      // A document pulled out of Yuki's archive (FF-1450) carries the invoice
+      // number Yuki itself stores, as a field. There is no page to read it off
+      // and nothing to verify it against, so rule 1's text-layer check is
+      // skipped for it — otherwise every pulled document would land in *Needs
+      // attention: no text layer* for want of a PDF nobody needs to read.
+      structured: yukiDocumentIdFrom(document.referenceId) !== null,
       // Derived here, where amounts are legitimately in hand for display, so
       // that the decision is handed a fact — "this charges nothing" — rather
       // than a number it might be tempted to compare. Zero is exact in every

@@ -47,3 +47,4 @@ export * from "./user-invites";
 export * from "./users";
 export * from "./users-on-team";
 export * from "./yuki-card";
+export * from "./yuki-inbox";
