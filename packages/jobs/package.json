@@ -8,6 +8,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "test": "bun test --exit src",
+    "verify-yuki": "bun run scripts/verify-yuki-delivery.ts",
     "typecheck": "tsc --noEmit"
   },
   "exports": {
