@@ -1,105 +1,95 @@
 "use client";
 
+import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { Button } from "@midday/ui/button";
 import { cn } from "@midday/ui/cn";
 import { Icons } from "@midday/ui/icons";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@midday/ui/tooltip";
+import { useToast } from "@midday/ui/use-toast";
+import { formatDate } from "@midday/utils/format";
 import {
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import { FormatAmount } from "@/components/format-amount";
 import { useTransactionParams } from "@/hooks/use-transaction-params";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { formatAmount } from "@/utils/format";
 
-type Group = ReturnType<typeof useMissingInvoices>["groups"][number];
-
-function useMissingInvoices() {
-  const trpc = useTRPC();
-  const { data } = useSuspenseQuery(
-    trpc.transactions.missingInvoices.queryOptions(),
-  );
-
-  return data;
-}
+type MissingInvoices = RouterOutputs["transactions"]["missingInvoices"];
+type Group = MissingInvoices["groups"][number];
 
 /**
  * The one thing every number on this page has to do: decompose. A count you
  * cannot click into is a claim you cannot check, so the heading says how it is
  * made up and every group states its own share of it.
  */
-function Heading({ count, groups }: { count: number; groups: Group[] }) {
+function Heading({ count, groups }: MissingInvoices) {
   const suppliers = groups.filter((group) => group.key !== null).length;
+  const hasUnnamed = groups.some((group) => group.key === null);
 
   return (
-    <div className="flex items-end justify-between border-b border-border pb-4">
-      <div>
-        <h1 className="text-2xl font-medium">Missing invoices</h1>
-        <p className="mt-1 text-sm text-[#878787]">
-          {count === 0
-            ? "Every payment that needs an invoice has one."
-            : `${count} ${count === 1 ? "payment" : "payments"} across ${suppliers} ${
-                suppliers === 1 ? "supplier" : "suppliers"
-              }${groups.some((group) => group.key === null) ? ", plus the ones that name nobody" : ""}.`}
-        </p>
-      </div>
+    <div className="border-b border-border pb-4">
+      <h1 className="text-2xl font-serif">Missing invoices</h1>
+      <p className="mt-1 text-sm text-[#878787]">
+        {count === 0
+          ? "Every payment that needs an invoice has one."
+          : `${count} ${count === 1 ? "payment" : "payments"} across ${suppliers} ${
+              suppliers === 1 ? "supplier" : "suppliers"
+            }${hasUnnamed ? ", plus the ones that name nobody" : ""}.`}
+      </p>
     </div>
-  );
-}
-
-/**
- * The accountant's answer, and only where it changes yours. "Your accountant is
- * waiting for this" has consequences; "we cannot tell yet" does not, and a
- * column repeating what every row on this page already says would carry no
- * information at all (FF-1552).
- */
-function BooksMarker({ status }: { status: string | null }) {
-  if (status !== "invoice_missing") {
-    return null;
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="ml-2 inline-flex h-[18px] items-center bg-[#f7f7f7] px-1.5 text-[10px] text-[#878787] dark:bg-[#1d1d1d]">
-          Accountant waiting
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-[260px] text-xs">
-        Your accountant has this payment down as still needing an invoice.
-      </TooltipContent>
-    </Tooltip>
   );
 }
 
 function GroupCard({ group }: { group: Group }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { setParams } = useTransactionParams();
   const { data: user } = useUserQuery();
 
   const noInvoiceNeeded = useMutation(
     trpc.transactions.updateMany.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.transactions.missingInvoices.queryKey(),
+      onSuccess: (_, variables) => {
+        // Every place that shows this number or this row. The page's own count,
+        // the overview card, the transactions list, and the sheet a row opens —
+        // which this page can have open while the row leaves the list.
+        for (const queryKey of [
+          trpc.transactions.missingInvoices.queryKey(),
+          trpc.overview.summary.queryKey(),
+          trpc.transactions.get.infiniteQueryKey(),
+          trpc.transactions.getById.queryKey(),
+        ]) {
+          queryClient.invalidateQueries({ queryKey });
+        }
+
+        toast({
+          title: `${variables.ids.length} ${
+            variables.ids.length === 1 ? "payment" : "payments"
+          } marked as needing no invoice.`,
+          variant: "success",
+          duration: 3500,
         });
-        queryClient.invalidateQueries({
-          queryKey: trpc.overview.summary.queryKey(),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.transactions.get.infiniteQueryKey(),
+      },
+      onError: () => {
+        toast({
+          title: "Something went wrong please try again.",
+          variant: "error",
+          duration: 3500,
         });
       },
     }),
   );
 
+  // Signed, like the rows underneath, and per currency. A group's money is only
+  // ever a statement about its own rows — never a net across currencies, and
+  // never an unsigned number over signed ones.
   const totals = group.totals
     .map((total) =>
       formatAmount({
-        amount: Math.abs(total.amount),
+        amount: total.amount,
         currency: total.currency,
         locale: user?.locale,
         maximumFractionDigits: 0,
@@ -150,18 +140,35 @@ function GroupCard({ group }: { group: Group }) {
             )}
           >
             <span className="flex min-w-0 items-center">
-              <span className="w-[86px] shrink-0 text-xs text-[#878787]">
-                {transaction.date}
+              <span className="w-[100px] shrink-0 text-xs text-[#878787]">
+                {formatDate(transaction.date, user?.dateFormat)}
               </span>
               <span className="truncate text-sm">{transaction.name}</span>
-              <BooksMarker status={transaction.booksStatus} />
+
+              {/*
+               * The accountant's answer, and only where it changes yours. "Your
+               * accountant is waiting for this" has consequences; "we cannot tell
+               * yet" does not, and a column repeating what every row on this page
+               * already says would carry no information at all.
+               *
+               * Plain text with a title rather than a tooltip: this sits inside
+               * the row's own button, and a tooltip trigger nested in a button is
+               * unreachable by keyboard.
+               */}
+              {transaction.booksStatus === "invoice_missing" ? (
+                <span
+                  title="Your accountant has this payment down as still needing an invoice."
+                  className="ml-2 inline-flex h-[18px] shrink-0 items-center bg-[#f7f7f7] px-1.5 text-[10px] text-[#878787] dark:bg-[#1d1d1d]"
+                >
+                  Accountant waiting
+                </span>
+              ) : null}
             </span>
             <span className="shrink-0 text-sm">
-              {formatAmount({
-                amount: transaction.amount,
-                currency: transaction.currency,
-                locale: user?.locale,
-              })}
+              <FormatAmount
+                amount={transaction.amount}
+                currency={transaction.currency}
+              />
             </span>
           </button>
         ))}
@@ -171,13 +178,16 @@ function GroupCard({ group }: { group: Group }) {
 }
 
 export function MissingInvoicesList() {
-  const { groups, count } = useMissingInvoices();
+  const trpc = useTRPC();
+  const { data } = useSuspenseQuery(
+    trpc.transactions.missingInvoices.queryOptions(),
+  );
 
   return (
     <div className="flex flex-col gap-6 pb-8">
-      <Heading count={count} groups={groups} />
+      <Heading count={data.count} groups={data.groups} />
 
-      {groups.length === 0 ? (
+      {data.groups.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16 text-center">
           <Icons.Check className="size-8 text-[#878787]" />
           <div className="text-sm font-medium">Nothing to fetch</div>
@@ -189,7 +199,7 @@ export function MissingInvoicesList() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {groups.map((group) => (
+          {data.groups.map((group) => (
             <GroupCard key={group.key ?? "no-supplier"} group={group} />
           ))}
         </div>

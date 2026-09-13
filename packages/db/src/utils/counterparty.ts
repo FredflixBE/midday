@@ -18,8 +18,19 @@ export function counterpartyKey(transaction: {
   counterpartyName: string | null;
   merchantName: string | null;
 }): string | null {
-  const named = transaction.counterpartyName ?? transaction.merchantName;
-  const key = named?.trim().toLowerCase();
+  // The first name that is actually a name. `??` alone would let a counterparty
+  // of `"  "` suppress a perfectly good merchant name, which on the live books
+  // covers 279 of 288 expenses — so those payments would read as naming nobody.
+  for (const named of [
+    transaction.counterpartyName,
+    transaction.merchantName,
+  ]) {
+    const key = named?.trim().toLowerCase();
 
-  return key ? key : null;
+    if (key) {
+      return key;
+    }
+  }
+
+  return null;
 }

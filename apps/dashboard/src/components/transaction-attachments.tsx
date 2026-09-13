@@ -64,6 +64,16 @@ export function TransactionAttachments({
           queryKey: trpc.transactions.getById.queryKey({ id }),
         });
 
+        // A payment with a document is no longer missing its invoice, and the
+        // page that lists those has to empty as you work it (FF-1552).
+        queryClient.invalidateQueries({
+          queryKey: trpc.transactions.missingInvoices.queryKey(),
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: trpc.overview.summary.queryKey(),
+        });
+
         // Start polling for tax information
         if (
           pollingTransaction?.taxRate !== pollingTransaction?.category?.taxRate
@@ -89,6 +99,16 @@ export function TransactionAttachments({
         // Invalidate inbox queries since inbox items may be connected to this attachment
         queryClient.invalidateQueries({
           queryKey: trpc.inbox.get.infiniteQueryKey(),
+        });
+
+        // Removing the document puts the payment back on the missing list
+        // (FF-1552). The same two keys as the create path, for the same reason.
+        queryClient.invalidateQueries({
+          queryKey: trpc.transactions.missingInvoices.queryKey(),
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: trpc.overview.summary.queryKey(),
         });
       },
     }),

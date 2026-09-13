@@ -55,6 +55,7 @@ async function makeTransaction(
     amount?: number;
     categorySlug?: string;
     counterpartyName?: string | null;
+    merchantName?: string | null;
   },
 ) {
   await db.insert(transactions).values({
@@ -72,6 +73,7 @@ async function makeTransaction(
     categorySlug: overrides.categorySlug ?? null,
     booksStatus: overrides.booksStatus ?? null,
     counterpartyName: overrides.counterpartyName ?? null,
+    merchantName: overrides.merchantName ?? null,
   });
 }
 
@@ -363,6 +365,23 @@ describe.skipIf(SKIP)("invoice status", () => {
       expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toBe(
         count,
       );
+    });
+
+    test("a blank counterparty falls through to the merchant name", async () => {
+      // `merchant_name` covers 279 of 288 expenses on the live books. A
+      // counterparty of "  " must not hide it, or those payments read as naming
+      // nobody and land in the wrong group.
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Adobe",
+        counterpartyName: "   ",
+        merchantName: "Adobe Inc",
+      });
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(groups[0]?.name).toBe("Adobe Inc");
+      expect(groups[0]?.key).toBe("adobe inc");
     });
 
     test("whatever names nobody goes in its own group, at the end", async () => {

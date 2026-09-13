@@ -136,8 +136,6 @@ export type MissingInvoice = {
   name: string;
   amount: number;
   currency: string;
-  counterpartyName: string | null;
-  merchantName: string | null;
   /**
    * The accountant's answer, carried untouched and null wherever the books have
    * nothing to say. It earns a marker on the row and never a column: "your
@@ -227,27 +225,32 @@ export async function getMissingInvoices(
 
   for (const row of rows) {
     const key = counterpartyKey(row);
+    // The names are what the grouping is made of; a row does not carry them on
+    // to the screen, where the heading above it already says who was paid.
+    const { counterpartyName, merchantName, ...transaction } = row;
 
     if (!key) {
-      unnamed.push(row);
+      unnamed.push(transaction);
       continue;
     }
 
     const group = byKey.get(key);
 
     if (group) {
-      group.transactions.push(row);
+      group.transactions.push(transaction);
       continue;
     }
 
     byKey.set(key, {
       key,
-      // The name as the most recent payment wrote it, trimmed: rows are newest
-      // first, so a supplier that has since been renamed reads as it does today.
-      name: (row.counterpartyName ?? row.merchantName)?.trim() ?? null,
+      // The name as the most recent payment wrote it: rows are newest first, so
+      // a supplier that has since been renamed reads as it does today. The same
+      // first-non-blank rule `counterpartyKey` uses, so the heading is a name
+      // from the party the key was built from.
+      name: counterpartyName?.trim() || merchantName?.trim() || null,
       count: 0,
       totals: [],
-      transactions: [row],
+      transactions: [transaction],
     });
   }
 
