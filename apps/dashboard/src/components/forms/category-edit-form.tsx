@@ -34,7 +34,7 @@ const formSchema = z.object({
   taxType: z.string().optional().nullable(),
   taxReportingCode: z.string().optional().nullable(),
   excluded: z.boolean().optional().nullable(),
-  expectsSupplierInvoice: z.boolean().optional(),
+  canHaveSupplierInvoice: z.boolean().optional(),
   parentId: z.string().optional().nullable(),
 });
 
@@ -59,7 +59,7 @@ export function CategoryEditForm({ data }: Props) {
     taxType: data?.taxType || "",
     taxReportingCode: data?.taxReportingCode || "",
     excluded: data?.excluded || false,
-    expectsSupplierInvoice: data?.expectsSupplierInvoice ?? true,
+    canHaveSupplierInvoice: data?.canHaveSupplierInvoice ?? true,
     parentId: data?.parentId || undefined,
   };
 
@@ -89,7 +89,7 @@ export function CategoryEditForm({ data }: Props) {
         // Changing this moves transactions in and out of "Invoice missing",
         // which the transaction list and its counts show.
         const invoiceAnswerChanged =
-          data?.expectsSupplierInvoice !== variables.expectsSupplierInvoice;
+          data?.canHaveSupplierInvoice !== variables.canHaveSupplierInvoice;
 
         if (excludedChanged || taxRateChanged || invoiceAnswerChanged) {
           invalidateTransactionQueries();
@@ -110,7 +110,7 @@ export function CategoryEditForm({ data }: Props) {
       taxType: string | null;
       taxReportingCode: string | null;
       excluded: boolean | null;
-      expectsSupplierInvoice: boolean;
+      canHaveSupplierInvoice: boolean;
       parentId?: string | null;
     } = {
       id: values.id,
@@ -121,7 +121,7 @@ export function CategoryEditForm({ data }: Props) {
       taxType: values.taxType || null,
       taxReportingCode: values.taxReportingCode || null,
       excluded: values.excluded ?? null,
-      expectsSupplierInvoice: values.expectsSupplierInvoice ?? true,
+      canHaveSupplierInvoice: values.canHaveSupplierInvoice ?? true,
     };
 
     // Only include parentId if it has changed from the original value
@@ -309,7 +309,7 @@ export function CategoryEditForm({ data }: Props) {
 
           <FormField
             control={form.control}
-            name="expectsSupplierInvoice"
+            name="canHaveSupplierInvoice"
             render={({ field }) => (
               <FormItem className="flex-1 space-y-1">
                 <div className="border border-border p-3 mt-2 pt-1.5">
@@ -322,6 +322,8 @@ export function CategoryEditForm({ data }: Props) {
                         Turn this off for payments no supplier invoice will ever
                         exist for — taxes, owner draws, transfers. They stay in
                         your reports; Midday just stops asking for an invoice.
+                        Each category answers for itself, so a subcategory does
+                        not inherit this from its parent.
                       </div>
                     </div>
                     <FormControl>

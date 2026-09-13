@@ -72,7 +72,7 @@ export function hasPendingSuggestionSql(teamId: string): SQL<boolean> {
  * left a VAT bill, an owner draw and a card settlement all reading as "Invoice
  * missing" — €28,454 of tax payments on the live books — and every new
  * exception would have been another slug in this expression. The categories now
- * carry the answer themselves (`expects_supplier_invoice`), editable per
+ * carry the answer themselves (`can_have_supplier_invoice`), editable per
  * category, so nothing here needs to know their names.
  *
  * ## Why NOT EXISTS, rather than a join or a lookup
@@ -84,6 +84,12 @@ export function hasPendingSuggestionSql(teamId: string): SQL<boolean> {
  *
  * This is the **only** place the flag is read. A supplier-level override
  * (FF-1555) belongs here too, as one more reason the answer can be no.
+ *
+ * Takes no `teamId`, unlike the two above: the category is matched to the
+ * transaction's own team, which is stricter than any value a caller could pass
+ * and is what the `(team_id, category_slug)` foreign key already guarantees. The
+ * inner `transaction_categories` is the innermost scope, so it wins over any
+ * join of the same table in the surrounding query.
  */
 export function isExpenseSql(): SQL<boolean> {
   return sql<boolean>`(
@@ -93,7 +99,7 @@ export function isExpenseSql(): SQL<boolean> {
       SELECT 1 FROM ${transactionCategories}
       WHERE ${transactionCategories.teamId} = ${transactions.teamId}
         AND ${transactionCategories.slug} = ${transactions.categorySlug}
-        AND ${transactionCategories.expectsSupplierInvoice} = false
+        AND ${transactionCategories.canHaveSupplierInvoice} = false
     )
   )`;
 }

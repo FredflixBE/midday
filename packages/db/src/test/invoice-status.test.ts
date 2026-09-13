@@ -114,7 +114,7 @@ async function suggestMatch(
 async function makeCategory(
   db: Database,
   slug: string,
-  expectsSupplierInvoice: boolean,
+  canHaveSupplierInvoice: boolean,
 ) {
   // Upsert: the seed already holds some of these, and a test should be able to
   // state the answer it depends on without knowing which.
@@ -126,11 +126,11 @@ async function makeCategory(
       name: slug,
       system: true,
       excluded: false,
-      expectsSupplierInvoice,
+      canHaveSupplierInvoice,
     })
     .onConflictDoUpdate({
       target: [transactionCategories.teamId, transactionCategories.slug],
-      set: { expectsSupplierInvoice },
+      set: { canHaveSupplierInvoice },
     });
 }
 

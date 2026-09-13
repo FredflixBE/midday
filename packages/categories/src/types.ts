@@ -20,7 +20,7 @@ export interface BaseCategory {
    * supplier invoice. Answering one with the other would corrupt cash flow and
    * runway.
    */
-  expectsSupplierInvoice: boolean;
+  canHaveSupplierInvoice: boolean;
 }
 
 // Parent category interface
@@ -52,7 +52,7 @@ export const baseCategorySchema = z.object({
   system: z.boolean(),
   taxReportingCode: z.string().optional(),
   excluded: z.boolean().optional(),
-  expectsSupplierInvoice: z.boolean(),
+  canHaveSupplierInvoice: z.boolean(),
 });
 
 export const childCategorySchema = baseCategorySchema.extend({

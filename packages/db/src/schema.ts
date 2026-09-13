@@ -3007,7 +3007,7 @@ export const transactionCategories = pgTable(
     // Not the same question as `excluded`, and deliberately not stored as it: a
     // VAT payment belongs in the reports, because it is real money leaving the
     // account. It simply has no supplier invoice.
-    expectsSupplierInvoice: boolean("expects_supplier_invoice")
+    canHaveSupplierInvoice: boolean("can_have_supplier_invoice")
       .notNull()
       .default(true),
     description: text(),

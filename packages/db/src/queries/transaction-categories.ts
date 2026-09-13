@@ -33,7 +33,7 @@ export const getCategories = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
-      expectsSupplierInvoice: transactionCategories.expectsSupplierInvoice,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
     })
     .from(transactionCategories)
@@ -62,7 +62,7 @@ export const getCategories = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
-      expectsSupplierInvoice: transactionCategories.expectsSupplierInvoice,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
     })
     .from(transactionCategories)
@@ -110,7 +110,7 @@ export const getCategoryById = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
-      expectsSupplierInvoice: transactionCategories.expectsSupplierInvoice,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
       createdAt: transactionCategories.createdAt,
     })
@@ -140,7 +140,7 @@ export const getCategoryById = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
-      expectsSupplierInvoice: transactionCategories.expectsSupplierInvoice,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
     })
     .from(transactionCategories)
@@ -169,7 +169,7 @@ export type CreateTransactionCategoryParams = {
   taxReportingCode?: string | null;
   parentId?: string | null;
   /** Omitted means yes: most spending settles a supplier debt (FF-1553). */
-  expectsSupplierInvoice?: boolean;
+  canHaveSupplierInvoice?: boolean;
 };
 
 export const createTransactionCategory = async (
@@ -186,7 +186,7 @@ export const createTransactionCategory = async (
     taxType,
     taxReportingCode,
     parentId,
-    expectsSupplierInvoice,
+    canHaveSupplierInvoice,
   } = params;
 
   const [result] = await db
@@ -200,7 +200,7 @@ export const createTransactionCategory = async (
       taxType,
       taxReportingCode,
       parentId,
-      expectsSupplierInvoice,
+      canHaveSupplierInvoice,
     })
     .returning();
 
@@ -249,7 +249,7 @@ export type UpdateTransactionCategoryParams = {
   taxType?: string | null;
   taxReportingCode?: string | null;
   parentId?: string | null;
-  expectsSupplierInvoice?: boolean;
+  canHaveSupplierInvoice?: boolean;
 };
 
 export const updateTransactionCategory = async (

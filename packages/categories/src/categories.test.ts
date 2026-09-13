@@ -17,7 +17,7 @@ const allCategories = CATEGORIES.flatMap((parent) => [
 
 test("the categories that can never have a supplier invoice are exactly these", () => {
   const cannot = allCategories
-    .filter((category) => !category.expectsSupplierInvoice)
+    .filter((category) => !category.canHaveSupplierInvoice)
     .map((category) => category.slug)
     .sort();
 
@@ -50,7 +50,7 @@ test("the instructive yes cases stay yes", () => {
   // missing list was a matching failure, not a classification one (FF-1548).
   const expects = (slug: string) =>
     allCategories.find((category) => category.slug === slug)
-      ?.expectsSupplierInvoice;
+      ?.canHaveSupplierInvoice;
 
   expect(expects("leases")).toBe(true);
   expect(expects("insurance")).toBe(true);
@@ -60,7 +60,7 @@ test("the instructive yes cases stay yes", () => {
 
 test("every category answers the question, so nothing falls through undefined", () => {
   const unanswered = allCategories.filter(
-    (category) => typeof category.expectsSupplierInvoice !== "boolean",
+    (category) => typeof category.canHaveSupplierInvoice !== "boolean",
   );
 
   expect(unanswered).toEqual([]);
@@ -73,6 +73,6 @@ test("the invoice question is independent of exclude-from-reports", () => {
     (category) => category.slug === "vat-gst-pst-qst-payments",
   );
 
-  expect(vat?.expectsSupplierInvoice).toBe(false);
+  expect(vat?.canHaveSupplierInvoice).toBe(false);
   expect(vat?.excluded).toBe(false);
 });

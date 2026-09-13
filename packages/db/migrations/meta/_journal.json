@@ -75,8 +75,8 @@
     {
       "idx": 10,
       "version": "7",
-      "when": 1789318459623,
-      "tag": "0010_expects_supplier_invoice",
+      "when": 1789319024166,
+      "tag": "0010_can_have_supplier_invoice",
       "breakpoints": true
     }
   ]

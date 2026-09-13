@@ -282,7 +282,7 @@ async function seedCategories(db: Database): Promise<void> {
       excluded: true,
       // No supplier invoice will ever exist for these — same answer the built-in
       // taxonomy gives them (FF-1553).
-      expectsSupplierInvoice: false,
+      canHaveSupplierInvoice: false,
     },
     {
       id: CAT_IDS.internalTransfer,
@@ -293,7 +293,7 @@ async function seedCategories(db: Database): Promise<void> {
       excluded: true,
       // No supplier invoice will ever exist for these — same answer the built-in
       // taxonomy gives them (FF-1553).
-      expectsSupplierInvoice: false,
+      canHaveSupplierInvoice: false,
     },
     {
       id: CAT_IDS.inventory,
@@ -344,7 +344,7 @@ async function seedCategories(db: Database): Promise<void> {
       excluded: false,
       // No supplier invoice will ever exist for these — same answer the built-in
       // taxonomy gives them (FF-1553).
-      expectsSupplierInvoice: false,
+      canHaveSupplierInvoice: false,
     },
     {
       id: CAT_IDS.cleaning,

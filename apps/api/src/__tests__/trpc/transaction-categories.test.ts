@@ -261,6 +261,29 @@ describe("tRPC: transactionCategories.update", () => {
     );
   });
 
+  test("carries the supplier-invoice answer through to the DB query", async () => {
+    // The one thing this flag has to do is survive being turned off: it is what
+    // stops a VAT payment reading as a missing invoice (FF-1553).
+    const caller = createCaller(createTestContext());
+    await caller.update({ ...fullUpdateInput, canHaveSupplierInvoice: false });
+
+    expect(updateTransactionCategory).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ canHaveSupplierInvoice: false }),
+    );
+  });
+
+  test("leaves the supplier-invoice answer alone when it is not sent", async () => {
+    const caller = createCaller(createTestContext());
+    await caller.update({ ...fullUpdateInput });
+
+    const [, params] = asMock(updateTransactionCategory).mock.calls[0] as [
+      unknown,
+      Record<string, unknown>,
+    ];
+    expect("canHaveSupplierInvoice" in params).toBe(false);
+  });
+
   test("rejects update without required nullable fields", async () => {
     const caller = createCaller(createTestContext());
 

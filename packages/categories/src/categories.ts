@@ -80,7 +80,7 @@ const RAW_CATEGORIES = [
     slug: "human-resources",
     name: "Human Resources",
     children: [
-      { slug: "salary", name: "Salary", expectsSupplierInvoice: false },
+      { slug: "salary", name: "Salary", canHaveSupplierInvoice: false },
       { slug: "training", name: "Training" },
       { slug: "benefits", name: "Benefits" },
     ],
@@ -115,19 +115,19 @@ const RAW_CATEGORIES = [
     slug: "banking-finance",
     name: "Banking & Finance",
     children: [
-      { slug: "transfer", name: "Transfer", expectsSupplierInvoice: false },
+      { slug: "transfer", name: "Transfer", canHaveSupplierInvoice: false },
       {
         slug: "credit-card-payment",
         name: "Credit Card Payment",
         excluded: true,
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       { slug: "banking-fees", name: "Banking Fees" },
       { slug: "loan-proceeds", name: "Loan Proceeds" },
       {
         slug: "loan-principal-repayment",
         name: "Loan Principal Repayment",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       { slug: "interest-expense", name: "Interest Expense" },
       // Payment Platforms
@@ -163,37 +163,37 @@ const RAW_CATEGORIES = [
     name: "Taxes & Government",
     // A tax office issues an assessment, not a supplier invoice. Nothing here
     // will ever have one, which is why the parent and every child say so.
-    expectsSupplierInvoice: false,
+    canHaveSupplierInvoice: false,
     children: [
       {
         slug: "vat-gst-pst-qst-payments",
         name: "VAT/GST/PST/QST Payments",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       {
         slug: "sales-use-tax-payments",
         name: "Sales & Use Tax Payments",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       {
         slug: "income-tax-payments",
         name: "Income Tax Payments",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       {
         slug: "payroll-tax-remittances",
         name: "Payroll Tax Remittances",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       {
         slug: "employer-taxes",
         name: "Employer Taxes",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       {
         slug: "government-fees",
         name: "Government Fees",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
     ],
   },
@@ -206,7 +206,7 @@ const RAW_CATEGORIES = [
       {
         slug: "owner-draws",
         name: "Owner Draws",
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
       { slug: "capital-investment", name: "Capital Investment" },
       { slug: "charitable-donations", name: "Charitable Donations" },
@@ -224,7 +224,7 @@ const RAW_CATEGORIES = [
         slug: "internal-transfer",
         name: "Internal Transfer",
         excluded: true,
-        expectsSupplierInvoice: false,
+        canHaveSupplierInvoice: false,
       },
     ],
   },
@@ -243,16 +243,20 @@ function applyColorsToCategories(
     // debt, and the exceptions are the short list marked above. Each category
     // answers for itself — a child does not inherit its parent's answer, so
     // there is one place per category to read and one to edit.
-    expectsSupplierInvoice:
-      "expectsSupplierInvoice" in parent ? parent.expectsSupplierInvoice : true,
+    //
+    // These defaults only reach a team when it is created. Marking a category
+    // `false` here later needs a migration for the teams that already exist —
+    // see `0010_can_have_supplier_invoice.sql`.
+    canHaveSupplierInvoice:
+      "canHaveSupplierInvoice" in parent ? parent.canHaveSupplierInvoice : true,
     children: parent.children.map((child) => ({
       ...child,
       parentSlug: parent.slug, // Automatically add parentSlug
       color: getCategoryColor(child.slug),
       system: true,
       excluded: "excluded" in child ? child.excluded : false, // Respect excluded flag if set
-      expectsSupplierInvoice:
-        "expectsSupplierInvoice" in child ? child.expectsSupplierInvoice : true,
+      canHaveSupplierInvoice:
+        "canHaveSupplierInvoice" in child ? child.canHaveSupplierInvoice : true,
     })),
   }));
 }

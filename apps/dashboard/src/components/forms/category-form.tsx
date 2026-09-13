@@ -33,7 +33,7 @@ const formSchema = z.object({
   taxType: z.string().optional(),
   taxReportingCode: z.string().optional(),
   excluded: z.boolean().optional(),
-  expectsSupplierInvoice: z.boolean().optional(),
+  canHaveSupplierInvoice: z.boolean().optional(),
   parentId: z.string().optional(),
 });
 
@@ -70,7 +70,7 @@ export function CategoryForm({ data }: Props) {
     taxRate: data?.taxRate || undefined,
     taxReportingCode: data?.taxReportingCode || "",
     excluded: data?.excluded || false,
-    expectsSupplierInvoice: data?.expectsSupplierInvoice ?? true,
+    canHaveSupplierInvoice: data?.canHaveSupplierInvoice ?? true,
     parentId: data?.parentId || undefined,
   };
 
@@ -245,7 +245,7 @@ export function CategoryForm({ data }: Props) {
 
           <FormField
             control={form.control}
-            name="expectsSupplierInvoice"
+            name="canHaveSupplierInvoice"
             render={({ field }) => (
               <FormItem className="flex-1 space-y-1">
                 <div className="border border-border p-3 mt-2 pt-1.5">
@@ -258,6 +258,8 @@ export function CategoryForm({ data }: Props) {
                         Turn this off for payments no supplier invoice will ever
                         exist for — taxes, owner draws, transfers. They stay in
                         your reports; Midday just stops asking for an invoice.
+                        Each category answers for itself, so a subcategory does
+                        not inherit this from its parent.
                       </div>
                     </div>
                     <FormControl>

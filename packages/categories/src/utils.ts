@@ -11,7 +11,7 @@ export function getFlatCategories(): ChildCategory[] {
       slug: parent.slug,
       color: parent.color,
       system: parent.system,
-      expectsSupplierInvoice: parent.expectsSupplierInvoice,
+      canHaveSupplierInvoice: parent.canHaveSupplierInvoice,
       parentSlug: "",
     });
 

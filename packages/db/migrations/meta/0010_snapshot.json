@@ -1,5 +1,5 @@
 {
-  "id": "7ad74cbe-2b5d-4af1-b298-adec18056846",
+  "id": "200314ac-aff1-40be-9e11-379bfec0e342",
   "prevId": "82d03308-6b23-4940-adb0-ba8f11d53e89",
   "version": "7",
   "dialect": "postgresql",
@@ -8474,8 +8474,8 @@
           "notNull": false,
           "default": false
         },
-        "expects_supplier_invoice": {
-          "name": "expects_supplier_invoice",
+        "can_have_supplier_invoice": {
+          "name": "can_have_supplier_invoice",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
