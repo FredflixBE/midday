@@ -60,6 +60,13 @@ function formatExportDate(dateStr?: string | null): string {
 type Props = {
   rawStatus?: string | null;
   isFulfilled: boolean;
+  /**
+   * Whether a document is actually filed. `isFulfilled` is also true for a
+   * transaction marked done without one, and the two used to be
+   * indistinguishable here — so a bank fee you had answered for read as
+   * "Ready to export. Receipt attached.", which was untrue (FF-1499).
+   */
+  hasAttachment?: boolean;
   isExported: boolean;
   hasExportError?: boolean;
   exportErrorCode?: string | null;
@@ -71,6 +78,7 @@ type Props = {
 export function TransactionStatus({
   rawStatus,
   isFulfilled,
+  hasAttachment,
   isExported,
   hasExportError,
   exportErrorCode,
@@ -97,6 +105,21 @@ export function TransactionStatus({
           </TooltipTrigger>
           <TooltipContent sideOffset={10} className="text-xs">
             <p>{getErrorMessage(exportErrorCode)}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  if (isFulfilled && !isExported && hasAttachment === false) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-default">No receipt needed</span>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={10} className="text-xs">
+            <p>Marked as done without a receipt.</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

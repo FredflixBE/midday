@@ -1,3 +1,4 @@
+import { INVOICE_STATUSES } from "@midday/db/queries";
 import { z } from "@hono/zod-openapi";
 
 const createTransactionAttachmentSchema = z
@@ -179,6 +180,32 @@ export const getTransactionsSchema = z.object({
       param: {
         in: "query",
       },
+    }),
+  invoiceStatuses: z
+    .array(z.enum(INVOICE_STATUSES))
+    .nullable()
+    .optional()
+    .describe(
+      "Filter by where the transaction stands on its invoice, from Midday's own records.",
+    )
+    .openapi({
+      description:
+        "Array of invoice statuses to filter by: 'invoice_missing', 'invoice_pending', 'invoice_attached', 'no_invoice_needed'",
+      example: ["invoice_missing"],
+      param: { in: "query" },
+    }),
+  booksStatuses: z
+    .array(z.enum(["invoice_missing", "in_the_books", "needs_attention"]))
+    .nullable()
+    .optional()
+    .describe(
+      "Filter by where the transaction stands in the accountant's books.",
+    )
+    .openapi({
+      description:
+        "Array of books statuses to filter by: 'invoice_missing', 'in_the_books', 'needs_attention'",
+      example: ["invoice_missing"],
+      param: { in: "query" },
     }),
   recurring: z
     .array(z.string())
@@ -394,6 +421,29 @@ export const transactionResponseSchema = z
     }),
     isFulfilled: z.boolean().openapi({
       description: "Whether the transaction has been fulfilled or processed",
+      example: true,
+    }),
+    invoiceStatus: z.enum(INVOICE_STATUSES).nullable().openapi({
+      description:
+        "Where the transaction stands on its invoice, from Midday's own records: invoice_missing (nothing attached), invoice_pending (a suggested match is waiting to be confirmed), invoice_attached, no_invoice_needed (marked done without one). Null for anything that cannot have a supplier invoice — money coming in, and transfers between your own accounts.",
+      example: "invoice_missing",
+    }),
+    booksStatus: z
+      .enum(["invoice_missing", "in_the_books", "needs_attention"])
+      .nullable()
+      .openapi({
+        description:
+          "Where the transaction stands in the accountant's books. Null where the books have no answer for it, which is not the same as missing.",
+        example: "in_the_books",
+      }),
+    booksStatusReason: z.string().nullable().openapi({
+      description:
+        "Why the books could not be read for this transaction, when the status says so. A code, not a sentence.",
+      example: "amount_differs",
+    }),
+    hasAttachment: z.boolean().openapi({
+      description:
+        "Whether a document is filed against this transaction. Unlike isFulfilled, this is not also true for transactions marked done without one.",
       example: true,
     }),
     note: z.string().nullable().openapi({

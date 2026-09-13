@@ -697,6 +697,7 @@ export const columns: ColumnDef<Transaction>[] = [
           isFulfilled={
             row.original.status === "completed" || row.original.isFulfilled
           }
+          hasAttachment={row.original.hasAttachment}
           isExported={row.original.isExported ?? false}
           hasExportError={row.original.hasExportError}
           exportErrorCode={row.original.exportErrorCode}

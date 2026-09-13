@@ -20,6 +20,7 @@ export * from "./insights";
 
 export * from "./institutions";
 export * from "./invoice-products";
+export * from "./invoice-status";
 export * from "./invoice-recurring";
 export * from "./invoice-templates";
 export * from "./invoices";
