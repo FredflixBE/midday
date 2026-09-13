@@ -21,6 +21,7 @@ import {
   calculateCurrencyScore as calculateUnifiedCurrencyScore,
   calculateDateScore as calculateUnifiedDateScore,
   calculateNameScore as calculateUnifiedNameScore,
+  isExactAmountMatch,
   scoreMatch,
 } from "../utils/transaction-matching";
 import { inboxNeedsHandlingSql } from "./invoice-status";
@@ -780,6 +781,10 @@ export async function getInboxSearch(
             currency: transactions.currency,
             baseAmount: transactions.baseAmount,
             baseCurrency: transactions.baseCurrency,
+            // What the charge originally cost. For a document billed in that
+            // currency it is the only amount the two sides share (FF-1561).
+            originalAmount: transactions.originalAmount,
+            originalCurrency: transactions.originalCurrency,
             date: transactions.date,
             merchantName: transactions.merchantName,
             counterpartyName: transactions.counterpartyName,
@@ -850,11 +855,7 @@ export async function getInboxSearch(
                 candidate.type,
               )
             : 0;
-          const isExactAmount =
-            candidate.amount !== null &&
-            Math.abs(
-              Math.abs(candidate.amount || 0) - Math.abs(txContext.amount || 0),
-            ) < 0.01;
+          const isExactAmount = isExactAmountMatch(candidate, txContext);
           const isSameCurrency = candidate.currency === txContext.currency;
           const confidence = scoreMatch({
             nameScore,
@@ -889,6 +890,8 @@ export async function getInboxSearch(
           currency: transactions.currency,
           baseAmount: transactions.baseAmount,
           baseCurrency: transactions.baseCurrency,
+          originalAmount: transactions.originalAmount,
+          originalCurrency: transactions.originalCurrency,
           date: transactions.date,
           merchantName: transactions.merchantName,
           counterpartyName: transactions.counterpartyName,
@@ -1006,12 +1009,7 @@ export async function getInboxSearch(
               transaction.date,
               candidate.type,
             );
-            const isExactAmount =
-              candidate.amount !== null &&
-              Math.abs(
-                Math.abs(candidate.amount || 0) -
-                  Math.abs(transaction.amount || 0),
-              ) < 0.01;
+            const isExactAmount = isExactAmountMatch(candidate, transaction);
             const isSameCurrency = candidate.currency === transaction.currency;
             const confidence = scoreMatch({
               nameScore,
