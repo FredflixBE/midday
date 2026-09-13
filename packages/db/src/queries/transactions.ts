@@ -2243,3 +2243,88 @@ export async function moveTransactionToReview(
       ),
     );
 }
+
+export type TransactionIdentifiers = {
+  /** `transactionInternalId(teamId, providerId)` — the upsert key. */
+  internalId: string;
+  counterpartyIban: string | null;
+  bankTransactionCode: string | null;
+  bankTransactionSubCode: string | null;
+  entryReference: string | null;
+};
+
+/**
+ * Fill in the identifiers on transactions that were imported before Midday kept
+ * them.
+ *
+ * The upsert that stores a sync skips anything it already has
+ * (`ignoreDuplicates`), which is right for everything else: a re-sync must not
+ * flatten a category somebody chose or a merchant name enrichment worked out.
+ * But it also means a transaction already in Midday never receives the
+ * identifiers its provider is still sending for it.
+ *
+ * That turned out to matter more than FF-1557 assumed. The bank serves a rolling
+ * ~85 days and **every transaction in that window comes back with its IBAN and
+ * its ISO 20022 code attached** — including ones Midday stored months ago, from
+ * a payload that did not carry them. So the fields are not forward-only at all;
+ * they were being dropped at the door.
+ *
+ * `COALESCE` per column, so this only ever fills a hole: a value already there
+ * wins, and nothing outside these four columns is touched. None of them is
+ * editable by a person, so there is no edit to lose.
+ */
+export async function fillTransactionIdentifiers(
+  db: Database,
+  params: { teamId: string; entries: TransactionIdentifiers[] },
+): Promise<number> {
+  const wanted = params.entries.filter(
+    (entry) =>
+      entry.counterpartyIban ||
+      entry.bankTransactionCode ||
+      entry.bankTransactionSubCode ||
+      entry.entryReference,
+  );
+
+  if (wanted.length === 0) {
+    return 0;
+  }
+
+  let filled = 0;
+  const CHUNK_SIZE = 50;
+
+  for (let i = 0; i < wanted.length; i += CHUNK_SIZE) {
+    const chunk = wanted.slice(i, i + CHUNK_SIZE);
+
+    const results = await Promise.all(
+      chunk.map((entry) =>
+        db
+          .update(transactions)
+          .set({
+            counterpartyIban: sql`COALESCE(${transactions.counterpartyIban}, ${entry.counterpartyIban})`,
+            bankTransactionCode: sql`COALESCE(${transactions.bankTransactionCode}, ${entry.bankTransactionCode})`,
+            bankTransactionSubCode: sql`COALESCE(${transactions.bankTransactionSubCode}, ${entry.bankTransactionSubCode})`,
+            entryReference: sql`COALESCE(${transactions.entryReference}, ${entry.entryReference})`,
+          })
+          .where(
+            and(
+              eq(transactions.teamId, params.teamId),
+              eq(transactions.internalId, entry.internalId),
+              // Nothing to do for a row that already has all four, and saying so
+              // here keeps a re-sync from rewriting every row it re-reads.
+              or(
+                isNull(transactions.counterpartyIban),
+                isNull(transactions.bankTransactionCode),
+                isNull(transactions.bankTransactionSubCode),
+                isNull(transactions.entryReference),
+              ),
+            ),
+          )
+          .returning({ id: transactions.id }),
+      ),
+    );
+
+    filled += results.filter((rows) => rows.length > 0).length;
+  }
+
+  return filled;
+}
