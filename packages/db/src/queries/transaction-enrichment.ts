@@ -1,4 +1,14 @@
-import { and, eq, inArray, isNotNull, or, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import type { Database } from "../client";
 import { transactions } from "../schema";
 
@@ -16,6 +26,9 @@ export type TransactionForEnrichment = {
   amount: number;
   currency: string;
   categorySlug: string | null;
+  /** What the bank itself called this payment, where it said (FF-1557). */
+  bankTransactionCode: string | null;
+  bankTransactionSubCode: string | null;
 };
 
 export type EnrichmentUpdateData = {
@@ -31,11 +44,19 @@ export type UpdateTransactionEnrichmentParams = {
 /**
  * Get the transactions a run should enrich.
  *
- * A row qualifies if enrichment has never finished for it, or if the last
- * attempt finished by failing. The second half is what makes a failed batch
- * replayable: without it, marking a failed batch complete (which the UI needs)
- * would make it permanently ineligible and re-running the task would quietly
- * find nothing to do.
+ * A row qualifies on any of three counts: enrichment has never finished for it,
+ * the last attempt finished by failing, or it finished and gave up — landing in
+ * `uncategorized`.
+ *
+ * The second is what makes a failed batch replayable: without it, marking a
+ * failed batch complete (which the UI needs) would make it permanently
+ * ineligible and re-running the task would quietly find nothing to do.
+ *
+ * The third is what let EUR 52,288 of bank payments sit unclassified with no way
+ * back. A run that could not name a category wrote `uncategorized` and marked
+ * the row finished, and both halves of that then excluded it forever — so fixing
+ * the categoriser changed nothing for the rows it had already given up on
+ * (FF-1554). `uncategorized` is a parking space, and a row in it is still work.
  */
 export async function getTransactionsForEnrichment(
   db: Database,
@@ -55,6 +76,8 @@ export async function getTransactionsForEnrichment(
       amount: transactions.amount,
       currency: transactions.currency,
       categorySlug: transactions.categorySlug,
+      bankTransactionCode: transactions.bankTransactionCode,
+      bankTransactionSubCode: transactions.bankTransactionSubCode,
     })
     .from(transactions)
     .where(
@@ -64,9 +87,88 @@ export async function getTransactionsForEnrichment(
         or(
           eq(transactions.enrichmentCompleted, false),
           isNotNull(transactions.enrichmentFailedAt),
+          eq(transactions.categorySlug, UNCATEGORIZED),
         ),
       ),
     );
+}
+
+/** Where a run parks a payment it could not classify. */
+const UNCATEGORIZED = "uncategorized";
+
+export type GetCategoriesByCounterpartyParams = {
+  teamId: string;
+  /** Counterparty names as they appear on the transaction, any casing. */
+  names: string[];
+};
+
+/**
+ * The category this team has already given each of these counterparties.
+ *
+ * This is the memory that makes the answer stable. The categoriser is a model,
+ * and a model asked the same question twice can answer differently — which is
+ * how one payroll agency ended up split across two categories. Once a payment
+ * from a counterparty is classified, every later payment from the same
+ * counterparty takes that category without asking.
+ *
+ * It also makes a correction stick: recategorise one payment by hand and the
+ * next one from that supplier follows, which is the behaviour anyone keeping
+ * books expects and the reason this reads transactions rather than a cache.
+ *
+ * Deliberately **not** a supplier record. It is an exact match on the trimmed,
+ * lower-cased name, with no identity, no merging of near-duplicates and nothing
+ * stored. Real supplier identity is FF-1555, and this must not grow into it.
+ *
+ * Ties break towards the most used, then the most recent: a name classified
+ * eleven times one way and once another answers with the eleven.
+ */
+export async function getCategoriesByCounterparty(
+  db: Database,
+  params: GetCategoriesByCounterpartyParams,
+): Promise<Map<string, string>> {
+  const wanted = [
+    ...new Set(
+      params.names
+        .map((name) => name.trim().toLowerCase())
+        .filter((name) => name.length > 0),
+    ),
+  ];
+
+  if (wanted.length === 0) {
+    return new Map();
+  }
+
+  const name = sql<string>`lower(trim(coalesce(${transactions.counterpartyName}, ${transactions.merchantName})))`;
+
+  const rows = await db
+    .select({
+      name,
+      categorySlug: transactions.categorySlug,
+      used: sql<number>`count(*)::int`,
+      latest: sql<string>`max(${transactions.date})`,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.teamId, params.teamId),
+        isNotNull(transactions.categorySlug),
+        ne(transactions.categorySlug, UNCATEGORIZED),
+        inArray(name, wanted),
+      ),
+    )
+    .groupBy(name, transactions.categorySlug)
+    .orderBy(desc(sql`count(*)`), desc(sql`max(${transactions.date})`));
+
+  const byName = new Map<string, string>();
+
+  for (const row of rows) {
+    // Ordered most-used first, so the first answer for a name is the one to keep.
+    if (row.categorySlug && !byName.has(row.name)) {
+      byName.set(row.name, row.categorySlug);
+    }
+  }
+
+  return byName;
 }
 
 /**

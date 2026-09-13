@@ -30,6 +30,7 @@ export const transactionCategories = [
   "training", // Courses, certifications
   "employer-taxes", // Payroll taxes
   "benefits", // Health insurance, retirement
+  "salary", // Wages paid to employees, including batched payroll orders
 
   // Technology
   "non-software-subscriptions", // Non-software subscriptions
@@ -42,9 +43,25 @@ export const transactionCategories = [
   "credit-card-payment", // Credit card charges
   "banking-fees", // Bank fees
   "interest-expense", // Loan interest payments
+  "loan-principal-repayment", // The capital part of a loan or lease repayment
   "payouts", // Payment platform payouts
   "processor-fees", // Payment processing fees
   "fees", // General fees
+
+  // Taxes & government. Absent from this list until FF-1554, which is why
+  // EUR 52,288 of tax payments sat in `uncategorized` on the live books: the
+  // model was handed "Btw Ontvangsten Brussel" and a menu with nowhere to put
+  // it. `employer-taxes` was the only tax-shaped option, which is also why one
+  // VAT payment landed there while five identical ones did not.
+  "taxes", // Use only when the kind of tax is genuinely unclear
+  "vat-gst-pst-qst-payments", // VAT / BTW / GST returns and prepayments
+  "sales-use-tax-payments", // Sales and use tax remittances
+  "income-tax-payments", // Corporate or personal income tax, prepayments
+  "payroll-tax-remittances", // Withheld payroll tax paid to the authority
+  "government-fees", // Registration, filing and licence fees
+
+  // Owner / equity
+  "owner-draws", // Money taken out by the owner
 
   // Assets
   "fixed-assets", // Equipment, furniture purchases
