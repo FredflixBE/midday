@@ -8,17 +8,16 @@ import { formatConversion } from "@/utils/format";
  * it without already knowing (FF-1560).
  *
  * It replaces the unlabelled box that held `USD 18.60 at 1.15`, which failed
- * three ways at once: the rate had no direction, so 1.15 was either dollars per
- * euro or euros per dollar; nothing said the two amounts were the same money;
- * and it appeared in the description field, where every other transaction shows
- * free text, so there was no cue it was a conversion at all.
+ * three ways at once: it carried a rate that could not be read and did not
+ * reconcile; nothing said the two amounts were the same money; and it appeared
+ * in the description field, where every other transaction shows free text, so
+ * there was no cue it was a conversion at all.
  *
  * The wording lives in `formatConversion`, which is where it is tested.
  */
 type Props = {
   originalAmount: number | null;
   originalCurrency: string | null;
-  exchangeRate: number | null;
   /** The currency the charge was settled in — what the amount above is in. */
   currency: string;
 };
@@ -26,7 +25,6 @@ type Props = {
 export function TransactionOriginalAmount({
   originalAmount,
   originalCurrency,
-  exchangeRate,
   currency,
 }: Props) {
   const { data: user } = useUserQuery();
@@ -34,7 +32,6 @@ export function TransactionOriginalAmount({
   const conversion = formatConversion({
     originalAmount,
     originalCurrency,
-    exchangeRate,
     currency,
     locale: user?.locale,
   });

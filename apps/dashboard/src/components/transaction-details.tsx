@@ -355,7 +355,6 @@ export function TransactionDetails() {
                 <TransactionOriginalAmount
                   originalAmount={data.originalAmount}
                   originalCurrency={data.originalCurrency}
-                  exchangeRate={data.exchangeRate}
                   currency={data.currency}
                 />
               ) : null}
