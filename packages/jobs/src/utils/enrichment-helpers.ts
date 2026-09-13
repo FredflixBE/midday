@@ -1,4 +1,9 @@
-import type { TransactionForEnrichment } from "@midday/db/queries";
+import type { Database } from "@midday/db/client";
+import {
+  getCategoriesByCounterparty,
+  type TransactionForEnrichment,
+  UNCATEGORIZED,
+} from "@midday/db/queries";
 import type {
   EnrichmentResult,
   TransactionData,
@@ -26,7 +31,10 @@ export function generateEnrichmentPrompt(
     })
     .join("\n");
 
-  const needsCategories = batch.some((tx) => !tx.categorySlug);
+  // `isUnanswered`, not a null check: every row in the backlog carries
+  // `uncategorized`, so a null check would hide the categorisation half of this
+  // prompt from exactly the payments it was written for (FF-1554).
+  const needsCategories = batch.some((tx) => isUnanswered(tx.categorySlug));
 
   let returnInstructions = "Return:\n";
 
@@ -111,13 +119,31 @@ COMMON CATEGORIES (only use if confident):
 • security: Security systems, monitoring services
 • credit-card-payment: Credit card transactions
 • interest-expense: Loan interest payments
+• loan-principal-repayment: The capital part of a loan or lease repayment, not the interest
 • uncategorized: Use when uncertain
+
+TAX AND GOVERNMENT (a tax authority is never a supplier — use these, not a supplier category):
+• vat-gst-pst-qst-payments: VAT / BTW / TVA / GST returns and prepayments. Belgian VAT
+  offices appear as "Btw Ontvangsten", "Dienst Btw Ontvangsten", "BTW-Ontvangsten"
+• income-tax-payments: Corporate or personal income tax, including prepayments
+  ("Voorafbetalingen", "Versements anticipés")
+• payroll-tax-remittances: Withheld payroll tax paid over to the authority
+• employer-taxes: Employer social contributions (Belgium: a social insurance fund such
+  as Xerius, Acerta, Liantis, Securex)
+• government-fees: Registration, filing and licence fees
+• taxes: Only when it is clearly a tax and the kind is genuinely unclear
+
+PAYROLL AND OWNER:
+• salary: Wages paid to employees, including one batched order covering several
+• owner-draws: Money taken out by the owner for personal use
 
 RULES:
 1. Only categorize if confidence >= 0.7
 2. When uncertain, return null for category
 3. Focus on merchant name for clues
 4. Consider business context and amount
+5. A payment to a tax authority or a social insurance fund is a tax payment, never
+   contractors or professional services
 `
     : ""
 }
@@ -168,6 +194,182 @@ export function prepareTransactionData(
   });
 }
 
+/** The two states that mean "nobody has classified this yet". */
+export function isUnanswered(categorySlug: string | null): boolean {
+  return !categorySlug || categorySlug === UNCATEGORIZED;
+}
+
+/**
+ * How a counterparty is identified for grouping and for recall: the name the
+ * bank gave, or the merchant name where it gave none, trimmed and lower-cased.
+ *
+ * Exact match, so it merges repeats and not near-misses — `Xerius` and `Xerius
+ * Sociaal Verzekeringsfonds` are two counterparties here. Merging those needs a
+ * real supplier identity, which is FF-1555.
+ *
+ * `getCategoriesByCounterparty` computes the same thing in SQL. If this changes,
+ * that has to change with it.
+ */
+export function counterpartyKey(transaction: {
+  counterpartyName: string | null;
+  merchantName: string | null;
+}): string | null {
+  const named = transaction.counterpartyName ?? transaction.merchantName;
+  const key = named?.trim().toLowerCase();
+
+  return key ? key : null;
+}
+
+/**
+ * What the bank itself said this payment is, where ISO 20022 says it outright.
+ *
+ * Two codes identify a category with no inference at all, and both were being
+ * guessed at instead: `SALA` is a salary payment — which is what the twelve
+ * combined transfer orders on the live books are — and `FTDP/RPMT` is what the
+ * KBC lease repayments carry, confirmed against thirteen of them in the books.
+ *
+ * `FTDP/RPMT` is ISO's "loan or lease repayment", so a loan repayment would
+ * carry it too and be filed here as a lease. This account has no loan; if one is
+ * ever taken out, that category needs a look. The model still owns
+ * `loan-principal-repayment`, which is why it is described to it.
+ *
+ * Deliberately short. A payment to the tax office and a payment to a supplier
+ * are both `ICDT/ESCT`, so most codes say nothing about the category and this
+ * returns null for them rather than pretending. Null on every transaction
+ * stored before FF-1557, and on anything that is not a bank payment.
+ */
+export function categoryFromBankTransactionCode(transaction: {
+  bankTransactionCode: string | null;
+  bankTransactionSubCode: string | null;
+}): (typeof transactionCategories)[number] | null {
+  if (transaction.bankTransactionSubCode === "SALA") {
+    return "salary";
+  }
+
+  // The pair, not the family alone. `SALA` above is a purpose code and means a
+  // salary whichever direction the transfer was issued in; `FTDP` is a family
+  // whose meaning was only ever measured with `RPMT` beside it, on three
+  // transactions. Widening either is a deterministic answer that beats the
+  // model and cannot be walked back by a confidence score.
+  if (
+    transaction.bankTransactionCode === "FTDP" &&
+    transaction.bankTransactionSubCode === "RPMT"
+  ) {
+    return "leases";
+  }
+
+  return null;
+}
+
+/**
+ * One question per counterparty, not one per payment.
+ *
+ * The categoriser was asked about every transaction separately and disagreed
+ * with itself: Xerius social contributions reached `contractors` twice and
+ * `employer-taxes` once, and SD Worx — one payroll agency — was split across
+ * two categories over twelve payments. Asking once and applying the answer to
+ * the whole group is what makes the same supplier get the same category.
+ *
+ * Matching is exact on the trimmed, lower-cased name, so it merges repeats and
+ * not near-misses: `Xerius` and `Xerius Sociaal Verzekeringsfonds` stay apart.
+ * Merging those needs a real supplier identity, which is FF-1555.
+ *
+ * A payment naming nobody is its own group. 26 of 125 rows on the live books
+ * have no counterparty, and pooling them would apply one supplier's answer to
+ * all of them.
+ */
+export type EnrichmentGroup = {
+  /** The row the prompt describes — the first of the group. */
+  asked: TransactionForEnrichment;
+  /** Everything the answer applies to, `asked` included. */
+  transactions: TransactionForEnrichment[];
+};
+
+export function groupForEnrichment(
+  batch: TransactionForEnrichment[],
+): EnrichmentGroup[] {
+  const groups = new Map<string, EnrichmentGroup>();
+
+  for (const transaction of batch) {
+    const named = counterpartyKey(transaction);
+    // Unnamed rows key on their id, which nothing else can collide with.
+    const key = named ? `named:${named}` : `alone:${transaction.id}`;
+
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.transactions.push(transaction);
+    } else {
+      groups.set(key, { asked: transaction, transactions: [transaction] });
+    }
+  }
+
+  return [...groups.values()];
+}
+
+/**
+ * The categories nothing needs to ask a model about.
+ *
+ * Two sources, in order. The bank's own ISO 20022 code, where it identifies a
+ * category outright. Then what this team has already decided for that
+ * counterparty, which is what keeps one supplier in one category and makes a
+ * human's correction carry forward.
+ *
+ * Returns transaction id → category, and says nothing about the rows it cannot
+ * answer for. Those are the model's to guess at.
+ */
+export function knownCategories(
+  batch: TransactionForEnrichment[],
+  fromCounterparty: Map<string, string>,
+): Map<string, string> {
+  const known = new Map<string, string>();
+
+  for (const transaction of batch) {
+    if (!isUnanswered(transaction.categorySlug)) {
+      continue;
+    }
+
+    const fromBank = categoryFromBankTransactionCode(transaction);
+
+    if (fromBank) {
+      known.set(transaction.id, fromBank);
+      continue;
+    }
+
+    const named = counterpartyKey(transaction);
+    const remembered = named ? fromCounterparty.get(named) : undefined;
+
+    if (remembered) {
+      known.set(transaction.id, remembered);
+    }
+  }
+
+  return known;
+}
+
+/** The counterparty names a batch would want a remembered category for. */
+export function counterpartyNames(batch: TransactionForEnrichment[]): string[] {
+  return batch
+    .map((transaction) => counterpartyKey(transaction))
+    .filter((name): name is string => name !== null);
+}
+
+/**
+ * Everything about this batch that needs no model call, resolved in one place so
+ * the task and the backlog script cannot drift apart on it.
+ */
+export async function resolveKnownCategories(
+  db: Database,
+  params: { teamId: string; batch: TransactionForEnrichment[] },
+): Promise<Map<string, string>> {
+  const remembered = await getCategoriesByCounterparty(db, {
+    teamId: params.teamId,
+    names: counterpartyNames(params.batch),
+  });
+
+  return knownCategories(params.batch, remembered);
+}
+
 /**
  * Validates if a category is in the allowed list
  */
@@ -187,6 +389,12 @@ export function prepareUpdateData(
     amount: number;
   },
   result: EnrichmentResult,
+  /**
+   * A category that did not come from the model — the bank said it, or this team
+   * has already classified this counterparty. It wins: it is deterministic, and
+   * the model's job here is the merchant name, which it is still asked for.
+   */
+  knownCategory?: string | null,
 ): UpdateData {
   const updateData: UpdateData = {};
 
@@ -195,9 +403,14 @@ export function prepareUpdateData(
     updateData.merchantName = result.merchant!;
   }
 
-  // Category assignment logic
-  if (!transaction.categorySlug && transaction.amount <= 0) {
-    if (
+  // Category assignment logic. `uncategorized` counts as unanswered: it is where
+  // a run parks a row it could not classify, and treating it as a decision is
+  // what made EUR 52,288 permanently unclassifiable — the row kept a non-null
+  // slug, so no later run would ever assign one (FF-1554).
+  if (isUnanswered(transaction.categorySlug) && transaction.amount <= 0) {
+    if (knownCategory && isValidCategory(knownCategory)) {
+      updateData.categorySlug = knownCategory;
+    } else if (
       shouldUseCategoryResult(result) &&
       result.category &&
       isValidCategory(result.category)
@@ -205,8 +418,9 @@ export function prepareUpdateData(
       // High confidence: use the suggested category
       updateData.categorySlug = result.category;
     } else {
-      // Low confidence or no category: mark as uncategorized to prevent reprocessing
-      updateData.categorySlug = "uncategorized";
+      // No answer. Parked in `uncategorized` rather than left blank, so the row
+      // reads as "asked and nobody could say" — a later run will ask again.
+      updateData.categorySlug = UNCATEGORIZED;
     }
   }
 

@@ -9,8 +9,10 @@ import {
 } from "@jobs/schemas/transactions";
 import {
   generateEnrichmentPrompt,
+  groupForEnrichment,
   prepareTransactionData,
   prepareUpdateData,
+  resolveKnownCategories,
 } from "@jobs/utils/enrichment-helpers";
 import { enrichmentSchema } from "@jobs/utils/enrichment-schema";
 import { processBatch } from "@jobs/utils/process-batch";
@@ -18,6 +20,7 @@ import {
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
   markTransactionsAsEnrichmentFailed,
+  setTransactionCategories,
   type UpdateTransactionEnrichmentParams,
   updateTransactionEnrichments,
 } from "@midday/db/queries";
@@ -94,6 +97,21 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
       transactionCount: transactionsToEnrich.length,
     });
 
+    // What nothing needs to ask a model about: the bank's own ISO 20022 code,
+    // and the category this team has already given that counterparty. Resolved
+    // once per run, before any model call, and it wins over what comes back.
+    // This is what stops one payroll agency being split across two categories.
+    const known = await resolveKnownCategories(db, {
+      teamId,
+      batch: transactionsToEnrich,
+    });
+
+    this.logger.info("Categories that need no model", {
+      teamId,
+      known: known.size,
+      of: transactionsToEnrich.length,
+    });
+
     const totals: EnrichmentTotals = { enriched: 0, unchanged: 0, failed: 0 };
     const failures: BatchFailure[] = [];
 
@@ -102,9 +120,15 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
       transactionsToEnrich,
       BATCH_SIZE,
       async (batch): Promise<string[]> => {
+        // One question per counterparty, not one per payment. The same supplier
+        // asked twice can be answered twice differently, which is exactly what
+        // happened on the live books (FF-1554).
+        const groups = groupForEnrichment(batch);
+        const asked = groups.map((group) => group.asked);
+
         // Prepare transactions for LLM
-        const transactionData = prepareTransactionData(batch);
-        const prompt = generateEnrichmentPrompt(transactionData, batch);
+        const transactionData = prepareTransactionData(asked);
+        const prompt = generateEnrichmentPrompt(transactionData, asked);
 
         const batchIds = batch.filter((tx) => tx?.id).map((tx) => tx.id);
 
@@ -134,47 +158,57 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
           // With output: "array", object is the array directly
           const results = object;
-          const resultsToProcess = Math.min(results.length, batch.length);
+          const resultsToProcess = Math.min(results.length, groups.length);
 
           for (let i = 0; i < resultsToProcess; i++) {
             const result = results[i];
-            const transaction = batch[i];
+            const group = groups[i];
 
-            if (!result || !transaction) {
+            if (!result || !group) {
               skippedResults++;
-              // Still mark the transaction as processed even if LLM result is invalid
-              if (transaction) {
-                noUpdateNeeded.push(transaction.id);
+              // Still mark the transactions as processed even if the LLM result
+              // is invalid: the call succeeded, it just said nothing usable.
+              if (group) {
+                noUpdateNeeded.push(...group.transactions.map((tx) => tx.id));
               }
               continue;
             }
 
-            const updateData = prepareUpdateData(transaction, result);
+            // One answer, applied to every payment from that counterparty. Each
+            // keeps its own guards — a payment somebody already categorised is
+            // not overwritten just because its neighbour was answered.
+            for (const transaction of group.transactions) {
+              const updateData = prepareUpdateData(
+                transaction,
+                result,
+                known.get(transaction.id),
+              );
 
-            // Check if any updates are needed
-            if (!updateData.merchantName && !updateData.categorySlug) {
-              // No updates needed - mark as enriched separately
-              noUpdateNeeded.push(transaction.id);
-              continue;
+              // Check if any updates are needed
+              if (!updateData.merchantName && !updateData.categorySlug) {
+                // No updates needed - mark as enriched separately
+                noUpdateNeeded.push(transaction.id);
+                continue;
+              }
+
+              // Track if category was updated
+              if (updateData.categorySlug) {
+                categoriesUpdated++;
+              }
+
+              updates.push({
+                transactionId: transaction.id,
+                data: updateData,
+              });
             }
-
-            // Track if category was updated
-            if (updateData.categorySlug) {
-              categoriesUpdated++;
-            }
-
-            updates.push({
-              transactionId: transaction.id,
-              data: updateData,
-            });
           }
 
           // Log if we have mismatched result counts
-          if (results.length !== batch.length) {
+          if (results.length !== groups.length) {
             this.logger.warn(
               "LLM returned different number of results than expected",
               {
-                expectedCount: batch.length,
+                expectedCount: groups.length,
                 actualCount: results.length,
                 teamId,
               },
@@ -211,6 +245,7 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
           this.logger.info("Enriched transaction batch", {
             batchSize: batch.length,
+            counterpartiesAsked: groups.length,
             updatesApplied: updates.length,
             noUpdateNeeded: noUpdateNeeded.length,
             noResultReturned: unanswered.length,
@@ -239,6 +274,24 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
           const failedIds = batchIds.filter((id) => !settled.has(id));
 
           try {
+            // What the bank said, and what this team already decided, needed no
+            // model. Losing those because the model call failed would leave them
+            // out of the database for as long as the model keeps failing.
+            await setTransactionCategories(
+              db,
+              failedIds
+                .map((id) => ({
+                  transactionId: id,
+                  categorySlug: known.get(id),
+                }))
+                .filter(
+                  (
+                    entry,
+                  ): entry is { transactionId: string; categorySlug: string } =>
+                    entry.categorySlug !== undefined,
+                ),
+            );
+
             // Mark the failed rows completed so the UI stops showing them as
             // analyzing — enrichment_completed means the process finished, not
             // that it worked — and stamp enrichment_failed_at so the failure is

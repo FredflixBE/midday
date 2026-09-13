@@ -13,6 +13,7 @@
     "verify-yuki-bank-join": "bun run scripts/verify-yuki-bank-join.ts",
     "confirm-matches": "bun run scripts/confirm-suggested-matches.ts",
     "rematch-filed": "bun run scripts/rematch-filed-invoices.ts",
+    "recategorise": "bun run scripts/recategorise-uncategorized.ts",
     "typecheck": "tsc --noEmit"
   },
   "exports": {
