@@ -24,18 +24,17 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Client } from "pg";
-import { applySqlFile, resolveTestConnection, sslFor } from "./apply-sql";
+import {
+  applySqlFile,
+  isLocalDatabase,
+  pointAt,
+  resolveTestConnection,
+  sslFor,
+} from "./apply-sql";
 import { readJournal } from "./migrations";
 
 const PACKAGE_ROOT = resolve(__dirname, "../..");
 const SCRATCH = "midday_base_migration_check";
-
-/** The same connection string, pointed at another database on that server. */
-function pointAt(connectionString: string, database: string): string {
-  const url = new URL(connectionString);
-  url.pathname = `/${database}`;
-  return url.toString();
-}
 
 function runMigrate(url: string): Promise<number> {
   return new Promise((done, fail) => {
@@ -52,7 +51,7 @@ function runMigrate(url: string): Promise<number> {
 async function main(): Promise<number> {
   const test = resolveTestConnection();
 
-  if (!/@(localhost|127\.0\.0\.1)[:/]/.test(test)) {
+  if (!isLocalDatabase(test)) {
     console.error(
       "TEST_DATABASE_URL does not point at localhost. This script creates and",
     );
