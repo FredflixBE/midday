@@ -1,9 +1,21 @@
 "use client";
 
 import type { RouterOutputs } from "@api/trpc/routers/_app";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@midday/ui/alert-dialog";
 import { Button } from "@midday/ui/button";
 import { cn } from "@midday/ui/cn";
 import { Icons } from "@midday/ui/icons";
+import { ToastAction } from "@midday/ui/toast";
 import { useToast } from "@midday/ui/use-toast";
 import { formatDate } from "@midday/utils/format";
 import {
@@ -50,7 +62,7 @@ function GroupCard({ group }: { group: Group }) {
   const { setParams } = useTransactionParams();
   const { data: user } = useUserQuery();
 
-  const noInvoiceNeeded = useMutation(
+  const update = useMutation(
     trpc.transactions.updateMany.mutationOptions({
       onSuccess: (_, variables) => {
         // Every place that shows this number or this row. The page's own count,
@@ -65,10 +77,40 @@ function GroupCard({ group }: { group: Group }) {
           queryClient.invalidateQueries({ queryKey });
         }
 
+        const payments = `${variables.ids.length} ${
+          variables.ids.length === 1 ? "payment" : "payments"
+        }`;
+
+        // Putting them back is the same call in the other direction, so the
+        // toast can carry it. Without this the only way back is a bulk action
+        // under a menu called Export, which is not something anyone finds by
+        // looking — and a group leaving the list is exactly the kind of change
+        // you notice one second after making it.
+        if (variables.status === "completed") {
+          toast({
+            duration: 10000,
+            title: "No invoice needed",
+            description: `${payments} from ${group.name ?? "payments with no supplier"} left the list.`,
+            footer: (
+              <div className="mt-4 flex space-x-2">
+                <ToastAction
+                  altText="Undo"
+                  className="pl-5 pr-5"
+                  onClick={() =>
+                    update.mutate({ ids: variables.ids, status: "posted" })
+                  }
+                >
+                  Undo
+                </ToastAction>
+              </div>
+            ),
+          });
+
+          return;
+        }
+
         toast({
-          title: `${variables.ids.length} ${
-            variables.ids.length === 1 ? "payment" : "payments"
-          } marked as needing no invoice.`,
+          title: `${payments} back on the list.`,
           variant: "success",
           duration: 3500,
         });
@@ -82,6 +124,13 @@ function GroupCard({ group }: { group: Group }) {
       },
     }),
   );
+
+  const ids = group.transactions.map((transaction) => transaction.id);
+  const dismiss = () => update.mutate({ ids, status: "completed" });
+
+  // One payment is a small mistake with an undo on it. A dozen is worth a
+  // sentence first, because the button acts on the whole group at once.
+  const asksFirst = group.count > 3;
 
   // Signed, like the rows underneath, and per currency. A group's money is only
   // ever a statement about its own rows — never a net across currencies, and
@@ -112,19 +161,44 @@ function GroupCard({ group }: { group: Group }) {
         </div>
 
         {/* One errand per supplier, not per payment. */}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={noInvoiceNeeded.isPending}
-          onClick={() =>
-            noInvoiceNeeded.mutate({
-              ids: group.transactions.map((transaction) => transaction.id),
-              status: "completed",
-            })
-          }
-        >
-          No invoice needed
-        </Button>
+        {asksFirst ? (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={update.isPending}>
+                No invoice needed
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Mark {group.count} payments as needing no invoice?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Every payment under{" "}
+                  {group.name ?? "payments with no supplier"} leaves this list.
+                  Nothing is deleted and your reports do not change — you are
+                  saying these will never have a supplier invoice. You can put
+                  them back.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={dismiss}>
+                  Mark {group.count} payments
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={update.isPending}
+            onClick={dismiss}
+          >
+            No invoice needed
+          </Button>
+        )}
       </div>
 
       <div className="border-t border-border">
