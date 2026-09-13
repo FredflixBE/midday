@@ -36,15 +36,12 @@ import type {
   GenerateInvoicePayload,
   ScheduleInvoicePayload,
 } from "@midday/jobs/schemas/invoices";
-import { createLoggerWithContext } from "@midday/logger";
 import { getAppUrl } from "@midday/utils/envs";
 import { tasks } from "@trigger.dev/sdk";
 import { addDays } from "date-fns";
 import { HTTPException } from "hono/http-exception";
 import { v4 as uuidv4 } from "uuid";
 import { withRequiredScope } from "../middleware";
-
-const logger = createLoggerWithContext("rest:invoices");
 
 const app = new OpenAPIHono<Context>();
 

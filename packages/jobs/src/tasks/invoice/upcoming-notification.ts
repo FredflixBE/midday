@@ -2,10 +2,7 @@ import { getDb } from "@jobs/init";
 import { BaseProcessor } from "@jobs/processors/base";
 import { runProcessor } from "@jobs/processors/run";
 import type { JobContext } from "@jobs/processors/types";
-import {
-  type InvoiceUpcomingNotificationPayload,
-  invoiceUpcomingNotificationSchema,
-} from "@jobs/schemas/invoices";
+import type { InvoiceUpcomingNotificationPayload } from "@jobs/schemas/invoices";
 import { WARNING_LOOK_AHEAD_HOURS } from "@jobs/utils/recurring-invoice-day";
 import { sendToProviders } from "@midday/bot/activity-notifications";
 import {

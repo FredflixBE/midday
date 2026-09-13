@@ -6,10 +6,7 @@ import { getDb } from "@jobs/init";
 import { BaseProcessor } from "@jobs/processors/base";
 import { runProcessor } from "@jobs/processors/run";
 import type { JobContext } from "@jobs/processors/types";
-import {
-  type InvoiceRecurringSchedulerPayload,
-  invoiceRecurringSchedulerSchema,
-} from "@jobs/schemas/invoices";
+import type { InvoiceRecurringSchedulerPayload } from "@jobs/schemas/invoices";
 import { withDbConnectionRetry } from "@jobs/utils/db-retry";
 import {
   buildInvoiceTemplateFromRecurring,
