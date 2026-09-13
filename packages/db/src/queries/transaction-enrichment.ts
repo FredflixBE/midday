@@ -151,7 +151,13 @@ export async function getCategoriesByCounterparty(
     return new Map();
   }
 
-  const name = sql<string>`lower(trim(coalesce(${transactions.counterpartyName}, ${transactions.merchantName})))`;
+  // The SQL twin of `counterpartyKey`. `nullif` on each side, not a plain
+  // coalesce: a counterparty of `"  "` must fall through to the merchant name
+  // here exactly as it does there, or the two disagree about who a payment was to.
+  const name = sql<string>`coalesce(
+    nullif(lower(trim(${transactions.counterpartyName})), ''),
+    nullif(lower(trim(${transactions.merchantName})), '')
+  )`;
 
   const rows = await db
     .select({

@@ -4,6 +4,7 @@ import {
   type TransactionForEnrichment,
   UNCATEGORIZED,
 } from "@midday/db/queries";
+import { counterpartyKey } from "@midday/db/utils/counterparty";
 import type {
   EnrichmentResult,
   TransactionData,
@@ -194,30 +195,11 @@ export function prepareTransactionData(
   });
 }
 
+export { counterpartyKey };
+
 /** The two states that mean "nobody has classified this yet". */
 export function isUnanswered(categorySlug: string | null): boolean {
   return !categorySlug || categorySlug === UNCATEGORIZED;
-}
-
-/**
- * How a counterparty is identified for grouping and for recall: the name the
- * bank gave, or the merchant name where it gave none, trimmed and lower-cased.
- *
- * Exact match, so it merges repeats and not near-misses — `Xerius` and `Xerius
- * Sociaal Verzekeringsfonds` are two counterparties here. Merging those needs a
- * real supplier identity, which is FF-1555.
- *
- * `getCategoriesByCounterparty` computes the same thing in SQL. If this changes,
- * that has to change with it.
- */
-export function counterpartyKey(transaction: {
-  counterpartyName: string | null;
-  merchantName: string | null;
-}): string | null {
-  const named = transaction.counterpartyName ?? transaction.merchantName;
-  const key = named?.trim().toLowerCase();
-
-  return key ? key : null;
 }
 
 /**

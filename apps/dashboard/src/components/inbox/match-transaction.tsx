@@ -15,6 +15,7 @@ import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { useInboxParams } from "@/hooks/use-inbox-params";
+import { useInvalidateTransactionQueries } from "@/hooks/use-invalidate-transaction-queries";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
@@ -26,6 +27,7 @@ export function MatchTransaction() {
   const { params } = useInboxParams();
   const { data: user } = useUserQuery();
   const queryClient = useQueryClient();
+  const invalidateTransactionQueries = useInvalidateTransactionQueries();
 
   const [debouncedValue, setValue] = useDebounceValue("", 200);
   const [isOpen, onOpenChange] = useState(false);
@@ -148,6 +150,10 @@ export function MatchTransaction() {
         queryClient.invalidateQueries({
           queryKey: trpc.transactions.searchTransactionMatch.queryKey(),
         });
+
+        // A payment that now has this document is no longer missing an invoice
+        // (FF-1552).
+        invalidateTransactionQueries();
       },
     }),
   );

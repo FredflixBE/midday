@@ -20,6 +20,7 @@ import {
   createTransaction,
   deleteTransactions,
   getBankAccountById,
+  getMissingInvoices,
   getSimilarTransactions,
   getTransactionById,
   getTransactions,
@@ -108,6 +109,15 @@ export const transactionsRouter = createTRPCRouter({
         teamId: teamId!,
       });
     }),
+
+  /**
+   * The payments still waiting for a supplier invoice, gathered by who was paid.
+   * The screen this feeds is a list to work until it is empty, not a filtered
+   * view of the transactions table (FF-1552).
+   */
+  missingInvoices: protectedProcedure.query(async ({ ctx: { db, teamId } }) => {
+    return getMissingInvoices(db, { teamId: teamId! });
+  }),
 
   getSimilarTransactions: protectedProcedure
     .input(getSimilarTransactionsSchema)

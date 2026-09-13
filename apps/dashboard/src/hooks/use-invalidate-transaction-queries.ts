@@ -47,6 +47,13 @@ export function useInvalidateTransactionQueries() {
       queryKey: trpc.overview.summary.queryKey(),
     });
 
+    // The missing-invoices page is a list you work until it is empty, so it has
+    // to empty as you work it — attaching a document is the main way a payment
+    // leaves it (FF-1552).
+    queryClient.invalidateQueries({
+      queryKey: trpc.transactions.missingInvoices.queryKey(),
+    });
+
     // Invalidate global search
     queryClient.invalidateQueries({
       queryKey: trpc.search.global.queryKey(),
