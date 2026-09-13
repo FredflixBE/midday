@@ -2996,6 +2996,20 @@ export const transactionCategories = pgTable(
     taxType: text("tax_type"),
     taxReportingCode: text("tax_reporting_code"),
     excluded: boolean("excluded").default(false),
+    // Can a payment in this category ever settle a supplier debt?
+    //
+    // False for the payments no invoice will ever exist for — a VAT bill, an
+    // owner draw, a transfer between your own accounts — which is what stops
+    // Midday describing them as missing one. Read in exactly one place,
+    // `isExpenseSql`, so a supplier-level override (FF-1555) has one seam to
+    // fit into rather than several.
+    //
+    // Not the same question as `excluded`, and deliberately not stored as it: a
+    // VAT payment belongs in the reports, because it is real money leaving the
+    // account. It simply has no supplier invoice.
+    expectsSupplierInvoice: boolean("expects_supplier_invoice")
+      .notNull()
+      .default(true),
     description: text(),
     parentId: uuid("parent_id"),
   },

@@ -4,6 +4,7 @@ import type { Database } from "../client";
 import {
   inbox,
   transactionAttachments,
+  transactionCategories,
   transactionMatchSuggestions,
   transactions,
 } from "../schema";
@@ -62,17 +63,38 @@ export function hasPendingSuggestionSql(teamId: string): SQL<boolean> {
  *
  * Money coming in has no supplier invoice to find, and neither does a transfer
  * between your own accounts: `internal` catches the pairs Midday recognised,
- * and the `transfer` category catches the rest — 4 own-account withdrawals on
- * the live books are in the second group only.
+ * and the category answers for the rest — 4 own-account withdrawals on the live
+ * books are in the second group only.
  *
- * `IS DISTINCT FROM`, not `<>`: an uncategorised expense has a NULL slug, and
- * `<>` would drop it silently rather than keep it as work.
+ * ## Why the category is asked rather than named
+ *
+ * This used to compare the slug against `'transfer'`, one hardcoded name. That
+ * left a VAT bill, an owner draw and a card settlement all reading as "Invoice
+ * missing" — €28,454 of tax payments on the live books — and every new
+ * exception would have been another slug in this expression. The categories now
+ * carry the answer themselves (`expects_supplier_invoice`), editable per
+ * category, so nothing here needs to know their names.
+ *
+ * ## Why NOT EXISTS, rather than a join or a lookup
+ *
+ * The question is only ever *"has a category ruled this out?"*, and phrasing it
+ * that way makes the safe default fall out: an uncategorised payment has a NULL
+ * slug, nothing has ruled anything out, so it stays work. A join would drop it
+ * silently — the same trap `IS DISTINCT FROM` was guarding against here before.
+ *
+ * This is the **only** place the flag is read. A supplier-level override
+ * (FF-1555) belongs here too, as one more reason the answer can be no.
  */
 export function isExpenseSql(): SQL<boolean> {
   return sql<boolean>`(
     ${transactions.amount} < 0
     AND COALESCE(${transactions.internal}, false) = false
-    AND ${transactions.categorySlug} IS DISTINCT FROM 'transfer'
+    AND NOT EXISTS (
+      SELECT 1 FROM ${transactionCategories}
+      WHERE ${transactionCategories.teamId} = ${transactions.teamId}
+        AND ${transactionCategories.slug} = ${transactions.categorySlug}
+        AND ${transactionCategories.expectsSupplierInvoice} = false
+    )
   )`;
 }
 

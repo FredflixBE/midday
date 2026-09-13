@@ -80,7 +80,7 @@ const RAW_CATEGORIES = [
     slug: "human-resources",
     name: "Human Resources",
     children: [
-      { slug: "salary", name: "Salary" },
+      { slug: "salary", name: "Salary", expectsSupplierInvoice: false },
       { slug: "training", name: "Training" },
       { slug: "benefits", name: "Benefits" },
     ],
@@ -115,15 +115,20 @@ const RAW_CATEGORIES = [
     slug: "banking-finance",
     name: "Banking & Finance",
     children: [
-      { slug: "transfer", name: "Transfer" },
+      { slug: "transfer", name: "Transfer", expectsSupplierInvoice: false },
       {
         slug: "credit-card-payment",
         name: "Credit Card Payment",
         excluded: true,
+        expectsSupplierInvoice: false,
       },
       { slug: "banking-fees", name: "Banking Fees" },
       { slug: "loan-proceeds", name: "Loan Proceeds" },
-      { slug: "loan-principal-repayment", name: "Loan Principal Repayment" },
+      {
+        slug: "loan-principal-repayment",
+        name: "Loan Principal Repayment",
+        expectsSupplierInvoice: false,
+      },
       { slug: "interest-expense", name: "Interest Expense" },
       // Payment Platforms
       { slug: "payouts", name: "Payouts" },
@@ -156,13 +161,40 @@ const RAW_CATEGORIES = [
   {
     slug: "taxes",
     name: "Taxes & Government",
+    // A tax office issues an assessment, not a supplier invoice. Nothing here
+    // will ever have one, which is why the parent and every child say so.
+    expectsSupplierInvoice: false,
     children: [
-      { slug: "vat-gst-pst-qst-payments", name: "VAT/GST/PST/QST Payments" },
-      { slug: "sales-use-tax-payments", name: "Sales & Use Tax Payments" },
-      { slug: "income-tax-payments", name: "Income Tax Payments" },
-      { slug: "payroll-tax-remittances", name: "Payroll Tax Remittances" },
-      { slug: "employer-taxes", name: "Employer Taxes" },
-      { slug: "government-fees", name: "Government Fees" },
+      {
+        slug: "vat-gst-pst-qst-payments",
+        name: "VAT/GST/PST/QST Payments",
+        expectsSupplierInvoice: false,
+      },
+      {
+        slug: "sales-use-tax-payments",
+        name: "Sales & Use Tax Payments",
+        expectsSupplierInvoice: false,
+      },
+      {
+        slug: "income-tax-payments",
+        name: "Income Tax Payments",
+        expectsSupplierInvoice: false,
+      },
+      {
+        slug: "payroll-tax-remittances",
+        name: "Payroll Tax Remittances",
+        expectsSupplierInvoice: false,
+      },
+      {
+        slug: "employer-taxes",
+        name: "Employer Taxes",
+        expectsSupplierInvoice: false,
+      },
+      {
+        slug: "government-fees",
+        name: "Government Fees",
+        expectsSupplierInvoice: false,
+      },
     ],
   },
 
@@ -171,7 +203,11 @@ const RAW_CATEGORIES = [
     slug: "owner-equity",
     name: "Owner / Equity",
     children: [
-      { slug: "owner-draws", name: "Owner Draws" },
+      {
+        slug: "owner-draws",
+        name: "Owner Draws",
+        expectsSupplierInvoice: false,
+      },
       { slug: "capital-investment", name: "Capital Investment" },
       { slug: "charitable-donations", name: "Charitable Donations" },
     ],
@@ -184,7 +220,12 @@ const RAW_CATEGORIES = [
     children: [
       { slug: "uncategorized", name: "Uncategorized" },
       { slug: "other", name: "Other" },
-      { slug: "internal-transfer", name: "Internal Transfer", excluded: true },
+      {
+        slug: "internal-transfer",
+        name: "Internal Transfer",
+        excluded: true,
+        expectsSupplierInvoice: false,
+      },
     ],
   },
 ] as const;
@@ -198,12 +239,20 @@ function applyColorsToCategories(
     color: getCategoryColor(parent.slug),
     system: true,
     excluded: false, // Default to not excluded
+    // Yes unless the category says otherwise: most spending settles a supplier
+    // debt, and the exceptions are the short list marked above. Each category
+    // answers for itself — a child does not inherit its parent's answer, so
+    // there is one place per category to read and one to edit.
+    expectsSupplierInvoice:
+      "expectsSupplierInvoice" in parent ? parent.expectsSupplierInvoice : true,
     children: parent.children.map((child) => ({
       ...child,
       parentSlug: parent.slug, // Automatically add parentSlug
       color: getCategoryColor(child.slug),
       system: true,
       excluded: "excluded" in child ? child.excluded : false, // Respect excluded flag if set
+      expectsSupplierInvoice:
+        "expectsSupplierInvoice" in child ? child.expectsSupplierInvoice : true,
     })),
   }));
 }

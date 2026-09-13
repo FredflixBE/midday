@@ -8,6 +8,19 @@ export interface BaseCategory {
   system: boolean;
   taxReportingCode?: string;
   excluded?: boolean;
+  /**
+   * Can a payment in this category ever settle a supplier debt?
+   *
+   * `false` for the payments no invoice will ever exist for — a VAT bill, an
+   * owner draw, a transfer between your own accounts — so that Midday stops
+   * describing them as missing one.
+   *
+   * Deliberately **not** the same question as `excluded`. A VAT payment belongs
+   * in the reports; it is real money leaving the account. It just has no
+   * supplier invoice. Answering one with the other would corrupt cash flow and
+   * runway.
+   */
+  expectsSupplierInvoice: boolean;
 }
 
 // Parent category interface
@@ -39,6 +52,7 @@ export const baseCategorySchema = z.object({
   system: z.boolean(),
   taxReportingCode: z.string().optional(),
   excluded: z.boolean().optional(),
+  expectsSupplierInvoice: z.boolean(),
 });
 
 export const childCategorySchema = baseCategorySchema.extend({

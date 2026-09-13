@@ -280,6 +280,9 @@ async function seedCategories(db: Database): Promise<void> {
       name: "Credit Card Payment",
       system: true,
       excluded: true,
+      // No supplier invoice will ever exist for these — same answer the built-in
+      // taxonomy gives them (FF-1553).
+      expectsSupplierInvoice: false,
     },
     {
       id: CAT_IDS.internalTransfer,
@@ -288,6 +291,9 @@ async function seedCategories(db: Database): Promise<void> {
       name: "Internal Transfer",
       system: true,
       excluded: true,
+      // No supplier invoice will ever exist for these — same answer the built-in
+      // taxonomy gives them (FF-1553).
+      expectsSupplierInvoice: false,
     },
     {
       id: CAT_IDS.inventory,
@@ -336,6 +342,9 @@ async function seedCategories(db: Database): Promise<void> {
       name: "Owner Draws",
       system: true,
       excluded: false,
+      // No supplier invoice will ever exist for these — same answer the built-in
+      // taxonomy gives them (FF-1553).
+      expectsSupplierInvoice: false,
     },
     {
       id: CAT_IDS.cleaning,

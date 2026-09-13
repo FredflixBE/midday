@@ -20,6 +20,7 @@ import { getTransactions } from "../queries/transactions";
 import {
   inbox,
   transactionAttachments,
+  transactionCategories,
   transactionMatchSuggestions,
   transactions,
 } from "../schema";
@@ -104,6 +105,33 @@ async function suggestMatch(
     status: "pending",
     userId: TEST_USER_ID,
   });
+}
+
+/**
+ * A category, and its answer to the one question FF-1553 added: can a payment
+ * in it ever settle a supplier debt?
+ */
+async function makeCategory(
+  db: Database,
+  slug: string,
+  expectsSupplierInvoice: boolean,
+) {
+  // Upsert: the seed already holds some of these, and a test should be able to
+  // state the answer it depends on without knowing which.
+  await db
+    .insert(transactionCategories)
+    .values({
+      teamId: TEAM_USD_ID,
+      slug,
+      name: slug,
+      system: true,
+      excluded: false,
+      expectsSupplierInvoice,
+    })
+    .onConflictDoUpdate({
+      target: [transactionCategories.teamId, transactionCategories.slug],
+      set: { expectsSupplierInvoice },
+    });
 }
 
 async function statusOf(db: Database, transactionId: string) {
@@ -195,6 +223,89 @@ describe.skipIf(SKIP)("invoice status", () => {
       // so a bank fee read as "Ready to export — Receipt attached."
       expect(row?.invoiceStatus).toBe("no_invoice_needed");
       expect(row?.hasAttachment).toBe(false);
+    });
+  });
+
+  describe("payments that can never have a supplier invoice", () => {
+    test("a VAT payment is not described as missing an invoice", async () => {
+      // The bug this replaces: six payments to the tax office, EUR 28,454, all
+      // announced as missing invoices that will never exist.
+      await makeCategory(db, "vat-gst-pst-qst-payments", false);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Btw Ontvangsten Brussel",
+        categorySlug: "vat-gst-pst-qst-payments",
+      });
+
+      expect((await statusOf(db, T.nothing))?.invoiceStatus).toBeNull();
+    });
+
+    test("a card settlement is not either, which the excluded flag never fixed", async () => {
+      await makeCategory(db, "credit-card-payment", false);
+      await makeTransaction(db, {
+        id: T.settled,
+        name: "Card settlement",
+        categorySlug: "credit-card-payment",
+        amount: -472,
+      });
+
+      expect((await statusOf(db, T.settled))?.invoiceStatus).toBeNull();
+    });
+
+    test("an insurance payment still is — it has an invoice, and it is missing", async () => {
+      await makeCategory(db, "insurance", true);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Kbc Verzekeringen",
+        categorySlug: "insurance",
+      });
+
+      expect((await statusOf(db, T.nothing))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("an uncategorised payment stays work, rather than being dropped", async () => {
+      await makeTransaction(db, { id: T.nothing, name: "No category" });
+
+      expect((await statusOf(db, T.nothing))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("transfers are still exempt, now because the category says so", async () => {
+      // This used to be one hardcoded slug in the SQL. The flag replaces it
+      // rather than sitting beside it.
+      await makeCategory(db, "transfer", false);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Own account withdrawal",
+        categorySlug: "transfer",
+      });
+
+      expect((await statusOf(db, T.nothing))?.invoiceStatus).toBeNull();
+    });
+
+    test("the filter agrees with the status, so the count is the list", async () => {
+      await makeCategory(db, "taxes", false);
+      await makeCategory(db, "insurance", true);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Insurance",
+        categorySlug: "insurance",
+      });
+      await makeTransaction(db, {
+        id: T.settled,
+        name: "Tax bill",
+        categorySlug: "taxes",
+      });
+
+      const { data } = await getTransactions(db, {
+        teamId: TEAM_USD_ID,
+        invoiceStatuses: ["invoice_missing"],
+      });
+
+      expect(data.map((row) => row.id)).toEqual([T.nothing]);
     });
   });
 
