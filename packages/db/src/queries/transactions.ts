@@ -543,6 +543,12 @@ export async function getTransactions(
       taxAmount: transactions.taxAmount,
       baseAmount: transactions.baseAmount,
       baseCurrency: transactions.baseCurrency,
+      // What a foreign-currency charge originally cost, which `base_amount`
+      // above does not answer — that is this converted at our own reference
+      // rate, and the two disagree by construction (FF-1560).
+      originalAmount: transactions.originalAmount,
+      originalCurrency: transactions.originalCurrency,
+      exchangeRate: transactions.exchangeRate,
       enrichmentCompleted: transactions.enrichmentCompleted,
       // Midday's own answer about the invoice, and the accountant's, side by
       // side and never merged. See `invoiceStatusSql` for why (FF-1499).
@@ -800,6 +806,12 @@ export async function getTransactionById(
       taxAmount: transactions.taxAmount,
       baseAmount: transactions.baseAmount,
       baseCurrency: transactions.baseCurrency,
+      // What a foreign-currency charge originally cost, which `base_amount`
+      // above does not answer — that is this converted at our own reference
+      // rate, and the two disagree by construction (FF-1560).
+      originalAmount: transactions.originalAmount,
+      originalCurrency: transactions.originalCurrency,
+      exchangeRate: transactions.exchangeRate,
       enrichmentCompleted: transactions.enrichmentCompleted,
       isFulfilled:
         sql<boolean>`(EXISTS (SELECT 1 FROM ${transactionAttachments} WHERE ${eq(transactionAttachments.transactionId, transactions.id)} AND ${eq(transactionAttachments.teamId, params.teamId)})) OR ${transactions.status} = 'completed'`.as(
@@ -2252,6 +2264,98 @@ export type TransactionIdentifiers = {
   bankTransactionSubCode: string | null;
   entryReference: string | null;
 };
+
+/** What a foreign-currency charge originally cost, per stored row. */
+export type TransactionForeignAmount = {
+  internalId: string;
+  originalAmount: number | null;
+  originalCurrency: string | null;
+  exchangeRate: number | null;
+  /** The description the provider sends now, for rows still holding the note. */
+  description: string | null;
+};
+
+/**
+ * The sentence the Yuki card sync used to write into `description` in place of
+ * these columns: `USD 18.60 at 1.15` (FF-1560).
+ *
+ * Matched rather than parsed — the amounts come from Yuki, which is the point of
+ * doing the backfill from the source. This only decides *whether* a stored
+ * description is our own leftover note, so the worst a mismatch can do is leave
+ * a description alone.
+ */
+const LEGACY_FOREIGN_AMOUNT_NOTE = "^[A-Z]{3} [0-9]+\\.[0-9]{2} at [0-9.]+$";
+
+/**
+ * Fill in what a foreign-currency charge originally cost, on transactions
+ * stored before Midday kept it.
+ *
+ * Same reasoning as `fillTransactionIdentifiers` below, and the same window:
+ * the upsert skips a row it already has, so a charge already in Midday never
+ * receives the amount and rate its provider is still sending for it. Enable
+ * Banking re-serves a rolling ~85 days and Yuki's card ledger 400, so most of
+ * what is already stored comes back carrying this.
+ *
+ * `COALESCE` per column, so it only ever fills a hole — none of the three is
+ * editable by a person, so there is no edit to lose.
+ *
+ * `description` is the exception, and the reason is FF-1560 itself: for 62 rows
+ * the conversion was written into that field as prose, displacing the
+ * description. Those are given the real description back, and only those — the
+ * update matches the note's exact shape and leaves anything else untouched.
+ */
+export async function fillTransactionForeignAmounts(
+  db: Database,
+  params: { teamId: string; entries: TransactionForeignAmount[] },
+): Promise<number> {
+  const wanted = params.entries.filter(
+    (entry) => entry.originalAmount !== null || entry.originalCurrency !== null,
+  );
+
+  if (wanted.length === 0) {
+    return 0;
+  }
+
+  let filled = 0;
+  const CHUNK_SIZE = 50;
+
+  for (let i = 0; i < wanted.length; i += CHUNK_SIZE) {
+    const chunk = wanted.slice(i, i + CHUNK_SIZE);
+
+    const results = await Promise.all(
+      chunk.map((entry) =>
+        db
+          .update(transactions)
+          .set({
+            originalAmount: sql`COALESCE(${transactions.originalAmount}, ${entry.originalAmount})`,
+            originalCurrency: sql`COALESCE(${transactions.originalCurrency}, ${entry.originalCurrency})`,
+            exchangeRate: sql`COALESCE(${transactions.exchangeRate}, ${entry.exchangeRate})`,
+            description: sql`CASE WHEN ${transactions.description} ~ ${LEGACY_FOREIGN_AMOUNT_NOTE} THEN ${entry.description} ELSE ${transactions.description} END`,
+          })
+          .where(
+            and(
+              eq(transactions.teamId, params.teamId),
+              eq(transactions.internalId, entry.internalId),
+              // Nothing to do for a row that already has all three and whose
+              // description is its own, which keeps a re-sync from rewriting
+              // every row it re-reads.
+              or(
+                isNull(transactions.originalAmount),
+                isNull(transactions.originalCurrency),
+                isNull(transactions.exchangeRate),
+                sql`${transactions.description} ~ ${LEGACY_FOREIGN_AMOUNT_NOTE}`,
+              ),
+            ),
+          )
+          .returning({ id: transactions.id }),
+      ),
+    );
+
+    filled += results.filter((rows) => rows.length > 0).length;
+  }
+
+  return filled;
+}
 
 /**
  * Fill in the identifiers on transactions that were imported before Midday kept

@@ -10,13 +10,29 @@ type ProviderIdentifierField =
   | "entry_reference";
 
 /**
+ * What a foreign-currency charge originally cost. Optional for the same reason
+ * as the identifiers above: a source that is not a bank payload may send none
+ * of it. See `transactions` in the schema for the direction the rate is in
+ * (FF-1560).
+ */
+type ForeignAmountField =
+  | "original_amount"
+  | "original_currency"
+  | "exchange_rate";
+
+/**
  * A provider transaction as the sync task received it. The identifiers are
  * optional rather than merely nullable, because a source that is not a bank
  * payload does not set them at all. See `transactions` in the schema for what
  * each one holds.
  */
-type IncomingTransaction = Omit<ProviderTransaction, ProviderIdentifierField> &
-  Partial<Pick<ProviderTransaction, ProviderIdentifierField>>;
+type IncomingTransaction = Omit<
+  ProviderTransaction,
+  ProviderIdentifierField | ForeignAmountField
+> &
+  Partial<
+    Pick<ProviderTransaction, ProviderIdentifierField | ForeignAmountField>
+  >;
 
 type TransformTransactionData = {
   transaction: IncomingTransaction;
@@ -45,6 +61,9 @@ type Transaction = {
   bank_transaction_code: string | null;
   bank_transaction_sub_code: string | null;
   entry_reference: string | null;
+  original_amount: number | null;
+  original_currency: string | null;
+  exchange_rate: number | null;
 };
 
 export function transformTransaction({
@@ -71,6 +90,12 @@ export function transformTransaction({
     bank_transaction_code: transaction.bank_transaction_code ?? null,
     bank_transaction_sub_code: transaction.bank_transaction_sub_code ?? null,
     entry_reference: transaction.entry_reference ?? null,
+    // Carried through rather than dropped. These used to be read off the
+    // payload and thrown away here, which is why the only record that a charge
+    // was originally $18.60 was an English sentence in `description` (FF-1560).
+    original_amount: transaction.original_amount ?? null,
+    original_currency: transaction.original_currency ?? null,
+    exchange_rate: transaction.exchange_rate ?? null,
     // We only support posted transactions for now
     status: "posted",
     // If the transactions are being synced manually, we don't want to notify

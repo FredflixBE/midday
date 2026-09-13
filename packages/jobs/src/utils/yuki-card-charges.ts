@@ -49,20 +49,48 @@ export interface UpsertTransaction {
   category: string | null;
   counterparty_name: string | null;
   merchant_name: string | null;
+  original_amount: number | null;
+  original_currency: string | null;
+  exchange_rate: number | null;
 }
 
 /**
- * The line that says what a charge in another currency originally cost.
+ * What a charge in another currency originally cost (FF-1560).
  *
  * The euro amount stays the one the books hold — that is what the card issuer
- * actually took, conversion and fees included. The original is shown beside
+ * actually took, conversion and fees included. The original is recorded beside
  * it, never instead of it.
+ *
+ * This used to be flattened into the sentence `USD 18.60 at 1.15` and written
+ * into `description`, where nothing could format it to a locale, convert it,
+ * put it in an export or match on it — and where it displaced the description.
+ *
+ * Yuki quotes the rate as units of the original currency per euro, which is the
+ * direction the column is defined in, so it is carried through unchanged:
+ * 18.60 / 1.1553 is the €16.10 that was charged.
  */
-export function foreignAmountNote(charge: YukiCardCharge): string | null {
-  if (!charge.foreign) return null;
+function foreignAmount(charge: YukiCardCharge): {
+  original_amount: number | null;
+  original_currency: string | null;
+  exchange_rate: number | null;
+} {
+  if (!charge.foreign) {
+    return {
+      original_amount: null,
+      original_currency: null,
+      exchange_rate: null,
+    };
+  }
 
   const { currency, amount, rate } = charge.foreign;
-  return `${currency} ${Math.abs(amount).toFixed(2)} at ${rate}`;
+
+  return {
+    // Always positive: the sign of a charge lives on `amount`, and this is the
+    // same money seen from the other currency.
+    original_amount: Math.abs(amount),
+    original_currency: currency,
+    exchange_rate: rate,
+  };
 }
 
 export function toUpsertTransactions(
@@ -76,7 +104,9 @@ export function toUpsertTransactions(
     // The merchant as the card statement wrote it, exactly as a bank would
     // have given it had the bank been willing to share the card at all.
     name: charge.merchant,
-    description: foreignAmountNote(charge),
+    // Yuki's own description, which the foreign-amount sentence used to
+    // displace.
+    description: charge.description ?? null,
     method: "card_purchase",
     date: charge.date,
     status: "posted" as const,
@@ -89,6 +119,7 @@ export function toUpsertTransactions(
     // what an invoice in the inbox is matched against, so it is worth having.
     counterparty_name: charge.contactName ?? charge.merchant,
     merchant_name: charge.contactName ?? null,
+    ...foreignAmount(charge),
   }));
 }
 

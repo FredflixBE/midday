@@ -420,6 +420,72 @@ function generateTransactionId(transaction: GetTransaction): string {
   return createHash("md5").update(input).digest("hex");
 }
 
+/**
+ * What a foreign-currency charge originally cost (FF-1560).
+ *
+ * Enable Banking sends all of it and we used to hardcode null for the lot:
+ * `instructed_amount` is the amount the other party actually asked for, and
+ * `unit_currency` says which currency the rate is quoted per one unit of —
+ * ISO 20022's way of stating a direction.
+ *
+ * Everything is normalised to "units of the original currency per one unit of
+ * the charged currency". A bank that quoted from the other side gives the
+ * reciprocal, and one that quoted against some third currency cannot be
+ * resolved at all — that rate is dropped rather than guessed, because the two
+ * amounts already say what happened and a rate pointing the wrong way would
+ * not.
+ */
+function transformExchange(transaction: GetTransaction): {
+  original_amount: number | null;
+  original_currency: string | null;
+  exchange_rate: number | null;
+} {
+  const exchange = transaction.exchange_rate;
+  const instructed = exchange?.instructed_amount;
+
+  if (!exchange || !instructed) {
+    return {
+      original_amount: null,
+      original_currency: null,
+      exchange_rate: null,
+    };
+  }
+
+  const charged = transaction.transaction_amount.currency;
+  const original = instructed.currency;
+  const quoted = Number.parseFloat(exchange.exchange_rate);
+
+  // A charge in the currency it was billed in is not a conversion, whatever
+  // the payload carries.
+  if (original === charged) {
+    return {
+      original_amount: null,
+      original_currency: null,
+      exchange_rate: null,
+    };
+  }
+
+  let rate: number | null = null;
+
+  if (Number.isFinite(quoted) && quoted > 0) {
+    if (exchange.unit_currency === charged) {
+      rate = quoted;
+    } else if (exchange.unit_currency === original) {
+      rate = 1 / quoted;
+    }
+  }
+
+  const amount = Number.parseFloat(instructed.amount);
+
+  return {
+    // Always positive: the sign of a charge lives on `amount`, and this is the
+    // same money seen from the other currency.
+    original_amount: Number.isFinite(amount) ? Math.abs(amount) : null,
+    original_currency: original,
+    exchange_rate: rate,
+  };
+}
+
 export const transformTransaction = ({
   transaction,
   accountType,
@@ -427,6 +493,7 @@ export const transformTransaction = ({
   const name = capitalCase(transformTransactionName(transaction));
   const description = transformDescription({ transaction, name });
   const counterparty = transformCounterparty(transaction);
+  const exchange = transformExchange(transaction);
 
   return {
     id: generateTransactionId(transaction),
@@ -443,8 +510,7 @@ export const transformTransaction = ({
     method: transformTransactionMethod(transaction),
     name,
     description,
-    currency_rate: null,
-    currency_source: null,
+    ...exchange,
     counterparty_iban: counterparty.iban,
     // The family and sub-family are kept apart rather than joined into
     // `IDDT/PMDD`, because each answers on its own: the family says "direct

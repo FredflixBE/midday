@@ -217,3 +217,58 @@ export function formatCompactAmount(
   });
   return `${formatted}k`;
 }
+
+type ConversionParams = {
+  /** The amount as billed, in `originalCurrency`. */
+  originalAmount: number | null;
+  /** The currency the charge was actually made in. */
+  originalCurrency: string | null;
+  /** Units of `originalCurrency` per one unit of `currency`. */
+  exchangeRate: number | null;
+  /** The currency the charge was settled in. */
+  currency: string;
+  locale?: string | null;
+};
+
+/**
+ * What a foreign-currency charge originally cost, in words (FF-1560).
+ *
+ * The sentence is the whole point of the ticket, so it is a function rather than
+ * JSX: the box it replaces read `USD 18.60 at 1.15` and failed three ways —
+ * the rate had no direction, nothing said the two amounts were the same money,
+ * and it had no label. So this labels it, formats the amount to the reader's
+ * locale, and states the rate as an equation between one unit and the other.
+ *
+ * Returns null when there is no conversion to describe, which is most
+ * transactions.
+ */
+export function formatConversion({
+  originalAmount,
+  originalCurrency,
+  exchangeRate,
+  currency,
+  locale,
+}: ConversionParams): string | null {
+  if (originalAmount == null || !originalCurrency) return null;
+  if (originalCurrency === currency) return null;
+
+  const original = formatAmount({
+    amount: originalAmount,
+    currency: originalCurrency,
+    locale,
+    maximumFractionDigits: 2,
+  });
+
+  if (!original) return null;
+
+  // The rate is optional: GoCardless sends one whose direction cannot always be
+  // established, and the two amounts are the useful part regardless.
+  if (!exchangeRate) return `Originally ${original}`;
+
+  // Not formatAmount: a rate is not money, and formatting it as currency would
+  // put a symbol on a number that has no currency. Fixed to 4 decimals and then
+  // re-parsed, so 1.1553 reads as itself and a round 1.2 does not become 1.2000.
+  const rate = Number.parseFloat(exchangeRate.toFixed(4));
+
+  return `Originally ${original} · 1 ${currency} = ${rate} ${originalCurrency}`;
+}

@@ -1,6 +1,9 @@
 import { getDb } from "@jobs/init";
 import { transformTransaction } from "@jobs/utils/transform";
-import { fillTransactionIdentifiers } from "@midday/db/queries";
+import {
+  fillTransactionForeignAmounts,
+  fillTransactionIdentifiers,
+} from "@midday/db/queries";
 import { createClient } from "@midday/supabase/job";
 import { logger, schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
@@ -25,6 +28,11 @@ const transactionSchema = z.object({
   bank_transaction_code: z.string().nullable().optional(),
   bank_transaction_sub_code: z.string().nullable().optional(),
   entry_reference: z.string().nullable().optional(),
+  // What a foreign-currency charge originally cost (FF-1560). Optional for the
+  // same reason: a domestic bank line and most Yuki charges carry none of it.
+  original_amount: z.number().nullable().optional(),
+  original_currency: z.string().nullable().optional(),
+  exchange_rate: z.number().nullable().optional(),
 });
 
 export const upsertTransactions = schemaTask({
@@ -90,6 +98,29 @@ export const upsertTransactions = schemaTask({
       if (filled > 0) {
         logger.info("Filled identifiers on transactions already stored", {
           filled,
+          teamId,
+        });
+      }
+
+      // And the same for what a foreign charge originally cost, which the
+      // upsert skips for the same reason. This is also the backfill FF-1560
+      // asked for: the 62 rows carrying the conversion as prose get the three
+      // columns and their real description on the next sync that re-reads them,
+      // derived from the source rather than parsed out of our own English.
+      const converted = await fillTransactionForeignAmounts(getDb(), {
+        teamId,
+        entries: formattedTransactions.map((transaction) => ({
+          internalId: transaction.internal_id,
+          originalAmount: transaction.original_amount,
+          originalCurrency: transaction.original_currency,
+          exchangeRate: transaction.exchange_rate,
+          description: transaction.description,
+        })),
+      });
+
+      if (converted > 0) {
+        logger.info("Filled original amounts on transactions already stored", {
+          converted,
           teamId,
         });
       }

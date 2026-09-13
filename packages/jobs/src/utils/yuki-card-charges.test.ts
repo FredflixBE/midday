@@ -3,7 +3,6 @@ import type { YukiCardCharge } from "@midday/yuki";
 import {
   cardChargeWindow,
   countCharges,
-  foreignAmountNote,
   toBooksStatusEntries,
   toUpsertTransactions,
 } from "./yuki-card-charges";
@@ -51,13 +50,62 @@ describe("a charge as an ordinary transaction", () => {
     ]);
 
     // Not -29 converted by us: 25.57 is what the books hold, conversion and
-    // card fees included. The original is shown beside it.
+    // card fees included. The original is recorded beside it.
     expect(transaction?.amount).toBe(-25.57);
-    expect(transaction?.description).toBe("USD 29.00 at 1.13");
+    expect(transaction?.currency).toBe("EUR");
+  });
+
+  test("records what a foreign charge originally cost, as data", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({
+        amount: -25.57,
+        foreign: { currency: "USD", amount: -29, rate: 1.13 },
+      }),
+    ]);
+
+    // It used to be the sentence `USD 29.00 at 1.13` written into
+    // `description`, which nothing could format, convert or query (FF-1560).
+    expect(transaction?.original_amount).toBe(29);
+    expect(transaction?.original_currency).toBe("USD");
+    expect(transaction?.exchange_rate).toBe(1.13);
+  });
+
+  test("gives description back to the description Yuki sent", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({
+        description: "MASTERCARD - Kaartverrichtingen - CURSOR AI",
+        foreign: { currency: "USD", amount: -18.6, rate: 1.1553 },
+      }),
+    ]);
+
+    // The conversion no longer occupies the field, so the field can hold what
+    // it is for.
+    expect(transaction?.description).toBe(
+      "MASTERCARD - Kaartverrichtingen - CURSOR AI",
+    );
   });
 
   test("says nothing about currency for a charge made in euro", () => {
-    expect(foreignAmountNote(charge())).toBeNull();
+    const [transaction] = toUpsertTransactions([charge()]);
+
+    expect(transaction?.original_amount).toBeNull();
+    expect(transaction?.original_currency).toBeNull();
+    expect(transaction?.exchange_rate).toBeNull();
+  });
+
+  test("the rate is stored so that the original divided by it is the euro", () => {
+    const [transaction] = toUpsertTransactions([
+      // The worked example from the ticket: $18.60 billed as €16.10.
+      charge({
+        amount: -16.1,
+        foreign: { currency: "USD", amount: -18.6, rate: 1.1553 },
+      }),
+    ]);
+
+    const original = transaction?.original_amount ?? 0;
+    const rate = transaction?.exchange_rate ?? 1;
+
+    expect(original / rate).toBeCloseTo(Math.abs(transaction?.amount ?? 0), 2);
   });
 
   test("prefers the name the accountant gave the counterparty", () => {

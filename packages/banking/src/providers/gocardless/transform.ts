@@ -157,20 +157,31 @@ export const transformTransaction = ({
     transaction?.proprietaryBankTransactionCode,
   );
 
-  let currencyExchange: { rate: number; currency: string } | undefined;
+  // What the charge originally cost (FF-1560). GoCardless sends the rate and
+  // the two currencies, and no instructed amount — so `original_amount` stays
+  // null rather than being multiplied back out of the euro figure. That would
+  // land a cent or so from what was actually billed, in a column whose whole
+  // purpose is to say what was actually billed.
+  let currencyExchange: { rate: number | null; currency: string } | undefined;
 
   if (Array.isArray(transaction.currencyExchange)) {
-    const rate = +(transaction.currencyExchange.at(0)?.exchangeRate ?? "");
+    const exchange = transaction.currencyExchange.at(0);
+    const source = exchange?.sourceCurrency?.toUpperCase();
+    const target = exchange?.targetCurrency?.toUpperCase();
+    const quoted = +(exchange?.exchangeRate ?? "");
+    const charged = transaction.transactionAmount.currency.toUpperCase();
 
-    if (rate) {
-      const currency = transaction?.currencyExchange?.at(0)?.sourceCurrency;
-
-      if (currency) {
-        currencyExchange = {
-          rate,
-          currency: currency.toUpperCase(),
-        };
-      }
+    if (source && source !== charged) {
+      currencyExchange = {
+        currency: source,
+        // `exchangeRate` converts source into target, so it is target per
+        // source — the reciprocal of the direction stored, which is original
+        // (source) per charged (target). Only trusted when `targetCurrency` is
+        // in fact what this transaction was charged in: if it is not, that
+        // reading is wrong and a rate pointing the wrong way is worse than
+        // none.
+        rate: quoted > 0 && target === charged ? 1 / quoted : null,
+      };
     }
   }
 
@@ -188,8 +199,11 @@ export const transformTransaction = ({
     amount: +transaction.transactionAmount.amount,
     currency: transaction.transactionAmount.currency,
     category: transformTransactionCategory({ transaction, accountType }),
-    currency_rate: currencyExchange?.rate || null,
-    currency_source: currencyExchange?.currency?.toUpperCase() || null,
+    // Both already normalised above, where the currencies that decide the
+    // direction are in scope.
+    original_amount: null,
+    original_currency: currencyExchange?.currency ?? null,
+    exchange_rate: currencyExchange?.rate ?? null,
     balance,
     counterparty_name: transformCounterpartyName(transaction),
     merchant_name: null,

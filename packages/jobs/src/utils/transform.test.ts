@@ -15,8 +15,9 @@ test("transformTransaction should correctly transform transaction data", () => {
     status: "posted" as const,
     counterparty_name: "Spotify AB",
     merchant_name: null,
-    currency_rate: null,
-    currency_source: null,
+    original_amount: null,
+    original_currency: null,
+    exchange_rate: null,
   };
 
   const teamId = "team123";
@@ -47,6 +48,9 @@ test("transformTransaction should correctly transform transaction data", () => {
     bank_transaction_code: null,
     bank_transaction_sub_code: null,
     entry_reference: null,
+    original_amount: null,
+    original_currency: null,
+    exchange_rate: null,
   });
 });
 
@@ -65,8 +69,9 @@ test("transformTransaction carries the provider identifiers onto the row", () =>
       status: "posted" as const,
       counterparty_name: "Xerius Vzw",
       merchant_name: null,
-      currency_rate: null,
-      currency_source: null,
+      original_amount: null,
+      original_currency: null,
+      exchange_rate: null,
       counterparty_iban: "BE68539007547034",
       bank_transaction_code: "IDDT",
       bank_transaction_sub_code: "PMDD",
@@ -99,8 +104,9 @@ test("transformTransaction nulls the identifiers a source cannot supply", () => 
       status: "posted" as const,
       counterparty_name: "Example Inc.",
       merchant_name: "Example Inc.",
-      currency_rate: null,
-      currency_source: null,
+      original_amount: null,
+      original_currency: null,
+      exchange_rate: null,
     },
     teamId: "team123",
     bankAccountId: "account456",
@@ -126,8 +132,9 @@ test("transformTransaction should handle null values correctly", () => {
     status: "posted" as const,
     counterparty_name: null,
     merchant_name: null,
-    currency_rate: null,
-    currency_source: null,
+    original_amount: null,
+    original_currency: null,
+    exchange_rate: null,
   };
 
   const teamId = "team456";
@@ -158,5 +165,42 @@ test("transformTransaction should handle null values correctly", () => {
     bank_transaction_code: null,
     bank_transaction_sub_code: null,
     entry_reference: null,
+    original_amount: null,
+    original_currency: null,
+    exchange_rate: null,
   });
+});
+
+test("transformTransaction carries what a foreign charge originally cost", () => {
+  const result = transformTransaction({
+    transaction: {
+      id: "2026081600098765",
+      name: "Cursor Ai Powered Ide",
+      description: "Card purchase",
+      date: "2026-08-16",
+      amount: -16.1,
+      currency: "EUR",
+      method: "card_purchase",
+      category: null,
+      balance: null,
+      status: "posted" as const,
+      counterparty_name: null,
+      merchant_name: null,
+      original_amount: 18.6,
+      original_currency: "USD",
+      exchange_rate: 1.1553,
+    },
+    teamId: "team123",
+    bankAccountId: "account456",
+  });
+
+  // The three used to be read off the payload and dropped right here, leaving
+  // an English sentence in `description` as the only record (FF-1560).
+  expect(result.original_amount).toBe(18.6);
+  expect(result.original_currency).toBe("USD");
+  expect(result.exchange_rate).toBe(1.1553);
+
+  // And the euro amount is untouched: it is what was actually taken.
+  expect(result.amount).toBe(-16.1);
+  expect(result.currency).toBe("EUR");
 });
