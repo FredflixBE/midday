@@ -246,11 +246,15 @@ function GroupCard({ group }: { group: Group }) {
               <span className="truncate text-sm">{transaction.name}</span>
 
               {/*
-               * Three markers, and between them they cover every case where
-               * something other than "go and ask the supplier" is true. What is
-               * left unmarked means exactly one thing — nobody has anything on
-               * this payment — which is what the first version got wrong by
-               * rendering "the books already have it" identically to silence.
+               * Two markers, and both change what you would do. A suggestion is
+               * one click; an invoice the accountant already holds is a trip to
+               * the books rather than to the supplier.
+               *
+               * The books agreeing with this page — "still needs an invoice" —
+               * is deliberately not marked. It is true of nearly every row here
+               * by definition, so it read as noise on all of them and told you
+               * nothing about any of them: the same mistake as a column
+               * repeating the page's own title, wearing a badge.
                *
                * Plain text with a title rather than a tooltip: these sit inside
                * the row's own button, and a tooltip trigger nested in a button is
@@ -264,11 +268,6 @@ function GroupCard({ group }: { group: Group }) {
               {transaction.booksStatus === "in_the_books" ? (
                 <Marker title="Your accountant already has this invoice. It can be fetched from the books rather than from the supplier.">
                   Your accountant has it
-                </Marker>
-              ) : null}
-              {transaction.booksStatus === "invoice_missing" ? (
-                <Marker title="Your accountant has this payment down as still needing an invoice.">
-                  Accountant waiting
                 </Marker>
               ) : null}
             </span>
