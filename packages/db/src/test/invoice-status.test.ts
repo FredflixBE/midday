@@ -501,6 +501,104 @@ describe.skipIf(SKIP)("invoice status", () => {
       expect(groups[0]?.totals).toEqual([{ currency: "USD", amount: -150 }]);
     });
 
+    test("a payment with a suggested invoice is on the list, and marked", async () => {
+      // It has not got the invoice — it is one click from having it. Leaving it
+      // off the page hid the quickest work on another screen.
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await suggestMatch(
+        db,
+        T.suggested,
+        "d0000000-0000-0000-0000-0000000000c1",
+      );
+
+      const { groups, count, readyToConfirm } = await getMissingInvoices(db, {
+        teamId: TEAM_USD_ID,
+      });
+
+      expect(count).toBe(1);
+      expect(readyToConfirm).toBe(1);
+      expect(groups[0]?.transactions[0]?.hasSuggestion).toBe(true);
+    });
+
+    test("the suggested ones come first inside their group", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await suggestMatch(
+        db,
+        T.suggested,
+        "d0000000-0000-0000-0000-0000000000c2",
+      );
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(groups[0]?.transactions.map((row) => row.id)).toEqual([
+        T.suggested,
+        T.nothing,
+      ]);
+      expect(groups[0]?.count).toBe(2);
+      expect(groups[0]?.readyToConfirm).toBe(1);
+    });
+
+    test("both numbers are the sum of the groups, so both can be clicked into", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await suggestMatch(
+        db,
+        T.suggested,
+        "d0000000-0000-0000-0000-0000000000c3",
+      );
+
+      const { groups, count, readyToConfirm } = await getMissingInvoices(db, {
+        teamId: TEAM_USD_ID,
+      });
+
+      expect(groups.reduce((sum, group) => sum + group.count, 0)).toBe(count);
+      expect(groups.reduce((sum, group) => sum + group.readyToConfirm, 0)).toBe(
+        readyToConfirm,
+      );
+      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toBe(
+        count,
+      );
+    });
+
+    test("an attached invoice still leaves, suggestion or not", async () => {
+      await makeTransaction(db, {
+        id: T.attached,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await suggestMatch(
+        db,
+        T.attached,
+        "d0000000-0000-0000-0000-0000000000c4",
+      );
+      await attachDocument(db, T.attached);
+
+      expect(
+        (await getMissingInvoices(db, { teamId: TEAM_USD_ID })).count,
+      ).toBe(0);
+    });
+
     test("the biggest group comes first, since that is the most errands saved", async () => {
       await makeTransaction(db, {
         id: T.nothing,

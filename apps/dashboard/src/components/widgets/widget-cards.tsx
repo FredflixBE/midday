@@ -103,7 +103,9 @@ export function WidgetCards() {
 
   const missingInvoicesValue = String(data.missingInvoices.count);
   const missingInvoicesDetail =
-    data.missingInvoices.count === 0 ? "All accounted for" : "To fetch";
+    data.missingInvoices.count === 0
+      ? "All accounted for"
+      : "Without an invoice";
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full">

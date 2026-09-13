@@ -39,13 +39,28 @@ export const INVOICE_STATUSES = [
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
 /**
+ * `transactions.id`, spelled out.
+ *
+ * Interpolating the column instead lets drizzle decide how to render it, and it
+ * only qualifies a reference when the surrounding query forces it to: in a
+ * single-table select it emits a bare `"id"`, which inside these subqueries
+ * binds to the subquery's own table and makes every `EXISTS` false. It is right
+ * wherever the outer query joins something — and silently wrong where it does
+ * not, which is the worst way for it to be wrong.
+ *
+ * Every caller selects `from transactions` without aliasing it, so writing the
+ * table out is safe and correlates correctly in both shapes.
+ */
+const TRANSACTION_ID = sql`"transactions"."id"`;
+
+/**
  * A document is filed against this transaction — on its own, *not* conflated
  * with `completed` the way `isFulfilled` is.
  */
 export function hasAttachmentSql(teamId: string): SQL<boolean> {
   return sql<boolean>`EXISTS (
     SELECT 1 FROM ${transactionAttachments}
-    WHERE ${transactionAttachments.transactionId} = ${transactions.id}
+    WHERE ${transactionAttachments.transactionId} = ${TRANSACTION_ID}
       AND ${transactionAttachments.teamId} = ${teamId}
   )`;
 }
@@ -54,7 +69,7 @@ export function hasAttachmentSql(teamId: string): SQL<boolean> {
 export function hasPendingSuggestionSql(teamId: string): SQL<boolean> {
   return sql<boolean>`EXISTS (
     SELECT 1 FROM ${transactionMatchSuggestions}
-    WHERE ${transactionMatchSuggestions.transactionId} = ${transactions.id}
+    WHERE ${transactionMatchSuggestions.transactionId} = ${TRANSACTION_ID}
       AND ${transactionMatchSuggestions.teamId} = ${teamId}
       AND ${transactionMatchSuggestions.status} = 'pending'
   )`;
@@ -137,6 +152,12 @@ export type MissingInvoice = {
   amount: number;
   currency: string;
   /**
+   * Midday has already found a likely invoice for this payment and is waiting
+   * for somebody to say yes. One click away from done, so it belongs at the top
+   * of its group rather than hidden on another screen (FF-1552).
+   */
+  hasSuggestion: boolean;
+  /**
    * The accountant's answer, carried untouched and null wherever the books have
    * nothing to say. It earns a marker on the row and never a column: "your
    * accountant is waiting for this" has consequences, "we cannot tell yet" does
@@ -151,6 +172,8 @@ export type MissingInvoiceGroup = {
   /** The heading: the name as it was last written, or null for the no-name group. */
   name: string | null;
   count: number;
+  /** How many of `count` have an invoice suggested and waiting on a yes. */
+  readyToConfirm: number;
   /**
    * Per currency, never summed across them. A group's money is only ever a
    * decomposable statement about its own rows.
@@ -163,6 +186,8 @@ export type MissingInvoices = {
   groups: MissingInvoiceGroup[];
   /** The sum of the group counts, by construction. */
   count: number;
+  /** The sum of the group `readyToConfirm`s, likewise. */
+  readyToConfirm: number;
 };
 
 /**
@@ -183,6 +208,15 @@ export type MissingInvoices = {
  * or scattered. 26 of the 125 have no counterparty at all. This is where that is
  * visible, which is the rule the whole design runs under: an automatic answer
  * may be wrong as long as a person can see it.
+ *
+ * ## Why a suggested match is still on this list
+ *
+ * A payment Midday has found a likely invoice for has not got the invoice yet —
+ * it is one click from done, not done. Leaving those off the page hid 41 of
+ * them behind another screen, which for a list you work to zero is backwards:
+ * they are the quickest thing on it. They are marked, sorted to the top of their
+ * group, and counted separately, so the page can say what is one click away and
+ * what is an errand.
  *
  * ## Why the count is computed here and not separately
  *
@@ -206,12 +240,13 @@ export async function getMissingInvoices(
       counterpartyName: transactions.counterpartyName,
       merchantName: transactions.merchantName,
       booksStatus: transactions.booksStatus,
+      hasSuggestion: hasPendingSuggestionSql(teamId).as("hasSuggestion"),
     })
     .from(transactions)
     .where(
       and(
         eq(transactions.teamId, teamId),
-        invoiceStatusFilterSql(teamId, ["invoice_missing"]),
+        invoiceStatusFilterSql(teamId, ["invoice_missing", "invoice_pending"]),
       ),
     )
     // Newest first, then by id so the order — and therefore which spelling
@@ -249,6 +284,7 @@ export async function getMissingInvoices(
       // from the party the key was built from.
       name: counterpartyName?.trim() || merchantName?.trim() || null,
       count: 0,
+      readyToConfirm: 0,
       totals: [],
       transactions: [transaction],
     });
@@ -269,6 +305,7 @@ export async function getMissingInvoices(
             key: null,
             name: null,
             count: 0,
+            readyToConfirm: 0,
             totals: [],
             transactions: unnamed,
           }),
@@ -278,6 +315,10 @@ export async function getMissingInvoices(
   return {
     groups,
     count: groups.reduce((sum, group) => sum + group.count, 0),
+    readyToConfirm: groups.reduce(
+      (sum, group) => sum + group.readyToConfirm,
+      0,
+    ),
   };
 }
 
@@ -294,6 +335,15 @@ function withCountAndTotals(group: MissingInvoiceGroup): MissingInvoiceGroup {
   return {
     ...group,
     count: group.transactions.length,
+    readyToConfirm: group.transactions.filter((row) => row.hasSuggestion)
+      .length,
+    // The quickest thing in the group first, then newest. A suggestion is one
+    // click; everything else is an errand.
+    transactions: [...group.transactions].sort(
+      (a, b) =>
+        Number(b.hasSuggestion) - Number(a.hasSuggestion) ||
+        b.date.localeCompare(a.date),
+    ),
     totals: [...byCurrency.entries()].map(([currency, amount]) => ({
       currency,
       amount,
@@ -319,7 +369,10 @@ export async function countMissingInvoices(
     .where(
       and(
         eq(transactions.teamId, params.teamId),
-        invoiceStatusFilterSql(params.teamId, ["invoice_missing"]),
+        invoiceStatusFilterSql(params.teamId, [
+          "invoice_missing",
+          "invoice_pending",
+        ]),
       ),
     );
 

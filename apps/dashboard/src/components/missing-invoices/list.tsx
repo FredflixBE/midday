@@ -37,7 +37,7 @@ type Group = MissingInvoices["groups"][number];
  * cannot click into is a claim you cannot check, so the heading says how it is
  * made up and every group states its own share of it.
  */
-function Heading({ count, groups }: MissingInvoices) {
+function Heading({ count, readyToConfirm, groups }: MissingInvoices) {
   const suppliers = groups.filter((group) => group.key !== null).length;
   const hasUnnamed = groups.some((group) => group.key === null);
 
@@ -51,7 +51,30 @@ function Heading({ count, groups }: MissingInvoices) {
               suppliers === 1 ? "supplier" : "suppliers"
             }${hasUnnamed ? ", plus the ones that name nobody" : ""}.`}
       </p>
+      {readyToConfirm > 0 ? (
+        <p className="mt-1 text-sm">
+          {readyToConfirm} of them already{" "}
+          {readyToConfirm === 1 ? "has" : "have"} an invoice waiting on a yes.
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+function Marker({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      title={title}
+      className="ml-2 inline-flex h-[18px] shrink-0 items-center bg-[#f7f7f7] px-1.5 text-[10px] text-[#878787] dark:bg-[#1d1d1d]"
+    >
+      {children}
+    </span>
   );
 }
 
@@ -156,6 +179,9 @@ function GroupCard({ group }: { group: Group }) {
           </div>
           <div className="mt-0.5 text-xs text-[#878787]">
             {group.count} {group.count === 1 ? "payment" : "payments"}
+            {group.readyToConfirm > 0
+              ? ` · ${group.readyToConfirm} to confirm`
+              : null}
             {totals ? ` · ${totals}` : null}
           </div>
         </div>
@@ -220,22 +246,30 @@ function GroupCard({ group }: { group: Group }) {
               <span className="truncate text-sm">{transaction.name}</span>
 
               {/*
-               * The accountant's answer, and only where it changes yours. "Your
-               * accountant is waiting for this" has consequences; "we cannot tell
-               * yet" does not, and a column repeating what every row on this page
-               * already says would carry no information at all.
+               * Three markers, and between them they cover every case where
+               * something other than "go and ask the supplier" is true. What is
+               * left unmarked means exactly one thing — nobody has anything on
+               * this payment — which is what the first version got wrong by
+               * rendering "the books already have it" identically to silence.
                *
-               * Plain text with a title rather than a tooltip: this sits inside
+               * Plain text with a title rather than a tooltip: these sit inside
                * the row's own button, and a tooltip trigger nested in a button is
                * unreachable by keyboard.
                */}
+              {transaction.hasSuggestion ? (
+                <Marker title="Midday found a likely invoice for this payment. Open it to confirm or reject the match.">
+                  Invoice suggested
+                </Marker>
+              ) : null}
+              {transaction.booksStatus === "in_the_books" ? (
+                <Marker title="Your accountant already has this invoice. It can be fetched from the books rather than from the supplier.">
+                  Your accountant has it
+                </Marker>
+              ) : null}
               {transaction.booksStatus === "invoice_missing" ? (
-                <span
-                  title="Your accountant has this payment down as still needing an invoice."
-                  className="ml-2 inline-flex h-[18px] shrink-0 items-center bg-[#f7f7f7] px-1.5 text-[10px] text-[#878787] dark:bg-[#1d1d1d]"
-                >
+                <Marker title="Your accountant has this payment down as still needing an invoice.">
                   Accountant waiting
-                </span>
+                </Marker>
               ) : null}
             </span>
             <span className="shrink-0 text-sm">
@@ -259,7 +293,11 @@ export function MissingInvoicesList() {
 
   return (
     <div className="flex flex-col gap-6 pb-8">
-      <Heading count={data.count} groups={data.groups} />
+      <Heading
+        count={data.count}
+        readyToConfirm={data.readyToConfirm}
+        groups={data.groups}
+      />
 
       {data.groups.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16 text-center">
