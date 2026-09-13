@@ -16,18 +16,28 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "pg";
-import { sslFor } from "../scripts/apply-sql";
-import { missingSchemaObjects } from "../scripts/schema-check";
+import { pointAt, sslFor } from "../scripts/apply-sql";
+import {
+  type MissingObject,
+  missingSchemaObjects,
+} from "../scripts/schema-check";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const SKIP = !TEST_DATABASE_URL;
 
 const SCRATCH = "midday_schema_check_scratch";
 
-function pointAt(connectionString: string, database: string): string {
-  const url = new URL(connectionString);
-  url.pathname = `/${database}`;
-  return url.toString();
+/** flatMap rather than filter+map: a filter predicate does not narrow a union. */
+function missingTables(missing: MissingObject[]): string[] {
+  return missing.flatMap((object) =>
+    object.kind === "table" ? [object.name] : [],
+  );
+}
+
+function missingColumns(missing: MissingObject[], table: string): string[] {
+  return missing.flatMap((object) =>
+    object.kind === "column" && object.table === table ? [object.name] : [],
+  );
 }
 
 describe.skipIf(SKIP)(
@@ -70,21 +80,15 @@ describe.skipIf(SKIP)(
     test("an empty database is missing every table", async () => {
       const missing = await missingSchemaObjects(scratch);
 
-      const tables = missing.filter((object) => object.kind === "table");
+      const tables = missingTables(missing);
 
       // Whatever schema.ts holds today, none of it is here.
       expect(tables.length).toBeGreaterThan(40);
-      expect(tables.map((object) => object.name)).toContain(
-        "public.transactions",
-      );
+      expect(tables).toContain("public.transactions");
 
       // And nothing is reported as a missing column, because reporting both for
       // a table that is wholly absent is noise.
-      const columns = missing.filter(
-        (object) =>
-          object.kind === "column" && object.table === "public.transactions",
-      );
-      expect(columns).toEqual([]);
+      expect(missingColumns(missing, "public.transactions")).toEqual([]);
     });
 
     test("a table that is there but short of a column reports the column", async () => {
@@ -92,19 +96,14 @@ describe.skipIf(SKIP)(
 
       const missing = await missingSchemaObjects(scratch);
 
-      expect(
-        missing.filter((object) => object.kind === "table"),
-      ).not.toContainEqual({ kind: "table", name: "public.transactions" });
+      expect(missingTables(missing)).not.toContain("public.transactions");
 
-      const columns = missing.filter(
-        (object) =>
-          object.kind === "column" && object.table === "public.transactions",
-      );
+      const columns = missingColumns(missing, "public.transactions");
 
       // `id` is the one column it has, so it is the one that is not reported.
       expect(columns.length).toBeGreaterThan(0);
-      expect(columns.map((object) => object.name)).not.toContain("id");
-      expect(columns.map((object) => object.name)).toContain("amount");
+      expect(columns).not.toContain("id");
+      expect(columns).toContain("amount");
     });
 
     test("the database this suite runs against has the whole schema", async () => {

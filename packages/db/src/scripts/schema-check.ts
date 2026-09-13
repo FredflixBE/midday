@@ -23,9 +23,9 @@ export type MissingObject =
   | { kind: "table"; name: string }
   | { kind: "column"; name: string; table: string }
   | { kind: "enum"; name: string }
-  | { kind: "enum value"; name: string; enum: string };
+  | { kind: "enum value"; enum: string; value: string };
 
-/** `public.transactions`, or `auth.users` for a table outside public. */
+/** `public.transactions`. Qualified, because a table need not be in public. */
 function qualify(table: PgTable): string {
   const { name, schema: namespace } = getTableConfig(table);
   return `${namespace ?? "public"}.${name}`;
@@ -81,6 +81,7 @@ async function tableColumns(client: Client): Promise<Map<string, Set<string>>> {
         join pg_class c on c.oid = a.attrelid
         join pg_namespace n on n.oid = c.relnamespace
        where c.relkind in ('r', 'p')
+         and n.nspname not in ('pg_catalog', 'information_schema')
          and a.attnum > 0
          and not a.attisdropped`);
 
@@ -154,7 +155,7 @@ export async function missingSchemaObjects(
 
     for (const value of values) {
       if (!present.has(value)) {
-        missing.push({ kind: "enum value", name: value, enum: name });
+        missing.push({ kind: "enum value", enum: name, value });
       }
     }
   }
@@ -173,6 +174,6 @@ export function describeMissing(missing: MissingObject[]): string[] {
       return `${object.table} has no column ${object.name}`;
     }
     if (object.kind === "enum") return `enum ${object.name} is missing`;
-    return `enum ${object.enum} has no value ${object.name}`;
+    return `enum ${object.enum} has no value ${object.value}`;
   });
 }

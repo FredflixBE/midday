@@ -26,14 +26,29 @@
  * reads TEST_DATABASE_URL and nothing else — never DATABASE_SESSION_POOLER,
  * which `bun run` loads from packages/db/.env pointing at the real project.
  * Because this one issues DROP DATABASE it also refuses to run unless that URL
- * names a local container, the same second guard verify-migrations.ts has.
+ * names a database on this machine, the same second guard
+ * verify-migrations.ts has.
+ *
+ * One thing to know before running it: the drop is unconditional, and the
+ * container on localhost:5433 is shared between git worktrees. Running this
+ * while a suite is running elsewhere against the same port takes that
+ * database away from it mid-run. Nothing guards against that, because the
+ * alternative — keeping the database and pushing onto it — is the defect
+ * above.
  */
 
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Client } from "pg";
 import { applyPolicies } from "./apply-policies";
-import { applySqlFile, resolveTestConnection, sslFor } from "./apply-sql";
+import {
+  applySqlFile,
+  databaseName,
+  isLocalDatabase,
+  pointAt,
+  resolveTestConnection,
+  sslFor,
+} from "./apply-sql";
 import { describeMissing, missingSchemaObjects } from "./schema-check";
 
 const PACKAGE_ROOT = resolve(__dirname, "../..");
@@ -59,17 +74,6 @@ const AFTER = [
   "supabase/50-documents.sql",
   "supabase/51-document-triggers.sql",
 ];
-
-/** The same connection string, pointed at another database on that server. */
-function pointAt(connectionString: string, database: string): string {
-  const url = new URL(connectionString);
-  url.pathname = `/${database}`;
-  return url.toString();
-}
-
-function databaseName(connectionString: string): string {
-  return new URL(connectionString).pathname.replace(/^\//, "");
-}
 
 function runPush(url: string): Promise<number> {
   return new Promise((done, fail) => {
@@ -113,7 +117,7 @@ async function main(): Promise<number> {
   const url = resolveTestConnection();
   const name = databaseName(url);
 
-  if (!/@(localhost|127\.0\.0\.1)[:/]/.test(url)) {
+  if (!isLocalDatabase(url)) {
     console.error(
       "TEST_DATABASE_URL does not point at localhost. This script drops and",
     );
