@@ -207,9 +207,11 @@ describe.skipIf(SKIP)("transaction enrichment", () => {
       expect(answers.get("sd worx")).toBe("office-supplies");
     });
 
-    test("the category used most often wins a disagreement", async () => {
-      // The live symptom: one payroll agency across two categories. Whichever it
-      // mostly is, is what the next payment should get.
+    test("a counterparty this team has answered two ways answers nothing", async () => {
+      // The live symptom: one payroll agency across two categories, and the one
+      // that would win a vote is the wrong one. So it does not vote — it says
+      // nothing and lets the categoriser decide, and becomes deterministic again
+      // the moment somebody tidies the history to one category.
       await makeCategory("contractors");
       await makeTransaction({
         id: T.classified,
@@ -233,7 +235,33 @@ describe.skipIf(SKIP)("transaction enrichment", () => {
         names: ["SD Worx"],
       });
 
-      expect(answers.get("sd worx")).toBe("office-supplies");
+      expect(answers.has("sd worx")).toBe(false);
+    });
+
+    test("what a counterparty was paid, not what it paid", async () => {
+      // A tax office that also issues a refund would otherwise teach this an
+      // income category, which would then beat the categoriser on every payment.
+      await db.insert(transactions).values({
+        id: T.second,
+        date: "2026-04-01",
+        name: "Refund",
+        method: "other",
+        amount: 500,
+        currency: "USD",
+        teamId: TEAM_USD_ID,
+        bankAccountId: BANK_USD_CHECKING_ID,
+        internalId: `ff1554-${T.second}`,
+        status: "posted",
+        counterpartyName: "Btw Ontvangsten Brussel",
+        categorySlug: "income",
+      });
+
+      const answers = await getCategoriesByCounterparty(db, {
+        teamId: TEAM_USD_ID,
+        names: ["Btw Ontvangsten Brussel"],
+      });
+
+      expect(answers.size).toBe(0);
     });
 
     test("uncategorized is not something the team decided", async () => {

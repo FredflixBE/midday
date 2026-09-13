@@ -1,9 +1,9 @@
 import {
   and,
-  desc,
   eq,
   inArray,
   isNotNull,
+  lte,
   ne,
   or,
   type SQL,
@@ -11,6 +11,12 @@ import {
 } from "drizzle-orm";
 import type { Database } from "../client";
 import { transactions } from "../schema";
+
+/**
+ * Where a run parks a payment it could not classify. Not an answer: a row here
+ * has been asked about and nobody could say, so it is still work.
+ */
+export const UNCATEGORIZED = "uncategorized";
 
 export type GetTransactionsForEnrichmentParams = {
   transactionIds: string[];
@@ -93,9 +99,6 @@ export async function getTransactionsForEnrichment(
     );
 }
 
-/** Where a run parks a payment it could not classify. */
-const UNCATEGORIZED = "uncategorized";
-
 export type GetCategoriesByCounterpartyParams = {
   teamId: string;
   /** Counterparty names as they appear on the transaction, any casing. */
@@ -119,8 +122,17 @@ export type GetCategoriesByCounterpartyParams = {
  * lower-cased name, with no identity, no merging of near-duplicates and nothing
  * stored. Real supplier identity is FF-1555, and this must not grow into it.
  *
- * Ties break towards the most used, then the most recent: a name classified
- * eleven times one way and once another answers with the eleven.
+ * **It answers only where this team has been consistent.** A counterparty that
+ * has been given two different categories is a disagreement, and propagating the
+ * majority would entrench whichever answer happened to win — the live books have
+ * Xerius under `contractors` twice and `employer-taxes` once, and the one that
+ * loses that vote is the right one. So a split counterparty gets no answer here
+ * and goes to the model, and the moment somebody tidies it up to one category it
+ * becomes deterministic for good.
+ *
+ * Expenses only. Money coming in is categorised by a different logic, and a
+ * counterparty that both pays and is paid — a tax office that also issues
+ * refunds — would otherwise teach this an income category.
  */
 export async function getCategoriesByCounterparty(
   db: Database,
@@ -144,8 +156,6 @@ export async function getCategoriesByCounterparty(
     .select({
       name,
       categorySlug: transactions.categorySlug,
-      used: sql<number>`count(*)::int`,
-      latest: sql<string>`max(${transactions.date})`,
     })
     .from(transactions)
     .where(
@@ -153,22 +163,36 @@ export async function getCategoriesByCounterparty(
         eq(transactions.teamId, params.teamId),
         isNotNull(transactions.categorySlug),
         ne(transactions.categorySlug, UNCATEGORIZED),
+        lte(transactions.amount, 0),
         inArray(name, wanted),
       ),
     )
-    .groupBy(name, transactions.categorySlug)
-    .orderBy(desc(sql`count(*)`), desc(sql`max(${transactions.date})`));
+    .groupBy(name, transactions.categorySlug);
 
-  const byName = new Map<string, string>();
+  // One row per (name, category). A name with more than one is a name this team
+  // has not made up its mind about, and it is dropped rather than voted on.
+  const byName = new Map<string, string | null>();
 
   for (const row of rows) {
-    // Ordered most-used first, so the first answer for a name is the one to keep.
-    if (row.categorySlug && !byName.has(row.name)) {
-      byName.set(row.name, row.categorySlug);
+    if (!row.categorySlug) continue;
+
+    if (byName.has(row.name) && byName.get(row.name) !== row.categorySlug) {
+      byName.set(row.name, null);
+      continue;
+    }
+
+    byName.set(row.name, row.categorySlug);
+  }
+
+  const agreed = new Map<string, string>();
+
+  for (const [name, categorySlug] of byName) {
+    if (categorySlug) {
+      agreed.set(name, categorySlug);
     }
   }
 
-  return byName;
+  return agreed;
 }
 
 /**

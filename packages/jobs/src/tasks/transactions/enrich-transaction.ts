@@ -8,17 +8,15 @@ import {
   enrichTransactionsSchema,
 } from "@jobs/schemas/transactions";
 import {
-  counterpartyNames,
   generateEnrichmentPrompt,
   groupForEnrichment,
-  knownCategories,
   prepareTransactionData,
   prepareUpdateData,
+  resolveKnownCategories,
 } from "@jobs/utils/enrichment-helpers";
 import { enrichmentSchema } from "@jobs/utils/enrichment-schema";
 import { processBatch } from "@jobs/utils/process-batch";
 import {
-  getCategoriesByCounterparty,
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
   markTransactionsAsEnrichmentFailed,
@@ -102,11 +100,10 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
     // and the category this team has already given that counterparty. Resolved
     // once per run, before any model call, and it wins over what comes back.
     // This is what stops one payroll agency being split across two categories.
-    const remembered = await getCategoriesByCounterparty(db, {
+    const known = await resolveKnownCategories(db, {
       teamId,
-      names: counterpartyNames(transactionsToEnrich),
+      batch: transactionsToEnrich,
     });
-    const known = knownCategories(transactionsToEnrich, remembered);
 
     this.logger.info("Categories that need no model", {
       teamId,

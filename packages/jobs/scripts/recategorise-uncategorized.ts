@@ -31,19 +31,23 @@
  */
 
 import {
-  counterpartyNames,
-  knownCategories,
+  counterpartyKey,
+  resolveKnownCategories,
 } from "@jobs/utils/enrichment-helpers";
 import { closeDb, connectDb } from "@midday/db/client";
 import {
-  getCategoriesByCounterparty,
   getTransactionsForEnrichment,
+  UNCATEGORIZED,
 } from "@midday/db/queries";
 import { transactions } from "@midday/db/schema";
 import { tasks } from "@trigger.dev/sdk";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 
-/** One trigger per this many transactions, matching the task's own batch size. */
+/**
+ * How many transaction ids go into one `enrich-transactions` trigger. The task
+ * batches internally at 50; this only keeps one payload from carrying thousands
+ * of ids.
+ */
 const CHUNK = 500;
 
 async function main() {
@@ -55,7 +59,7 @@ async function main() {
   const teams = await db
     .selectDistinct({ teamId: transactions.teamId })
     .from(transactions)
-    .where(eq(transactions.categorySlug, "uncategorized"));
+    .where(eq(transactions.categorySlug, UNCATEGORIZED));
 
   if (teams.length === 0) {
     console.log("Nothing is sitting in uncategorized.");
@@ -69,10 +73,10 @@ async function main() {
       .where(
         and(
           eq(transactions.teamId, teamId),
-          eq(transactions.categorySlug, "uncategorized"),
+          eq(transactions.categorySlug, UNCATEGORIZED),
           // Money out only: the categoriser does not classify income, and
           // `prepareUpdateData` would decline these anyway.
-          sql`${transactions.amount} <= 0`,
+          lte(transactions.amount, 0),
         ),
       );
 
@@ -88,15 +92,11 @@ async function main() {
       teamId,
       transactionIds: parked.map((row) => row.id),
     });
-    const known = knownCategories(
-      eligible,
-      await getCategoriesByCounterparty(db, {
-        teamId,
-        names: counterpartyNames(eligible),
-      }),
-    );
+    const known = await resolveKnownCategories(db, { teamId, batch: eligible });
     const counterparties = new Set(
-      counterpartyNames(eligible).map((name) => name.trim().toLowerCase()),
+      eligible
+        .map((row) => counterpartyKey(row))
+        .filter((name): name is string => name !== null),
     );
 
     console.log(`  ${eligible.length} are eligible to be asked again`);

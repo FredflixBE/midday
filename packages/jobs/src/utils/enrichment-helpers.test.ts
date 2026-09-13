@@ -13,6 +13,7 @@ import type { TransactionForEnrichment } from "@midday/db/queries";
 import {
   categoryFromBankTransactionCode,
   counterpartyNames,
+  generateEnrichmentPrompt,
   groupForEnrichment,
   knownCategories,
   prepareTransactionData,
@@ -260,7 +261,7 @@ test("nothing is remembered for a row somebody already classified", () => {
   expect(known.has("a")).toBe(false);
 });
 
-test("the names a batch asks about skip the rows that name nobody", () => {
+test("the names a batch asks about are keys, and skip the rows that name nobody", () => {
   expect(
     counterpartyNames([
       transaction({ id: "a", counterpartyName: "Cursor" }),
@@ -272,5 +273,50 @@ test("the names a batch asks about skip the rows that name nobody", () => {
       transaction({ id: "c", counterpartyName: null, merchantName: null }),
       transaction({ id: "d", counterpartyName: "   " }),
     ]),
-  ).toEqual(["Cursor", "Adobe Inc"]);
+  ).toEqual(["cursor", "adobe inc"]);
+});
+
+test("a batch of uncategorized rows is still asked about categories", () => {
+  // The bug this catches shipped once already: the categorisation half of the
+  // prompt was gated on a null slug, and every row in the backlog carries
+  // `uncategorized`. The new vocabulary was invisible to exactly the payments it
+  // was written for.
+  const prompt = generateEnrichmentPrompt(
+    prepareTransactionData([transaction({ categorySlug: "uncategorized" })]),
+    [transaction({ categorySlug: "uncategorized" })],
+  );
+
+  expect(prompt).toContain("CATEGORIZATION RULES");
+  expect(prompt).toContain("vat-gst-pst-qst-payments");
+  expect(prompt).toContain("Btw Ontvangsten");
+  expect(prompt).toContain("2. Category");
+});
+
+test("a batch that is fully classified is not asked about categories", () => {
+  const prompt = generateEnrichmentPrompt(
+    prepareTransactionData([transaction({ categorySlug: "insurance" })]),
+    [transaction({ categorySlug: "insurance" })],
+  );
+
+  expect(prompt).not.toContain("CATEGORIZATION RULES");
+});
+
+test("the counterparty reaches the model, whatever the ticket assumed", () => {
+  const prompt = generateEnrichmentPrompt(
+    prepareTransactionData([transaction()]),
+    [transaction()],
+  );
+
+  expect(prompt).toContain("Counterparty: Btw Ontvangsten Brussel");
+});
+
+test("FTDP only identifies a lease with RPMT beside it", () => {
+  expect(
+    categoryFromBankTransactionCode(
+      transaction({
+        bankTransactionCode: "FTDP",
+        bankTransactionSubCode: null,
+      }),
+    ),
+  ).toBeNull();
 });
