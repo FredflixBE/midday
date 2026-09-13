@@ -341,18 +341,42 @@ const formatAmount = (transaction: GetTransaction): number => {
   return transaction.credit_debit_indicator === "CRDT" ? amount : -amount;
 };
 
-const transformCounterpartyName = (transaction: GetTransaction) => {
-  const { credit_debit_indicator, debtor, creditor } = transaction;
+/**
+ * The party on the other side of the payment: the creditor when money went out,
+ * the debtor when it came in. The account this transaction belongs to sits on
+ * the opposite side and is never returned — it is the same value on every row
+ * and says nothing about who was paid.
+ *
+ * Name and IBAN are picked together because they have to agree. Two cascades
+ * over the same fields can drift, and the failure is silent: a row that names
+ * one party and gives the IBAN of another.
+ */
+const transformCounterparty = (
+  transaction: GetTransaction,
+): { name: string | null; iban: string | null } => {
+  const {
+    credit_debit_indicator,
+    debtor,
+    debtor_account,
+    creditor,
+    creditor_account,
+  } = transaction;
 
-  if (credit_debit_indicator === "CRDT" && debtor?.name) {
-    return capitalCase(debtor.name);
+  if (credit_debit_indicator === "CRDT") {
+    return {
+      name: debtor?.name ? capitalCase(debtor.name) : null,
+      iban: debtor_account?.iban ?? null,
+    };
   }
 
-  if (credit_debit_indicator === "DBIT" && creditor?.name) {
-    return capitalCase(creditor.name);
+  if (credit_debit_indicator === "DBIT") {
+    return {
+      name: creditor?.name ? capitalCase(creditor.name) : null,
+      iban: creditor_account?.iban ?? null,
+    };
   }
 
-  return null;
+  return { name: null, iban: null };
 };
 
 type TransformTransactionPayload = {
@@ -402,6 +426,7 @@ export const transformTransaction = ({
 }: TransformTransactionPayload): Transaction => {
   const name = capitalCase(transformTransactionName(transaction));
   const description = transformDescription({ transaction, name });
+  const counterparty = transformCounterparty(transaction);
 
   return {
     id: generateTransactionId(transaction),
@@ -413,12 +438,21 @@ export const transformTransaction = ({
       ? +transaction.balance_after_transaction.amount
       : null,
     category: transformTransactionCategory({ transaction, accountType }),
-    counterparty_name: transformCounterpartyName(transaction),
+    counterparty_name: counterparty.name,
     merchant_name: null,
     method: transformTransactionMethod(transaction),
     name,
     description,
     currency_rate: null,
     currency_source: null,
+    counterparty_iban: counterparty.iban,
+    // The family and sub-family are kept apart rather than joined into
+    // `IDDT/PMDD`, because each answers on its own: the family says "direct
+    // debit" and the sub-family says "salary". Joining them would mean every
+    // reader splits the string again.
+    bank_transaction_code: transaction.bank_transaction_code?.code ?? null,
+    bank_transaction_sub_code:
+      transaction.bank_transaction_code?.sub_code ?? null,
+    entry_reference: transaction.entry_reference ?? null,
   };
 };

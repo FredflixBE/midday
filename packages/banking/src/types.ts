@@ -21,6 +21,22 @@ export type Transaction = {
   description: string | null;
   currency_rate: number | null;
   currency_source: string | null;
+  // The identifiers the provider sends alongside the prose. A name is what a
+  // human wrote; these are machine-issued and stable, which is what makes them
+  // worth keeping. All nullable, and null is the honest answer wherever a
+  // provider does not supply the field or cannot say which party it belongs to.
+  /** IBAN of the other party. Null rather than a guess: never this account's own. */
+  counterparty_iban: string | null;
+  /** ISO 20022 bank transaction code family, e.g. `IDDT`, `ICDT`, `CCRD`. */
+  bank_transaction_code: string | null;
+  /** ISO 20022 sub-family, e.g. `PMDD`, `SALA`, `ESCT`. */
+  bank_transaction_sub_code: string | null;
+  /**
+   * The bank's own identifier for the entry, recorded as such. Enable Banking
+   * already uses it as `id` when it sends one, so the two often agree — but `id`
+   * falls back to a hash, and only this field says the bank issued the value.
+   */
+  entry_reference: string | null;
 };
 
 export type Institution = {

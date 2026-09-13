@@ -1,8 +1,25 @@
+import type { Transaction as ProviderTransaction } from "@midday/banking";
 import { transactionInternalId } from "@midday/db/queries";
 import type { Database } from "@midday/supabase/types";
 
+/** The identifiers a bank payload carries and other sources do not. */
+type ProviderIdentifierField =
+  | "counterparty_iban"
+  | "bank_transaction_code"
+  | "bank_transaction_sub_code"
+  | "entry_reference";
+
+/**
+ * A provider transaction as the sync task received it. The identifiers are
+ * optional rather than merely nullable, because a source that is not a bank
+ * payload does not set them at all. See `transactions` in the schema for what
+ * each one holds.
+ */
+type IncomingTransaction = Omit<ProviderTransaction, ProviderIdentifierField> &
+  Partial<Pick<ProviderTransaction, ProviderIdentifierField>>;
+
 type TransformTransactionData = {
-  transaction: Database["public"]["Tables"]["transactions"]["Row"];
+  transaction: IncomingTransaction;
   teamId: string;
   bankAccountId: string;
   notified?: boolean;
@@ -24,6 +41,10 @@ type Transaction = {
   notified?: boolean;
   counterparty_name: string | null;
   merchant_name: string | null;
+  counterparty_iban: string | null;
+  bank_transaction_code: string | null;
+  bank_transaction_sub_code: string | null;
+  entry_reference: string | null;
 };
 
 export function transformTransaction({
@@ -46,6 +67,10 @@ export function transformTransaction({
     team_id: teamId,
     counterparty_name: transaction.counterparty_name,
     merchant_name: transaction.merchant_name,
+    counterparty_iban: transaction.counterparty_iban ?? null,
+    bank_transaction_code: transaction.bank_transaction_code ?? null,
+    bank_transaction_sub_code: transaction.bank_transaction_sub_code ?? null,
+    entry_reference: transaction.entry_reference ?? null,
     // We only support posted transactions for now
     status: "posted",
     // If the transactions are being synced manually, we don't want to notify

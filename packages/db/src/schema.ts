@@ -433,6 +433,32 @@ export const transactions = pgTable(
     recurring: boolean(),
     frequency: transactionFrequencyEnum(),
     merchantName: text("merchant_name"),
+    // The identifiers the bank sent with the payment, kept because a name is
+    // what somebody typed and these are machine-issued.
+    //
+    // Not forward-only, as FF-1557 first assumed: the bank re-serves a rolling
+    // ~85 days with these attached, so a sync fills them in on transactions
+    // already stored (`fillTransactionIdentifiers`) and the window keeps moving.
+    // Null beyond it, and on every source that is not a bank payload — a card
+    // charge has no IBAN and a ledger line has no SEPA code. FF-1558 is what
+    // recovers the year behind from the books.
+    //
+    // IBAN of the party on the other side. Never this account's own, and never
+    // present on a card charge, where no IBAN exists.
+    counterpartyIban: text("counterparty_iban"),
+    // ISO 20022 bank transaction code: the family (`IDDT` direct debit, `ICDT`
+    // credit transfer, `FTDP` loan or lease repayment) and its sub-family
+    // (`PMDD`, `SALA` salary, `ESCT`). Kept apart because each answers on its
+    // own.
+    bankTransactionCode: text("bank_transaction_code"),
+    bankTransactionSubCode: text("bank_transaction_sub_code"),
+    // The bank's own identifier for the entry, recorded as such. Enable Banking
+    // already derives `internal_id` from it when it sends one, so the two often
+    // agree — but that derivation falls back to a hash, and only this column
+    // says the value came from the bank. It is deliberately not promoted to the
+    // key: `internal_id` is the upsert key for every transaction already
+    // imported, and changing it would re-import the lot as new rows.
+    entryReference: text("entry_reference"),
     enrichmentCompleted: boolean("enrichment_completed").default(false),
     // enrichment_completed only says the process finished, which is what stops
     // the UI spinning. This says whether it finished by working: set when a

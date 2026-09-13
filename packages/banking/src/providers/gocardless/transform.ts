@@ -195,6 +195,19 @@ export const transformTransaction = ({
     merchant_name: null,
     description,
     status: "posted",
+    // Left null on purpose. GoCardless sends no credit/debit indicator, so
+    // which of the two accounts belongs to the counterparty cannot be known —
+    // `transformCounterpartyName` above guesses from whichever name is present,
+    // and on an outgoing payment that guess can land on the account holder.
+    // A mislabelled name is cosmetic; an IBAN that might be this account's own
+    // would be a false supplier key the moment anything trusts it.
+    counterparty_iban: null,
+    // GoCardless exposes only `proprietaryBankTransactionCode` — the bank's own
+    // vocabulary, already consumed above as the payment method. It is not the
+    // ISO 20022 family/sub-family pair, so there is nothing honest to put here.
+    bank_transaction_code: null,
+    bank_transaction_sub_code: null,
+    entry_reference: transaction.entryReference ?? null,
   };
 };
 
