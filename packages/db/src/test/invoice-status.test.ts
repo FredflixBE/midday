@@ -15,7 +15,11 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
-import { countInboxNeedsHandling } from "../queries/invoice-status";
+import {
+  countInboxNeedsHandling,
+  countMissingInvoices,
+  getMissingInvoices,
+} from "../queries/invoice-status";
 import { getTransactions } from "../queries/transactions";
 import {
   inbox,
@@ -50,6 +54,7 @@ async function makeTransaction(
     internal?: boolean;
     amount?: number;
     categorySlug?: string;
+    counterpartyName?: string | null;
   },
 ) {
   await db.insert(transactions).values({
@@ -66,6 +71,7 @@ async function makeTransaction(
     internal: overrides.internal ?? false,
     categorySlug: overrides.categorySlug ?? null,
     booksStatus: overrides.booksStatus ?? null,
+    counterpartyName: overrides.counterpartyName ?? null,
   });
 }
 
@@ -306,6 +312,196 @@ describe.skipIf(SKIP)("invoice status", () => {
       });
 
       expect(data.map((row) => row.id)).toEqual([T.nothing]);
+    });
+  });
+
+  describe("the missing invoices, grouped by who was paid", () => {
+    test("one supplier is one group, however many payments it has", async () => {
+      // 125 rows on the live books collapse to 31 counterparties. That
+      // collapsing is the whole reason this page is legible.
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await makeTransaction(db, {
+        id: T.attached,
+        name: "Cursor",
+        counterpartyName: "cursor ",
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(groups.map((group) => group.name)).toEqual(["Cursor", "Adobe"]);
+      expect(groups[0]?.count).toBe(2);
+      expect(groups[1]?.count).toBe(1);
+    });
+
+    test("the count is the sum of the groups, so it can be clicked into", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+
+      const { groups, count } = await getMissingInvoices(db, {
+        teamId: TEAM_USD_ID,
+      });
+
+      expect(count).toBe(2);
+      expect(groups.reduce((sum, group) => sum + group.count, 0)).toBe(count);
+      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toBe(
+        count,
+      );
+    });
+
+    test("whatever names nobody goes in its own group, at the end", async () => {
+      // 26 of the 125 have no counterparty. The rule is that the AI may be
+      // wrong as long as a person can see it, so these are visible rather than
+      // quietly dropped or scattered.
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Unknown payment",
+        counterpartyName: null,
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(groups.at(-1)?.name).toBeNull();
+      expect(groups.at(-1)?.count).toBe(1);
+    });
+
+    test("a payment that cannot have an invoice is not here at all", async () => {
+      await makeCategory(db, "taxes", false);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Tax bill",
+        counterpartyName: "Btw Ontvangsten Brussel",
+        categorySlug: "taxes",
+      });
+
+      const { groups, count } = await getMissingInvoices(db, {
+        teamId: TEAM_USD_ID,
+      });
+
+      expect(count).toBe(0);
+      expect(groups).toEqual([]);
+    });
+
+    test("the list empties as invoices are attached", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+      await makeTransaction(db, {
+        id: T.attached,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+
+      expect(
+        (await getMissingInvoices(db, { teamId: TEAM_USD_ID })).count,
+      ).toBe(2);
+
+      await attachDocument(db, T.attached);
+
+      const { groups, count } = await getMissingInvoices(db, {
+        teamId: TEAM_USD_ID,
+      });
+
+      expect(count).toBe(1);
+      expect(groups[0]?.count).toBe(1);
+    });
+
+    test("marking one as needing no invoice takes it out too", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+        status: "completed",
+      });
+
+      expect(
+        (await getMissingInvoices(db, { teamId: TEAM_USD_ID })).count,
+      ).toBe(0);
+    });
+
+    test("the accountant's answer rides along, for the rows that have one", async () => {
+      // It earns a marker only where it changes the answer: "your accountant is
+      // waiting for this" has consequences, "we cannot tell yet" does not.
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+        booksStatus: "invoice_missing",
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(groups[0]?.transactions[0]?.booksStatus).toBe("invoice_missing");
+      expect(groups[1]?.transactions[0]?.booksStatus).toBeNull();
+    });
+
+    test("each group totals its own money, per currency, and never across", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+        amount: -100,
+      });
+      await makeTransaction(db, {
+        id: T.attached,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+        amount: -50,
+      });
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(groups[0]?.totals).toEqual([{ currency: "USD", amount: -150 }]);
+    });
+
+    test("the biggest group comes first, since that is the most errands saved", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+      await makeTransaction(db, {
+        id: T.attached,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(groups.map((group) => group.name)).toEqual(["Cursor", "Adobe"]);
     });
   });
 

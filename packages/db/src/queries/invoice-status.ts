@@ -1,13 +1,15 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
 import type { Database } from "../client";
 import {
+  type booksStatusEnum,
   inbox,
   transactionAttachments,
   transactionCategories,
   transactionMatchSuggestions,
   transactions,
 } from "../schema";
+import { counterpartyKey } from "../utils/counterparty";
 import { YUKI_INBOX_REFERENCE_PREFIX } from "./yuki-inbox";
 
 /**
@@ -126,6 +128,199 @@ export function invoiceStatusSql(teamId: string): SQL<InvoiceStatus | null> {
     WHEN ${hasPendingSuggestionSql(teamId)} THEN 'invoice_pending'
     ELSE 'invoice_missing'
   END`;
+}
+
+export type MissingInvoice = {
+  id: string;
+  date: string;
+  name: string;
+  amount: number;
+  currency: string;
+  counterpartyName: string | null;
+  merchantName: string | null;
+  /**
+   * The accountant's answer, carried untouched and null wherever the books have
+   * nothing to say. It earns a marker on the row and never a column: "your
+   * accountant is waiting for this" has consequences, "we cannot tell yet" does
+   * not (FF-1552).
+   */
+  booksStatus: (typeof booksStatusEnum.enumValues)[number] | null;
+};
+
+export type MissingInvoiceGroup = {
+  /** The normalised counterparty, or null for the payments that name nobody. */
+  key: string | null;
+  /** The heading: the name as it was last written, or null for the no-name group. */
+  name: string | null;
+  count: number;
+  /**
+   * Per currency, never summed across them. A group's money is only ever a
+   * decomposable statement about its own rows.
+   */
+  totals: { currency: string; amount: number }[];
+  transactions: MissingInvoice[];
+};
+
+export type MissingInvoices = {
+  groups: MissingInvoiceGroup[];
+  /** The sum of the group counts, by construction. */
+  count: number;
+};
+
+/**
+ * Every payment still waiting for a supplier invoice, gathered by who was paid.
+ *
+ * ## Why grouped
+ *
+ * 125 rows on the live books are 31 counterparties. Fetching four Cursor
+ * invoices is one errand, not four, and a flat list of 125 is a wall rather than
+ * a to-do list. The grouping is a **presentation affordance** — see
+ * `counterpartyKey` — and never a stored supplier link. If two spellings of one
+ * supplier land under separate headings, the cost is an odd heading, not a wrong
+ * financial claim.
+ *
+ * ## The no-name group
+ *
+ * Whatever names nobody goes in one group at the end rather than being dropped
+ * or scattered. 26 of the 125 have no counterparty at all. This is where that is
+ * visible, which is the rule the whole design runs under: an automatic answer
+ * may be wrong as long as a person can see it.
+ *
+ * ## Why the count is computed here and not separately
+ *
+ * A number nobody can click into is a claim nobody can check. This returns the
+ * groups and the total together, and the total is the sum of the groups — so
+ * every number on the page decomposes into the rows underneath it.
+ */
+export async function getMissingInvoices(
+  db: Database,
+  params: { teamId: string },
+): Promise<MissingInvoices> {
+  const { teamId } = params;
+
+  const rows = await db
+    .select({
+      id: transactions.id,
+      date: transactions.date,
+      name: transactions.name,
+      amount: transactions.amount,
+      currency: transactions.currency,
+      counterpartyName: transactions.counterpartyName,
+      merchantName: transactions.merchantName,
+      booksStatus: transactions.booksStatus,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.teamId, teamId),
+        invoiceStatusFilterSql(teamId, ["invoice_missing"]),
+      ),
+    )
+    // Newest first, then by id so the order — and therefore which spelling
+    // becomes the heading — is the same on every run.
+    .orderBy(desc(transactions.date), transactions.id);
+
+  const byKey = new Map<string, MissingInvoiceGroup>();
+  // The payments naming nobody, kept aside so they land last whatever their
+  // number.
+  const unnamed: MissingInvoice[] = [];
+
+  for (const row of rows) {
+    const key = counterpartyKey(row);
+
+    if (!key) {
+      unnamed.push(row);
+      continue;
+    }
+
+    const group = byKey.get(key);
+
+    if (group) {
+      group.transactions.push(row);
+      continue;
+    }
+
+    byKey.set(key, {
+      key,
+      // The name as the most recent payment wrote it, trimmed: rows are newest
+      // first, so a supplier that has since been renamed reads as it does today.
+      name: (row.counterpartyName ?? row.merchantName)?.trim() ?? null,
+      count: 0,
+      totals: [],
+      transactions: [row],
+    });
+  }
+
+  const named = [...byKey.values()]
+    .map(withCountAndTotals)
+    // Biggest first: the most errands saved by one visit to one supplier portal.
+    .sort(
+      (a, b) => b.count - a.count || (a.name ?? "").localeCompare(b.name ?? ""),
+    );
+
+  const groups =
+    unnamed.length > 0
+      ? [
+          ...named,
+          withCountAndTotals({
+            key: null,
+            name: null,
+            count: 0,
+            totals: [],
+            transactions: unnamed,
+          }),
+        ]
+      : named;
+
+  return {
+    groups,
+    count: groups.reduce((sum, group) => sum + group.count, 0),
+  };
+}
+
+function withCountAndTotals(group: MissingInvoiceGroup): MissingInvoiceGroup {
+  const byCurrency = new Map<string, number>();
+
+  for (const transaction of group.transactions) {
+    byCurrency.set(
+      transaction.currency,
+      (byCurrency.get(transaction.currency) ?? 0) + transaction.amount,
+    );
+  }
+
+  return {
+    ...group,
+    count: group.transactions.length,
+    totals: [...byCurrency.entries()].map(([currency, amount]) => ({
+      currency,
+      amount,
+    })),
+  };
+}
+
+/**
+ * How many payments are waiting for an invoice, for the places that show a
+ * number without the list — the overview card and the page heading.
+ *
+ * Deliberately the same predicate as `getMissingInvoices`, so the two cannot
+ * disagree: a number on the overview that does not match the page it links to is
+ * the exact failure FF-1499's first version cost trust on.
+ */
+export async function countMissingInvoices(
+  db: Database,
+  params: { teamId: string },
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.teamId, params.teamId),
+        invoiceStatusFilterSql(params.teamId, ["invoice_missing"]),
+      ),
+    );
+
+  return row?.count ?? 0;
 }
 
 export function invoiceStatusFilterSql(

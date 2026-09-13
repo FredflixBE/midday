@@ -33,6 +33,10 @@ const items = [
     name: "Transactions",
     children: [
       {
+        path: "/transactions/missing-invoices",
+        name: "Missing invoices",
+      },
+      {
         path: "/transactions/categories",
         name: "Categories",
       },

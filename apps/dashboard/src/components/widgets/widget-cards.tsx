@@ -101,6 +101,10 @@ export function WidgetCards() {
   const inboxDetail =
     data.inboxPending.count === 0 ? "All caught up" : "To review";
 
+  const missingInvoicesValue = String(data.missingInvoices.count);
+  const missingInvoicesDetail =
+    data.missingInvoices.count === 0 ? "All accounted for" : "To fetch";
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
       <WidgetCard
@@ -126,6 +130,12 @@ export function WidgetCards() {
         href="/transactions?tab=review"
         value={reviewValue}
         detail={reviewDetail}
+      />
+      <WidgetCard
+        label="Missing Invoices"
+        href="/transactions/missing-invoices"
+        value={missingInvoicesValue}
+        detail={missingInvoicesDetail}
       />
       <WidgetCard
         label="Runway"
