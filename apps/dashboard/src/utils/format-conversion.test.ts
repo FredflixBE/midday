@@ -45,6 +45,21 @@ test("without a rate it still says what was charged", () => {
   );
 });
 
+test("a rate with no amount still says which currency it was charged in", () => {
+  // GoCardless sends the rate and the currency it converted from, and never an
+  // instructed amount. A column filled and never shown would be the same
+  // problem in a new place.
+  expect(formatConversion({ ...cursor, originalAmount: null })).toBe(
+    "Charged in USD · 1 EUR = 1.1553 USD",
+  );
+});
+
+test("a currency on its own is still the cue that this is a conversion", () => {
+  expect(
+    formatConversion({ ...cursor, originalAmount: null, exchangeRate: null }),
+  ).toBe("Charged in USD");
+});
+
 test("says nothing when there was no conversion", () => {
   expect(
     formatConversion({

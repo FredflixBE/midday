@@ -2271,8 +2271,6 @@ export type TransactionForeignAmount = {
   originalAmount: number | null;
   originalCurrency: string | null;
   exchangeRate: number | null;
-  /** The description the provider sends now, for rows still holding the note. */
-  description: string | null;
 };
 
 /**
@@ -2299,10 +2297,19 @@ const LEGACY_FOREIGN_AMOUNT_NOTE = "^[A-Z]{3} [0-9]+\\.[0-9]{2} at [0-9.]+$";
  * `COALESCE` per column, so it only ever fills a hole — none of the three is
  * editable by a person, so there is no edit to lose.
  *
- * `description` is the exception, and the reason is FF-1560 itself: for 62 rows
- * the conversion was written into that field as prose, displacing the
- * description. Those are given the real description back, and only those — the
- * update matches the note's exact shape and leaves anything else untouched.
+ * `description` is the exception, and the reason is FF-1560 itself: on 62 rows
+ * the conversion was written into that field as prose, displacing whatever a
+ * description is for. Those are cleared — to NULL, not to Yuki's own
+ * description, which is the string the conversion was parsed *out of* and would
+ * only restate it at greater length. Only those rows: the clause matches the
+ * note's exact shape, so a description that is a description is left alone.
+ *
+ * The guard asks a column only when this entry has something to put in it.
+ * Asking unconditionally looked right and was not: GoCardless never sends an
+ * original amount and Enable Banking drops a rate whose direction it cannot
+ * establish, so `original_amount is null` stays true on those rows forever —
+ * every sync would re-issue `COALESCE(null, null)`, and `returning()` would
+ * report a row as filled that nothing had touched.
  */
 export async function fillTransactionForeignAmounts(
   db: Database,
@@ -2330,19 +2337,26 @@ export async function fillTransactionForeignAmounts(
             originalAmount: sql`COALESCE(${transactions.originalAmount}, ${entry.originalAmount})`,
             originalCurrency: sql`COALESCE(${transactions.originalCurrency}, ${entry.originalCurrency})`,
             exchangeRate: sql`COALESCE(${transactions.exchangeRate}, ${entry.exchangeRate})`,
-            description: sql`CASE WHEN ${transactions.description} ~ ${LEGACY_FOREIGN_AMOUNT_NOTE} THEN ${entry.description} ELSE ${transactions.description} END`,
+            description: sql`CASE WHEN ${transactions.description} ~ ${LEGACY_FOREIGN_AMOUNT_NOTE} THEN NULL ELSE ${transactions.description} END`,
           })
           .where(
             and(
               eq(transactions.teamId, params.teamId),
               eq(transactions.internalId, entry.internalId),
-              // Nothing to do for a row that already has all three and whose
-              // description is its own, which keeps a re-sync from rewriting
-              // every row it re-reads.
+              // Only the columns this entry can actually fill, so a row that is
+              // as complete as its source allows stops matching — which is what
+              // keeps a re-sync from rewriting every row it re-reads, and keeps
+              // the count honest.
               or(
-                isNull(transactions.originalAmount),
-                isNull(transactions.originalCurrency),
-                isNull(transactions.exchangeRate),
+                entry.originalAmount !== null
+                  ? isNull(transactions.originalAmount)
+                  : undefined,
+                entry.originalCurrency !== null
+                  ? isNull(transactions.originalCurrency)
+                  : undefined,
+                entry.exchangeRate !== null
+                  ? isNull(transactions.exchangeRate)
+                  : undefined,
                 sql`${transactions.description} ~ ${LEGACY_FOREIGN_AMOUNT_NOTE}`,
               ),
             ),

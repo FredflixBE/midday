@@ -65,13 +65,12 @@ describe.skipIf(SKIP)(
       });
     }
 
-    /** The charge as the sync now sends it: three fields and a real description. */
+    /** The charge as the sync now sends it. */
     const charge = {
       internalId: INTERNAL_ID,
       originalAmount: 18.6,
       originalCurrency: "USD",
       exchangeRate: 1.1553,
-      description: "MASTERCARD - Kaartverrichtingen - CURSOR AI",
     };
 
     const read = async () => {
@@ -104,8 +103,8 @@ describe.skipIf(SKIP)(
       expect(row?.exchangeRate).toBe(1.1553);
     });
 
-    test("gives description back to the row that holds the note", async () => {
-      // Exactly what `foreignAmountNote` used to write, on 62 live rows.
+    test("clears the note out of description, on the 62 rows that hold one", async () => {
+      // Exactly what `foreignAmountNote` used to write.
       await makeTransaction({ description: "USD 18.60 at 1.15" });
 
       await fillTransactionForeignAmounts(db, {
@@ -113,9 +112,12 @@ describe.skipIf(SKIP)(
         entries: [charge],
       });
 
-      expect((await read())?.description).toBe(
-        "MASTERCARD - Kaartverrichtingen - CURSOR AI",
-      );
+      // Cleared, not replaced with Yuki's own description — that string is what
+      // the conversion was parsed out of, so it would restate it at greater
+      // length. The three columns hold it now.
+      const row = await read();
+      expect(row?.description).toBeNull();
+      expect(row?.originalAmount).toBe(18.6);
     });
 
     test("leaves a description that is a description", async () => {
@@ -186,13 +188,45 @@ describe.skipIf(SKIP)(
               originalAmount: null,
               originalCurrency: null,
               exchangeRate: null,
-              description: "Ordinary euro purchase",
             },
           ],
         }),
       ).toBe(0);
 
       expect((await read())?.originalAmount).toBeNull();
+    });
+
+    test("settles once for a source that can never fill every column", async () => {
+      await makeTransaction();
+
+      // What GoCardless sends: a currency and a rate, and never an amount. The
+      // guard has to stop asking for the column this source cannot supply, or
+      // `original_amount is null` stays true forever — every sync re-issuing the
+      // update and reporting a row as filled that nothing touched.
+      const partial = {
+        internalId: INTERNAL_ID,
+        originalAmount: null,
+        originalCurrency: "USD",
+        exchangeRate: 1.1553,
+      };
+
+      expect(
+        await fillTransactionForeignAmounts(db, {
+          teamId: TEAM_USD_ID,
+          entries: [partial],
+        }),
+      ).toBe(1);
+
+      expect(
+        await fillTransactionForeignAmounts(db, {
+          teamId: TEAM_USD_ID,
+          entries: [partial],
+        }),
+      ).toBe(0);
+
+      const row = await read();
+      expect(row?.originalCurrency).toBe("USD");
+      expect(row?.originalAmount).toBeNull();
     });
 
     test("does not reach into another team's transactions", async () => {

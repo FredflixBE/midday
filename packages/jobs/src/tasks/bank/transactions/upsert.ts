@@ -114,7 +114,6 @@ export const upsertTransactions = schemaTask({
           originalAmount: transaction.original_amount,
           originalCurrency: transaction.original_currency,
           exchangeRate: transaction.exchange_rate,
-          description: transaction.description,
         })),
       });
 

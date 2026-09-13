@@ -239,8 +239,11 @@ type ConversionParams = {
  * and it had no label. So this labels it, formats the amount to the reader's
  * locale, and states the rate as an equation between one unit and the other.
  *
- * Returns null when there is no conversion to describe, which is most
- * transactions.
+ * Every combination a provider can store has a reading, because a column filled
+ * and never shown is the same problem in a new place. Yuki and Enable Banking
+ * send an amount; GoCardless sends a currency and a rate and no amount at all.
+ *
+ * Returns null when there is nothing to describe, which is most transactions.
  */
 export function formatConversion({
   originalAmount,
@@ -249,26 +252,36 @@ export function formatConversion({
   currency,
   locale,
 }: ConversionParams): string | null {
-  if (originalAmount == null || !originalCurrency) return null;
+  // The currency is what makes any of this a conversion. Without it an amount
+  // has no denomination and a rate has no second side.
+  if (!originalCurrency) return null;
   if (originalCurrency === currency) return null;
 
-  const original = formatAmount({
-    amount: originalAmount,
-    currency: originalCurrency,
-    locale,
-    maximumFractionDigits: 2,
-  });
+  // Stated as an equation so the direction is on the screen rather than in the
+  // reader's head. Not formatAmount: a rate is not money, and formatting it as
+  // currency would put a symbol on a number that has no currency. Fixed to 4
+  // decimals and re-parsed, so 1.1553 reads as itself and a round 1.2 does not
+  // become 1.2000.
+  const rate = exchangeRate
+    ? `1 ${currency} = ${Number.parseFloat(exchangeRate.toFixed(4))} ${originalCurrency}`
+    : null;
 
-  if (!original) return null;
+  const original =
+    originalAmount == null
+      ? null
+      : formatAmount({
+          amount: originalAmount,
+          currency: originalCurrency,
+          locale,
+          maximumFractionDigits: 2,
+        });
 
-  // The rate is optional: GoCardless sends one whose direction cannot always be
-  // established, and the two amounts are the useful part regardless.
-  if (!exchangeRate) return `Originally ${original}`;
+  // No amount is GoCardless, which sends the rate and the currency it converted
+  // from and never an instructed amount. Saying which currency it was charged in
+  // is still worth more than saying nothing.
+  const head = original
+    ? `Originally ${original}`
+    : `Charged in ${originalCurrency}`;
 
-  // Not formatAmount: a rate is not money, and formatting it as currency would
-  // put a symbol on a number that has no currency. Fixed to 4 decimals and then
-  // re-parsed, so 1.1553 reads as itself and a round 1.2 does not become 1.2000.
-  const rate = Number.parseFloat(exchangeRate.toFixed(4));
-
-  return `Originally ${original} · 1 ${currency} = ${rate} ${originalCurrency}`;
+  return rate ? `${head} · ${rate}` : head;
 }

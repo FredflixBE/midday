@@ -84,12 +84,25 @@ function foreignAmount(charge: YukiCardCharge): {
 
   const { currency, amount, rate } = charge.foreign;
 
+  // A charge in the administration's own currency is not a conversion, whatever
+  // the description said — and the guards on the numbers matter because these
+  // are parsed out of Belgian prose, so a shape nobody anticipated arrives as
+  // NaN. That was cosmetic while this was a sentence; a numeric column would
+  // store it.
+  if (currency === charge.currency) {
+    return {
+      original_amount: null,
+      original_currency: null,
+      exchange_rate: null,
+    };
+  }
+
   return {
     // Always positive: the sign of a charge lives on `amount`, and this is the
     // same money seen from the other currency.
-    original_amount: Math.abs(amount),
+    original_amount: Number.isFinite(amount) ? Math.abs(amount) : null,
     original_currency: currency,
-    exchange_rate: rate,
+    exchange_rate: Number.isFinite(rate) && rate > 0 ? rate : null,
   };
 }
 
@@ -104,9 +117,15 @@ export function toUpsertTransactions(
     // The merchant as the card statement wrote it, exactly as a bank would
     // have given it had the bank been willing to share the card at all.
     name: charge.merchant,
-    // Yuki's own description, which the foreign-amount sentence used to
-    // displace.
-    description: charge.description ?? null,
+    // Null, not Yuki's description — which would defeat the point of FF-1560.
+    // That string is the *source* the conversion is parsed out of: it reads
+    // `MASTERCARD - Kaartverrichtingen - <merchant> - Vreemde valuta: USD -18,60
+    // Wisselkoers: 1,1553 - <merchant>`, so putting it here swaps one
+    // restatement of the rate for a longer one in Dutch. Every part of it is
+    // already a field: the merchant is `name`, the card boilerplate is `method`,
+    // and the conversion is the three columns below. Nothing is left that is a
+    // description, so the field is empty — which is what it means.
+    description: null,
     method: "card_purchase",
     date: charge.date,
     status: "posted" as const,

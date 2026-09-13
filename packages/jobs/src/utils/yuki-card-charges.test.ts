@@ -70,19 +70,51 @@ describe("a charge as an ordinary transaction", () => {
     expect(transaction?.exchange_rate).toBe(1.13);
   });
 
-  test("gives description back to the description Yuki sent", () => {
+  test("leaves description empty rather than restating the conversion", () => {
     const [transaction] = toUpsertTransactions([
       charge({
-        description: "MASTERCARD - Kaartverrichtingen - CURSOR AI",
+        merchant: "CURSOR AI",
+        // The real shape: Yuki's description is what the conversion is parsed
+        // *out of*, so passing it through would swap `USD 18.60 at 1.15` for a
+        // longer restatement of the same thing in Dutch.
+        description:
+          "MASTERCARD - Kaartverrichtingen - CURSOR AI - Vreemde valuta: USD -18,60 Wisselkoers: 1,1553 - CURSOR AI",
         foreign: { currency: "USD", amount: -18.6, rate: 1.1553 },
       }),
     ]);
 
-    // The conversion no longer occupies the field, so the field can hold what
-    // it is for.
-    expect(transaction?.description).toBe(
-      "MASTERCARD - Kaartverrichtingen - CURSOR AI",
-    );
+    expect(transaction?.description).toBeNull();
+
+    // Because every part of that string is already a field of its own.
+    expect(transaction?.name).toBe("CURSOR AI");
+    expect(transaction?.method).toBe("card_purchase");
+    expect(transaction?.original_amount).toBe(18.6);
+    expect(transaction?.exchange_rate).toBe(1.1553);
+  });
+
+  test("stores no number it could not parse", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({
+        // What a shape nobody anticipated leaves behind. Harmless while this was
+        // prose; `numeric` accepts NaN, so a column would have kept it.
+        foreign: { currency: "USD", amount: Number.NaN, rate: Number.NaN },
+      }),
+    ]);
+
+    expect(transaction?.original_amount).toBeNull();
+    expect(transaction?.exchange_rate).toBeNull();
+    // The currency is still known, and still worth saying.
+    expect(transaction?.original_currency).toBe("USD");
+  });
+
+  test("a charge already in euro is not a conversion", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({ foreign: { currency: "EUR", amount: -21.4, rate: 1 } }),
+    ]);
+
+    expect(transaction?.original_amount).toBeNull();
+    expect(transaction?.original_currency).toBeNull();
+    expect(transaction?.exchange_rate).toBeNull();
   });
 
   test("says nothing about currency for a charge made in euro", () => {
