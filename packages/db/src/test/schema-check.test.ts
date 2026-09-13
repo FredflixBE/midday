@@ -43,8 +43,12 @@ function missingColumns(missing: MissingObject[], table: string): string[] {
 describe.skipIf(SKIP)(
   "what schema.ts declares and a database has not got",
   () => {
+    // `describe.skipIf` still runs this body to collect the tests, so nothing
+    // here may touch the URL: the whole-graph CI job has no Postgres service
+    // and TEST_DATABASE_URL is unset there. Parsing it eagerly threw
+    // `"undefined" cannot be parsed as a URL` between tests, in a job that
+    // never intended to run this file at all.
     const url = TEST_DATABASE_URL as string;
-    const scratchUrl = pointAt(url, SCRATCH);
 
     let scratch: Client;
 
@@ -65,6 +69,7 @@ describe.skipIf(SKIP)(
       await admin(`drop database if exists ${SCRATCH} with (force)`);
       await admin(`create database ${SCRATCH}`);
 
+      const scratchUrl = pointAt(url, SCRATCH);
       scratch = new Client({
         connectionString: scratchUrl,
         ssl: sslFor(scratchUrl),
