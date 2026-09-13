@@ -8,6 +8,9 @@ export const createTransactionCategorySchema = z.object({
   taxType: z.string().optional(),
   taxReportingCode: z.string().optional(),
   excluded: z.boolean().optional(),
+  // Whether a payment in this category can ever settle a supplier debt. Omitted
+  // means yes (FF-1553).
+  expectsSupplierInvoice: z.boolean().optional(),
   parentId: z.string().optional(),
 });
 
@@ -20,6 +23,7 @@ export const updateTransactionCategorySchema = z.object({
   taxType: z.string().nullable(),
   taxReportingCode: z.string().nullable(),
   excluded: z.boolean().nullable(),
+  expectsSupplierInvoice: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
 });
 

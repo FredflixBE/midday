@@ -10,7 +10,10 @@ import { expect, test } from "bun:test";
 import { CATEGORIES } from "./categories";
 
 /** Every category, parents and children alike, as one flat list. */
-const allCategories = CATEGORIES.flatMap((parent) => [parent, ...parent.children]);
+const allCategories = CATEGORIES.flatMap((parent) => [
+  parent,
+  ...parent.children,
+]);
 
 test("the categories that can never have a supplier invoice are exactly these", () => {
   const cannot = allCategories
