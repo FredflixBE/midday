@@ -425,7 +425,7 @@ export const transactionResponseSchema = z
     }),
     invoiceStatus: z.enum(INVOICE_STATUSES).nullable().openapi({
       description:
-        "Where the transaction stands on its invoice, from Midday's own records: invoice_missing (nothing attached), invoice_pending (a suggested match is waiting to be confirmed), invoice_attached, no_invoice_needed (marked done without one). Null for anything that cannot have a supplier invoice — money coming in, and transfers between your own accounts.",
+        "Where the transaction stands on its invoice, from Midday's own records: invoice_missing (nothing attached), invoice_pending (a suggested match is waiting to be confirmed), invoice_attached, no_invoice_needed (marked done without one). Null for anything that cannot have a supplier invoice — money coming in, transfers between your own accounts, and any payment whose category says no invoice will ever exist for it (taxes, owner draws, card settlements, salaries).",
       example: "invoice_missing",
     }),
     booksStatus: z

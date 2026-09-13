@@ -71,6 +71,13 @@
       "when": 1789317536662,
       "tag": "0009_provider_identifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789319024166,
+      "tag": "0010_can_have_supplier_invoice",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,7 @@ export const getCategories = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
     })
     .from(transactionCategories)
@@ -61,6 +62,7 @@ export const getCategories = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
     })
     .from(transactionCategories)
@@ -108,6 +110,7 @@ export const getCategoryById = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
       createdAt: transactionCategories.createdAt,
     })
@@ -137,6 +140,7 @@ export const getCategoryById = async (
       taxType: transactionCategories.taxType,
       taxReportingCode: transactionCategories.taxReportingCode,
       excluded: transactionCategories.excluded,
+      canHaveSupplierInvoice: transactionCategories.canHaveSupplierInvoice,
       parentId: transactionCategories.parentId,
     })
     .from(transactionCategories)
@@ -164,6 +168,8 @@ export type CreateTransactionCategoryParams = {
   taxType?: string | null;
   taxReportingCode?: string | null;
   parentId?: string | null;
+  /** Omitted means yes: most spending settles a supplier debt (FF-1553). */
+  canHaveSupplierInvoice?: boolean;
 };
 
 export const createTransactionCategory = async (
@@ -180,6 +186,7 @@ export const createTransactionCategory = async (
     taxType,
     taxReportingCode,
     parentId,
+    canHaveSupplierInvoice,
   } = params;
 
   const [result] = await db
@@ -193,6 +200,7 @@ export const createTransactionCategory = async (
       taxType,
       taxReportingCode,
       parentId,
+      canHaveSupplierInvoice,
     })
     .returning();
 
@@ -241,6 +249,7 @@ export type UpdateTransactionCategoryParams = {
   taxType?: string | null;
   taxReportingCode?: string | null;
   parentId?: string | null;
+  canHaveSupplierInvoice?: boolean;
 };
 
 export const updateTransactionCategory = async (
