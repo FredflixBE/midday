@@ -223,8 +223,6 @@ type ConversionParams = {
   originalAmount: number | null;
   /** The currency the charge was actually made in. */
   originalCurrency: string | null;
-  /** Units of `originalCurrency` per one unit of `currency`. */
-  exchangeRate: number | null;
   /** The currency the charge was settled in. */
   currency: string;
   locale?: string | null;
@@ -233,55 +231,41 @@ type ConversionParams = {
 /**
  * What a foreign-currency charge originally cost, in words (FF-1560).
  *
- * The sentence is the whole point of the ticket, so it is a function rather than
- * JSX: the box it replaces read `USD 18.60 at 1.15` and failed three ways —
- * the rate had no direction, nothing said the two amounts were the same money,
- * and it had no label. So this labels it, formats the amount to the reader's
- * locale, and states the rate as an equation between one unit and the other.
+ * One fact: the amount the supplier billed, in the currency they billed it in,
+ * formatted to the reader's locale. It sits under the euro that actually left
+ * the account, and together they are the whole story — $19.95 was asked for,
+ * €17.57 was taken.
  *
- * Every combination a provider can store has a reading, because a column filled
- * and never shown is the same problem in a new place. Yuki and Enable Banking
- * send an amount; GoCardless sends a currency and a rate and no amount at all.
+ * **No exchange rate.** The first version showed one and Frederik's verdict on
+ * reading it against the real books was that it "doesn't add any meaningful
+ * information". He is right, and it was worse than useless: the rate came from
+ * the accountant's ledger and is a coarse periodic figure, so it does not
+ * reconcile with the two amounts printed beside it. Measured over the 62 live
+ * foreign charges — five distinct stated rates against true rates spanning
+ * 1.12045 to 1.16961, and only 3 of 62 reconciling, the worst out by €1.04. A
+ * number that invites a person to check it and then fails the check is a defect,
+ * and the rate is recoverable exactly by dividing the two amounts anyway.
  *
  * Returns null when there is nothing to describe, which is most transactions.
  */
 export function formatConversion({
   originalAmount,
   originalCurrency,
-  exchangeRate,
   currency,
   locale,
 }: ConversionParams): string | null {
-  // The currency is what makes any of this a conversion. Without it an amount
-  // has no denomination and a rate has no second side.
-  if (!originalCurrency) return null;
+  if (originalAmount == null || !originalCurrency) return null;
+
+  // A charge in the currency it was settled in is not a conversion, so there is
+  // nothing to say that the amount above does not already say.
   if (originalCurrency === currency) return null;
 
-  // Stated as an equation so the direction is on the screen rather than in the
-  // reader's head. Not formatAmount: a rate is not money, and formatting it as
-  // currency would put a symbol on a number that has no currency. Fixed to 4
-  // decimals and re-parsed, so 1.1553 reads as itself and a round 1.2 does not
-  // become 1.2000.
-  const rate = exchangeRate
-    ? `1 ${currency} = ${Number.parseFloat(exchangeRate.toFixed(4))} ${originalCurrency}`
-    : null;
+  const original = formatAmount({
+    amount: originalAmount,
+    currency: originalCurrency,
+    locale,
+    maximumFractionDigits: 2,
+  });
 
-  const original =
-    originalAmount == null
-      ? null
-      : formatAmount({
-          amount: originalAmount,
-          currency: originalCurrency,
-          locale,
-          maximumFractionDigits: 2,
-        });
-
-  // No amount is GoCardless, which sends the rate and the currency it converted
-  // from and never an instructed amount. Saying which currency it was charged in
-  // is still worth more than saying nothing.
-  const head = original
-    ? `Originally ${original}`
-    : `Charged in ${originalCurrency}`;
-
-  return rate ? `${head} · ${rate}` : head;
+  return original ? `Originally ${original}` : null;
 }
