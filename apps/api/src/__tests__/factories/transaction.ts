@@ -28,6 +28,14 @@ interface TransactionResponse {
   manual: boolean | null;
   frequency: string | null;
   isFulfilled: boolean;
+  invoiceStatus:
+    | "invoice_missing"
+    | "invoice_pending"
+    | "invoice_attached"
+    | "no_invoice_needed";
+  booksStatus: "invoice_missing" | "in_the_books" | "needs_attention" | null;
+  booksStatusReason: string | null;
+  hasAttachment: boolean;
   note: string | null;
   account: {
     id: string;
@@ -73,6 +81,11 @@ export function createValidTransactionResponse(
     manual: false,
     frequency: null,
     isFulfilled: true,
+    invoiceStatus: "invoice_attached",
+    // Null is the ordinary case: the books have no answer for a bank payment.
+    booksStatus: null,
+    booksStatusReason: null,
+    hasAttachment: true,
     note: null,
     account: {
       id: "a43dc3a5-6925-4d91-ac9c-4c1a34bdb388",

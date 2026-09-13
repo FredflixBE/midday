@@ -45,6 +45,13 @@ import {
   scoreMatch,
 } from "../utils/transaction-matching";
 import { createActivity } from "./activities";
+import {
+  hasAttachmentSql,
+  hasPendingSuggestionSql,
+  type InvoiceStatus,
+  invoiceStatusFilterSql,
+  invoiceStatusSql,
+} from "./invoice-status";
 import { type Attachment, createAttachments } from "./transaction-attachments";
 
 const logger = createLoggerWithContext("transactions");
@@ -82,6 +89,12 @@ export type GetTransactionsParams = {
   exported?: boolean | null;
   /** Filter by fulfillment: true = ready for review (has attachments OR status=completed), false = not ready */
   fulfilled?: boolean | null;
+  /** Midday's own answer about the invoice; see `invoiceStatusSql` (FF-1499). */
+  invoiceStatuses?: InvoiceStatus[] | null;
+  /** The accountant's answer, where the books have one. */
+  booksStatuses?:
+    | ("invoice_missing" | "in_the_books" | "needs_attention")[]
+    | null;
 };
 
 // Helper type from schema if not already exported
@@ -114,6 +127,8 @@ export async function getTransactions(
     manual: filterManual,
     exported,
     fulfilled,
+    invoiceStatuses,
+    booksStatuses,
   } = params;
 
   // Always start with teamId filter
@@ -146,12 +161,7 @@ export async function getTransactions(
   }
 
   const isFulfilledCondition = sql`(
-    EXISTS (
-      SELECT 1
-      FROM ${transactionAttachments}
-      WHERE ${eq(transactionAttachments.transactionId, transactions.id)}
-      AND ${eq(transactionAttachments.teamId, teamId)}
-    ) OR ${transactions.status} = 'completed'
+    ${hasAttachmentSql(teamId)} OR ${transactions.status} = 'completed'
   )`;
 
   const isExportedCondition = sql`(
@@ -172,15 +182,20 @@ export async function getTransactions(
     AND ${accountingSyncRecords.status} IN ('failed', 'partial')
   )`;
 
-  const hasPendingSuggestionCondition = sql`EXISTS (
-    SELECT 1
-    FROM ${transactionMatchSuggestions}
-    WHERE ${transactionMatchSuggestions.transactionId} = ${transactions.id}
-    AND ${transactionMatchSuggestions.teamId} = ${teamId}
-    AND ${transactionMatchSuggestions.status} = 'pending'
-  )`;
+  const hasPendingSuggestionCondition = hasPendingSuggestionSql(teamId);
 
   const isActiveWorkflowCondition = sql`${transactions.status} NOT IN ('excluded', 'archived')`;
+
+  // FF-1499's two axes. Kept apart from the `statuses` filter below, which
+  // carries upstream's export-shaped vocabulary: overloading one filter with
+  // both would make "exported" and "in the books" look like alternatives.
+  if (invoiceStatuses && invoiceStatuses.length > 0) {
+    whereConditions.push(invoiceStatusFilterSql(teamId, invoiceStatuses));
+  }
+
+  if (booksStatuses && booksStatuses.length > 0) {
+    whereConditions.push(inArray(transactions.booksStatus, booksStatuses));
+  }
 
   if (attachments === "exclude") {
     whereConditions.push(sql`NOT (${isFulfilledCondition})`);
@@ -529,16 +544,22 @@ export async function getTransactions(
       baseAmount: transactions.baseAmount,
       baseCurrency: transactions.baseCurrency,
       enrichmentCompleted: transactions.enrichmentCompleted,
+      // Midday's own answer about the invoice, and the accountant's, side by
+      // side and never merged. See `invoiceStatusSql` for why (FF-1499).
+      invoiceStatus: invoiceStatusSql(teamId).as("invoiceStatus"),
+      booksStatus: transactions.booksStatus,
+      booksStatusReason: transactions.booksStatusReason,
+      // Whether a document is filed, on its own. `isFulfilled` below also
+      // answers true for `completed`, which is a different fact about a
+      // different thing, and the two used to be indistinguishable.
+      hasAttachment: hasAttachmentSql(teamId).as("hasAttachment"),
       isFulfilled:
-        sql<boolean>`(EXISTS (SELECT 1 FROM ${transactionAttachments} WHERE ${eq(transactionAttachments.transactionId, transactions.id)} AND ${eq(transactionAttachments.teamId, teamId)}) OR ${transactions.status} = 'completed')`.as(
+        sql<boolean>`(${hasAttachmentSql(teamId)} OR ${transactions.status} = 'completed')`.as(
           "isFulfilled",
         ),
-      hasPendingSuggestion: sql<boolean>`EXISTS (
-          SELECT 1 FROM ${transactionMatchSuggestions} tms 
-          WHERE tms.transaction_id = ${transactions.id} 
-          AND tms.team_id = ${teamId} 
-          AND tms.status = 'pending'
-        )`.as("hasPendingSuggestion"),
+      hasPendingSuggestion: hasPendingSuggestionSql(teamId).as(
+        "hasPendingSuggestion",
+      ),
       isExported: sql<boolean>`(
           ${transactions.status} = 'exported' OR EXISTS (
             SELECT 1 FROM ${accountingSyncRecords}

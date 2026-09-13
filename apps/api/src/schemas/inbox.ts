@@ -45,10 +45,12 @@ export const getInboxSchema = z.object({
       "Filter by processing status: done (processed), pending (awaiting action), suggested_match (auto-matched), no_match (unmatched), no_charge (charges nothing, so no payment can ever match it), other, failed (could not be processed)",
     ),
   tab: z
-    .enum(["all", "other"])
+    .enum(["all", "other", "needs_handling"])
     .nullable()
     .optional()
-    .describe("Tab filter: all or other"),
+    .describe(
+      "Tab filter: all, other, or needs_handling (documents that still need a person — not yet matched, not already in the books, and actually an invoice)",
+    ),
 });
 
 export const inboxItemResponseSchema = z

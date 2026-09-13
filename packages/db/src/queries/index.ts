@@ -21,6 +21,7 @@ export * from "./insights";
 export * from "./institutions";
 export * from "./invoice-products";
 export * from "./invoice-recurring";
+export * from "./invoice-status";
 export * from "./invoice-templates";
 export * from "./invoices";
 export * from "./notification-settings";

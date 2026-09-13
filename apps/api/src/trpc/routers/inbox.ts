@@ -22,6 +22,7 @@ import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import {
   checkInboxAttachments,
   confirmSuggestedMatch,
+  countInboxNeedsHandling,
   createInbox,
   createInboxBlocklist,
   declineSuggestedMatch,
@@ -57,6 +58,13 @@ export const inboxRouter = createTRPCRouter({
         ...input,
       });
     }),
+
+  /** How much is left in the "Needs handling" view (FF-1499). */
+  needsHandlingCount: protectedProcedure.query(
+    async ({ ctx: { db, teamId } }) => {
+      return countInboxNeedsHandling(db, { teamId: teamId! });
+    },
+  ),
 
   getById: protectedProcedure
     .input(getInboxByIdSchema)

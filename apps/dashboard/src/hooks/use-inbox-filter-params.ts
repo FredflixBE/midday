@@ -13,7 +13,7 @@ export const inboxFilterParamsSchema = {
     "other",
     "failed",
   ]),
-  tab: parseAsStringLiteral(["all", "other"]),
+  tab: parseAsStringLiteral(["all", "other", "needs_handling"]),
 };
 
 export function useInboxFilterParams() {

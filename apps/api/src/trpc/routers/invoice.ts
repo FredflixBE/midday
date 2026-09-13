@@ -53,14 +53,11 @@ import type {
   ScheduleInvoicePayload,
   SendInvoiceReminderPayload,
 } from "@midday/jobs/schemas/invoices";
-import { createLoggerWithContext } from "@midday/logger";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
 import { addDays, format, parseISO } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
-
-const logger = createLoggerWithContext("trpc:invoice");
 
 // Use the shared default template from @midday/invoice
 const defaultTemplate = DEFAULT_TEMPLATE;

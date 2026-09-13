@@ -23,6 +23,7 @@ import {
   calculateNameScore as calculateUnifiedNameScore,
   scoreMatch,
 } from "../utils/transaction-matching";
+import { inboxNeedsHandlingSql } from "./invoice-status";
 
 export type GetInboxParams = {
   teamId: string;
@@ -44,7 +45,7 @@ export type GetInboxParams = {
     | "other"
     | "failed"
     | null;
-  tab?: "all" | "other" | null;
+  tab?: "all" | "other" | "needs_handling" | null;
 };
 
 export async function getInbox(db: Database, params: GetInboxParams) {
@@ -102,6 +103,12 @@ export async function getInbox(db: Database, params: GetInboxParams) {
   // Apply status filter
   if (status) {
     whereConditions.push(eq(inbox.status, status));
+  }
+
+  // FF-1499's inbox-zero view: documents that still need a person. See
+  // `inboxNeedsHandlingSql` for why "has no transaction" is not the test.
+  if (tab === "needs_handling") {
+    whereConditions.push(inboxNeedsHandlingSql());
   }
 
   // Apply tab filter
