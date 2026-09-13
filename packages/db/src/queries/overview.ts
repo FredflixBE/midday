@@ -3,7 +3,6 @@ import type { Database } from "../client";
 import { getCashBalance } from "./bank-accounts";
 import { getInboxByStatus } from "./inbox-matching";
 import { getInvoiceSummary } from "./invoices";
-import { countMissingInvoices } from "./invoice-status";
 import { getRunway } from "./reports";
 import { getBillableHours } from "./tracker-entries";
 import { getTransactionsReadyForExportCount } from "./transactions";
@@ -26,14 +25,6 @@ export type OverviewSummary = {
   transactionsToReview: {
     count: number;
   };
-  /**
-   * The headline FF-1499 puts on the overview, in two numbers because they are
-   * two different kinds of work: a hunt through a supplier portal, and a click.
-   */
-  missingInvoices: {
-    missing: number;
-    toConfirm: number;
-  };
   cashBalance: {
     totalBalance: number;
     currency: string;
@@ -54,26 +45,18 @@ export async function getOverviewSummary(
   const { teamId, currency } = params;
   const today = formatISO(new Date(), { representation: "date" });
 
-  const [
-    openInv,
-    billable,
-    pendingInbox,
-    reviewCount,
-    cash,
-    runwayResult,
-    missingInvoices,
-  ] = await Promise.all([
-    getInvoiceSummary(db, {
-      teamId,
-      statuses: ["draft", "scheduled", "unpaid"],
-    }),
-    getBillableHours(db, { teamId, date: today, view: "month" }),
-    getInboxByStatus(db, { teamId, status: "pending" }),
-    getTransactionsReadyForExportCount(db, teamId),
-    getCashBalance(db, { teamId, currency }),
-    getRunway(db, { teamId, currency }),
-    countMissingInvoices(db, { teamId }),
-  ]);
+  const [openInv, billable, pendingInbox, reviewCount, cash, runwayResult] =
+    await Promise.all([
+      getInvoiceSummary(db, {
+        teamId,
+        statuses: ["draft", "scheduled", "unpaid"],
+      }),
+      getBillableHours(db, { teamId, date: today, view: "month" }),
+      getInboxByStatus(db, { teamId, status: "pending" }),
+      getTransactionsReadyForExportCount(db, teamId),
+      getCashBalance(db, { teamId, currency }),
+      getRunway(db, { teamId, currency }),
+    ]);
 
   return {
     openInvoices: {
@@ -93,7 +76,6 @@ export async function getOverviewSummary(
     transactionsToReview: {
       count: reviewCount,
     },
-    missingInvoices,
     cashBalance: {
       totalBalance: cash.totalBalance,
       currency: cash.currency,

@@ -111,86 +111,8 @@ export function invoiceStatusFilterSql(
 }
 
 /**
- * The transactions that still need a person — the "Missing an invoice" view.
- *
- * Two things leave it out that a naive "no attachment" count would keep:
- *
- * - **Anything that is not an expense**, per `isExpenseSql`. Without that, 4
- *   own-account withdrawals on the live books sit in the view forever, because
- *   no invoice for them will ever arrive.
- * - **What the books have already settled.** 5 card charges on the live books
- *   are settled by the accountant with no document in Midday. Listing those as
- *   work would be asking for something that is already done, and it is the
- *   single cell that makes inbox zero unreachable if you get it wrong.
- *
- * A *suggestion* the books have settled does stay in, because confirming it is
- * one click and it is Midday's own completeness rather than the accountant's.
- *
- * Built on `invoiceStatusSql` rather than on the same facts spelled out again,
- * so the list and the count cannot disagree about a row. Spelling them out
- * separately got `completed` wrong: a transaction marked done by hand that still
- * had a suggestion hanging off it appeared in the list while neither count
- * included it, and its own status cell read "No invoice needed" from inside a
- * list of things that need an invoice.
- */
-export function needsInvoiceSql(teamId: string): SQL {
-  return sql`(
-    ${isExpenseSql()}
-    AND COALESCE(${transactions.status}::text, 'posted') NOT IN ('excluded', 'archived')
-    AND ${invoiceStatusFilterSql(teamId, ["invoice_missing", "invoice_pending"])}
-    -- IS DISTINCT FROM, because books_status is null on every bank transaction,
-    -- and comparing null with = yields null rather than false, which would make
-    -- this whole AND chain null and quietly empty the view.
-    AND (
-      ${invoiceStatusSql(teamId)} <> 'invoice_missing'
-      OR ${transactions.booksStatus} IS DISTINCT FROM 'in_the_books'
-    )
-  )`;
-}
-
-export type MissingInvoiceCounts = {
-  /** No invoice anywhere. Somebody has to go and find it. */
-  missing: number;
-  /** A suggestion is waiting. One click. */
-  toConfirm: number;
-};
-
-/**
- * The headline for the overview, and the reason it is two numbers.
- *
- * "N invoices missing" is one thing to do and "N to confirm" is a different
- * one — a hunt through a supplier portal versus a click — so a single total
- * would overstate the work by however many are already found.
- */
-export async function countMissingInvoices(
-  db: Database,
-  params: { teamId: string },
-): Promise<MissingInvoiceCounts> {
-  const { teamId } = params;
-
-  const [row] = await db
-    .select({
-      missing: sql<number>`COUNT(*) FILTER (
-        WHERE ${invoiceStatusSql(teamId)} = 'invoice_missing'
-      )::int`,
-      toConfirm: sql<number>`COUNT(*) FILTER (
-        WHERE ${invoiceStatusSql(teamId)} = 'invoice_pending'
-      )::int`,
-    })
-    .from(transactions)
-    .where(and(eq(transactions.teamId, teamId), needsInvoiceSql(teamId)));
-
-  return { missing: row?.missing ?? 0, toConfirm: row?.toConfirm ?? 0 };
-}
-
-/**
- * The other half of the same question, on the inbox side: a document exists and
- * nothing has been done with it.
- *
- * It lives beside the transaction view deliberately. The rule that makes both
- * lists reach zero is that **each piece of work appears on exactly one of
- * them** — the transactions view owns finding and confirming, this one owns
- * filing and sending — and a rule split across two files is a rule that drifts.
+ * The inbox's own inbox-zero view: a document exists and nothing has been done
+ * with it.
  *
  * ## Why "no transaction" is not the test
  *

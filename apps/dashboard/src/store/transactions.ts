@@ -1,11 +1,10 @@
 import type { Column, RowSelectionState, Updater } from "@tanstack/react-table";
 import { create } from "zustand";
 
-export type TransactionTab = "all" | "missing" | "review";
+export type TransactionTab = "all" | "review";
 
 interface RowSelectionByTab {
   all: Record<string, boolean>;
-  missing: Record<string, boolean>;
   review: Record<string, boolean>;
 }
 
@@ -36,7 +35,6 @@ export const useTransactionsStore = create<TransactionsState>()((set, get) => ({
   transactionIds: [],
   rowSelectionByTab: {
     all: {},
-    missing: {},
     review: {},
   },
   lastClickedIndex: null,

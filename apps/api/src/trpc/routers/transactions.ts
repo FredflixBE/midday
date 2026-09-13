@@ -22,7 +22,6 @@ import {
   getBankAccountById,
   getSimilarTransactions,
   getTransactionById,
-  countMissingInvoices,
   getTransactions,
   getTransactionsReadyForExportCount,
   moveTransactionToReview,
@@ -60,17 +59,6 @@ const csvMappingInFlight = new Map<
 >();
 
 export const transactionsRouter = createTRPCRouter({
-  /**
-   * How much is left in the "Missing an invoice" view (FF-1499). Its own
-   * procedure rather than a read of the overview summary: the tab needs one
-   * number, and the summary computes runway, cash balance and invoice totals.
-   */
-  missingInvoiceCount: protectedProcedure.query(
-    async ({ ctx: { db, teamId } }) => {
-      return countMissingInvoices(db, { teamId: teamId! });
-    },
-  ),
-
   get: protectedProcedure
     .input(getTransactionsSchema)
     .query(async ({ input, ctx: { db, teamId } }) => {

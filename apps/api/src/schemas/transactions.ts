@@ -207,19 +207,6 @@ export const getTransactionsSchema = z.object({
       example: ["invoice_missing"],
       param: { in: "query" },
     }),
-  needsInvoice: z.coerce
-    .boolean()
-    .nullable()
-    .optional()
-    .describe(
-      "Only the expense transactions that still need a person: no invoice anywhere, or a suggested match waiting to be confirmed. Leaves out what the books have already settled.",
-    )
-    .openapi({
-      description:
-        "When true, returns only expense transactions still needing an invoice or a confirmation",
-      example: true,
-      param: { in: "query" },
-    }),
   recurring: z
     .array(z.string())
     .nullable()

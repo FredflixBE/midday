@@ -1,8 +1,3 @@
-import {
-  type BooksStatus,
-  type InvoiceStatus,
-  TransactionInvoiceStatus,
-} from "@/components/transaction-invoice-status";
 import { Icons } from "@midday/ui/icons";
 import {
   Tooltip,
@@ -64,26 +59,32 @@ function formatExportDate(dateStr?: string | null): string {
 
 type Props = {
   rawStatus?: string | null;
+  isFulfilled: boolean;
+  /**
+   * Whether a document is actually filed. `isFulfilled` is also true for a
+   * transaction marked done without one, and the two used to be
+   * indistinguishable here — so a bank fee you had answered for read as
+   * "Ready to export. Receipt attached.", which was untrue (FF-1499).
+   */
+  hasAttachment?: boolean;
   isExported: boolean;
   hasExportError?: boolean;
   exportErrorCode?: string | null;
   exportProvider?: string | null;
   exportedAt?: string | null;
-  /** Midday's own answer about the invoice; null when it cannot have one. */
-  invoiceStatus: InvoiceStatus | null;
-  /** The accountant's answer, where the books have one. */
-  booksStatus?: BooksStatus | null;
+  hasPendingSuggestion?: boolean;
 };
 
 export function TransactionStatus({
   rawStatus,
+  isFulfilled,
+  hasAttachment,
   isExported,
   hasExportError,
   exportErrorCode,
   exportProvider,
   exportedAt,
-  invoiceStatus,
-  booksStatus,
+  hasPendingSuggestion,
 }: Props) {
   if (rawStatus === "archived") {
     return <span className="cursor-default text-[#878787]">Archived</span>;
@@ -104,6 +105,53 @@ export function TransactionStatus({
           </TooltipTrigger>
           <TooltipContent sideOffset={10} className="text-xs">
             <p>{getErrorMessage(exportErrorCode)}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  if (isFulfilled && !isExported && hasAttachment === false) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-default">No receipt needed</span>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={10} className="text-xs">
+            <p>Marked as done without a receipt.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  if (isFulfilled && !isExported) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-default">Ready to export</span>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={10} className="text-xs">
+            <p>Receipt attached. Ready for export.</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  if (hasPendingSuggestion) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span style={{ color: "#ff9800" }} className="cursor-default">
+              Receipt found
+            </span>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={10} className="text-xs">
+            <p>We found a possible receipt. Confirm or dismiss it.</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -138,12 +186,5 @@ export function TransactionStatus({
     );
   }
 
-  // Everything that is not an export state answers the two questions this
-  // screen exists for: is the invoice here, and where does it stand.
-  return (
-    <TransactionInvoiceStatus
-      invoiceStatus={invoiceStatus}
-      booksStatus={booksStatus}
-    />
-  );
+  return <span className="cursor-default text-[#878787]">No receipt</span>;
 }

@@ -2,10 +2,10 @@
  * Seam under test: the two answers a transaction carries about its invoice, and
  * the list of the ones that still need a person (FF-1499).
  *
- * Midday's own answer and the accountant's answer are independent, and the
- * point of these tests is the cells where they disagree — a payment the books
- * have settled while Midday holds no document is *not* work, and a payment
- * Midday has a document for while the books do not is.
+ * Midday's own answer and the accountant's answer are independent, and both are
+ * carried to the screen untouched — the accountant's stays null wherever the
+ * books have nothing to say, which is not the same as saying the invoice is
+ * missing.
  *
  * Needs the throwaway Postgres from docker-compose.test.yml:
  *   docker compose -f docker-compose.test.yml up -d
@@ -15,15 +15,11 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
-import {
-  countInboxNeedsHandling,
-  countMissingInvoices,
-} from "../queries/invoice-status";
+import { countInboxNeedsHandling } from "../queries/invoice-status";
 import { getTransactions } from "../queries/transactions";
 import {
   inbox,
   transactionAttachments,
-  transactionCategories,
   transactionMatchSuggestions,
   transactions,
 } from "../schema";
@@ -213,201 +209,6 @@ describe.skipIf(SKIP)("invoice status", () => {
 
       expect((await statusOf(db, T.settled))?.booksStatus).toBe("in_the_books");
       expect((await statusOf(db, T.nothing))?.booksStatus).toBeNull();
-    });
-  });
-
-  describe("the list of what still needs a person", () => {
-    test("counts a payment with no invoice anywhere", async () => {
-      await makeTransaction(db, { id: T.nothing, name: "Nothing" });
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 1,
-        toConfirm: 0,
-      });
-    });
-
-    test("counts a suggestion separately, because it is one click rather than a hunt", async () => {
-      await makeTransaction(db, { id: T.suggested, name: "Suggested" });
-      await suggestMatch(
-        db,
-        T.suggested,
-        "d0000000-0000-0000-0000-0000000000a3",
-      );
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 0,
-        toConfirm: 1,
-      });
-    });
-
-    test("counts a bank payment, whose books answer is null rather than false", async () => {
-      // The null trap: comparing books_status with = yields null, not false, so
-      // a careless AND chain evaluates to null and empties the whole view. Every
-      // bank transaction has a null books answer, so that is not an edge case.
-      await makeTransaction(db, {
-        id: T.nothing,
-        name: "Bank payment",
-        booksStatus: null,
-      });
-
-      const { data } = await getTransactions(db, {
-        teamId: TEAM_USD_ID,
-        needsInvoice: true,
-      });
-
-      expect(data).toHaveLength(1);
-    });
-
-    test("leaves out what the books have settled, even with no document in Midday", async () => {
-      // The cell that proves these are two axes rather than one ladder: the
-      // accountant has it, Midday cannot show it, and there is nothing to do.
-      await makeTransaction(db, {
-        id: T.settled,
-        name: "Settled elsewhere",
-        booksStatus: "in_the_books",
-      });
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 0,
-        toConfirm: 0,
-      });
-    });
-
-    test("still counts a suggestion the books have settled, because confirming it is Midday's own completeness", async () => {
-      await makeTransaction(db, {
-        id: T.suggested,
-        name: "Settled, unconfirmed",
-        booksStatus: "in_the_books",
-      });
-      await suggestMatch(
-        db,
-        T.suggested,
-        "d0000000-0000-0000-0000-0000000000a4",
-      );
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 0,
-        toConfirm: 1,
-      });
-    });
-
-    test("a transaction marked done keeps a stale suggestion out of the list", async () => {
-      // The list and the count are both defined from the status, so a row
-      // marked done by hand that still has a suggestion hanging off it is out
-      // of both. Spelled out separately, this one appeared in the list while
-      // neither count included it.
-      await makeTransaction(db, {
-        id: T.completed,
-        name: "Marked done, suggestion left over",
-        status: "completed",
-      });
-      await suggestMatch(
-        db,
-        T.completed,
-        "d0000000-0000-0000-0000-0000000000a9",
-      );
-
-      const { data } = await getTransactions(db, {
-        teamId: TEAM_USD_ID,
-        needsInvoice: true,
-      });
-
-      expect(data).toHaveLength(0);
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 0,
-        toConfirm: 0,
-      });
-    });
-
-    test("the list and the count always agree", async () => {
-      await makeTransaction(db, { id: T.nothing, name: "Nothing" });
-      await makeTransaction(db, { id: T.suggested, name: "Suggested" });
-      await suggestMatch(
-        db,
-        T.suggested,
-        "d0000000-0000-0000-0000-0000000000a8",
-      );
-      await makeTransaction(db, { id: T.attached, name: "Attached" });
-      await attachDocument(db, T.attached);
-
-      const { data } = await getTransactions(db, {
-        teamId: TEAM_USD_ID,
-        needsInvoice: true,
-      });
-      const { missing, toConfirm } = await countMissingInvoices(db, {
-        teamId: TEAM_USD_ID,
-      });
-
-      expect(data).toHaveLength(missing + toConfirm);
-    });
-
-    test("leaves out everything a person has already answered for", async () => {
-      await makeTransaction(db, { id: T.attached, name: "Attached" });
-      await attachDocument(db, T.attached);
-      await makeTransaction(db, {
-        id: T.completed,
-        name: "Bank fee",
-        status: "completed",
-      });
-      await makeTransaction(db, {
-        id: T.excluded,
-        name: "Excluded",
-        status: "excluded",
-      });
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 0,
-        toConfirm: 0,
-      });
-    });
-
-    test("leaves out a transfer between your own accounts", async () => {
-      // Not flagged `internal` — Midday only pairs the ones it recognises — so
-      // the category is what keeps it out. 4 of these on the live books, and no
-      // invoice for them is ever going to arrive.
-      await db.insert(transactionCategories).values({
-        teamId: TEAM_USD_ID,
-        slug: "transfer",
-        name: "Transfer",
-        system: true,
-      });
-      await makeTransaction(db, {
-        id: T.nothing,
-        name: "Opname rekening courant",
-        categorySlug: "transfer",
-      });
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 0,
-        toConfirm: 0,
-      });
-    });
-
-    test("keeps an uncategorised expense, which a plain <> on the slug would drop", async () => {
-      await makeTransaction(db, { id: T.nothing, name: "Uncategorised" });
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 1,
-        toConfirm: 0,
-      });
-    });
-
-    test("leaves out money coming in, and internal transfers", async () => {
-      await makeTransaction(db, {
-        id: T.nothing,
-        name: "Income",
-        amount: 500,
-      });
-      await makeTransaction(db, {
-        id: T.attached,
-        name: "Own transfer",
-        internal: true,
-      });
-
-      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toEqual({
-        missing: 0,
-        toConfirm: 0,
-      });
     });
   });
 

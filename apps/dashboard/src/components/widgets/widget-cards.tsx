@@ -91,18 +91,11 @@ export function WidgetCards() {
       : "-";
   const runwayDetail = data.runway > 0 ? "at current burn rate" : "No data yet";
 
-  // FF-1499's headline. It replaces the old "Transactions / Ready to export"
-  // card rather than adding a seventh: it is the same card's job, better named.
-  // Two numbers, because finding an invoice and confirming a suggested match
-  // are different work and a single total would overstate the first.
-  const { missing, toConfirm } = data.missingInvoices;
-  const missingValue = String(missing + toConfirm);
-  const missingDetail =
-    missing + toConfirm === 0
-      ? "All accounted for"
-      : toConfirm === 0
-        ? "To find"
-        : `${toConfirm} to confirm`;
+  const reviewValue = String(data.transactionsToReview.count);
+  const reviewDetail =
+    data.transactionsToReview.count === 0
+      ? "All up to date"
+      : "Ready to export";
 
   const inboxValue = String(data.inboxPending.count);
   const inboxDetail =
@@ -129,10 +122,10 @@ export function WidgetCards() {
         detail={unbilledDetail}
       />
       <WidgetCard
-        label="Missing Invoices"
-        href="/transactions?tab=missing"
-        value={missingValue}
-        detail={missingDetail}
+        label="Transactions"
+        href="/transactions?tab=review"
+        value={reviewValue}
+        detail={reviewDetail}
       />
       <WidgetCard
         label="Runway"

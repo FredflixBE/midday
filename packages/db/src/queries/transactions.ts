@@ -51,7 +51,6 @@ import {
   type InvoiceStatus,
   invoiceStatusFilterSql,
   invoiceStatusSql,
-  needsInvoiceSql,
 } from "./invoice-status";
 import { type Attachment, createAttachments } from "./transaction-attachments";
 
@@ -96,8 +95,6 @@ export type GetTransactionsParams = {
   booksStatuses?:
     | ("invoice_missing" | "in_the_books" | "needs_attention")[]
     | null;
-  /** The "Missing an invoice" view: only what still needs a person. */
-  needsInvoice?: boolean | null;
 };
 
 // Helper type from schema if not already exported
@@ -132,7 +129,6 @@ export async function getTransactions(
     fulfilled,
     invoiceStatuses,
     booksStatuses,
-    needsInvoice,
   } = params;
 
   // Always start with teamId filter
@@ -199,10 +195,6 @@ export async function getTransactions(
 
   if (booksStatuses && booksStatuses.length > 0) {
     whereConditions.push(inArray(transactions.booksStatus, booksStatuses));
-  }
-
-  if (needsInvoice) {
-    whereConditions.push(needsInvoiceSql(teamId));
   }
 
   if (attachments === "exclude") {
