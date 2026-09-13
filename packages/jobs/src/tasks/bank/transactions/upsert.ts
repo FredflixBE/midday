@@ -17,6 +17,13 @@ const transactionSchema = z.object({
   currency: z.string(),
   amount: z.number(),
   category: z.string().nullable(),
+  // The identifiers a bank payload carries. Optional, not just nullable: the
+  // Yuki card-charge sync and transactions stored before FF-1557 send none of
+  // them, and a schema that demanded them would reject those runs outright.
+  counterparty_iban: z.string().nullable().optional(),
+  bank_transaction_code: z.string().nullable().optional(),
+  bank_transaction_sub_code: z.string().nullable().optional(),
+  entry_reference: z.string().nullable().optional(),
 });
 
 export const upsertTransactions = schemaTask({

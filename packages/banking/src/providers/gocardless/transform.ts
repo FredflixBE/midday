@@ -144,6 +144,24 @@ const transformCounterpartyName = (transaction: Transaction) => {
   return null;
 };
 
+/**
+ * The IBAN of whichever party `transformCounterpartyName` named. GoCardless
+ * sends no credit/debit indicator, so the side is inferred from which name is
+ * present — and the IBAN has to follow the same side, or the two fields would
+ * describe different parties.
+ */
+const transformCounterpartyIban = (transaction: Transaction) => {
+  if (transaction?.debtorName) {
+    return transaction.debtorAccount?.iban ?? null;
+  }
+
+  if (transaction?.creditorName) {
+    return transaction.creditorAccount?.iban ?? null;
+  }
+
+  return null;
+};
+
 type TransformTransactionPayload = {
   transaction: Transaction;
   accountType: AccountType;
@@ -195,6 +213,13 @@ export const transformTransaction = ({
     merchant_name: null,
     description,
     status: "posted",
+    counterparty_iban: transformCounterpartyIban(transaction),
+    // GoCardless exposes only `proprietaryBankTransactionCode` — the bank's own
+    // vocabulary, already consumed above as the payment method. It is not the
+    // ISO 20022 family/sub-family pair, so there is nothing honest to put here.
+    bank_transaction_code: null,
+    bank_transaction_sub_code: null,
+    entry_reference: transaction.entryReference ?? null,
   };
 };
 

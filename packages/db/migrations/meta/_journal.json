@@ -64,6 +64,13 @@
       "when": 1789221539734,
       "tag": "0008_yuki_card_charges",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789317536662,
+      "tag": "0009_provider_identifiers",
+      "breakpoints": true
     }
   ]
 }

@@ -355,6 +355,27 @@ const transformCounterpartyName = (transaction: GetTransaction) => {
   return null;
 };
 
+/**
+ * The IBAN of the party on the other side of the payment — the creditor when
+ * money went out, the debtor when it came in. The account this transaction
+ * belongs to sits on the opposite side and is deliberately not returned: it is
+ * the same value on every row and says nothing about who was paid.
+ */
+const transformCounterpartyIban = (transaction: GetTransaction) => {
+  const { credit_debit_indicator, debtor_account, creditor_account } =
+    transaction;
+
+  if (credit_debit_indicator === "CRDT") {
+    return debtor_account?.iban ?? null;
+  }
+
+  if (credit_debit_indicator === "DBIT") {
+    return creditor_account?.iban ?? null;
+  }
+
+  return null;
+};
+
 type TransformTransactionPayload = {
   transaction: GetTransaction;
   accountType: AccountType;
@@ -420,5 +441,14 @@ export const transformTransaction = ({
     description,
     currency_rate: null,
     currency_source: null,
+    counterparty_iban: transformCounterpartyIban(transaction),
+    // The family and sub-family are kept apart rather than joined into
+    // `IDDT/PMDD`, because each answers on its own: the family says "direct
+    // debit" and the sub-family says "salary". Joining them would mean every
+    // reader splits the string again.
+    bank_transaction_code: transaction.bank_transaction_code?.code ?? null,
+    bank_transaction_sub_code:
+      transaction.bank_transaction_code?.sub_code ?? null,
+    entry_reference: transaction.entry_reference ?? null,
   };
 };

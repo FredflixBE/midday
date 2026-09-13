@@ -433,6 +433,25 @@ export const transactions = pgTable(
     recurring: boolean(),
     frequency: transactionFrequencyEnum(),
     merchantName: text("merchant_name"),
+    // The identifiers the bank sent with the payment, kept because a name is
+    // what somebody typed and these are machine-issued. Null on every
+    // transaction imported before they were carried through the transform, and
+    // on every source that is not a bank payload — the payload that carried the
+    // history is gone, so this fills forward only (FF-1557, FF-1558).
+    //
+    // IBAN of the party on the other side. Never this account's own, and never
+    // present on a card charge, where no IBAN exists.
+    counterpartyIban: text("counterparty_iban"),
+    // ISO 20022 bank transaction code: the family (`IDDT` direct debit, `ICDT`
+    // credit transfer, `FTDP` loan or lease repayment) and its sub-family
+    // (`PMDD`, `SALA` salary, `ESCT`). Kept apart because each answers on its
+    // own.
+    bankTransactionCode: text("bank_transaction_code"),
+    bankTransactionSubCode: text("bank_transaction_sub_code"),
+    // The bank's own identifier for the entry. Stored beside `internal_id`
+    // rather than as it: `internal_id` is the upsert key for every transaction
+    // already imported, and changing it would re-import the lot as new rows.
+    entryReference: text("entry_reference"),
     enrichmentCompleted: boolean("enrichment_completed").default(false),
     // enrichment_completed only says the process finished, which is what stops
     // the UI spinning. This says whether it finished by working: set when a

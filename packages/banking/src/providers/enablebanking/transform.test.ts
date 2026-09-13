@@ -645,3 +645,120 @@ test("Transform balance - XXX preserved when all balances are XXX", () => {
     credit_limit: null,
   });
 });
+
+// The identifiers Enable Banking sends on every transaction. These used to be
+// dropped: a name was kept and the machine-readable key beside it thrown away.
+// FF-1557.
+const sepaDirectDebit = {
+  entry_reference: "2026061800123456",
+  merchant_category_code: null,
+  transaction_amount: { currency: "EUR", amount: "142.50" },
+  creditor: { name: "XERIUS VZW" },
+  creditor_account: { iban: "BE68539007547034" },
+  creditor_agent: null,
+  debtor: null,
+  debtor_account: { iban: "BE71096123456769" },
+  debtor_agent: null,
+  bank_transaction_code: {
+    description: "Domiciliëring",
+    code: "IDDT",
+    sub_code: "PMDD",
+  },
+  credit_debit_indicator: "DBIT" as const,
+  status: "BOOK",
+  booking_date: "2026-06-18",
+  value_date: "2026-06-18",
+  transaction_date: null,
+  balance_after_transaction: { currency: "EUR", amount: "4200.00" },
+  reference_number: null,
+  remittance_information: ["Sociale bijdragen Q2"],
+  debtor_account_additional_identification: null,
+  creditor_account_additional_identification: null,
+  exchange_rate: null,
+  note: null,
+  transaction_id: null,
+};
+
+test("Outgoing payment carries the creditor IBAN, the SEPA code and the entry reference", () => {
+  const transaction = transformTransaction({
+    accountType: "depository",
+    transaction: sepaDirectDebit,
+  });
+
+  // The party paid, not our own account.
+  expect(transaction.counterparty_iban).toBe("BE68539007547034");
+  expect(transaction.bank_transaction_code).toBe("IDDT");
+  expect(transaction.bank_transaction_sub_code).toBe("PMDD");
+  expect(transaction.entry_reference).toBe("2026061800123456");
+});
+
+test("Incoming payment carries the debtor IBAN as the counterparty", () => {
+  const transaction = transformTransaction({
+    accountType: "depository",
+    transaction: {
+      ...sepaDirectDebit,
+      credit_debit_indicator: "CRDT",
+      creditor: null,
+      creditor_account: { iban: "BE71096123456769" },
+      debtor: { name: "EXAMPLE CUSTOMER BV" },
+      debtor_account: { iban: "BE62510007547061" },
+      bank_transaction_code: {
+        description: "Overschrijving",
+        code: "RCDT",
+        sub_code: "ESCT",
+      },
+    },
+  });
+
+  expect(transaction.counterparty_iban).toBe("BE62510007547061");
+  expect(transaction.bank_transaction_code).toBe("RCDT");
+  expect(transaction.bank_transaction_sub_code).toBe("ESCT");
+});
+
+test("The identifiers are null when the bank sends none of them", () => {
+  const transaction = transformTransaction({
+    accountType: "depository",
+    transaction: {
+      ...sepaDirectDebit,
+      entry_reference: null,
+      creditor_account: null,
+      debtor_account: null,
+      bank_transaction_code: null,
+    },
+  });
+
+  expect(transaction.counterparty_iban).toBeNull();
+  expect(transaction.bank_transaction_code).toBeNull();
+  expect(transaction.bank_transaction_sub_code).toBeNull();
+  expect(transaction.entry_reference).toBeNull();
+});
+
+test("A bank transaction code with no sub code keeps the family on its own", () => {
+  const transaction = transformTransaction({
+    accountType: "depository",
+    transaction: {
+      ...sepaDirectDebit,
+      bank_transaction_code: {
+        description: "Other",
+        code: "FTDP",
+        sub_code: null,
+      },
+    },
+  });
+
+  expect(transaction.bank_transaction_code).toBe("FTDP");
+  expect(transaction.bank_transaction_sub_code).toBeNull();
+});
+
+test("The entry reference is kept beside the transaction id, not instead of it", () => {
+  // The id is the upsert key for every transaction already stored. Carrying the
+  // entry reference must not change how it is derived.
+  const withoutReference = transformTransaction({
+    accountType: "depository",
+    transaction: { ...sepaDirectDebit, entry_reference: null },
+  });
+
+  expect(withoutReference.entry_reference).toBeNull();
+  expect(withoutReference.id).not.toBe("2026061800123456");
+  expect(withoutReference.id).toMatch(/^[0-9a-f]{32}$/);
+});
