@@ -42,6 +42,7 @@ import {
   calculateCurrencyScore,
   calculateDateScore,
   calculateNameScore,
+  isExactAmountMatch,
   scoreMatch,
 } from "../utils/transaction-matching";
 import { createActivity } from "./activities";
@@ -1283,6 +1284,10 @@ export async function searchTransactionMatch(
         merchantName: transactions.merchantName,
         baseAmount: transactions.baseAmount,
         baseCurrency: transactions.baseCurrency,
+        // What the charge originally cost. For a document billed in that
+        // currency it is the only amount the two sides share (FF-1561).
+        originalAmount: transactions.originalAmount,
+        originalCurrency: transactions.originalCurrency,
         isAlreadyMatched: sql<boolean>`
             EXISTS (SELECT 1 FROM ${transactionAttachments} WHERE ${eq(transactionAttachments.transactionId, transactions.id)} AND ${eq(transactionAttachments.teamId, teamId)})
           `.as("is_already_matched"),
@@ -1321,20 +1326,25 @@ export async function searchTransactionMatch(
           t.name,
           t.merchantName,
         );
-        const amountScore = calculateAmountScore(
-          {
-            amount: inboxContext.amount,
-            currency: inboxContext.currency,
-            baseAmount: inboxContext.baseAmount,
-            baseCurrency: inboxContext.baseCurrency,
-          },
-          {
-            amount: t.transactionAmount,
-            currency: t.transactionCurrency,
-            baseAmount: t.baseAmount,
-            baseCurrency: t.baseCurrency,
-          },
-        );
+        // Both sides named once, so the score and the exactness flag below are
+        // decided on the same fields — including what a foreign charge
+        // originally cost, which is the currency the two may actually share
+        // (FF-1561).
+        const inboxSide = {
+          amount: inboxContext.amount,
+          currency: inboxContext.currency,
+          baseAmount: inboxContext.baseAmount,
+          baseCurrency: inboxContext.baseCurrency,
+        };
+        const transactionSide = {
+          amount: t.transactionAmount,
+          currency: t.transactionCurrency,
+          baseAmount: t.baseAmount,
+          baseCurrency: t.baseCurrency,
+          originalAmount: t.originalAmount,
+          originalCurrency: t.originalCurrency,
+        };
+        const amountScore = calculateAmountScore(inboxSide, transactionSide);
         const currencyScore = calculateCurrencyScore(
           inboxContext.currency || undefined,
           t.transactionCurrency || undefined,
@@ -1344,12 +1354,7 @@ export async function searchTransactionMatch(
         const dateScore = inboxContext.date
           ? calculateDateScore(inboxContext.date, t.transactionDate)
           : 0;
-        const isExactAmount =
-          inboxContext.amount !== null &&
-          Math.abs(
-            Math.abs(inboxContext.amount || 0) -
-              Math.abs(t.transactionAmount || 0),
-          ) < 0.01;
+        const isExactAmount = isExactAmountMatch(inboxSide, transactionSide);
         const isSameCurrency = inboxContext.currency === t.transactionCurrency;
         const confidence = scoreMatch({
           nameScore,
@@ -1422,6 +1427,8 @@ export async function searchTransactionMatch(
             transactionDate: transactions.date,
             baseAmount: transactions.baseAmount,
             baseCurrency: transactions.baseCurrency,
+            originalAmount: transactions.originalAmount,
+            originalCurrency: transactions.originalCurrency,
             isAlreadyMatched: sql<boolean>`
               (EXISTS (SELECT 1 FROM ${transactionAttachments} WHERE ${eq(transactionAttachments.transactionId, transactions.id)} AND ${eq(transactionAttachments.teamId, teamId)}) OR ${transactions.status} = 'completed')
             `.as("is_already_matched"),
@@ -1474,20 +1481,21 @@ export async function searchTransactionMatch(
             transaction.name,
             transaction.merchantName,
           );
-          const amountScore = calculateAmountScore(
-            {
-              amount: item.amount,
-              currency: item.currency,
-              baseAmount: item.baseAmount,
-              baseCurrency: item.baseCurrency,
-            },
-            {
-              amount: transaction.transactionAmount,
-              currency: transaction.transactionCurrency,
-              baseAmount: transaction.baseAmount,
-              baseCurrency: transaction.baseCurrency,
-            },
-          );
+          const inboxSide = {
+            amount: item.amount,
+            currency: item.currency,
+            baseAmount: item.baseAmount,
+            baseCurrency: item.baseCurrency,
+          };
+          const transactionSide = {
+            amount: transaction.transactionAmount,
+            currency: transaction.transactionCurrency,
+            baseAmount: transaction.baseAmount,
+            baseCurrency: transaction.baseCurrency,
+            originalAmount: transaction.originalAmount,
+            originalCurrency: transaction.originalCurrency,
+          };
+          const amountScore = calculateAmountScore(inboxSide, transactionSide);
           const currencyScore = calculateCurrencyScore(
             item.currency || undefined,
             transaction.transactionCurrency || undefined,
@@ -1498,12 +1506,7 @@ export async function searchTransactionMatch(
             item.date!,
             transaction.transactionDate,
           );
-          const isExactAmount =
-            item.amount !== null &&
-            Math.abs(
-              Math.abs(item.amount || 0) -
-                Math.abs(transaction.transactionAmount || 0),
-            ) < 0.01;
+          const isExactAmount = isExactAmountMatch(inboxSide, transactionSide);
           const isSameCurrency =
             item.currency === transaction.transactionCurrency;
           const confidence = scoreMatch({
