@@ -19,6 +19,7 @@ import type { Database } from "../client";
 import {
   getCategoriesByCounterparty,
   getTransactionsForEnrichment,
+  setTransactionCategories,
 } from "../queries/transaction-enrichment";
 import { transactionCategories, transactions } from "../schema";
 import { BANK_USD_CHECKING_ID, seedAll, TEAM_USD_ID } from "./helpers/seed";
@@ -318,6 +319,54 @@ describe.skipIf(SKIP)("transaction enrichment", () => {
       });
 
       expect(answers.size).toBe(0);
+    });
+  });
+
+  describe("a category that needed no model survives the model failing", () => {
+    test("it is written, and the row stays eligible for the replay", async () => {
+      await makeCategory("uncategorized");
+      await makeTransaction({
+        id: T.gaveUp,
+        categorySlug: "uncategorized",
+        enrichmentCompleted: true,
+      });
+
+      await setTransactionCategories(db, [
+        { transactionId: T.gaveUp, categorySlug: "office-supplies" },
+      ]);
+
+      const [row] = await db
+        .select({
+          categorySlug: transactions.categorySlug,
+          enrichmentCompleted: transactions.enrichmentCompleted,
+          enrichmentFailedAt: transactions.enrichmentFailedAt,
+        })
+        .from(transactions)
+        .where(eq(transactions.id, T.gaveUp));
+
+      expect(row?.categorySlug).toBe("office-supplies");
+      // The merchant name genuinely did not enrich, so these are left as they
+      // were — they are what a replay looks at.
+      expect(row?.enrichmentCompleted).toBe(true);
+      expect(row?.enrichmentFailedAt).toBeNull();
+    });
+
+    test("and it never overwrites a category somebody chose", async () => {
+      await makeTransaction({
+        id: T.classified,
+        categorySlug: "office-supplies",
+      });
+
+      await setTransactionCategories(db, [
+        { transactionId: T.classified, categorySlug: "software" },
+      ]);
+
+      const [row] = await db
+        .select({ categorySlug: transactions.categorySlug })
+        .from(transactions)
+        .where(eq(transactions.id, T.classified));
+
+      expect(row?.categorySlug).toBe("office-supplies");
     });
   });
 });

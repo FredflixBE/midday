@@ -3,6 +3,7 @@ import {
   eq,
   inArray,
   isNotNull,
+  isNull,
   lte,
   ne,
   or,
@@ -193,6 +194,52 @@ export async function getCategoriesByCounterparty(
   }
 
   return agreed;
+}
+
+export type SetTransactionCategoriesParams = {
+  transactionId: string;
+  categorySlug: string;
+};
+
+/**
+ * Write a category that did not come from the model, and touch nothing else.
+ *
+ * Used when the model call fails. The bank's own ISO 20022 code and the category
+ * this team already gave the counterparty needed no model, and dropping them
+ * because a separate leg failed means a persistently broken model key keeps the
+ * deterministic answers out of the database indefinitely.
+ *
+ * Deliberately leaves `enrichment_completed` and `enrichment_failed_at` alone:
+ * the merchant name genuinely did not enrich, and those two are what keep the
+ * row eligible for the replay that will get it (FF-1471).
+ *
+ * Refuses to overwrite a category somebody chose, in case one arrived between
+ * the read and this write.
+ */
+export async function setTransactionCategories(
+  db: Database,
+  entries: SetTransactionCategoriesParams[],
+): Promise<void> {
+  if (entries.length === 0) {
+    return;
+  }
+
+  await Promise.all(
+    entries.map((entry) =>
+      db
+        .update(transactions)
+        .set({ categorySlug: entry.categorySlug })
+        .where(
+          and(
+            eq(transactions.id, entry.transactionId),
+            or(
+              isNull(transactions.categorySlug),
+              eq(transactions.categorySlug, UNCATEGORIZED),
+            ),
+          ),
+        ),
+    ),
+  );
 }
 
 /**

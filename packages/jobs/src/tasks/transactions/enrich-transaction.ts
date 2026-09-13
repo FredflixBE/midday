@@ -20,6 +20,7 @@ import {
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
   markTransactionsAsEnrichmentFailed,
+  setTransactionCategories,
   type UpdateTransactionEnrichmentParams,
   updateTransactionEnrichments,
 } from "@midday/db/queries";
@@ -273,6 +274,24 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
           const failedIds = batchIds.filter((id) => !settled.has(id));
 
           try {
+            // What the bank said, and what this team already decided, needed no
+            // model. Losing those because the model call failed would leave them
+            // out of the database for as long as the model keeps failing.
+            await setTransactionCategories(
+              db,
+              failedIds
+                .map((id) => ({
+                  transactionId: id,
+                  categorySlug: known.get(id),
+                }))
+                .filter(
+                  (
+                    entry,
+                  ): entry is { transactionId: string; categorySlug: string } =>
+                    entry.categorySlug !== undefined,
+                ),
+            );
+
             // Mark the failed rows completed so the UI stops showing them as
             // analyzing — enrichment_completed means the process finished, not
             // that it worked — and stamp enrichment_failed_at so the failure is
