@@ -14,7 +14,6 @@ const logger = createLoggerWithContext("inbox");
 
 import { and, asc, desc, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
-import { inboxNeedsHandlingSql } from "./invoice-status";
 import { separateBlocklistEntries } from "../utils/blocklist";
 import { buildSearchQuery } from "../utils/search-query";
 import {
@@ -24,6 +23,7 @@ import {
   calculateNameScore as calculateUnifiedNameScore,
   scoreMatch,
 } from "../utils/transaction-matching";
+import { inboxNeedsHandlingSql } from "./invoice-status";
 
 export type GetInboxParams = {
   teamId: string;

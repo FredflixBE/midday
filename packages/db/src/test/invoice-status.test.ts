@@ -261,8 +261,8 @@ describe.skipIf(SKIP)("invoice status", () => {
 
     async function makeDocument(overrides: {
       id: string;
-      status?: string;
-      type?: "invoice" | "expense" | "other" | null;
+      status?: (typeof inbox.status.enumValues)[number];
+      type?: (typeof inbox.type.enumValues)[number] | null;
       referenceId?: string | null;
       transactionId?: string | null;
       groupedInboxId?: string | null;
@@ -273,9 +273,8 @@ describe.skipIf(SKIP)("invoice status", () => {
         displayName: "Supplier",
         amount: 100,
         currency: "USD",
-        // biome-ignore lint/suspicious/noExplicitAny: the enums are wider than this fixture needs
-        status: (overrides.status ?? "pending") as any,
-        type: (overrides.type ?? "invoice") as any,
+        status: overrides.status ?? "pending",
+        type: overrides.type ?? "invoice",
         referenceId: overrides.referenceId ?? `ref-${overrides.id}`,
         transactionId: overrides.transactionId ?? null,
         groupedInboxId: overrides.groupedInboxId ?? null,

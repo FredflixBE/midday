@@ -144,7 +144,7 @@ export function inboxNeedsHandlingSql(): SQL {
         AND member.team_id = ${inbox.teamId}
         AND (
           member.transaction_id IS NOT NULL
-          OR member.reference_id LIKE 'yuki:%'
+          OR member.reference_id LIKE ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}
         )
     )
   )`;
