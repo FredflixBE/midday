@@ -434,10 +434,14 @@ export const transactions = pgTable(
     frequency: transactionFrequencyEnum(),
     merchantName: text("merchant_name"),
     // The identifiers the bank sent with the payment, kept because a name is
-    // what somebody typed and these are machine-issued. Null on every
-    // transaction imported before they were carried through the transform, and
-    // on every source that is not a bank payload — the payload that carried the
-    // history is gone, so this fills forward only (FF-1557, FF-1558).
+    // what somebody typed and these are machine-issued.
+    //
+    // Not forward-only, as FF-1557 first assumed: the bank re-serves a rolling
+    // ~85 days with these attached, so a sync fills them in on transactions
+    // already stored (`fillTransactionIdentifiers`) and the window keeps moving.
+    // Null beyond it, and on every source that is not a bank payload — a card
+    // charge has no IBAN and a ledger line has no SEPA code. FF-1558 is what
+    // recovers the year behind from the books.
     //
     // IBAN of the party on the other side. Never this account's own, and never
     // present on a card charge, where no IBAN exists.
