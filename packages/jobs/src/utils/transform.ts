@@ -3,7 +3,7 @@ import { transactionInternalId } from "@midday/db/queries";
 import type { Database } from "@midday/supabase/types";
 
 /** The identifiers a bank payload carries and other sources do not. */
-type ProviderIdentifier =
+type ProviderIdentifierField =
   | "counterparty_iban"
   | "bank_transaction_code"
   | "bank_transaction_sub_code"
@@ -12,11 +12,11 @@ type ProviderIdentifier =
 /**
  * A provider transaction as the sync task received it. The identifiers are
  * optional rather than merely nullable, because a source that is not a bank
- * payload does not set them at all — a Yuki card charge has no IBAN behind it
- * and no SEPA code on it.
+ * payload does not set them at all. See `transactions` in the schema for what
+ * each one holds.
  */
-type IncomingTransaction = Omit<ProviderTransaction, ProviderIdentifier> &
-  Partial<Pick<ProviderTransaction, ProviderIdentifier>>;
+type IncomingTransaction = Omit<ProviderTransaction, ProviderIdentifierField> &
+  Partial<Pick<ProviderTransaction, ProviderIdentifierField>>;
 
 type TransformTransactionData = {
   transaction: IncomingTransaction;

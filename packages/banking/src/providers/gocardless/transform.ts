@@ -144,24 +144,6 @@ const transformCounterpartyName = (transaction: Transaction) => {
   return null;
 };
 
-/**
- * The IBAN of whichever party `transformCounterpartyName` named. GoCardless
- * sends no credit/debit indicator, so the side is inferred from which name is
- * present — and the IBAN has to follow the same side, or the two fields would
- * describe different parties.
- */
-const transformCounterpartyIban = (transaction: Transaction) => {
-  if (transaction?.debtorName) {
-    return transaction.debtorAccount?.iban ?? null;
-  }
-
-  if (transaction?.creditorName) {
-    return transaction.creditorAccount?.iban ?? null;
-  }
-
-  return null;
-};
-
 type TransformTransactionPayload = {
   transaction: Transaction;
   accountType: AccountType;
@@ -213,7 +195,13 @@ export const transformTransaction = ({
     merchant_name: null,
     description,
     status: "posted",
-    counterparty_iban: transformCounterpartyIban(transaction),
+    // Left null on purpose. GoCardless sends no credit/debit indicator, so
+    // which of the two accounts belongs to the counterparty cannot be known —
+    // `transformCounterpartyName` above guesses from whichever name is present,
+    // and on an outgoing payment that guess can land on the account holder.
+    // A mislabelled name is cosmetic; an IBAN that might be this account's own
+    // would be a false supplier key the moment anything trusts it.
+    counterparty_iban: null,
     // GoCardless exposes only `proprietaryBankTransactionCode` — the bank's own
     // vocabulary, already consumed above as the payment method. It is not the
     // ISO 20022 family/sub-family pair, so there is nothing honest to put here.

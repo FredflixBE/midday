@@ -448,9 +448,12 @@ export const transactions = pgTable(
     // own.
     bankTransactionCode: text("bank_transaction_code"),
     bankTransactionSubCode: text("bank_transaction_sub_code"),
-    // The bank's own identifier for the entry. Stored beside `internal_id`
-    // rather than as it: `internal_id` is the upsert key for every transaction
-    // already imported, and changing it would re-import the lot as new rows.
+    // The bank's own identifier for the entry, recorded as such. Enable Banking
+    // already derives `internal_id` from it when it sends one, so the two often
+    // agree — but that derivation falls back to a hash, and only this column
+    // says the value came from the bank. It is deliberately not promoted to the
+    // key: `internal_id` is the upsert key for every transaction already
+    // imported, and changing it would re-import the lot as new rows.
     entryReference: text("entry_reference"),
     enrichmentCompleted: boolean("enrichment_completed").default(false),
     // enrichment_completed only says the process finished, which is what stops

@@ -620,3 +620,31 @@ test("Transform account balance - XXX resolved from balances array", () => {
     credit_limit: null,
   });
 });
+
+test("GoCardless leaves the counterparty IBAN null even when it sends one", () => {
+  // It sends no credit/debit indicator, so there is no way to tell which of the
+  // two accounts is the counterparty's. A guess that lands on the account
+  // holder would be a false supplier key, so nothing is recorded. FF-1557.
+  const transaction = transformTransaction({
+    accountType: "depository",
+    transaction: {
+      transactionId: "tx-1",
+      entryReference: "5490990006",
+      bookingDate: "2024-02-23",
+      valueDate: "2024-02-23",
+      transactionAmount: { amount: "-38000.00", currency: "SEK" },
+      debtorName: "ACCOUNT HOLDER",
+      debtorAccount: { iban: "SE1750000000050401007804" },
+      creditorName: "EXAMPLE SUPPLIER AB",
+      creditorAccount: { iban: "SE9455000000058398257466" },
+      proprietaryBankTransactionCode: "Transfer",
+      internalTransactionId: "86b1bc36e6a6d2a5dee8ff7138920255",
+    },
+  });
+
+  expect(transaction.counterparty_iban).toBeNull();
+  expect(transaction.bank_transaction_code).toBeNull();
+  expect(transaction.bank_transaction_sub_code).toBeNull();
+  // The entry reference has no such ambiguity: it identifies the entry, not a party.
+  expect(transaction.entry_reference).toBe("5490990006");
+});
