@@ -6,6 +6,7 @@ import { formatDate } from "@midday/utils/format";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useInboxParams } from "@/hooks/use-inbox-params";
+import { useInvalidateTransactionQueries } from "@/hooks/use-invalidate-transaction-queries";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
@@ -17,6 +18,7 @@ export function SuggestedMatch() {
   const { params } = useInboxParams();
   const { data: user } = useUserQuery();
   const queryClient = useQueryClient();
+  const invalidateTransactionQueries = useInvalidateTransactionQueries();
   const { toast } = useToast();
   const [hasSeenLearningToast, setHasSeenLearningToast] = useLocalStorage(
     LocalStorageKeys.MatchLearningToastSeen,
@@ -75,6 +77,9 @@ export function SuggestedMatch() {
           });
         }
 
+        // The transaction side of this: answering here decides whether the
+        // payment is still missing an invoice (FF-1552).
+        invalidateTransactionQueries();
         showLearningToast();
       },
     }),
@@ -100,6 +105,9 @@ export function SuggestedMatch() {
           });
         }
 
+        // The transaction side of this: answering here decides whether the
+        // payment is still missing an invoice (FF-1552).
+        invalidateTransactionQueries();
         showLearningToast();
       },
     }),

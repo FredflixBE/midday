@@ -14,7 +14,8 @@ import {
 } from "@midday/ui/dropdown-menu";
 import { Icons } from "@midday/ui/icons";
 import { useToast } from "@midday/ui/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInvalidateTransactionQueries } from "@/hooks/use-invalidate-transaction-queries";
 import { useTransactionsStore } from "@/store/transactions";
 import { useTRPC } from "@/trpc/client";
 import { SelectCategory } from "./select-category";
@@ -27,16 +28,16 @@ type Props = {
 export function BulkActions({ ids }: Props) {
   const trpc = useTRPC();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   const { setRowSelection } = useTransactionsStore();
+  const invalidateTransactionQueries = useInvalidateTransactionQueries();
 
   const updateTransactionsMutation = useMutation(
     trpc.transactions.updateMany.mutationOptions({
       onSuccess: (_, data) => {
-        queryClient.invalidateQueries({
-          queryKey: trpc.transactions.get.infiniteQueryKey(),
-        });
+        // Marking ready, excluding or archiving all change whether a payment is
+        // still waiting for an invoice (FF-1552).
+        invalidateTransactionQueries();
 
         setRowSelection("all", {});
 

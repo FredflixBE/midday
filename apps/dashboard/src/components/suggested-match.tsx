@@ -6,8 +6,9 @@ import { Icons } from "@midday/ui/icons";
 import { Skeleton } from "@midday/ui/skeleton";
 import { SubmitButton } from "@midday/ui/submit-button";
 import { useToast } from "@midday/ui/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useDocumentParams } from "@/hooks/use-document-params";
+import { useInvalidateTransactionQueries } from "@/hooks/use-invalidate-transaction-queries";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useTRPC } from "@/trpc/client";
 import { LocalStorageKeys } from "@/utils/constants";
@@ -32,8 +33,12 @@ export function SuggestedMatch({
   isLoading,
 }: SuggestedMatchProps) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const { setParams } = useDocumentParams();
+  // Everywhere a transaction is shown, not a hand-written list per callsite.
+  // Answering a suggestion changes whether the payment is still missing an
+  // invoice, and the page that lists those was the third screen to be left
+  // stale by a list like that (FF-1552).
+  const invalidateTransactionQueries = useInvalidateTransactionQueries();
   const { toast } = useToast();
   const [hasSeenLearningToast, setHasSeenLearningToast] = useLocalStorage(
     LocalStorageKeys.MatchLearningToastSeen,
@@ -43,14 +48,7 @@ export function SuggestedMatch({
   const confirmMutation = useMutation(
     trpc.inbox.confirmMatch.mutationOptions({
       onSuccess: () => {
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({
-          queryKey: trpc.transactions.getById.queryKey({ id: transactionId }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.transactions.get.infiniteQueryKey(),
-        });
-
+        invalidateTransactionQueries();
         showLearningToast();
       },
     }),
@@ -58,15 +56,11 @@ export function SuggestedMatch({
 
   const declineMutation = useMutation(
     trpc.inbox.declineMatch.mutationOptions({
+      // Declining leaves the payment on the missing list and takes its
+      // suggestion away, so the row stays and its marker goes — which is still
+      // a change the list has to show.
       onSuccess: () => {
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({
-          queryKey: trpc.transactions.getById.queryKey({ id: transactionId }),
-        });
-        queryClient.invalidateQueries({
-          queryKey: trpc.transactions.get.infiniteQueryKey(),
-        });
-
+        invalidateTransactionQueries();
         showLearningToast();
       },
     }),
