@@ -120,6 +120,64 @@ export function isExactAmountMatch(
   return Math.abs(Math.abs(amount1) - Math.abs(amount2)) < 0.01;
 }
 
+/**
+ * How many characters a reference must have before it is searched for inside a
+ * bank description (FF-1548).
+ *
+ * FF-1493 compares two invoice numbers to each other and uses four, which is
+ * right for that: both sides are references, so a short one is still a whole
+ * one. This is a **substring search over free text**, where four characters
+ * collide by accident — a bank line is full of short runs of digits. Six found
+ * nothing spurious across the live set.
+ */
+export const MINIMUM_REFERENCE_LENGTH = 6;
+
+/**
+ * A reference reduced to what both sides can agree on: upper case, and every
+ * character that is not a letter or a digit removed.
+ *
+ * Stripping rather than replacing is the whole point. A structured Belgian
+ * reference is printed on the invoice as `0001/0001/BE/2502981850` and arrives
+ * on the bank line as `Betaling Leasing 0001 0001 Be 2502981850` — the same
+ * characters, grouped differently and punctuated differently. The matcher's
+ * existing normaliser turns punctuation into spaces and leaves `/` alone, so it
+ * finds neither of this ticket's two examples; with the separators gone both are
+ * plain substrings.
+ */
+export function normalizeStructuredReference(
+  value: string | null | undefined,
+): string {
+  if (!value) return "";
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/**
+ * Whether a document's reference is printed in a transaction's text.
+ *
+ * This is how a Belgian direct debit, a leasing schedule and a structured
+ * transfer all identify themselves, so it recurs every month forever — twelve
+ * leasing payments on the live books, about €13,900, where the supplier name
+ * shares nothing with the bank line and the payment lands two weeks after the
+ * invoice date. It fails on every axis the matcher looks at while the answer is
+ * sitting in the description.
+ */
+export function referenceAppearsIn(
+  reference: string | null | undefined,
+  ...text: (string | null | undefined)[]
+): boolean {
+  const needle = normalizeStructuredReference(reference);
+
+  if (needle.length < MINIMUM_REFERENCE_LENGTH) return false;
+
+  // Each field on its own, never joined first. Stripping the separators out of
+  // a concatenation would let a reference straddle two of them — the tail of a
+  // merchant name and the head of a description forming a run of digits that
+  // neither field contains.
+  return text.some((field) =>
+    normalizeStructuredReference(field).includes(needle),
+  );
+}
+
 export const COMMON_VAT_RATES = [
   0.05, 0.06, 0.07, 0.075, 0.08, 0.1, 0.12, 0.19, 0.2, 0.21, 0.22, 0.25,
 ] as const;
@@ -239,10 +297,10 @@ export function calculateAmountScore(
   item1: AmountComparableItem,
   item2: AmountComparableItem,
 ): number {
+  // The currencies are read inside `alignAmounts`, which is what decides which
+  // two numbers these are.
   const amount1 = item1.amount;
-  const currency1 = item1.currency;
   const amount2 = item2.amount;
-  const currency2 = item2.currency;
 
   if (!amount1 || !amount2) return 0.5;
 
@@ -494,6 +552,37 @@ export function calculateNameScore(
   return scores.length > 0 ? Math.max(...scores) : 0;
 }
 
+/**
+ * What a document's reference establishes about a transaction (FF-1548).
+ *
+ * `"identifies-one"` — the reference is printed on the bank line, the amounts
+ * agree, **and exactly one candidate satisfies both**. All three, which together
+ * name the payment outright.
+ *
+ * `"inconclusive"` — the reference was found and does not single out one payment.
+ * Two ways that happens, and both were measured on the live books:
+ *
+ * - **The amounts differ.** Xerius reuses one structured reference across
+ *   instalments: it sits on two invoices of €2,406.58 and €1,214.70 while the
+ *   one transaction carrying it is €1,260.18. Acting on the number alone attaches
+ *   the wrong assessment.
+ * - **Several candidates satisfy it equally.** A monthly leasing schedule puts
+ *   one reference on every invoice and every payment, and every instalment is the
+ *   same amount — so reference-plus-amount picks out twelve transactions rather
+ *   than one. Of 13 live cases where this rule disagreed with an attachment
+ *   Midday had already made, 10 were this: the attached transaction carried the
+ *   reference too. The reference identifies the *contract*, not the instalment.
+ *
+ * Either way it is capped to a suggestion, for a person to settle.
+ */
+export type ReferenceEvidence = "identifies-one" | "inconclusive" | "none";
+
+/** A reference that does not single out one payment stays below the bulk-confirm bar. */
+const INCONCLUSIVE_REFERENCE_CEILING = 0.94;
+
+/** A reference that names exactly one payment is as certain as this matcher gets. */
+const CONCLUSIVE_REFERENCE_FLOOR = 0.97;
+
 type ScoreMatchInput = {
   nameScore: number;
   amountScore: number;
@@ -502,6 +591,7 @@ type ScoreMatchInput = {
   isSameCurrency: boolean;
   isExactAmount: boolean;
   declinePenalty?: number;
+  referenceEvidence?: ReferenceEvidence;
 };
 
 export function scoreMatch({
@@ -512,6 +602,7 @@ export function scoreMatch({
   isSameCurrency,
   isExactAmount,
   declinePenalty = 0,
+  referenceEvidence = "none",
 }: ScoreMatchInput): number {
   // Cross-currency with a strong name match: the vendor is already identified,
   // so amount differences are mostly FX noise. Shift weight toward date to
@@ -559,6 +650,15 @@ export function scoreMatch({
 
   if (declinePenalty > 0) {
     confidence -= declinePenalty;
+  }
+
+  // Last, and after the penalty, because this is the strongest evidence the
+  // matcher has and the weakest — depending entirely on whether the amounts
+  // agree too.
+  if (referenceEvidence === "identifies-one") {
+    confidence = Math.max(confidence, CONCLUSIVE_REFERENCE_FLOOR);
+  } else if (referenceEvidence === "inconclusive") {
+    confidence = Math.min(confidence, INCONCLUSIVE_REFERENCE_CEILING);
   }
 
   return Math.max(0, Math.min(1, confidence));
