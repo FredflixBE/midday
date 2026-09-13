@@ -13,6 +13,7 @@
  * leasing and structured transfers all work, so this recurs every month forever.
  */
 import { describe, expect, test } from "bun:test";
+import { resolveMatchType } from "../queries/transaction-matching";
 import {
   MINIMUM_REFERENCE_LENGTH,
   normalizeStructuredReference,
@@ -174,6 +175,26 @@ describe("what a reference is worth", () => {
     expect(ambiguous).toBeLessThan(0.95);
   });
 
+  test("a decline the team keeps making still pulls the score down", () => {
+    // The floor is applied before the decline penalty on purpose. Applied after,
+    // it would erase what a person has repeatedly rejected for this pair of
+    // names and hand the match straight back to them.
+    const undeclined = scoreMatch({
+      ...weakOnEveryOtherAxis,
+      isExactAmount: true,
+      referenceEvidence: "identifies-one",
+    });
+    const declined = scoreMatch({
+      ...weakOnEveryOtherAxis,
+      isExactAmount: true,
+      referenceEvidence: "identifies-one",
+      declinePenalty: 0.3,
+    });
+
+    expect(declined).toBeLessThan(undeclined);
+    expect(declined).toBeCloseTo(undeclined - 0.3, 5);
+  });
+
   test("an exact amount on its own is still not a certain match", () => {
     // Never on amount alone. FF-1499 measured the cost: two of six hand-made
     // amount guesses were wrong — €166.08 Figma to a €167.00 restaurant bill,
@@ -185,5 +206,39 @@ describe("what a reference is worth", () => {
     });
 
     expect(confidence).toBeLessThan(0.97);
+  });
+});
+
+describe("never automatic", () => {
+  // The lowest a team's calibration can put the auto-match threshold:
+  // `clamp(suggested + 0.24, 0.88, 0.95)`.
+  const LOWEST_AUTO_THRESHOLD = 0.88;
+
+  test("an inconclusive reference cannot auto-match, whatever the calibration", () => {
+    // Capping the confidence at 0.94 was not enough on its own: 0.94 clears 0.88,
+    // and finding the reference sets nameScore to 0.95, which clears that gate
+    // too. So the refusal lives where "automatic" is decided.
+    expect(
+      resolveMatchType(0.94, true, 0.95, LOWEST_AUTO_THRESHOLD, "inconclusive"),
+    ).toBe("high_confidence");
+  });
+
+  test("a reference that names one payment is still allowed to", () => {
+    // Only reachable with MATCH_AUTO_ENABLED set, which is how it was before.
+    expect(
+      resolveMatchType(
+        0.97,
+        true,
+        0.95,
+        LOWEST_AUTO_THRESHOLD,
+        "identifies-one",
+      ),
+    ).not.toBe("suggested");
+  });
+
+  test("a pair with no reference is decided exactly as it was", () => {
+    expect(resolveMatchType(0.8, true, 0.9, 0.95, "none")).toBe(
+      resolveMatchType(0.8, true, 0.9, 0.95),
+    );
   });
 });

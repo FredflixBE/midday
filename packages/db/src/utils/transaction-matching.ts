@@ -648,17 +648,24 @@ export function scoreMatch({
     confidence *= 0.65;
   }
 
-  if (declinePenalty > 0) {
-    confidence -= declinePenalty;
-  }
-
-  // Last, and after the penalty, because this is the strongest evidence the
-  // matcher has and the weakest — depending entirely on whether the amounts
-  // agree too.
+  // The reference is documentary evidence about this pair, so it is applied over
+  // the name and date multipliers above — a reference printed on the bank line
+  // is worth more than a name score of zero, which is the whole of FF-1548: the
+  // twelve leasing payments share no words with their invoices at all.
+  //
+  // But *before* the decline penalty, deliberately. That penalty is what a
+  // person has repeatedly declined for this pair of names, and a floor applied
+  // after it would erase that and hand back the match they kept rejecting. The
+  // order means the reference lifts the pair and their judgement still pulls it
+  // down.
   if (referenceEvidence === "identifies-one") {
     confidence = Math.max(confidence, CONCLUSIVE_REFERENCE_FLOOR);
   } else if (referenceEvidence === "inconclusive") {
     confidence = Math.min(confidence, INCONCLUSIVE_REFERENCE_CEILING);
+  }
+
+  if (declinePenalty > 0) {
+    confidence -= declinePenalty;
   }
 
   return Math.max(0, Math.min(1, confidence));

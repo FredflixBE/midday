@@ -24,6 +24,7 @@ import {
   calculateNameScore,
   isExactAmountMatch,
   type MatchType,
+  type ReferenceEvidence,
   referenceAppearsIn,
   scoreMatch,
 } from "../utils/transaction-matching";
@@ -589,12 +590,26 @@ function computeDeclinePenalty(
 
 const AUTO_MATCH_ENABLED = process.env.MATCH_AUTO_ENABLED === "true";
 
-function resolveMatchType(
+/** Exported for the test that "never automatic" is actually never (FF-1548). */
+export function resolveMatchType(
   confidence: number,
   canAutoMatch: boolean,
   nameScore: number,
   autoThreshold: number,
+  referenceEvidence: ReferenceEvidence = "none",
 ): MatchType {
+  // A reference that was found and settles nothing is a warning, not evidence,
+  // and FF-1548 is explicit that it must never act on its own: Xerius reuses one
+  // structured reference across instalments, so acting would attach the wrong
+  // assessment. Capping the confidence at 0.94 is not enough by itself — a
+  // team's calibrated auto threshold is `clamp(suggested + 0.24, 0.88, 0.95)`,
+  // so 0.94 clears it for a team calibrated low, and finding the reference sets
+  // `nameScore` to 0.95, which clears the gate below. So the refusal is stated
+  // here, where "automatic" is actually decided.
+  if (referenceEvidence === "inconclusive") {
+    return confidence >= 0.72 ? "high_confidence" : "suggested";
+  }
+
   if (
     AUTO_MATCH_ENABLED &&
     confidence >= autoThreshold &&
@@ -853,6 +868,7 @@ export async function findMatches(
         pattern.canAutoMatch,
         nameScore,
         autoThreshold,
+        referenceEvidence,
       ),
       isAlreadyMatched: false,
     };
@@ -1097,6 +1113,7 @@ export async function findInboxMatches(
         pattern.canAutoMatch,
         nameScore,
         autoThreshold,
+        referenceEvidence,
       ),
       isAlreadyMatched: false,
     };
