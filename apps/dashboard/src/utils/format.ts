@@ -217,3 +217,55 @@ export function formatCompactAmount(
   });
   return `${formatted}k`;
 }
+
+type ConversionParams = {
+  /** The amount as billed, in `originalCurrency`. */
+  originalAmount: number | null;
+  /** The currency the charge was actually made in. */
+  originalCurrency: string | null;
+  /** The currency the charge was settled in. */
+  currency: string;
+  locale?: string | null;
+};
+
+/**
+ * What a foreign-currency charge originally cost, in words (FF-1560).
+ *
+ * One fact: the amount the supplier billed, in the currency they billed it in,
+ * formatted to the reader's locale. It sits under the euro that actually left
+ * the account, and together they are the whole story — $19.95 was asked for,
+ * €17.57 was taken.
+ *
+ * **No exchange rate.** The first version showed one and Frederik's verdict on
+ * reading it against the real books was that it "doesn't add any meaningful
+ * information". He is right, and it was worse than useless: the rate came from
+ * the accountant's ledger and is a coarse periodic figure, so it does not
+ * reconcile with the two amounts printed beside it. Measured over the 62 live
+ * foreign charges — five distinct stated rates against true rates spanning
+ * 1.12045 to 1.16961, and only 3 of 62 reconciling, the worst out by €1.04. A
+ * number that invites a person to check it and then fails the check is a defect,
+ * and the rate is recoverable exactly by dividing the two amounts anyway.
+ *
+ * Returns null when there is nothing to describe, which is most transactions.
+ */
+export function formatConversion({
+  originalAmount,
+  originalCurrency,
+  currency,
+  locale,
+}: ConversionParams): string | null {
+  if (originalAmount == null || !originalCurrency) return null;
+
+  // A charge in the currency it was settled in is not a conversion, so there is
+  // nothing to say that the amount above does not already say.
+  if (originalCurrency === currency) return null;
+
+  const original = formatAmount({
+    amount: originalAmount,
+    currency: originalCurrency,
+    locale,
+    maximumFractionDigits: 2,
+  });
+
+  return original ? `Originally ${original}` : null;
+}

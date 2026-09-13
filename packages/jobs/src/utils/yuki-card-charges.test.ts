@@ -3,7 +3,6 @@ import type { YukiCardCharge } from "@midday/yuki";
 import {
   cardChargeWindow,
   countCharges,
-  foreignAmountNote,
   toBooksStatusEntries,
   toUpsertTransactions,
 } from "./yuki-card-charges";
@@ -51,13 +50,94 @@ describe("a charge as an ordinary transaction", () => {
     ]);
 
     // Not -29 converted by us: 25.57 is what the books hold, conversion and
-    // card fees included. The original is shown beside it.
+    // card fees included. The original is recorded beside it.
     expect(transaction?.amount).toBe(-25.57);
-    expect(transaction?.description).toBe("USD 29.00 at 1.13");
+    expect(transaction?.currency).toBe("EUR");
+  });
+
+  test("records what a foreign charge originally cost, as data", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({
+        amount: -25.57,
+        foreign: { currency: "USD", amount: -29, rate: 1.13 },
+      }),
+    ]);
+
+    // It used to be the sentence `USD 29.00 at 1.13` written into
+    // `description`, which nothing could format, convert or query (FF-1560).
+    expect(transaction?.original_amount).toBe(29);
+    expect(transaction?.original_currency).toBe("USD");
+    expect(transaction?.exchange_rate).toBe(1.13);
+  });
+
+  test("leaves description empty rather than restating the conversion", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({
+        merchant: "CURSOR AI",
+        // The real shape: Yuki's description is what the conversion is parsed
+        // *out of*, so passing it through would swap `USD 18.60 at 1.15` for a
+        // longer restatement of the same thing in Dutch.
+        description:
+          "MASTERCARD - Kaartverrichtingen - CURSOR AI - Vreemde valuta: USD -18,60 Wisselkoers: 1,1553 - CURSOR AI",
+        foreign: { currency: "USD", amount: -18.6, rate: 1.1553 },
+      }),
+    ]);
+
+    expect(transaction?.description).toBeNull();
+
+    // Because every part of that string is already a field of its own.
+    expect(transaction?.name).toBe("CURSOR AI");
+    expect(transaction?.method).toBe("card_purchase");
+    expect(transaction?.original_amount).toBe(18.6);
+    expect(transaction?.exchange_rate).toBe(1.1553);
+  });
+
+  test("stores no number it could not parse", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({
+        // What a shape nobody anticipated leaves behind. Harmless while this was
+        // prose; `numeric` accepts NaN, so a column would have kept it.
+        foreign: { currency: "USD", amount: Number.NaN, rate: Number.NaN },
+      }),
+    ]);
+
+    expect(transaction?.original_amount).toBeNull();
+    expect(transaction?.exchange_rate).toBeNull();
+    // The currency is still known, and still worth saying.
+    expect(transaction?.original_currency).toBe("USD");
+  });
+
+  test("a charge already in euro is not a conversion", () => {
+    const [transaction] = toUpsertTransactions([
+      charge({ foreign: { currency: "EUR", amount: -21.4, rate: 1 } }),
+    ]);
+
+    expect(transaction?.original_amount).toBeNull();
+    expect(transaction?.original_currency).toBeNull();
+    expect(transaction?.exchange_rate).toBeNull();
   });
 
   test("says nothing about currency for a charge made in euro", () => {
-    expect(foreignAmountNote(charge())).toBeNull();
+    const [transaction] = toUpsertTransactions([charge()]);
+
+    expect(transaction?.original_amount).toBeNull();
+    expect(transaction?.original_currency).toBeNull();
+    expect(transaction?.exchange_rate).toBeNull();
+  });
+
+  test("the rate is stored so that the original divided by it is the euro", () => {
+    const [transaction] = toUpsertTransactions([
+      // The worked example from the ticket: $18.60 billed as €16.10.
+      charge({
+        amount: -16.1,
+        foreign: { currency: "USD", amount: -18.6, rate: 1.1553 },
+      }),
+    ]);
+
+    const original = transaction?.original_amount ?? 0;
+    const rate = transaction?.exchange_rate ?? 1;
+
+    expect(original / rate).toBeCloseTo(Math.abs(transaction?.amount ?? 0), 2);
   });
 
   test("prefers the name the accountant gave the counterparty", () => {

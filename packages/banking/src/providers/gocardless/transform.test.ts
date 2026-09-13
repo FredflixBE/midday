@@ -648,3 +648,78 @@ test("GoCardless leaves the counterparty IBAN null even when it sends one", () =
   // The entry reference has no such ambiguity: it identifies the entry, not a party.
   expect(transaction.entry_reference).toBe("5490990006");
 });
+
+/**
+ * What a foreign-currency charge originally cost (FF-1560).
+ *
+ * GoCardless sends `currencyExchange` and no instructed amount, so the rate and
+ * the source currency are all there is to keep. `exchangeRate` converts source
+ * into target, so it is stored as its reciprocal — the one direction every
+ * provider is normalised to, original currency per unit of charged currency.
+ */
+const usdCardCharge = {
+  transactionId: "gc-fx-1",
+  bookingDate: "2026-08-16",
+  transactionAmount: { amount: "-16.10", currency: "EUR" },
+  currencyExchange: [
+    {
+      // One dollar bought 0.86556 euros.
+      exchangeRate: "0.86556",
+      sourceCurrency: "USD",
+      targetCurrency: "EUR",
+    },
+  ],
+  proprietaryBankTransactionCode: "CARD",
+  internalTransactionId: "gc-fx-1-internal",
+};
+
+test("A foreign charge keeps its source currency and the rate, inverted to one direction", () => {
+  const transaction = transformTransaction({
+    accountType: "credit",
+    transaction: usdCardCharge,
+  });
+
+  expect(transaction.original_currency).toBe("USD");
+  expect(transaction.exchange_rate).toBeCloseTo(1.1553, 4);
+
+  // GoCardless sends no instructed amount, and multiplying one out of the euro
+  // figure would land near the billed amount rather than on it.
+  expect(transaction.original_amount).toBeNull();
+});
+
+test("A rate whose target is not what was charged is dropped, not reinterpreted", () => {
+  const transaction = transformTransaction({
+    accountType: "credit",
+    transaction: {
+      ...usdCardCharge,
+      currencyExchange: [
+        {
+          exchangeRate: "0.86556",
+          sourceCurrency: "USD",
+          // Converts to sterling, while the charge was in euro — so "target per
+          // source" is not the rate that applied here.
+          targetCurrency: "GBP",
+        },
+      ],
+    },
+  });
+
+  expect(transaction.original_currency).toBe("USD");
+  expect(transaction.exchange_rate).toBeNull();
+});
+
+test("A domestic charge carries none of it", () => {
+  const transaction = transformTransaction({
+    accountType: "depository",
+    transaction: {
+      transactionId: "gc-domestic-1",
+      bookingDate: "2026-08-16",
+      transactionAmount: { amount: "-42.00", currency: "EUR" },
+      internalTransactionId: "gc-domestic-1-internal",
+    },
+  });
+
+  expect(transaction.original_amount).toBeNull();
+  expect(transaction.original_currency).toBeNull();
+  expect(transaction.exchange_rate).toBeNull();
+});

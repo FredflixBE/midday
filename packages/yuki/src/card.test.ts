@@ -279,6 +279,21 @@ describe("a card charge's description", () => {
     });
   });
 
+  it("reads a charge of a thousand or more, thousands group and all", () => {
+    // The dots are thousands groups, so they go before the comma becomes the
+    // decimal point. Replacing only the comma left `1.234.56`, which is NaN —
+    // cosmetic while this was prose, stored since FF-1560 gave it a numeric
+    // column.
+    expect(
+      parseCardChargeDescription(
+        "MASTERCARD - Kaartverrichtingen - EXAMPLE INC  NEW YORK  NY - Vreemde valuta: USD -1.234,56 Wisselkoers: 1,0825 - EXAMPLE INC  NEW YORK  NY",
+      ),
+    ).toEqual({
+      merchant: "EXAMPLE INC NEW YORK NY",
+      foreign: { currency: "USD", amount: -1234.56, rate: 1.0825 },
+    });
+  });
+
   it("answers with the whole thing when it is shaped like nothing known", () => {
     expect(parseCardChargeDescription("A hand-typed correction")).toEqual({
       merchant: "A hand-typed correction",
