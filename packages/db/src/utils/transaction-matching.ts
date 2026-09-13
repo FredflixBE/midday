@@ -91,16 +91,33 @@ export function alignAmounts(
  * One function rather than the expression that used to sit inline at each call
  * site, because that expression subtracted the two amounts whatever currency
  * they were in — so a $100 invoice and a €100 charge read as an exact match and
- * took the 0.92 floor with them.
+ * took the 0.92 floor with them (`scoreMatch` grants that floor without
+ * requiring the currencies to agree).
+ *
+ * That is the only case this refuses. Where `alignAmounts` cannot bring the two
+ * into one currency for some *other* reason — a document whose amount was
+ * extracted and whose currency was not, or a pair that is genuinely zero — the
+ * comparison falls back to what it did before FF-1561. Refusing those as well
+ * would quietly take the floor away from matches that used to have it, which is
+ * not what this ticket is for.
  */
 export function isExactAmountMatch(
   item1: AmountComparableItem,
   item2: AmountComparableItem,
 ): boolean {
   const aligned = alignAmounts(item1, item2);
-  if (!aligned) return false;
+  if (aligned) return Math.abs(aligned.amount1 - aligned.amount2) < 0.01;
 
-  return Math.abs(aligned.amount1 - aligned.amount2) < 0.01;
+  const { amount: amount1, currency: currency1 } = item1;
+  const { amount: amount2, currency: currency2 } = item2;
+
+  if (amount1 == null || amount2 == null) return false;
+
+  // Two currencies that are both known and differ, with no original to compare
+  // through: whatever these two numbers are, they are not the same money.
+  if (currency1 && currency2 && currency1 !== currency2) return false;
+
+  return Math.abs(Math.abs(amount1) - Math.abs(amount2)) < 0.01;
 }
 
 export const COMMON_VAT_RATES = [
@@ -258,6 +275,10 @@ export function calculateAmountScore(
       // simply differ.
       if (alignedDiff <= 0.03) return 0.95;
       if (alignedDiff <= 0.05) return 0.88;
+      // Granted on `originalCurrency` alone, without requiring the amount: a
+      // charge we know was converted got its settled figure through a rate
+      // whether or not the provider told us the amount behind it. GoCardless is
+      // exactly that case.
     } else {
       if (alignedDiff <= 0.02) return 0.95;
       if (alignedDiff <= 0.05) return 0.85;
@@ -266,6 +287,9 @@ export function calculateAmountScore(
     if (alignedDiff <= 0.1) return 0.6;
     if (alignedDiff <= 0.2) return 0.3;
 
+    // The VAT ladder now also runs for a pair aligned through the original,
+    // which it did not before — and should: those two numbers are in one
+    // currency, so a 1.21 ratio between them really is VAT rather than a rate.
     const alignedRatio =
       maxAligned / Math.max(Math.min(aligned.amount1, aligned.amount2), 1e-9);
     const alignedRatioMinusOne = alignedRatio - 1;

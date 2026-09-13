@@ -768,6 +768,11 @@ export async function getInboxSearch(
         currency: string | null;
         baseAmount: number | null;
         baseCurrency: string | null;
+        // Declared, not merely selected. The scorer reads these off this object,
+        // and a type that omitted them said the FF-1561 fix was inert here while
+        // it silently worked — until somebody rebuilt the object from the type.
+        originalAmount: number | null;
+        originalCurrency: string | null;
         date: string;
         merchantName: string | null;
         counterpartyName: string | null;

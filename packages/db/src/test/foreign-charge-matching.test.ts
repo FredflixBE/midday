@@ -175,6 +175,60 @@ describe("what exactness means across currencies", () => {
       ),
     ).toBe(false);
   });
+
+  test("a document whose currency was never extracted is compared as before", () => {
+    // Refusing this would take the confidence floor away from matches that used
+    // to have it, for a reason that has nothing to do with exchange rates: we
+    // cannot say the currencies differ, so we do not.
+    expect(
+      isExactAmountMatch(
+        { amount: 120, currency: null },
+        { amount: -120, currency: "EUR" },
+      ),
+    ).toBe(true);
+  });
+
+  test("two amounts of zero are what they always were", () => {
+    expect(
+      isExactAmountMatch(
+        { amount: 0, currency: "EUR" },
+        { amount: 0, currency: "EUR" },
+      ),
+    ).toBe(true);
+  });
+
+  test("the answer does not depend on the order of the arguments", () => {
+    // Three of the six call sites pass (transaction, document) rather than
+    // (document, transaction).
+    const invoice = { amount: 100, currency: "USD" };
+    const charge = {
+      amount: -86.76,
+      currency: "EUR",
+      originalAmount: 100,
+      originalCurrency: "USD",
+    };
+
+    expect(isExactAmountMatch(charge, invoice)).toBe(
+      isExactAmountMatch(invoice, charge),
+    );
+    expect(calculateAmountScore(charge, invoice)).toBe(
+      calculateAmountScore(invoice, charge),
+    );
+  });
+
+  test("a converted charge with no original amount still gets the wider band", () => {
+    // GoCardless sends the currency and the rate and never an amount. The euro
+    // figure still got there through a rate, so the spread argument holds.
+    const invoice = { amount: 15.72, currency: "EUR" };
+    const charge = {
+      amount: -16.1,
+      currency: "EUR",
+      originalAmount: null,
+      originalCurrency: "USD",
+    };
+
+    expect(calculateAmountScore(invoice, charge)).toBe(0.95);
+  });
 });
 
 describe("the rate direction FF-1560 settled", () => {
