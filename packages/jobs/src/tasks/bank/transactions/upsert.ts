@@ -1,4 +1,6 @@
+import { getDb } from "@jobs/init";
 import { transformTransaction } from "@jobs/utils/transform";
+import { fillTransactionIdentifiers } from "@midday/db/queries";
 import { createClient } from "@midday/supabase/job";
 import { logger, schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
@@ -62,6 +64,35 @@ export const upsertTransactions = schemaTask({
         })
         .select("id")
         .throwOnError();
+
+      // The rows that upsert just skipped still want their identifiers. The
+      // bank re-serves a rolling ~85 days and every transaction in it comes back
+      // carrying its IBAN and ISO 20022 code — including ones stored long before
+      // Midday kept them, from a payload that did not have them. Skipping the
+      // row threw those away at the door, which is why FF-1557 believed these
+      // fields could only fill forward.
+      //
+      // Only ever fills a hole: `fillTransactionIdentifiers` coalesces per
+      // column and touches nothing else, so a category somebody chose and a
+      // merchant name the enrichment worked out both survive — which is the
+      // reason the upsert skips these rows in the first place.
+      const filled = await fillTransactionIdentifiers(getDb(), {
+        teamId,
+        entries: formattedTransactions.map((transaction) => ({
+          internalId: transaction.internal_id,
+          counterpartyIban: transaction.counterparty_iban,
+          bankTransactionCode: transaction.bank_transaction_code,
+          bankTransactionSubCode: transaction.bank_transaction_sub_code,
+          entryReference: transaction.entry_reference,
+        })),
+      });
+
+      if (filled > 0) {
+        logger.info("Filled identifiers on transactions already stored", {
+          filled,
+          teamId,
+        });
+      }
 
       const transactionIds = upsertedTransactions?.map((tx) => tx.id) || [];
 
