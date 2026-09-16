@@ -6,6 +6,13 @@ type FormatAmountParams = {
   locale?: string;
   minimumFractionDigits?: number;
   maximumFractionDigits?: number;
+  /**
+   * Left to `Intl`'s default unless asked for. This formatter also renders
+   * invoices, the client portal and invoice emails, and how a client's
+   * document shows a dollar is not decided by how the app shows one
+   * (FF-1573).
+   */
+  currencyDisplay?: Intl.NumberFormatOptions["currencyDisplay"];
 };
 
 export function formatAmount({
@@ -14,6 +21,7 @@ export function formatAmount({
   locale = "en-US",
   minimumFractionDigits,
   maximumFractionDigits,
+  currencyDisplay,
 }: FormatAmountParams) {
   if (!currency) {
     return;
@@ -22,6 +30,7 @@ export function formatAmount({
   return Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    currencyDisplay,
     minimumFractionDigits,
     maximumFractionDigits,
   }).format(amount);

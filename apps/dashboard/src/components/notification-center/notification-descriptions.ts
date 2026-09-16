@@ -34,6 +34,7 @@ const handleTransactionsCreated: NotificationDescriptionHandler = (
         currency: transaction.currency,
         amount: transaction.amount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) || `${transaction.amount} ${transaction.currency}`;
 
     return t("notifications.transactions_created.single_transaction", {
@@ -247,6 +248,7 @@ const handleInvoiceCreated: NotificationDescriptionHandler = (
         currency: currency,
         amount: amount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) ||
       new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -409,6 +411,7 @@ const handleRecurringInvoiceUpcoming: NotificationDescriptionHandler = (
           currency: invoice.currency,
           amount: invoice.amount,
           locale: user?.locale || "en-US",
+          currencyDisplay: "narrowSymbol",
         }) ||
         new Intl.NumberFormat("en-US", {
           style: "currency",
@@ -463,6 +466,7 @@ const handleInboxAutoMatched: NotificationDescriptionHandler = (
         currency: documentCurrency,
         amount: documentAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) || `${documentAmount} ${documentCurrency}`;
 
     const formattedTransAmount =
@@ -470,6 +474,7 @@ const handleInboxAutoMatched: NotificationDescriptionHandler = (
         currency: transactionCurrency,
         amount: transactionAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) || `${transactionAmount} ${transactionCurrency}`;
 
     return t("notifications.inbox_auto_matched.cross_currency_details", {
@@ -495,6 +500,7 @@ const handleInboxAutoMatched: NotificationDescriptionHandler = (
         currency: finalCurrency,
         amount: finalAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) ||
       new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -546,6 +552,7 @@ const handleInboxNeedsReview: NotificationDescriptionHandler = (
         currency: documentCurrency,
         amount: documentAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) || `${documentAmount} ${documentCurrency}`;
 
     const formattedTransAmount =
@@ -553,6 +560,7 @@ const handleInboxNeedsReview: NotificationDescriptionHandler = (
         currency: transactionCurrency,
         amount: transactionAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) || `${transactionAmount} ${transactionCurrency}`;
 
     if (matchType === "high_confidence") {
@@ -581,6 +589,7 @@ const handleInboxNeedsReview: NotificationDescriptionHandler = (
         currency: documentCurrency,
         amount: documentAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) || `${documentAmount} ${documentCurrency}`;
 
     if (matchType === "high_confidence") {
@@ -639,6 +648,7 @@ const handleInboxCrossCurrencyMatched: NotificationDescriptionHandler = (
         currency: documentCurrency,
         amount: documentAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) ||
       new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -650,6 +660,7 @@ const handleInboxCrossCurrencyMatched: NotificationDescriptionHandler = (
         currency: transactionCurrency,
         amount: transactionAmount,
         locale: user?.locale || "en-US",
+        currencyDisplay: "narrowSymbol",
       }) ||
       new Intl.NumberFormat("en-US", {
         style: "currency",

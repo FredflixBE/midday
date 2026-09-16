@@ -60,6 +60,11 @@ export function formatAmount({
     return Intl.NumberFormat(safeLocale, {
       style: "currency",
       currency: normalizedCurrency,
+      // "$ 19,95", not "US$ 19,95" (FF-1573). Under the default display a
+      // non-US locale disambiguates the dollar, so a Belgian reader saw "US$"
+      // beside an invoice printed in plain dollars. Euro is unaffected; the
+      // cost is that other dollars also read "$", and none are in these books.
+      currencyDisplay: "narrowSymbol",
       minimumFractionDigits,
       maximumFractionDigits,
     }).format(safeAmount);
