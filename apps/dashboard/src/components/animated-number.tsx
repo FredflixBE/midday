@@ -43,6 +43,8 @@ export function AnimatedNumber({
       format={{
         style: "currency",
         currency: currency ?? "USD",
+        // Same display as `formatAmount` (FF-1573).
+        currencyDisplay: "narrowSymbol",
         minimumFractionDigits,
         maximumFractionDigits,
       }}
