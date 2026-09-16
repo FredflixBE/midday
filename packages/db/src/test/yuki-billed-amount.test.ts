@@ -17,6 +17,7 @@ import { matchTransaction } from "../queries/inbox";
 import {
   getYukiInboxIdsForBilledAmount,
   getYukiInboxRowForBilledAmount,
+  markYukiBilledAmountRead,
   setYukiInboxBilledAmount,
 } from "../queries/yuki-inbox";
 import { inbox, transactionAttachments, transactions } from "../schema";
@@ -214,6 +215,40 @@ describe.skipIf(SKIP)("giving a pulled invoice what it billed", () => {
     expect(
       await getYukiInboxIdsForBilledAmount(db, { teamId: TEAM_EUR_ID }),
     ).toEqual([]);
+  });
+
+  test("a row read and left alone is not offered to the next backfill", async () => {
+    // A euro invoice is read, found already right, and changed in nothing — but
+    // it cost an extraction, and a second backfill must not buy it again.
+    await insertPulled({ meta: { source: "yuki" } });
+
+    await markYukiBilledAmountRead(db, {
+      teamId: TEAM_EUR_ID,
+      inboxId: PULLED,
+      outcome: "same-currency",
+    });
+
+    expect(
+      await getYukiInboxIdsForBilledAmount(db, { teamId: TEAM_EUR_ID }),
+    ).toEqual([]);
+    expect(
+      (
+        await getYukiInboxRowForBilledAmount(db, {
+          teamId: TEAM_EUR_ID,
+          inboxId: PULLED,
+        })
+      )?.alreadyRead,
+    ).toBe(true);
+
+    // Merged into meta, not replacing what was there.
+    const [row] = await db
+      .select({ meta: inbox.meta })
+      .from(inbox)
+      .where(eq(inbox.id, PULLED));
+    expect(row?.meta).toEqual({
+      source: "yuki",
+      billedAmountRead: "same-currency",
+    });
   });
 
   describe("matching a document to its transaction", () => {

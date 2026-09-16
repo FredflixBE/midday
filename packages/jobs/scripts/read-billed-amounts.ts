@@ -5,8 +5,8 @@
  *   bun run --cwd packages/jobs read-billed-amounts            # counts what it would read
  *   bun run --cwd packages/jobs read-billed-amounts --confirm  # triggers the reads
  *
- * **Dry by default.** The dry pass counts the pulled rows that still carry only
- * Yuki's booked amount, and writes nothing.
+ * **Dry by default.** The dry pass counts the pulled rows whose invoice has not
+ * been read yet, and writes nothing.
  *
  * ## Why this exists
  *
@@ -21,9 +21,10 @@
  * total agrees with the booked one. A euro invoice, an unreadable one, and a row
  * somebody corrected by hand are all left alone.
  *
- * **It costs one extraction per row** — OCR plus a model call — and the task
- * skips a row it has already corrected, so running this twice costs the second
- * time nothing. It does not re-run the matcher: see the task for why.
+ * **It costs one extraction per row** — OCR plus a model call. Each read
+ * records its decision on the row, corrected or not, so running this twice
+ * costs the second time nothing. It does not re-run the matcher: see the task
+ * for why.
  *
  * Prints no supplier names, amounts or invoice numbers: this repository is
  * public.
@@ -55,7 +56,7 @@ async function main() {
 
     console.log(`\nteam ${teamId.slice(0, 8)}…`);
     console.log(
-      `  ${inboxIds.length} pulled rows still carry only the booked amount`,
+      `  ${inboxIds.length} pulled rows not yet read for their billed amount`,
     );
 
     if (!write) {

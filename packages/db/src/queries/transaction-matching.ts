@@ -729,6 +729,21 @@ export async function findMatches(
               sql`${transactions.baseCurrency} IS NOT NULL`,
               sql`ABS(ABS(COALESCE(${transactions.baseAmount}, 0)) - ${inboxBaseAmount}) < GREATEST(50, ${inboxBaseAmount} * 0.15)`,
             ),
+            // A document in the currency the charge was originally made in: a
+            // $19.95 invoice against a card charge that took €17.57 for $19.95.
+            // Without this the pair reached the scorer only through a name
+            // match, so FF-1561's comparison of originals never saw the rest.
+            and(
+              eq(transactions.originalCurrency, inboxItem.currency || ""),
+              sql`ABS(COALESCE(${transactions.originalAmount}, 0) - ${inboxAmount}) < GREATEST(1, ${inboxAmount} * 0.25)`,
+            ),
+            // A document whose booked amount is in the transaction's currency:
+            // a pulled foreign invoice keeps Yuki's euro here (FF-1572), which is
+            // what it was compared on before it carried its own currency.
+            and(
+              eq(transactions.currency, inboxItem.baseCurrency || ""),
+              sql`ABS(ABS(${transactions.amount}) - ${inboxBaseAmount}) < GREATEST(1, ${inboxBaseAmount} * 0.25)`,
+            ),
           ),
           excludeTransactionIds && excludeTransactionIds.size > 0
             ? sql`${transactions.id} NOT IN (${sql.join(
@@ -948,6 +963,9 @@ export async function findInboxMatches(
   );
   const transactionAmount = Math.abs(transactionItem.amount || 0);
   const transactionBaseAmount = Math.abs(transactionItem.baseAmount || 0);
+  const transactionOriginalAmount = Math.abs(
+    transactionItem.originalAmount || 0,
+  );
 
   const teamPairHistoryPromise = fetchTeamPairHistory(db, teamId);
 
@@ -984,6 +1002,17 @@ export async function findInboxMatches(
               eq(inbox.baseCurrency, transactionItem.baseCurrency || ""),
               sql`${inbox.baseCurrency} IS NOT NULL`,
               sql`ABS(ABS(COALESCE(${inbox.baseAmount}, 0)) - ${transactionBaseAmount}) < GREATEST(50, ${transactionBaseAmount} * 0.15)`,
+            ),
+            // The same two branches as the other direction: a document in the
+            // currency this charge was originally made in, and a document whose
+            // booked amount is in this charge's currency.
+            and(
+              eq(inbox.currency, transactionItem.originalCurrency || ""),
+              sql`ABS(ABS(COALESCE(${inbox.amount}, 0)) - ${transactionOriginalAmount}) < GREATEST(1, ${transactionOriginalAmount} * 0.25)`,
+            ),
+            and(
+              eq(inbox.baseCurrency, transactionItem.currency || ""),
+              sql`ABS(ABS(COALESCE(${inbox.baseAmount}, 0)) - ${transactionAmount}) < GREATEST(1, ${transactionAmount} * 0.25)`,
             ),
           ),
           excludeInboxIds && excludeInboxIds.size > 0

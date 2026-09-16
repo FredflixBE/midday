@@ -83,8 +83,12 @@ export function billedAmountCorrection(params: {
     return { correct: false, reason: "same-currency" };
   }
 
-  const amount = extracted.amount;
-  if (amount === null || !Number.isFinite(amount) || amount <= 0) {
+  // Magnitude only: an extraction may read a credit note's total as positive or
+  // negative, and the sign is taken from the booked amount below, which knows
+  // which one it is.
+  const extractedTotal =
+    extracted.amount === null ? Number.NaN : Math.abs(extracted.amount);
+  if (!Number.isFinite(extractedTotal) || extractedTotal === 0) {
     return { correct: false, reason: "no-amount" };
   }
 
@@ -97,7 +101,7 @@ export function billedAmountCorrection(params: {
   }
 
   const bookedTotal = Math.abs(booked.amount);
-  const converted = amount * rateToBooked;
+  const converted = extractedTotal * rateToBooked;
   if (Math.abs(converted - bookedTotal) / bookedTotal > PLAUSIBLE_BAND) {
     return { correct: false, reason: "implausible" };
   }
@@ -107,13 +111,19 @@ export function billedAmountCorrection(params: {
   return {
     correct: true,
     update: {
-      amount,
+      // Signed like the booked amount, so a credit note stays a credit note: a
+      // -€17.22 booking and a $19.95 extraction become -$19.95, never a positive
+      // amount beside a negative base.
+      amount: Math.sign(booked.amount) * extractedTotal,
       currency,
       // The invoice's own tax, in the invoice's currency — or none. The booked
       // euro VAT cannot stay on a dollar row, and matching copies a document's
       // tax onto its transaction, so a figure in the wrong currency here would
       // travel.
-      taxAmount: tax !== null && Number.isFinite(tax) && tax >= 0 ? tax : null,
+      taxAmount:
+        tax !== null && Number.isFinite(tax)
+          ? Math.sign(booked.amount) * Math.abs(tax)
+          : null,
       baseAmount: booked.amount,
       baseCurrency: booked.currency,
     },

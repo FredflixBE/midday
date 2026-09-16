@@ -184,6 +184,18 @@ export async function createYukiInboxDocument(
   return existing ? { id: existing.id, created: false } : null;
 }
 
+/**
+ * The `meta` key that records a pulled row's invoice has been read for its
+ * billed amount, and what was decided (FF-1572).
+ *
+ * The read costs an extraction, and most rows come out unchanged — a euro
+ * invoice is already right — so "not yet corrected" is not the same as "not yet
+ * read". Without this every backfill and every pull over an unfinished row would
+ * pay again for the same answer. In `meta` rather than a column because it is a
+ * record of work done, not a fact about the invoice.
+ */
+export const YUKI_BILLED_AMOUNT_READ_KEY = "billedAmountRead";
+
 /** A pulled row, as far as reading its invoice's own total needs it. */
 export type YukiInboxRowForBilledAmount = {
   id: string;
@@ -192,6 +204,8 @@ export type YukiInboxRowForBilledAmount = {
   amount: number | null;
   currency: string | null;
   baseCurrency: string | null;
+  /** Whether a read has already reached a decision for this row. */
+  alreadyRead: boolean;
 };
 
 /**
@@ -214,6 +228,7 @@ export async function getYukiInboxRowForBilledAmount(
       amount: inbox.amount,
       currency: inbox.currency,
       baseCurrency: inbox.baseCurrency,
+      alreadyRead: sql<boolean>`(${inbox.meta}::jsonb ->> ${YUKI_BILLED_AMOUNT_READ_KEY}) is not null`,
     })
     .from(inbox)
     .where(
@@ -229,12 +244,13 @@ export async function getYukiInboxRowForBilledAmount(
 }
 
 /**
- * Pulled rows that still carry only the booked amount, oldest first — the set a
- * backfill reads (FF-1572).
+ * Pulled rows whose invoice has not been read for its billed amount yet, oldest
+ * first — the set a backfill reads (FF-1572).
  *
- * A row already corrected has its booked figure in `base_currency`, so leaving
- * those out is what makes a second backfill cost nothing. Deleted rows are left
- * out for the reason `getInboxRowsForYukiPull` gives.
+ * Both a corrected row (its booked figure in `base_currency`) and a row read and
+ * left alone (the marker in `meta`) are left out, which is what makes a second
+ * backfill cost nothing. Deleted rows are left out for the reason
+ * `getInboxRowsForYukiPull` gives.
  */
 export async function getYukiInboxIdsForBilledAmount(
   db: Database,
@@ -248,6 +264,7 @@ export async function getYukiInboxIdsForBilledAmount(
         eq(inbox.teamId, params.teamId),
         sql`${inbox.referenceId} like ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}`,
         isNull(inbox.baseCurrency),
+        sql`(${inbox.meta}::jsonb ->> ${YUKI_BILLED_AMOUNT_READ_KEY}) is null`,
         or(isNull(inbox.status), ne(inbox.status, "deleted")),
       ),
     )
@@ -302,4 +319,21 @@ export async function setYukiInboxBilledAmount(
     .returning({ id: inbox.id });
 
   return rows.length > 0;
+}
+
+/**
+ * Records that a pulled row's invoice was read and what was decided, so it is
+ * not read again (FF-1572). Merged into `meta`, never replacing it: `meta` also
+ * carries where the row came from and why it last failed.
+ */
+export async function markYukiBilledAmountRead(
+  db: Database,
+  params: { teamId: string; inboxId: string; outcome: string },
+): Promise<void> {
+  await db
+    .update(inbox)
+    .set({
+      meta: sql`(coalesce(${inbox.meta}::jsonb, '{}'::jsonb) || jsonb_build_object(${YUKI_BILLED_AMOUNT_READ_KEY}::text, ${params.outcome}::text))::json`,
+    })
+    .where(and(eq(inbox.id, params.inboxId), eq(inbox.teamId, params.teamId)));
 }

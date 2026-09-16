@@ -82,7 +82,7 @@ describe("what leaves Yuki's figures alone", () => {
   });
 
   test("an extraction that read no usable amount", () => {
-    for (const amount of [null, 0, -5, Number.NaN]) {
+    for (const amount of [null, 0, Number.NaN]) {
       expect(
         billedAmountCorrection({
           ...cursor,
@@ -117,6 +117,22 @@ describe("what leaves Yuki's figures alone", () => {
         extracted: { ...cursor.extracted, amount: 180.05 },
       }),
     ).toEqual({ correct: false, reason: "implausible" });
+  });
+});
+
+describe("a credit note", () => {
+  test("stays negative whichever way the extraction reads its total", () => {
+    for (const read of [19.95, -19.95]) {
+      const result = billedAmountCorrection({
+        booked: { amount: -17.22, currency: "EUR" },
+        extracted: { amount: read, currency: "USD", taxAmount: null },
+        rateToBooked: 0.8645,
+      });
+
+      if (!result.correct) throw new Error("expected a correction");
+      expect(result.update.amount).toBe(-19.95);
+      expect(result.update.baseAmount).toBe(-17.22);
+    }
   });
 });
 

@@ -24,6 +24,7 @@ import { describe, expect, test } from "bun:test";
 import {
   alignAmounts,
   calculateAmountScore,
+  calculateCurrencyScore,
   isExactAmountMatch,
   scoreMatch,
 } from "../utils/transaction-matching";
@@ -236,5 +237,58 @@ describe("the rate direction FF-1560 settled", () => {
     const { originalAmount, exchangeRate, amount } = euroCardCharge;
 
     expect(originalAmount / exchangeRate).toBeCloseTo(Math.abs(amount), 2);
+  });
+});
+
+describe("a pulled foreign invoice beside a euro payment with no original (FF-1572)", () => {
+  // The invoice now carries what it billed, $19.95, and keeps Yuki's booked
+  // €17.22 as its base. The payment is plain euro with no original of its own —
+  // a bank transfer, say. Before FF-1572 the pair was compared euro to euro, and
+  // it must not score worse for the invoice telling the truth.
+  const invoice = {
+    amount: 19.95,
+    currency: "USD",
+    baseAmount: 17.22,
+    baseCurrency: "EUR",
+  };
+  const payment = { amount: -17.57, currency: "EUR" };
+
+  test("is compared on the booked euro, across rates", () => {
+    expect(alignAmounts(invoice, payment)).toEqual({
+      amount1: 17.22,
+      amount2: 17.57,
+      acrossRates: true,
+    });
+    expect(alignAmounts(payment, invoice)).toEqual({
+      amount1: 17.57,
+      amount2: 17.22,
+      acrossRates: true,
+    });
+  });
+
+  test("scores what the same pair scored before it carried its own currency", () => {
+    const before = calculateAmountScore(
+      { amount: 17.22, currency: "EUR" },
+      { ...payment, originalAmount: 19.95, originalCurrency: "USD" },
+    );
+
+    expect(calculateAmountScore(invoice, payment)).toBe(before);
+  });
+
+  test("a charge that remembers its original still compares the originals", () => {
+    // The original wins over the base: dollars against dollars is exact.
+    expect(
+      alignAmounts(invoice, {
+        ...payment,
+        originalAmount: 19.95,
+        originalCurrency: "USD",
+      }),
+    ).toEqual({ amount1: 19.95, amount2: 19.95, acrossRates: false });
+  });
+
+  test("the currencies count as convertible, not unrelated", () => {
+    expect(calculateCurrencyScore("USD", "EUR", "EUR", null)).toBe(0.7);
+    expect(calculateCurrencyScore("EUR", "USD", null, "EUR")).toBe(0.7);
+    expect(calculateCurrencyScore("USD", "EUR", null, null)).toBe(0.3);
   });
 });

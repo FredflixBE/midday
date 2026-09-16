@@ -71,6 +71,37 @@ export function alignAmounts(
       };
     }
 
+    // Both sides converted into one base currency: that comparison has its own,
+    // stricter ladder in `calculateAmountScore` — tighter for large transfers —
+    // and the golden dataset is scored on it. Leave it there.
+    const sharedBase =
+      item1.baseAmount &&
+      item2.baseAmount &&
+      item1.baseCurrency &&
+      item1.baseCurrency === item2.baseCurrency;
+    if (sharedBase) return null;
+
+    // No original in common and no shared base, but one side's base amount is
+    // in the other's currency. A foreign invoice pulled from Yuki carries the
+    // accountant's booked euro as its base (FF-1572), and against a euro payment
+    // with no original and no base of its own that is the comparison it was
+    // always scored on — booked euro against paid euro, two conversions apart.
+    if (item2.baseCurrency === currency1 && item2.baseAmount) {
+      return {
+        amount1: Math.abs(amount1),
+        amount2: Math.abs(item2.baseAmount),
+        acrossRates: true,
+      };
+    }
+
+    if (item1.baseCurrency === currency2 && item1.baseAmount) {
+      return {
+        amount1: Math.abs(item1.baseAmount),
+        amount2: Math.abs(amount2),
+        acrossRates: true,
+      };
+    }
+
     return null;
   }
 
@@ -422,8 +453,14 @@ export function calculateCurrencyScore(
   // HIGHEST PRIORITY: Exact currency match
   if (currency1 === currency2) return 1.0;
 
-  // Lower confidence, but still meaningful if both convert to same base currency.
-  if (baseCurrency1 && baseCurrency2 && baseCurrency1 === baseCurrency2) {
+  // Lower confidence, but still meaningful if both convert to same base currency
+  // — or if one side's base is the other's currency, which is a pulled foreign
+  // invoice beside a euro payment (FF-1572).
+  if (
+    (baseCurrency1 && baseCurrency2 && baseCurrency1 === baseCurrency2) ||
+    baseCurrency1 === currency2 ||
+    baseCurrency2 === currency1
+  ) {
     return 0.7;
   }
 

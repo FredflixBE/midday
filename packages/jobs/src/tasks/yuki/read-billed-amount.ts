@@ -4,6 +4,7 @@ import { billedAmountCorrection } from "@jobs/utils/yuki-billed-amount";
 import {
   getExchangeRate,
   getYukiInboxRowForBilledAmount,
+  markYukiBilledAmountRead,
   setYukiInboxBilledAmount,
 } from "@midday/db/queries";
 import { DocumentClient } from "@midday/documents";
@@ -53,12 +54,17 @@ export const yukiReadBilledAmount = schemaTask({
 
     if (!row) return { inboxId, outcome: "not-a-pulled-row" as const };
 
-    // Corrected already, by an earlier run: nothing to pay for twice.
-    if (row.baseCurrency !== null) {
-      return { inboxId, outcome: "already-corrected" as const };
+    // Read already — corrected, or read and left alone: nothing to pay for
+    // twice.
+    if (row.baseCurrency !== null || row.alreadyRead) {
+      return { inboxId, outcome: "already-read" as const };
     }
 
-    const bookedCurrency = row.currency ?? "EUR";
+    // The pull always writes a currency. A row without one has been changed by
+    // hand into something this cannot reason about, so it is not paid for.
+    if (!row.currency)
+      return { inboxId, outcome: "no-booked-currency" as const };
+    const bookedCurrency = row.currency;
     const path = row.filePath?.join("/");
     if (!path) return { inboxId, outcome: "no-file" as const };
 
@@ -99,7 +105,15 @@ export const yukiReadBilledAmount = schemaTask({
       rateToBooked: rate?.rate,
     });
 
+    // Every outcome from here on cost an extraction, so each is recorded — the
+    // point is that the next backfill does not buy the same answer again.
     if (!decision.correct) {
+      await markYukiBilledAmountRead(getDb(), {
+        teamId,
+        inboxId,
+        outcome: decision.reason,
+      });
+
       // Said out loud for the one reason worth reading: an extraction that
       // disagrees with the accountant's own total by more than a year of
       // exchange-rate movement is a misread, and a person may want to look.
@@ -118,6 +132,12 @@ export const yukiReadBilledAmount = schemaTask({
       inboxId,
       bookedCurrency,
       update: decision.update,
+    });
+
+    await markYukiBilledAmountRead(getDb(), {
+      teamId,
+      inboxId,
+      outcome: changed ? "corrected" : "changed-meanwhile",
     });
 
     return {
