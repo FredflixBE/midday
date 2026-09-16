@@ -339,9 +339,9 @@ describe.skipIf(SKIP)("invoice status", () => {
 
       const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
 
-      expect(groups.map((group) => group.name)).toEqual(["Cursor", "Adobe"]);
-      expect(groups[0]?.count).toBe(2);
-      expect(groups[1]?.count).toBe(1);
+      expect(groups.map((group) => group.name)).toEqual(["Adobe", "Cursor"]);
+      expect(groups[0]?.count).toBe(1);
+      expect(groups[1]?.count).toBe(2);
     });
 
     test("the count is the sum of the groups, so it can be clicked into", async () => {
@@ -599,11 +599,13 @@ describe.skipIf(SKIP)("invoice status", () => {
       ).toBe(0);
     });
 
-    test("the biggest group comes first, since that is the most errands saved", async () => {
+    test("groups run alphabetically, ignoring case and however many payments each has", async () => {
+      // The biggest group is not first, and a supplier written in lower case
+      // sits among the others rather than after every capital letter.
       await makeTransaction(db, {
         id: T.nothing,
-        name: "Adobe",
-        counterpartyName: "Adobe",
+        name: "slack",
+        counterpartyName: "slack",
       });
       await makeTransaction(db, {
         id: T.suggested,
@@ -615,10 +617,25 @@ describe.skipIf(SKIP)("invoice status", () => {
         name: "Cursor",
         counterpartyName: "Cursor",
       });
+      await makeTransaction(db, {
+        id: T.completed,
+        name: "Adobe",
+        counterpartyName: "Adobe",
+      });
+      await makeTransaction(db, {
+        id: T.settled,
+        name: "Zapier",
+        counterpartyName: "Zapier",
+      });
 
       const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
 
-      expect(groups.map((group) => group.name)).toEqual(["Cursor", "Adobe"]);
+      expect(groups.map((group) => group.name)).toEqual([
+        "Adobe",
+        "Cursor",
+        "slack",
+        "Zapier",
+      ]);
     });
   });
 

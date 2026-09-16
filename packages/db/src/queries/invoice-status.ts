@@ -202,6 +202,10 @@ export type MissingInvoices = {
  * supplier land under separate headings, the cost is an odd heading, not a wrong
  * financial claim.
  *
+ * The groups run alphabetically. Ordering them by size made a supplier's place
+ * move every time a payment joined or left it, which at twenty suppliers is a
+ * list you search rather than read (FF-1575).
+ *
  * ## The no-name group
  *
  * Whatever names nobody goes in one group at the end rather than being dropped
@@ -292,9 +296,14 @@ export async function getMissingInvoices(
 
   const named = [...byKey.values()]
     .map(withCountAndTotals)
-    // Biggest first: the most errands saved by one visit to one supplier portal.
+    // Alphabetical, ignoring case, so a supplier is found where its name says
+    // rather than where its count happens to put it today (FF-1575). The key
+    // breaks a tie between two spellings that only differ in case.
     .sort(
-      (a, b) => b.count - a.count || (a.name ?? "").localeCompare(b.name ?? ""),
+      (a, b) =>
+        (a.name ?? "").localeCompare(b.name ?? "", undefined, {
+          sensitivity: "base",
+        }) || (a.key ?? "").localeCompare(b.key ?? ""),
     );
 
   const groups =
