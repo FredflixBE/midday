@@ -183,3 +183,157 @@ export async function createYukiInboxDocument(
 
   return existing ? { id: existing.id, created: false } : null;
 }
+
+/**
+ * The `meta` key that records a pulled row's invoice has been read for its
+ * billed amount, and what was decided (FF-1572).
+ *
+ * The read costs an extraction, and most rows come out unchanged — a euro
+ * invoice is already right — so "not yet corrected" is not the same as "not yet
+ * read". Without this every backfill and every pull over an unfinished row would
+ * pay again for the same answer. In `meta` rather than a column because it is a
+ * record of work done, not a fact about the invoice.
+ */
+export const YUKI_BILLED_AMOUNT_READ_KEY = "billedAmountRead";
+
+/** A pulled row, as far as reading its invoice's own total needs it. */
+export type YukiInboxRowForBilledAmount = {
+  id: string;
+  filePath: string[] | null;
+  contentType: string | null;
+  amount: number | null;
+  currency: string | null;
+  baseCurrency: string | null;
+  /** Whether a read has already reached a decision for this row. */
+  alreadyRead: boolean;
+};
+
+/**
+ * One pulled row, for reading what its invoice actually billed (FF-1572).
+ *
+ * Narrowed to rows the pull made — `reference_id` starting `yuki:` — because
+ * those are the only ones whose amount came from a ledger rather than from the
+ * document. A row from a mailbox was read off its PDF already, and reading it
+ * again could only disagree with itself.
+ */
+export async function getYukiInboxRowForBilledAmount(
+  db: Database,
+  params: { teamId: string; inboxId: string },
+): Promise<YukiInboxRowForBilledAmount | null> {
+  const [row] = await db
+    .select({
+      id: inbox.id,
+      filePath: inbox.filePath,
+      contentType: inbox.contentType,
+      amount: inbox.amount,
+      currency: inbox.currency,
+      baseCurrency: inbox.baseCurrency,
+      alreadyRead: sql<boolean>`(${inbox.meta}::jsonb ->> ${YUKI_BILLED_AMOUNT_READ_KEY}) is not null`,
+    })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.id, params.inboxId),
+        eq(inbox.teamId, params.teamId),
+        sql`${inbox.referenceId} like ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}`,
+      ),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
+/**
+ * Pulled rows whose invoice has not been read for its billed amount yet, oldest
+ * first — the set a backfill reads (FF-1572).
+ *
+ * Both a corrected row (its booked figure in `base_currency`) and a row read and
+ * left alone (the marker in `meta`) are left out, which is what makes a second
+ * backfill cost nothing. Deleted rows are left out for the reason
+ * `getInboxRowsForYukiPull` gives.
+ */
+export async function getYukiInboxIdsForBilledAmount(
+  db: Database,
+  params: { teamId: string },
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: inbox.id })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        sql`${inbox.referenceId} like ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}`,
+        isNull(inbox.baseCurrency),
+        sql`(${inbox.meta}::jsonb ->> ${YUKI_BILLED_AMOUNT_READ_KEY}) is null`,
+        or(isNull(inbox.status), ne(inbox.status, "deleted")),
+      ),
+    )
+    .orderBy(asc(inbox.createdAt), asc(inbox.id));
+
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Gives a pulled row the currency and total its invoice billed, keeping Yuki's
+ * booked figure as the base amount (FF-1572). Returns whether a row changed.
+ *
+ * Guarded so it can only happen once and only from the state it was read in:
+ * the row must still be in the booked currency, with no base currency yet. Two
+ * runs over the same row, or a person correcting the amount by hand in between,
+ * both leave it alone rather than converting an already-converted figure.
+ */
+export async function setYukiInboxBilledAmount(
+  db: Database,
+  params: {
+    teamId: string;
+    inboxId: string;
+    bookedCurrency: string;
+    update: {
+      amount: number;
+      currency: string;
+      taxAmount: number | null;
+      baseAmount: number;
+      baseCurrency: string;
+    };
+  },
+): Promise<boolean> {
+  const { teamId, inboxId, bookedCurrency, update } = params;
+
+  const rows = await db
+    .update(inbox)
+    .set({
+      amount: update.amount,
+      currency: update.currency,
+      taxAmount: update.taxAmount,
+      baseAmount: update.baseAmount,
+      baseCurrency: update.baseCurrency,
+    })
+    .where(
+      and(
+        eq(inbox.id, inboxId),
+        eq(inbox.teamId, teamId),
+        eq(inbox.currency, bookedCurrency),
+        isNull(inbox.baseCurrency),
+      ),
+    )
+    .returning({ id: inbox.id });
+
+  return rows.length > 0;
+}
+
+/**
+ * Records that a pulled row's invoice was read and what was decided, so it is
+ * not read again (FF-1572). Merged into `meta`, never replacing it: `meta` also
+ * carries where the row came from and why it last failed.
+ */
+export async function markYukiBilledAmountRead(
+  db: Database,
+  params: { teamId: string; inboxId: string; outcome: string },
+): Promise<void> {
+  await db
+    .update(inbox)
+    .set({
+      meta: sql`(coalesce(${inbox.meta}::jsonb, '{}'::jsonb) || jsonb_build_object(${YUKI_BILLED_AMOUNT_READ_KEY}::text, ${params.outcome}::text))::json`,
+    })
+    .where(and(eq(inbox.id, params.inboxId), eq(inbox.teamId, params.teamId)));
+}

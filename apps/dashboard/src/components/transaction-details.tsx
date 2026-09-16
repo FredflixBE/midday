@@ -36,7 +36,6 @@ import { SuggestedMatch } from "./suggested-match";
 import { TaxAmount } from "./tax-amount";
 import { TransactionAttachments } from "./transaction-attachments";
 import { TransactionBankAccount } from "./transaction-bank-account";
-import { TransactionOriginalAmount } from "./transaction-original-amount";
 import { TransactionShortcuts } from "./transaction-shortcuts";
 
 export function TransactionDetails() {
@@ -348,16 +347,6 @@ export function TransactionDetails() {
                   </span>
                 ) : null}
               </div>
-              {/* Below the VAT line rather than inside its fixed-height box,
-                  because a foreign charge can carry VAT as well and the two
-                  would overlap. */}
-              {data ? (
-                <TransactionOriginalAmount
-                  originalAmount={data.originalAmount}
-                  originalCurrency={data.originalCurrency}
-                  currency={data.currency}
-                />
-              ) : null}
             </div>
           </div>
         </div>

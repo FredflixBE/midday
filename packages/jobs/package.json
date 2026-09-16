@@ -14,6 +14,7 @@
     "confirm-matches": "bun run scripts/confirm-suggested-matches.ts",
     "rematch-filed": "bun run scripts/rematch-filed-invoices.ts",
     "recategorise": "bun run scripts/recategorise-uncategorized.ts",
+    "read-billed-amounts": "bun run scripts/read-billed-amounts.ts",
     "typecheck": "tsc --noEmit"
   },
   "exports": {

@@ -23,6 +23,7 @@ import { fetchDocumentBinary } from "@midday/yuki/documents";
 import { YukiNotConnectedError, yukiClientForTeam } from "@midday/yuki/team";
 import { schemaTask } from "@trigger.dev/sdk";
 import { processDocument } from "../document/process-document";
+import { yukiReadBilledAmount } from "./read-billed-amount";
 
 /**
  * Pulls the purchase invoices Yuki holds and Midday does not (FF-1450).
@@ -50,6 +51,9 @@ const MATCHING_CONCURRENCY = 3;
 
 /** How many indexing runs are started at once. */
 const INDEXING_CONCURRENCY = 5;
+
+/** How many billed-amount reads are started and waited for together. */
+const BILLED_AMOUNT_BATCH = 50;
 
 type PulledDocument = {
   inboxId: string;
@@ -177,6 +181,10 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       ...pulled.filter((p) => !p.duplicate).map((p) => p.inboxId),
       ...plan.finish,
     ];
+    // Before matching, so a foreign invoice is matched on the total it billed
+    // rather than on the euro Yuki booked for it (FF-1572).
+    const billedAmounts = await this.readBilledAmounts(teamId, toFinish);
+
     const matched = await this.matchAndClose({ teamId, inboxIds: toFinish });
 
     this.logger.info("Pulled Yuki purchase invoices", {
@@ -186,6 +194,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
       copies: copies.length,
       indexStarted,
       closed: toFinish.length,
+      billedAmountsCorrected: billedAmounts,
       ...matched,
       dailyLimit,
       remaining: plan.counts.eligible - pulled.length,
@@ -314,10 +323,11 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
    * files nobody can search for, which for a few hundred supplier invoices is
    * most of what the vault is for.
    *
-   * It is not the OCR the pull avoids. `getInvoiceOrReceipt` re-reads a
-   * document for the fields Yuki's archive record already carries — supplier,
-   * number, date, total — and runs several passes to do it. This is one pass
-   * for a title, a summary and tags, which the archive carries nothing of.
+   * It is not the OCR the pull avoids for supplier, number and date, which
+   * Yuki's archive record already carries. This is one pass for a title, a
+   * summary and tags, which the archive carries nothing of. The total is the
+   * one field the pull does read off the document, in `readBilledAmounts`,
+   * because for a foreign invoice the archive's total is a conversion.
    *
    * Copies of documents Midday already holds are indexed too: a copy is its own
    * file with its own vault row, and an untitled file in the vault is exactly
@@ -376,6 +386,47 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
   }
 
   /**
+   * Reads what each pulled invoice actually billed, and corrects the rows whose
+   * invoice is in another currency than Yuki booked it in (FF-1572). Returns how
+   * many rows changed.
+   *
+   * Waited for, because the matcher that runs next should see the corrected
+   * figure: a $19.95 invoice matched on its booked €17.22 is offered against the
+   * card's €17.57 across a margin gap, where on its own total it is exact. The
+   * extraction runs in child runs, so the time it takes is not this run's.
+   *
+   * A failure to read is never a failure of the pull. The row keeps its booked
+   * amount, which is what every pulled row carried before this existed.
+   */
+  private async readBilledAmounts(
+    teamId: string,
+    inboxIds: readonly string[],
+  ): Promise<number> {
+    let corrected = 0;
+
+    for (let i = 0; i < inboxIds.length; i += BILLED_AMOUNT_BATCH) {
+      try {
+        const batch = await yukiReadBilledAmount.batchTriggerAndWait(
+          inboxIds
+            .slice(i, i + BILLED_AMOUNT_BATCH)
+            .map((inboxId) => ({ payload: { teamId, inboxId } })),
+        );
+
+        for (const run of batch.runs) {
+          if (run.ok && run.output.outcome === "corrected") corrected += 1;
+        }
+      } catch (error) {
+        this.logger.warn("Could not read billed amounts for pulled documents", {
+          teamId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    return corrected;
+  }
+
+  /**
    * Runs Midday's matcher over the pulled rows and marks every one of them
    * done.
    *
@@ -398,14 +449,13 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     inboxIds: readonly string[];
   }): Promise<{ autoMatched: number; suggested: number; unmatched: number }> {
     const { teamId, inboxIds } = params;
-    const db = getDb();
     const counts = { autoMatched: 0, suggested: 0, unmatched: 0 };
 
     for (let i = 0; i < inboxIds.length; i += MATCHING_CONCURRENCY) {
       await Promise.all(
         inboxIds.slice(i, i + MATCHING_CONCURRENCY).map(async (inboxId) => {
           try {
-            const result = await calculateInboxSuggestions(db, {
+            const result = await calculateInboxSuggestions(getDb(), {
               teamId,
               inboxId,
             });
@@ -426,7 +476,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
             });
           }
 
-          await updateInbox(db, { id: inboxId, teamId, status: "done" });
+          await updateInbox(getDb(), { id: inboxId, teamId, status: "done" });
         }),
       );
     }
@@ -436,9 +486,10 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
 
   /** Closes rows that are not going through the matcher at all. */
   private async close(teamId: string, inboxIds: readonly string[]) {
-    const db = getDb();
+    // `getDb()` at each use: this run now waits on the billed-amount reads, and
+    // a handle held across a wait points at a pool that has been closed.
     for (const id of inboxIds) {
-      await updateInbox(db, { id, teamId, status: "done" });
+      await updateInbox(getDb(), { id, teamId, status: "done" });
     }
   }
 }
