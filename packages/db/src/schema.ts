@@ -427,6 +427,31 @@ export const transactions = pgTable(
     baseAmount: numericCasted({ precision: 10, scale: 2 }),
     counterpartyName: text("counterparty_name"),
     baseCurrency: text("base_currency"),
+    // What a foreign-currency charge originally cost, as data rather than the
+    // sentence `USD 18.60 at 1.15` that used to occupy `description` (FF-1560).
+    //
+    // Not `base_amount` / `base_currency`, which answer a different question:
+    // what this is worth in the team's base currency, converted at our own
+    // reference rate (FF-1476). These say what was actually charged, in the
+    // currency it was charged in, and the two disagree by construction — the
+    // books convert at the invoice-date rate and the card issuer at its own
+    // rate on settlement day, with its margin in it.
+    originalAmount: numericCasted("original_amount", {
+      precision: 10,
+      scale: 2,
+    }),
+    originalCurrency: text("original_currency"),
+    // Units of `original_currency` per one unit of `currency`, so
+    // `original_amount / exchange_rate = amount`. The direction is fixed here
+    // and normalised on the way in, because a rate without one is exactly the
+    // thing that made the old prose unreadable: 1.15 could be dollars per euro
+    // or euros per dollar, and you had to already know. Yuki's own rate uses
+    // this direction — USD 18.60 at 1.1553 is €16.10.
+    //
+    // Wider than the money columns on purpose: a rate is not an amount, and at
+    // scale 2 the 1.1553 above would have been stored as 1.16 and re-derived
+    // the wrong euro figure.
+    exchangeRate: numericCasted("exchange_rate", { precision: 18, scale: 8 }),
     taxAmount: numericCasted("tax_amount", { precision: 10, scale: 2 }),
     taxRate: numericCasted("tax_rate", { precision: 10, scale: 2 }),
     taxType: text("tax_type"),

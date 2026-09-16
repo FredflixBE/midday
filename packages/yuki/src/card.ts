@@ -263,9 +263,18 @@ export interface YukiCardDescription {
   foreign?: YukiCardForeignAmount;
 }
 
-/** `-29,00` and `1,13` — a comma decimal separator, and no thousands group. */
+/**
+ * `-29,00` and `1,13` — a comma decimal separator, Belgian style.
+ *
+ * The dots go first, and that is the whole point: they are thousands groups, so
+ * `1.234,56` has to become `1234.56`. Replacing only the comma left `1.234.56`,
+ * which `Number` reads as NaN — and `FOREIGN_AMOUNT` accepts a grouped figure,
+ * so any foreign charge of a thousand or more parsed to NaN. It used to surface
+ * as a cosmetic `USD NaN at 1.13` in a description; since FF-1560 gave the
+ * original amount and rate real numeric columns, the same NaN would be stored.
+ */
 function decimal(value: string): number {
-  return Number(value.replace(",", "."));
+  return Number(value.replace(/\./g, "").replace(",", "."));
 }
 
 const FOREIGN_AMOUNT =

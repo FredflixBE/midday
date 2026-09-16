@@ -762,3 +762,94 @@ test("The entry reference is kept beside the transaction id, not instead of it",
   expect(withoutReference.id).not.toBe("2026061800123456");
   expect(withoutReference.id).toMatch(/^[0-9a-f]{32}$/);
 });
+
+/**
+ * A foreign-currency card charge, and the direction of its rate (FF-1560).
+ *
+ * ISO 20022 says `unit_currency` is the currency the rate is expressed per one
+ * unit of, so the same conversion arrives either way round depending on which
+ * side the bank quoted from. Both are the Cursor charge from the ticket:
+ * $18.60 billed as €16.10.
+ */
+const usdCardCharge = {
+  ...sepaDirectDebit,
+  entry_reference: "2026081600098765",
+  transaction_amount: { currency: "EUR", amount: "16.10" },
+  creditor: { name: "CURSOR AI POWERED IDE" },
+  remittance_information: null,
+  exchange_rate: {
+    // Quoted from the euro: one euro bought 1.1553 dollars.
+    unit_currency: "EUR",
+    exchange_rate: "1.1553",
+    rate_type: "SPOT",
+    contract_identification: "",
+    instructed_amount: { currency: "USD", amount: "18.60" },
+  },
+};
+
+test("A foreign charge keeps the amount it was billed in, its currency and the rate", () => {
+  const transaction = transformTransaction({
+    accountType: "credit",
+    transaction: usdCardCharge,
+  });
+
+  expect(transaction.original_amount).toBe(18.6);
+  expect(transaction.original_currency).toBe("USD");
+  expect(transaction.exchange_rate).toBe(1.1553);
+
+  // The euro amount is untouched: it is what the issuer actually took.
+  expect(transaction.amount).toBe(-16.1);
+  expect(transaction.currency).toBe("EUR");
+});
+
+test("A rate quoted from the other side is inverted, so one direction is stored", () => {
+  const transaction = transformTransaction({
+    accountType: "credit",
+    transaction: {
+      ...usdCardCharge,
+      exchange_rate: {
+        ...usdCardCharge.exchange_rate,
+        // The same conversion, quoted from the dollar: one dollar bought
+        // 0.8656 euros.
+        unit_currency: "USD",
+        exchange_rate: "0.86556",
+      },
+    },
+  });
+
+  // Stored as dollars per euro either way, so `original_amount / exchange_rate`
+  // is the euro amount whichever way the bank quoted it.
+  expect(transaction.exchange_rate).toBeCloseTo(1.1553, 4);
+  expect(transaction.original_amount).toBe(18.6);
+});
+
+test("A rate quoted in a third currency is not guessed at, but the amount survives", () => {
+  const transaction = transformTransaction({
+    accountType: "credit",
+    transaction: {
+      ...usdCardCharge,
+      exchange_rate: {
+        ...usdCardCharge.exchange_rate,
+        unit_currency: "GBP",
+        exchange_rate: "1.3",
+      },
+    },
+  });
+
+  // Neither side of the charge, so which way it goes is unknowable. The two
+  // amounts still say what happened, which is the point of storing them.
+  expect(transaction.exchange_rate).toBeNull();
+  expect(transaction.original_amount).toBe(18.6);
+  expect(transaction.original_currency).toBe("USD");
+});
+
+test("A domestic charge carries none of it", () => {
+  const transaction = transformTransaction({
+    accountType: "depository",
+    transaction: sepaDirectDebit,
+  });
+
+  expect(transaction.original_amount).toBeNull();
+  expect(transaction.original_currency).toBeNull();
+  expect(transaction.exchange_rate).toBeNull();
+});

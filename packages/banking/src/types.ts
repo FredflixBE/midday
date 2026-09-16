@@ -19,8 +19,23 @@ export type Transaction = {
   method: string;
   name: string;
   description: string | null;
-  currency_rate: number | null;
-  currency_source: string | null;
+  // What the charge originally cost, when it was made in another currency
+  // (FF-1560). Named for what they hold rather than `currency_rate` /
+  // `currency_source`, which said neither which amount nor which direction.
+  /** The amount as billed, in `original_currency`. Null when there was no conversion. */
+  original_amount: number | null;
+  /** The currency the charge was made in, when that is not `currency`. */
+  original_currency: string | null;
+  /**
+   * Units of `original_currency` per one unit of `currency`, so
+   * `original_amount / exchange_rate = amount`.
+   *
+   * One direction, fixed, because a rate without one cannot be read: 1.15 is
+   * either dollars per euro or euros per dollar and the number alone does not
+   * say. Providers quote it either way round, so each transform normalises to
+   * this and leaves it null rather than guess when it cannot tell.
+   */
+  exchange_rate: number | null;
   // The identifiers the provider sends alongside the prose. A name is what a
   // human wrote; these are machine-issued and stable, which is what makes them
   // worth keeping. All nullable, and null is the honest answer wherever a
