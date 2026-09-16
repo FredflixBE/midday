@@ -24,6 +24,8 @@ import {
   calculateNameScore,
   isExactAmountMatch,
   type MatchType,
+  type ReferenceEvidence,
+  referenceAppearsIn,
   scoreMatch,
 } from "../utils/transaction-matching";
 
@@ -588,12 +590,26 @@ function computeDeclinePenalty(
 
 const AUTO_MATCH_ENABLED = process.env.MATCH_AUTO_ENABLED === "true";
 
-function resolveMatchType(
+/** Exported for the test that "never automatic" is actually never (FF-1548). */
+export function resolveMatchType(
   confidence: number,
   canAutoMatch: boolean,
   nameScore: number,
   autoThreshold: number,
+  referenceEvidence: ReferenceEvidence = "none",
 ): MatchType {
+  // A reference that was found and settles nothing is a warning, not evidence,
+  // and FF-1548 is explicit that it must never act on its own: Xerius reuses one
+  // structured reference across instalments, so acting would attach the wrong
+  // assessment. Capping the confidence at 0.94 is not enough by itself — a
+  // team's calibrated auto threshold is `clamp(suggested + 0.24, 0.88, 0.95)`,
+  // so 0.94 clears it for a team calibrated low, and finding the reference sets
+  // `nameScore` to 0.95, which clears the gate below. So the refusal is stated
+  // here, where "automatic" is actually decided.
+  if (referenceEvidence === "inconclusive") {
+    return confidence >= 0.72 ? "high_confidence" : "suggested";
+  }
+
   if (
     AUTO_MATCH_ENABLED &&
     confidence >= autoThreshold &&
@@ -732,6 +748,22 @@ export async function findMatches(
 
   const teamPairHistory = await teamPairHistoryPromise;
 
+  // Which candidates the document's own reference names, before any of them is
+  // scored — because "exactly one" is not a fact about a pair, and the rule
+  // depends on it. See ReferenceEvidence for the two shapes that make a
+  // reference inconclusive.
+  const namedByReference = candidates.filter(
+    (candidate) =>
+      referenceAppearsIn(
+        inboxItem.invoiceNumber,
+        candidate.name,
+        candidate.merchantName,
+        candidate.description,
+        candidate.counterpartyName,
+      ) && isExactAmountMatch(inboxItem, candidate),
+  );
+  const referenceNamesOne = namedByReference.length === 1;
+
   const scoredCandidates: MatchResult[] = [];
   for (const candidate of candidates) {
     const normalizedTransactionName = normalizeNameForLearning(
@@ -763,8 +795,20 @@ export async function findMatches(
     const searchableText = normalizeNameForLearning(
       `${candidate.name} ${candidate.merchantName || ""} ${candidate.description || ""} ${candidate.counterpartyName || ""}`,
     );
-    const invoiceNumber = normalizeNameForLearning(inboxItem.invoiceNumber);
-    if (invoiceNumber.length >= 4 && searchableText.includes(invoiceNumber)) {
+    // The document's own reference, printed on the bank line (FF-1548). The
+    // check used to run on `normalizeNameForLearning`, which turns punctuation
+    // into spaces and leaves `/` alone — so it found neither
+    // `0001/0001/BE/2502981850` in `Betaling Leasing 0001 0001 Be 2502981850`
+    // nor `381/0500/62760` in `381050062760`. Both are plain substrings once the
+    // separators are gone.
+    const referenceFound = referenceAppearsIn(
+      inboxItem.invoiceNumber,
+      candidate.name,
+      candidate.merchantName,
+      candidate.description,
+      candidate.counterpartyName,
+    );
+    if (referenceFound) {
       nameScore = Math.max(nameScore, 0.95);
     }
     const domainToken = extractDomainToken(inboxItem.website);
@@ -787,6 +831,14 @@ export async function findMatches(
     const isExactAmount = isExactAmountMatch(inboxItem, candidate);
     const isSameCurrency = inboxItem.currency === candidate.currency;
 
+    // All three, never fewer: the reference is printed on the line, the amounts
+    // agree, and no other candidate can say the same.
+    const referenceEvidence = !referenceFound
+      ? ("none" as const)
+      : isExactAmount && referenceNamesOne
+        ? ("identifies-one" as const)
+        : ("inconclusive" as const);
+
     const confidence = scoreMatch({
       nameScore,
       amountScore,
@@ -794,6 +846,7 @@ export async function findMatches(
       currencyScore,
       isSameCurrency,
       isExactAmount,
+      referenceEvidence,
       declinePenalty,
     });
 
@@ -815,6 +868,7 @@ export async function findMatches(
         pattern.canAutoMatch,
         nameScore,
         autoThreshold,
+        referenceEvidence,
       ),
       isAlreadyMatched: false,
     };
@@ -950,6 +1004,21 @@ export async function findInboxMatches(
 
   const teamPairHistory = await teamPairHistoryPromise;
 
+  // The other direction, same rule: several documents can carry the reference the
+  // transaction names — which is exactly the Xerius case, one structured
+  // reference across two instalments.
+  const namedByReference = candidates.filter(
+    (candidate) =>
+      referenceAppearsIn(
+        candidate.invoiceNumber,
+        transactionItem.name,
+        transactionItem.merchantName,
+        transactionItem.description,
+        transactionItem.counterpartyName,
+      ) && isExactAmountMatch(candidate, transactionItem),
+  );
+  const referenceNamesOne = namedByReference.length === 1;
+
   const scoredCandidates: InboxMatchResult[] = [];
   for (const candidate of candidates) {
     const normalizedInboxName = normalizeNameForLearning(candidate.displayName);
@@ -979,8 +1048,14 @@ export async function findInboxMatches(
     const searchableText = normalizeNameForLearning(
       `${transactionItem.name} ${transactionItem.merchantName || ""} ${transactionItem.description || ""} ${transactionItem.counterpartyName || ""}`,
     );
-    const invoiceNumber = normalizeNameForLearning(candidate.invoiceNumber);
-    if (invoiceNumber.length >= 4 && searchableText.includes(invoiceNumber)) {
+    const referenceFound = referenceAppearsIn(
+      candidate.invoiceNumber,
+      transactionItem.name,
+      transactionItem.merchantName,
+      transactionItem.description,
+      transactionItem.counterpartyName,
+    );
+    if (referenceFound) {
       nameScore = Math.max(nameScore, 0.95);
     }
     const domainToken = extractDomainToken(candidate.website);
@@ -1003,6 +1078,12 @@ export async function findInboxMatches(
     const isExactAmount = isExactAmountMatch(candidate, transactionItem);
     const isSameCurrency = candidate.currency === transactionItem.currency;
 
+    const referenceEvidence = !referenceFound
+      ? ("none" as const)
+      : isExactAmount && referenceNamesOne
+        ? ("identifies-one" as const)
+        : ("inconclusive" as const);
+
     const confidence = scoreMatch({
       nameScore,
       amountScore,
@@ -1010,6 +1091,7 @@ export async function findInboxMatches(
       currencyScore,
       isSameCurrency,
       isExactAmount,
+      referenceEvidence,
       declinePenalty,
     });
 
@@ -1031,6 +1113,7 @@ export async function findInboxMatches(
         pattern.canAutoMatch,
         nameScore,
         autoThreshold,
+        referenceEvidence,
       ),
       isAlreadyMatched: false,
     };
