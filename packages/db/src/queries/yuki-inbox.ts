@@ -183,3 +183,123 @@ export async function createYukiInboxDocument(
 
   return existing ? { id: existing.id, created: false } : null;
 }
+
+/** A pulled row, as far as reading its invoice's own total needs it. */
+export type YukiInboxRowForBilledAmount = {
+  id: string;
+  filePath: string[] | null;
+  contentType: string | null;
+  amount: number | null;
+  currency: string | null;
+  baseCurrency: string | null;
+};
+
+/**
+ * One pulled row, for reading what its invoice actually billed (FF-1572).
+ *
+ * Narrowed to rows the pull made — `reference_id` starting `yuki:` — because
+ * those are the only ones whose amount came from a ledger rather than from the
+ * document. A row from a mailbox was read off its PDF already, and reading it
+ * again could only disagree with itself.
+ */
+export async function getYukiInboxRowForBilledAmount(
+  db: Database,
+  params: { teamId: string; inboxId: string },
+): Promise<YukiInboxRowForBilledAmount | null> {
+  const [row] = await db
+    .select({
+      id: inbox.id,
+      filePath: inbox.filePath,
+      contentType: inbox.contentType,
+      amount: inbox.amount,
+      currency: inbox.currency,
+      baseCurrency: inbox.baseCurrency,
+    })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.id, params.inboxId),
+        eq(inbox.teamId, params.teamId),
+        sql`${inbox.referenceId} like ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}`,
+      ),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
+/**
+ * Pulled rows that still carry only the booked amount, oldest first — the set a
+ * backfill reads (FF-1572).
+ *
+ * A row already corrected has its booked figure in `base_currency`, so leaving
+ * those out is what makes a second backfill cost nothing. Deleted rows are left
+ * out for the reason `getInboxRowsForYukiPull` gives.
+ */
+export async function getYukiInboxIdsForBilledAmount(
+  db: Database,
+  params: { teamId: string },
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: inbox.id })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        sql`${inbox.referenceId} like ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}`,
+        isNull(inbox.baseCurrency),
+        or(isNull(inbox.status), ne(inbox.status, "deleted")),
+      ),
+    )
+    .orderBy(asc(inbox.createdAt), asc(inbox.id));
+
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Gives a pulled row the currency and total its invoice billed, keeping Yuki's
+ * booked figure as the base amount (FF-1572). Returns whether a row changed.
+ *
+ * Guarded so it can only happen once and only from the state it was read in:
+ * the row must still be in the booked currency, with no base currency yet. Two
+ * runs over the same row, or a person correcting the amount by hand in between,
+ * both leave it alone rather than converting an already-converted figure.
+ */
+export async function setYukiInboxBilledAmount(
+  db: Database,
+  params: {
+    teamId: string;
+    inboxId: string;
+    bookedCurrency: string;
+    update: {
+      amount: number;
+      currency: string;
+      taxAmount: number | null;
+      baseAmount: number;
+      baseCurrency: string;
+    };
+  },
+): Promise<boolean> {
+  const { teamId, inboxId, bookedCurrency, update } = params;
+
+  const rows = await db
+    .update(inbox)
+    .set({
+      amount: update.amount,
+      currency: update.currency,
+      taxAmount: update.taxAmount,
+      baseAmount: update.baseAmount,
+      baseCurrency: update.baseCurrency,
+    })
+    .where(
+      and(
+        eq(inbox.id, inboxId),
+        eq(inbox.teamId, teamId),
+        eq(inbox.currency, bookedCurrency),
+        isNull(inbox.baseCurrency),
+      ),
+    )
+    .returning({ id: inbox.id });
+
+  return rows.length > 0;
+}

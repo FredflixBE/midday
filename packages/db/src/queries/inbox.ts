@@ -1316,6 +1316,7 @@ export async function matchTransaction(
       filePath: inbox.filePath,
       size: inbox.size,
       fileName: inbox.fileName,
+      currency: inbox.currency,
       taxAmount: inbox.taxAmount,
       taxRate: inbox.taxRate,
       taxType: inbox.taxType,
@@ -1348,6 +1349,7 @@ export async function matchTransaction(
       filePath: inbox.filePath,
       size: inbox.size,
       fileName: inbox.fileName,
+      currency: inbox.currency,
       taxAmount: inbox.taxAmount,
       taxRate: inbox.taxRate,
       taxType: inbox.taxType,
@@ -1424,7 +1426,25 @@ export async function matchTransaction(
     taxType?: string | null;
   } = {};
 
-  if (primaryItem.taxAmount !== null && primaryItem.taxAmount !== undefined) {
+  // A tax amount is money in the document's currency, and it is written onto the
+  // transaction as-is — so it only travels when the two are in the same one. A
+  // foreign invoice pulled from Yuki now carries the currency it billed in
+  // (FF-1572): $1.50 of US tax written onto a euro card charge would read as
+  // €1.50. The rate and type below are not money and still travel.
+  const [transactionCurrency] = await db
+    .select({ currency: transactions.currency })
+    .from(transactions)
+    .where(
+      and(eq(transactions.id, transactionId), eq(transactions.teamId, teamId)),
+    )
+    .limit(1);
+
+  if (
+    primaryItem.taxAmount !== null &&
+    primaryItem.taxAmount !== undefined &&
+    (!primaryItem.currency ||
+      primaryItem.currency === transactionCurrency?.currency)
+  ) {
     taxUpdates.taxAmount = primaryItem.taxAmount;
   }
 
