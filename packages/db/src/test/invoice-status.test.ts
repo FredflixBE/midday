@@ -49,6 +49,7 @@ async function makeTransaction(
   overrides: {
     id: string;
     name: string;
+    date?: string;
     status?: "posted" | "completed" | "excluded" | "archived";
     booksStatus?: "invoice_missing" | "in_the_books" | null;
     internal?: boolean;
@@ -60,7 +61,7 @@ async function makeTransaction(
 ) {
   await db.insert(transactions).values({
     id: overrides.id,
-    date: "2026-03-01",
+    date: overrides.date ?? "2026-03-01",
     name: overrides.name,
     method: "other",
     amount: overrides.amount ?? -100,
@@ -524,16 +525,26 @@ describe.skipIf(SKIP)("invoice status", () => {
       expect(groups[0]?.transactions[0]?.hasSuggestion).toBe(true);
     });
 
-    test("the suggested ones come first inside their group", async () => {
+    test("inside a group the payments run newest first, a suggestion included", async () => {
+      // A monthly supplier reads as a timeline. The suggested one keeps its
+      // place by date rather than jumping to the top (FF-1576).
       await makeTransaction(db, {
         id: T.nothing,
         name: "Cursor",
         counterpartyName: "Cursor",
+        date: "2026-07-30",
       });
       await makeTransaction(db, {
         id: T.suggested,
         name: "Cursor",
         counterpartyName: "Cursor",
+        date: "2026-03-30",
+      });
+      await makeTransaction(db, {
+        id: T.attached,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+        date: "2026-02-28",
       });
       await suggestMatch(
         db,
@@ -544,10 +555,11 @@ describe.skipIf(SKIP)("invoice status", () => {
       const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
 
       expect(groups[0]?.transactions.map((row) => row.id)).toEqual([
-        T.suggested,
         T.nothing,
+        T.suggested,
+        T.attached,
       ]);
-      expect(groups[0]?.count).toBe(2);
+      expect(groups[0]?.count).toBe(3);
       expect(groups[0]?.readyToConfirm).toBe(1);
     });
 

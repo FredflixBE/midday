@@ -153,8 +153,8 @@ export type MissingInvoice = {
   currency: string;
   /**
    * Midday has already found a likely invoice for this payment and is waiting
-   * for somebody to say yes. One click away from done, so it belongs at the top
-   * of its group rather than hidden on another screen (FF-1552).
+   * for somebody to say yes. One click away from done, so it belongs on this
+   * list, marked, rather than hidden on another screen (FF-1552).
    */
   hasSuggestion: boolean;
   /**
@@ -218,9 +218,10 @@ export type MissingInvoices = {
  * A payment Midday has found a likely invoice for has not got the invoice yet —
  * it is one click from done, not done. Leaving those off the page hid 41 of
  * them behind another screen, which for a list you work to zero is backwards:
- * they are the quickest thing on it. They are marked, sorted to the top of their
- * group, and counted separately, so the page can say what is one click away and
- * what is an errand.
+ * they are the quickest thing on it. They are marked and counted separately, so
+ * the page can say what is one click away and what is an errand. They keep
+ * their place by date inside the group rather than jumping to its top
+ * (FF-1576).
  *
  * ## Why the count is computed here and not separately
  *
@@ -346,12 +347,12 @@ function withCountAndTotals(group: MissingInvoiceGroup): MissingInvoiceGroup {
     count: group.transactions.length,
     readyToConfirm: group.transactions.filter((row) => row.hasSuggestion)
       .length,
-    // The quickest thing in the group first, then newest. A suggestion is one
-    // click; everything else is an errand.
-    transactions: [...group.transactions].sort(
-      (a, b) =>
-        Number(b.hasSuggestion) - Number(a.hasSuggestion) ||
-        b.date.localeCompare(a.date),
+    // Newest first, and nothing jumps the queue. Pulling suggestions to the top
+    // broke the timeline of a monthly supplier — March above July above June —
+    // and the marker already says which row is one click away (FF-1576). The
+    // sort is stable, so equal dates keep the query's id order.
+    transactions: [...group.transactions].sort((a, b) =>
+      b.date.localeCompare(a.date),
     ),
     totals: [...byCurrency.entries()].map(([currency, amount]) => ({
       currency,
