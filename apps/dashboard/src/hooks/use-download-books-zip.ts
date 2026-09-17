@@ -24,15 +24,14 @@ const BATCH_SIZE = 8;
 /**
  * What the download is doing.
  *
- * `checking` counts the files it is comparing against the books, which is not
- * the number going into the zip — most of them are usually left out. Saying
- * "Downloading 8 of 56" read as 56 invoices to hand over (FF-1583).
+ * No count while it is checking: what is being counted there is documents being
+ * compared against the books, most of which are then left out, and any number
+ * shown at that point reads as the number of invoices to hand over. The count
+ * appears when it is known and true — the invoices going into the zip (FF-1583).
  */
-export type BooksZipProgress = {
-  phase: "checking" | "packing";
-  done: number;
-  total: number;
-};
+export type BooksZipProgress =
+  | { phase: "checking" }
+  | { phase: "packing"; invoices: number };
 
 /** What comparing against the books' own files came to. */
 export type BooksComparison = {
@@ -121,7 +120,11 @@ export function useDownloadBooksZip() {
         booksInvoiceNumberSet(booksInvoiceNumbers),
       );
       const zip = new JSZip();
-      const kept: BooksZipFile[] = [];
+      // Downloaded and kept so far, written into the zip only once every
+      // exclusion is decided. Removing an entry afterwards left its folder
+      // behind, and a folder with nothing in it reads as a supplier whose
+      // invoice went missing (FF-1583).
+      const kept: { entry: BooksZipFile; blob: Blob }[] = [];
       const failed: BooksZipFile[] = [];
       const duplicates: BooksZipFile[] = [];
       const sameFileInBooks: BooksZipFile[] = [];
@@ -145,7 +148,7 @@ export function useDownloadBooksZip() {
         unreadableCandidates: 0,
       };
 
-      setProgress({ phase: "checking", done: 0, total: plan.files.length });
+      setProgress({ phase: "checking" });
 
       for (let start = 0; start < plan.files.length; start += BATCH_SIZE) {
         const batch = plan.files.slice(start, start + BATCH_SIZE);
@@ -188,15 +191,8 @@ export function useDownloadBooksZip() {
           }
 
           seen.add(hash);
-          zip.file(entry.zipPath, blob);
-          kept.push(entry);
+          kept.push({ entry, blob });
         }
-
-        setProgress({
-          phase: "checking",
-          done: Math.min(start + BATCH_SIZE, plan.files.length),
-          total: plan.files.length,
-        });
       }
 
       // Last: a receipt whose invoice the books already have is not something
@@ -209,14 +205,23 @@ export function useDownloadBooksZip() {
         ].filter(Boolean),
       );
       const secondaryLeftOut = options.leaveOutWhatTheBooksHave
-        ? secondaryDocumentsCoveredByBooks(kept, covered)
+        ? secondaryDocumentsCoveredByBooks(
+            kept.map(({ entry }) => entry),
+            covered,
+          )
         : [];
-      for (const entry of secondaryLeftOut) {
-        zip.remove(entry.zipPath);
-      }
-      const written = kept.filter((entry) => !secondaryLeftOut.includes(entry));
+      const written = kept.filter(
+        ({ entry }) => !secondaryLeftOut.includes(entry),
+      );
 
-      zip.file("_Overview.csv", booksZipOverview(written));
+      for (const { entry, blob } of written) {
+        zip.file(entry.zipPath, blob);
+      }
+
+      zip.file(
+        "_Overview.csv",
+        booksZipOverview(written.map(({ entry }) => entry)),
+      );
       zip.file(
         "_Not included.txt",
         booksZipNotIncluded(plan, options, {
@@ -228,11 +233,7 @@ export function useDownloadBooksZip() {
         }),
       );
 
-      setProgress({
-        phase: "packing",
-        done: written.length,
-        total: written.length,
-      });
+      setProgress({ phase: "packing", invoices: written.length });
 
       const zipBlob = await zip.generateAsync({
         type: "blob",
