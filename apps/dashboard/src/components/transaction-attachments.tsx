@@ -84,6 +84,39 @@ export function TransactionAttachments({
     }),
   );
 
+  // An inbox document picked from here is matched, not copied: the same path as
+  // confirming the match from the inbox, so the document is closed and linked to
+  // this payment instead of staying pending as work already done (FF-1580).
+  const matchInboxMutation = useMutation(
+    trpc.inbox.matchTransaction.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.transactions.get.infiniteQueryKey(),
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: trpc.transactions.getById.queryKey({ id }),
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: trpc.transactions.missingInvoices.queryKey(),
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: trpc.overview.summary.queryKey(),
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: trpc.inbox.get.infiniteQueryKey(),
+        });
+
+        queryClient.invalidateQueries({
+          queryKey: trpc.inbox.needsHandlingCount.queryKey(),
+        });
+      },
+    }),
+  );
+
   const deleteattachmentMutation = useMutation(
     trpc.transactionAttachments.delete.mutationOptions({
       onSuccess: () => {
@@ -371,7 +404,20 @@ export function TransactionAttachments({
       ]);
 
       if (persistToTransaction) {
-        createAttachmentsMutation.mutate([item]);
+        matchInboxMutation.mutate(
+          { id: file.data.id, transactionId: id },
+          {
+            onError: (error) => {
+              setFiles((prev) => prev.filter((f) => f !== item));
+              toast({
+                variant: "error",
+                duration: 2500,
+                title: "Failed to attach document",
+                description: error.message,
+              });
+            },
+          },
+        );
       }
     }
   };

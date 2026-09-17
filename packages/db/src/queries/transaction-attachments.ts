@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import {
   accountingSyncRecords,
@@ -158,7 +158,7 @@ export async function deleteAttachment(
       .where(
         and(
           eq(inbox.teamId, params.teamId),
-          sql`(${inbox.attachmentId} = ${result.id} OR ${inbox.transactionId} = ${result.transactionId})`,
+          sql`(${inbox.attachmentId} = ${result.id} OR (${inbox.transactionId} = ${result.transactionId} AND ${inbox.attachmentId} IS NULL))`,
         ),
       );
     for (const r of rows) affectedInboxIds.push(r.id);
@@ -174,6 +174,10 @@ export async function deleteAttachment(
     })
     .where(eq(inbox.attachmentId, result.id));
 
+  // A document matched to this payment without a file of its own goes with it.
+  // One whose own file stays on the payment does not: removing the duplicate
+  // copy of a grouped invoice used to unlink the copy that was kept, leaving it
+  // pending in the inbox with its file still on the payment (FF-1580).
   if (result.transactionId) {
     await db
       .update(inbox)
@@ -184,7 +188,7 @@ export async function deleteAttachment(
       .where(
         and(
           eq(inbox.transactionId, result.transactionId),
-          sql`(${inbox.attachmentId} IS NULL OR ${inbox.attachmentId} != ${result.id})`,
+          isNull(inbox.attachmentId),
         ),
       );
   }

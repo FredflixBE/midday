@@ -1265,6 +1265,8 @@ export type MatchTransactionParams = {
   id: string;
   transactionId: string;
   teamId: string;
+  /** Who made the match, recorded on the suggestions it confirms. */
+  userId?: string | null;
 };
 
 export async function fetchInboxWithTransaction(
@@ -1484,7 +1486,49 @@ export async function matchTransaction(
     }
   }
 
+  // A match made any other way than confirming the suggestion — picking the
+  // document from the payment, or the payment from the document — answers that
+  // suggestion all the same. Left pending, it would offer the pair again as
+  // work (FF-1580).
+  await confirmPendingSuggestionsForTransaction(db, {
+    teamId,
+    transactionId,
+    userId: params.userId,
+  });
+
   return fetchInboxWithTransaction(db, id, teamId);
+}
+
+/**
+ * Confirms the pending suggestions pairing this transaction with the inbox
+ * documents now matched to it — only those, so a suggestion for a document that
+ * went elsewhere is left for its own answer.
+ */
+export async function confirmPendingSuggestionsForTransaction(
+  db: DatabaseOrTransaction,
+  params: { teamId: string; transactionId: string; userId?: string | null },
+) {
+  const { teamId, transactionId, userId } = params;
+
+  await db
+    .update(transactionMatchSuggestions)
+    .set({
+      status: "confirmed",
+      userActionAt: new Date().toISOString(),
+      userId,
+    })
+    .where(
+      and(
+        eq(transactionMatchSuggestions.transactionId, transactionId),
+        eq(transactionMatchSuggestions.teamId, teamId),
+        eq(transactionMatchSuggestions.status, "pending"),
+        sql`${transactionMatchSuggestions.inboxId} IN (
+          SELECT ${inbox.id} FROM ${inbox}
+          WHERE ${inbox.transactionId} = ${transactionId}
+            AND ${inbox.teamId} = ${teamId}
+        )`,
+      ),
+    );
 }
 
 export type UnmatchTransactionParams = {
