@@ -27,6 +27,8 @@ export type BooksZipPayment = {
     invoiceNumber: string | null;
     copyGroup: string | null;
     fromBooks: boolean;
+    /** Some copy of this invoice was pulled from the books (FF-1583). */
+    booksHaveIt: boolean;
   }[];
 };
 
@@ -35,8 +37,12 @@ export type BooksZipOptions = {
   from: string;
   /** `YYYY-MM-DD`, inclusive. */
   to: string;
-  /** Leave out card payments the books have settled. */
-  leaveOutSettledCards: boolean;
+  /**
+   * Leave out what the books already have: the invoices they hold a copy of,
+   * and the card payments they have settled. On by default, so the zip is what
+   * the books still need (FF-1583).
+   */
+  leaveOutWhatTheBooksHave: boolean;
 };
 
 export type BooksZipFile = {
@@ -53,6 +59,11 @@ export type BooksZipPlan = {
   withoutInvoice: BooksZipPayment[];
   /** Card payments left out because the books settled them. */
   settledLeftOut: BooksZipPayment[];
+  /** Invoices left out because the books already hold a copy. */
+  inBooksLeftOut: {
+    payment: BooksZipPayment;
+    file: BooksZipPayment["files"][number];
+  }[];
 };
 
 /** Written first, so a spreadsheet reads the file as UTF-8. */
@@ -72,13 +83,15 @@ export function planBooksZip(
   const files: BooksZipFile[] = [];
   const withoutInvoice: BooksZipPayment[] = [];
   const settledLeftOut: BooksZipPayment[] = [];
+  const inBooksLeftOut: BooksZipPlan["inBooksLeftOut"] = [];
   const usedPaths = new Set<string>();
 
   for (const payment of payments) {
     // Only a card payment carries an answer from the books; a payment from a
-    // bank account carries nothing, so nothing about it can be left out.
+    // bank account carries nothing, so nothing about it can be left out on
+    // that ground.
     if (
-      options.leaveOutSettledCards &&
+      options.leaveOutWhatTheBooksHave &&
       payment.account.isCard &&
       payment.booksStatus === "in_the_books"
     ) {
@@ -92,6 +105,11 @@ export function planBooksZip(
     }
 
     for (const { file, alreadyInBooks } of documentsOf(payment)) {
+      if (options.leaveOutWhatTheBooksHave && alreadyInBooks) {
+        inBooksLeftOut.push({ payment, file });
+        continue;
+      }
+
       const folder = safe(payment.supplier ?? "") || NO_SUPPLIER_FOLDER;
       const base = `${alreadyInBooks ? `${ALREADY_IN_BOOKS_FOLDER}/` : ""}${folder}/${fileName(payment, file)}`;
 
@@ -104,7 +122,7 @@ export function planBooksZip(
     }
   }
 
-  return { files, withoutInvoice, settledLeftOut };
+  return { files, withoutInvoice, settledLeftOut, inBooksLeftOut };
 }
 
 /**
@@ -119,12 +137,6 @@ export function planBooksZip(
 function documentsOf(
   payment: BooksZipPayment,
 ): { file: BooksZipPayment["files"][number]; alreadyInBooks: boolean }[] {
-  const inBooksGroups = new Set(
-    payment.files
-      .filter((file) => file.fromBooks && file.copyGroup)
-      .map((file) => file.copyGroup),
-  );
-
   return payment.files
     .filter(
       (file) =>
@@ -138,9 +150,11 @@ function documentsOf(
     )
     .map((file) => ({
       file,
-      alreadyInBooks:
-        file.fromBooks ||
-        (file.copyGroup !== null && inBooksGroups.has(file.copyGroup)),
+      // Whether the books hold a copy is a fact about the document, answered by
+      // the query across the whole inbox (FF-1583). Asking only the files on
+      // this payment missed every invoice whose pulled copy is matched to no
+      // payment — which is what a fresh upload to the books looks like.
+      alreadyInBooks: file.fromBooks || file.booksHaveIt,
     }));
 }
 
@@ -268,6 +282,12 @@ export function booksZipNotIncluded(
     [
       "Payments with no invoice in Midday",
       plan.withoutInvoice.map(paymentLine),
+    ],
+    [
+      "Invoices left out because the books already hold a copy",
+      plan.inBooksLeftOut.map(
+        ({ payment, file }) => `${paymentLine(payment)}  ${file.name}`,
+      ),
     ],
     [
       "Card payments left out because the books have settled them",

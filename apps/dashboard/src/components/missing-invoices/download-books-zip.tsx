@@ -10,7 +10,10 @@ import { useToast } from "@midday/ui/use-toast";
 import { format, startOfYear } from "date-fns";
 import { useState } from "react";
 import type { DateRange } from "react-day-picker";
-import { useDownloadBooksZip } from "@/hooks/use-download-books-zip";
+import {
+  type BooksZipResult,
+  useDownloadBooksZip,
+} from "@/hooks/use-download-books-zip";
 import { useUserQuery } from "@/hooks/use-user";
 
 /**
@@ -20,6 +23,20 @@ import { useUserQuery } from "@/hooks/use-user";
  * Here rather than under Export because it is how this list is finished for now:
  * until Midday delivers invoices to the books itself, the zip is the hand-over.
  */
+/** What the toast says under the count, or nothing when there is nothing to add. */
+function describe(result: BooksZipResult): string | undefined {
+  const notes = [
+    result.failed > 0 && `${result.failed} could not be downloaded`,
+    result.leftOut > 0 && `${result.leftOut} the books already have`,
+    result.withoutInvoice > 0 &&
+      `${result.withoutInvoice} ${result.withoutInvoice === 1 ? "payment has" : "payments have"} no invoice yet`,
+  ].filter((note): note is string => note !== false);
+
+  return notes.length > 0
+    ? `Left out: ${notes.join(", ")}. _Not included.txt lists them.`
+    : undefined;
+}
+
 export function DownloadBooksZip() {
   const { toast } = useToast();
   const { data: user } = useUserQuery();
@@ -29,7 +46,11 @@ export function DownloadBooksZip() {
     from: startOfYear(new Date()),
     to: new Date(),
   });
-  const [leaveOutSettledCards, setLeaveOutSettledCards] = useState(false);
+  // On by default: the zip is meant to be what the books still need. The first
+  // real download handed over 131 files the day after they were uploaded to the
+  // books, because nothing was left out (FF-1583).
+  const [leaveOutWhatTheBooksHave, setLeaveOutWhatTheBooksHave] =
+    useState(true);
 
   const start = async () => {
     if (!range?.from || !range?.to) return;
@@ -38,7 +59,7 @@ export function DownloadBooksZip() {
       const result = await download({
         from: format(range.from, "yyyy-MM-dd"),
         to: format(range.to, "yyyy-MM-dd"),
-        leaveOutSettledCards,
+        leaveOutWhatTheBooksHave,
       });
 
       setOpen(false);
@@ -47,12 +68,7 @@ export function DownloadBooksZip() {
         variant: result.failed > 0 ? "error" : "success",
         duration: 6000,
         title: `${result.included} ${result.included === 1 ? "file" : "files"} in the zip.`,
-        description:
-          result.failed > 0
-            ? `${result.failed} could not be downloaded; _Not included.txt lists them.`
-            : result.withoutInvoice > 0
-              ? `${result.withoutInvoice} ${result.withoutInvoice === 1 ? "payment has" : "payments have"} no invoice yet; _Not included.txt lists them.`
-              : undefined,
+        description: describe(result),
       });
     } catch (error) {
       toast({
@@ -90,24 +106,24 @@ export function DownloadBooksZip() {
         <div className="w-[calc(7*2rem+1.5rem)] space-y-3 border-t border-border p-3">
           <div className="flex items-start gap-2">
             <Checkbox
-              id="leave-out-settled-cards"
+              id="leave-out-what-the-books-have"
               className="mt-0.5"
-              checked={leaveOutSettledCards}
+              checked={leaveOutWhatTheBooksHave}
               onCheckedChange={(checked) =>
-                setLeaveOutSettledCards(checked === true)
+                setLeaveOutWhatTheBooksHave(checked === true)
               }
             />
             <Label
-              htmlFor="leave-out-settled-cards"
+              htmlFor="leave-out-what-the-books-have"
               className="text-xs font-normal leading-snug"
             >
-              Leave out card payments settled in the books
+              Leave out what the books already have
             </Label>
           </div>
           <p className="text-xs leading-snug text-[#878787]">
             A folder per supplier, for every payment of the period with an
-            invoice. Payments from a bank account say nothing about the books,
-            so they always come along.
+            invoice. Left out: invoices the books hold a copy of, and card
+            payments they have settled. _Not included.txt lists both.
           </p>
           <Button
             className="w-full"

@@ -388,6 +388,15 @@ export type InvoiceForBooksFile = {
   copyGroup: string | null;
   /** The document was pulled from the books, so the books already hold it. */
   fromBooks: boolean;
+  /**
+   * Some document in the same copy group was pulled from the books, so the
+   * books hold this invoice even though this file is Midday's own copy of it.
+   *
+   * Independent of whether that copy is attached to a payment, which is the
+   * whole point: a document pulled back from the books is often matched to no
+   * payment at all, and it still proves the books have the invoice (FF-1583).
+   */
+  booksHaveIt: boolean;
 };
 
 export type InvoiceForBooks = {
@@ -465,6 +474,13 @@ export async function getInvoicesForBooks(
       inboxId: inbox.id,
       groupedInboxId: inbox.groupedInboxId,
       referenceId: inbox.referenceId,
+      booksHaveIt: sql<boolean>`EXISTS (
+        SELECT 1 FROM ${inbox} AS books_copy
+        WHERE books_copy.team_id = ${teamId}
+          AND books_copy.reference_id LIKE ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}
+          AND COALESCE(books_copy.grouped_inbox_id, books_copy.id)
+              = COALESCE(${inbox.groupedInboxId}, ${inbox.id})
+      )`.as("booksHaveIt"),
     })
     .from(transactionAttachments)
     .leftJoin(
@@ -497,6 +513,7 @@ export async function getInvoicesForBooks(
       copyGroup: file.inboxId ? (file.groupedInboxId ?? file.inboxId) : null,
       fromBooks:
         file.referenceId?.startsWith(YUKI_INBOX_REFERENCE_PREFIX) ?? false,
+      booksHaveIt: file.booksHaveIt ?? false,
     });
     filesByPayment.set(file.transactionId, list);
   }

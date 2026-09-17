@@ -19,7 +19,7 @@ import {
 const PERIOD = {
   from: "2026-01-01",
   to: "2026-06-30",
-  leaveOutSettledCards: false,
+  leaveOutWhatTheBooksHave: false,
 };
 
 function payment(overrides: Partial<BooksZipPayment>): BooksZipPayment {
@@ -47,6 +47,7 @@ function file(
     invoiceNumber: "0BB37ACA-0017",
     copyGroup: "g1",
     fromBooks: false,
+    booksHaveIt: false,
     ...overrides,
   };
 }
@@ -154,7 +155,11 @@ describe("planBooksZip", () => {
       [
         payment({
           files: [
-            file({ fromBooks: true, name: "Cursor - 0BB37ACA-0017.pdf" }),
+            file({
+              fromBooks: true,
+              booksHaveIt: true,
+              name: "Cursor - 0BB37ACA-0017.pdf",
+            }),
           ],
         }),
       ],
@@ -173,8 +178,12 @@ describe("planBooksZip", () => {
       [
         payment({
           files: [
-            file({ name: "Invoice-0BB37ACA-0017.pdf" }),
-            file({ name: "Cursor - 0BB37ACA-0017.pdf", fromBooks: true }),
+            file({ name: "Invoice-0BB37ACA-0017.pdf", booksHaveIt: true }),
+            file({
+              name: "Cursor - 0BB37ACA-0017.pdf",
+              fromBooks: true,
+              booksHaveIt: true,
+            }),
           ],
         }),
       ],
@@ -213,6 +222,44 @@ describe("planBooksZip", () => {
     expect(plan.withoutInvoice.map((p) => p.id)).toEqual(["without"]);
   });
 
+  test("marks an invoice whose pulled copy is attached to nothing as already in the books", () => {
+    // A fresh upload to the books comes back through the pull matched to no
+    // payment, so only the document's own answer can say the books have it.
+    const plan = planBooksZip(
+      [payment({ files: [file({ booksHaveIt: true })] })],
+      PERIOD,
+    );
+
+    expect(plan.files[0]).toMatchObject({ alreadyInBooks: true });
+    expect(plan.files[0]?.zipPath).toStartWith(
+      "_Already in the books - link, do not upload/",
+    );
+  });
+
+  test("leaves out what the books already have when asked, and says which", () => {
+    const held = payment({
+      id: "held",
+      files: [file({ booksHaveIt: true, name: "held.pdf" })],
+    });
+    const needed = payment({
+      id: "needed",
+      files: [file({ name: "new.pdf" })],
+    });
+
+    const plan = planBooksZip([held, needed], {
+      ...PERIOD,
+      leaveOutWhatTheBooksHave: true,
+    });
+
+    expect(plan.files.map((f) => f.payment.id)).toEqual(["needed"]);
+    expect(
+      plan.inBooksLeftOut.map(({ payment, file }) => [payment.id, file.name]),
+    ).toEqual([["held", "held.pdf"]]);
+    expect(
+      booksZipNotIncluded(plan, PERIOD, { failed: [], duplicates: [] }),
+    ).toContain("Invoices left out because the books already hold a copy (1)");
+  });
+
   test("leaves out card payments the books settled, only when asked", () => {
     const settled = payment({
       id: "settled",
@@ -230,7 +277,7 @@ describe("planBooksZip", () => {
 
     const plan = planBooksZip([settled, settledAccount], {
       ...PERIOD,
-      leaveOutSettledCards: true,
+      leaveOutWhatTheBooksHave: true,
     });
     expect(plan.settledLeftOut.map((p) => p.id)).toEqual(["settled"]);
     // A bank-account payment carries nothing from the books; nothing is left out.
@@ -269,7 +316,7 @@ describe("booksZipNotIncluded", () => {
           booksStatus: "in_the_books",
         }),
       ],
-      { ...PERIOD, leaveOutSettledCards: true },
+      { ...PERIOD, leaveOutWhatTheBooksHave: true },
     );
 
     const text = booksZipNotIncluded(plan, PERIOD, {

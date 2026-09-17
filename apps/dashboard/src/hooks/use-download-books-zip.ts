@@ -22,6 +22,8 @@ export type BooksZipResult = {
   included: number;
   failed: number;
   withoutInvoice: number;
+  /** Files and payments left out because the books already have them. */
+  leftOut: number;
 };
 
 /**
@@ -114,6 +116,7 @@ export function useDownloadBooksZip() {
         included: kept.length,
         failed: failed.length,
         withoutInvoice: plan.withoutInvoice.length,
+        leftOut: plan.inBooksLeftOut.length + plan.settledLeftOut.length,
       };
     } finally {
       setProgress(null);
