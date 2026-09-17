@@ -2408,6 +2408,40 @@ export async function findRelatedInboxItems(
   return [];
 }
 
+/** A member of an inbox group, as electing its primary needs to see it. */
+export type InboxGroupMember = {
+  id: string;
+  type: "invoice" | "expense" | "other" | null;
+  createdAt: string;
+};
+
+/**
+ * Which of a group's documents is the one to show: prefer an invoice, then the
+ * oldest.
+ *
+ * Exported because the election has to be repeatable outside the grouping that
+ * first made it. `groupRelatedInboxItems` elects while it groups, and it only
+ * ever looks at documents that are not grouped yet — so a group whose members'
+ * types change afterwards can never be re-elected through it. FF-1533's
+ * backfill re-types receipts that were stored as invoices, and then has to
+ * elect again, by this rule and not by a second copy of it.
+ */
+export function electInboxGroupPrimary<T extends InboxGroupMember>(
+  members: [T, ...T[]],
+): T {
+  return members.reduce((primary, item) => {
+    if (item.type === "invoice" && primary.type !== "invoice") {
+      return item;
+    }
+    if (item.type === primary.type) {
+      return new Date(item.createdAt) < new Date(primary.createdAt)
+        ? item
+        : primary;
+    }
+    return primary;
+  });
+}
+
 export type GroupRelatedInboxItemsParams = {
   inboxId: string;
   teamId: string;
@@ -2443,7 +2477,7 @@ export async function groupRelatedInboxItems(
   }
 
   // Collect all items to group (current + related)
-  const allItems = [
+  const allItems: [InboxGroupMember, ...InboxGroupMember[]] = [
     {
       id: currentItem.id,
       type: currentItem.type,
@@ -2456,18 +2490,7 @@ export async function groupRelatedInboxItems(
     })),
   ];
 
-  // Determine primary item: prefer invoice type, then oldest
-  const primaryItem = allItems.reduce((primary, item) => {
-    if (item.type === "invoice" && primary.type !== "invoice") {
-      return item;
-    }
-    if (item.type === primary.type) {
-      return new Date(item.createdAt) < new Date(primary.createdAt)
-        ? item
-        : primary;
-    }
-    return primary;
-  });
+  const primaryItem = electInboxGroupPrimary(allItems);
 
   // Update all items to point to the primary item
   const itemsToUpdate = allItems

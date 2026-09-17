@@ -24,7 +24,7 @@ import {
   updateInbox,
   updateInboxWithProcessedData,
 } from "@midday/db/queries";
-import { DocumentClient } from "@midday/documents";
+import { DocumentClient, resolveInboxType } from "@midday/documents";
 import { createClient } from "@midday/supabase/job";
 import { schemaTask } from "@trigger.dev/sdk";
 import { processDocument } from "../document/process-document";
@@ -386,7 +386,14 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
         taxAmount: result.tax_amount ?? undefined,
         taxRate: result.tax_rate ?? undefined,
         taxType: result.tax_type ?? undefined,
-        type: result.type as "invoice" | "expense" | null | undefined,
+        // What the document says it is, not what kind of file carried it —
+        // `result.type` is the processor's guess and the processor is chosen
+        // from the mimetype, so on its own every PDF is an invoice (FF-1533).
+        type: resolveInboxType({
+          documentType: result.document_type,
+          fileName: filename,
+          fallback: result.type,
+        }),
         invoiceNumber: result.invoice_number ?? undefined,
         // "analyzing" keeps it there until matching completes; "no_charge" is
         // already the final answer.

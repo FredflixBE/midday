@@ -5,7 +5,7 @@ import {
   updateInbox,
   updateInboxWithProcessedData,
 } from "@midday/db/queries";
-import { DocumentClient } from "@midday/documents";
+import { DocumentClient, resolveInboxType } from "@midday/documents";
 import { logger } from "@midday/logger";
 import { createClient } from "@midday/supabase/job";
 import { getExtensionFromMimeType } from "@midday/utils";
@@ -216,7 +216,13 @@ export async function processInboxUpload(
       taxAmount: result.tax_amount ?? undefined,
       taxRate: result.tax_rate ?? undefined,
       taxType: result.tax_type ?? undefined,
-      type: result.type as "invoice" | "expense" | null | undefined,
+      // Same reading as process-attachment: the document decides its own type,
+      // and the mimetype is only the fallback (FF-1533).
+      type: resolveInboxType({
+        documentType: result.document_type,
+        fileName: resolvedFileName,
+        fallback: result.type,
+      }),
       invoiceNumber: result.invoice_number ?? undefined,
       status: "analyzing",
     });

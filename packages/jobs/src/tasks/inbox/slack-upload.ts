@@ -19,7 +19,7 @@ import {
   updateInbox,
   updateInboxWithProcessedData,
 } from "@midday/db/queries";
-import { DocumentClient } from "@midday/documents";
+import { DocumentClient, resolveInboxType } from "@midday/documents";
 import { createClient } from "@midday/supabase/job";
 import { getExtensionFromMimeType } from "@midday/utils";
 import { getAppUrl } from "@midday/utils/envs";
@@ -326,7 +326,13 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
         taxAmount: result.tax_amount ?? undefined,
         taxRate: result.tax_rate ?? undefined,
         taxType: result.tax_type ?? undefined,
-        type: result.type as "invoice" | "expense" | null | undefined,
+        // Same reading as process-attachment: the document decides its own
+        // type, and the mimetype is only the fallback (FF-1533).
+        type: resolveInboxType({
+          documentType: result.document_type,
+          fileName,
+          fallback: result.type,
+        }),
         invoiceNumber: result.invoice_number ?? undefined,
         // "analyzing" keeps it there until matching completes; "no_charge" is
         // already the final answer.
