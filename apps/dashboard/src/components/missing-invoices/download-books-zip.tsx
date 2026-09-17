@@ -81,10 +81,17 @@ export function DownloadBooksZip() {
           defaultMonth={range?.from}
           weekStartsOn={user?.weekStartsOnMonday ? 1 : 0}
         />
-        <div className="space-y-4 border-t border-border p-4">
+        {/*
+         * As wide as the calendar above it and no wider: seven cells of
+         * --cell-size plus its own p-3 on both sides. Without this the panel
+         * is as wide as the longest line under it, which left the calendar
+         * sitting in a third of a very wide popover.
+         */}
+        <div className="w-[calc(7*2rem+1.5rem)] space-y-3 border-t border-border p-3">
           <div className="flex items-start gap-2">
             <Checkbox
               id="leave-out-settled-cards"
+              className="mt-0.5"
               checked={leaveOutSettledCards}
               onCheckedChange={(checked) =>
                 setLeaveOutSettledCards(checked === true)
@@ -92,15 +99,15 @@ export function DownloadBooksZip() {
             />
             <Label
               htmlFor="leave-out-settled-cards"
-              className="text-sm font-normal leading-tight"
+              className="text-xs font-normal leading-snug"
             >
-              Leave out card payments already settled in the books
+              Leave out card payments settled in the books
             </Label>
           </div>
-          <p className="max-w-[260px] text-xs text-[#878787]">
-            Every payment of the period with an invoice in Midday, a folder per
-            supplier. Payments from a bank account carry nothing from the books,
-            so they are always included.
+          <p className="text-xs leading-snug text-[#878787]">
+            A folder per supplier, for every payment of the period with an
+            invoice. Payments from a bank account say nothing about the books,
+            so they always come along.
           </p>
           <Button
             className="w-full"
