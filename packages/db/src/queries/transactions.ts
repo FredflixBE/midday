@@ -42,6 +42,7 @@ import {
   calculateCurrencyScore,
   calculateDateScore,
   calculateNameScore,
+  daysBetween,
   isExactAmountMatch,
   scoreMatch,
 } from "../utils/transaction-matching";
@@ -1363,6 +1364,9 @@ export async function searchTransactionMatch(
           currencyScore,
           isSameCurrency,
           isExactAmount,
+          daysApart: inboxContext.date
+            ? daysBetween(inboxContext.date, t.transactionDate)
+            : undefined,
         });
 
         return {
@@ -1516,6 +1520,9 @@ export async function searchTransactionMatch(
             currencyScore,
             isSameCurrency,
             isExactAmount,
+            daysApart: item.date
+              ? daysBetween(item.date, transaction.transactionDate)
+              : undefined,
           });
 
           const result = {

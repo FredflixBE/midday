@@ -620,6 +620,18 @@ const INCONCLUSIVE_REFERENCE_CEILING = 0.94;
 /** A reference that names exactly one payment is as certain as this matcher gets. */
 const CONCLUSIVE_REFERENCE_FLOOR = 0.97;
 
+/**
+ * How close in time an exact amount has to be before it can stand without a
+ * name. Days, either direction.
+ *
+ * A card charge reaches the bank within a day or two of the invoice that
+ * settles it, which is the case this is for. Anything wider and the amount
+ * stops identifying a payment: six monthly Cursor charges of €17.38 are an
+ * exact match to every one of six invoices, and only the date tells November
+ * from February.
+ */
+const NAMELESS_MATCH_WINDOW_DAYS = 7;
+
 type ScoreMatchInput = {
   nameScore: number;
   amountScore: number;
@@ -629,6 +641,16 @@ type ScoreMatchInput = {
   isExactAmount: boolean;
   declinePenalty?: number;
   referenceEvidence?: ReferenceEvidence;
+  /**
+   * Days between the document and the payment, unsigned, where the caller knows
+   * it (FF-1565).
+   *
+   * Absent means *not known*, never *near*: `dateScore` cannot answer this,
+   * because it scores plausibility rather than closeness — a payment 30 days
+   * after an invoice scores 0.98 as a net-30 term while one the next day scores
+   * 0.85 as an advance payment.
+   */
+  daysApart?: number;
 };
 
 export function scoreMatch({
@@ -640,6 +662,7 @@ export function scoreMatch({
   isExactAmount,
   declinePenalty = 0,
   referenceEvidence = "none",
+  daysApart,
 }: ScoreMatchInput): number {
   // Cross-currency with a strong name match: the vendor is already identified,
   // so amount differences are mostly FX noise. Shift weight toward date to
@@ -677,7 +700,29 @@ export function scoreMatch({
     confidence = Math.max(confidence, confidence + 0.05);
   }
 
-  if (nameScore === 0) {
+  // An exact amount, in the same currency, within days: the two rows are
+  // Midday's own, so this is the comparison FF-1537 calls reliable — one
+  // system, one source, one currency. That is documentary in the way FF-1548's
+  // reference is, and like the reference it has to survive the name, not be
+  // erased by it (FF-1565).
+  //
+  // The card statement said `TEXACO REED BE2840 REET`; the invoice came from
+  // `Horbo`, the company that operates the station. Same purchase, same amount
+  // to the cent, one day apart, no word in common — and the multiplier below
+  // turned the floor an exact amount had just set, 0.78, into 0.429, under the
+  // 0.6 a suggestion needs. A supplier trading under another name is the norm
+  // for physical merchants, so a name comparison rejects those matches every
+  // time, which is how this went unnoticed: it looks like caution.
+  //
+  // The window is what keeps it from becoming the opposite mistake. Beyond it
+  // a recurring amount identifies a supplier and not a payment.
+  const amountAndDateIdentify =
+    isExactAmount &&
+    isSameCurrency &&
+    daysApart !== undefined &&
+    daysApart <= NAMELESS_MATCH_WINDOW_DAYS;
+
+  if (nameScore === 0 && !amountAndDateIdentify) {
     confidence *= 0.55;
   }
 
@@ -706,6 +751,21 @@ export function scoreMatch({
   }
 
   return Math.max(0, Math.min(1, confidence));
+}
+
+/**
+ * Whole days between two ISO dates, unsigned.
+ *
+ * `calculateDateScore` cannot answer this and is not meant to: it scores how
+ * *plausible* a gap is, so a payment 30 days after an invoice scores higher
+ * than one the next day. Closeness is a separate question, and `scoreMatch`
+ * asks it (FF-1565).
+ */
+export function daysBetween(one: string, other: string): number {
+  return Math.round(
+    Math.abs(parseISO(one).getTime() - parseISO(other).getTime()) /
+      (1000 * 60 * 60 * 24),
+  );
 }
 
 export function calculateDateScore(

@@ -22,6 +22,7 @@ import {
   calculateCurrencyScore,
   calculateDateScore,
   calculateNameScore,
+  daysBetween,
   isExactAmountMatch,
   type MatchType,
   type ReferenceEvidence,
@@ -863,6 +864,7 @@ export async function findMatches(
       isExactAmount,
       referenceEvidence,
       declinePenalty,
+      daysApart: daysBetween(inboxItem.date, candidate.date),
     });
 
     if (confidence < suggestedThreshold) continue;
@@ -1122,6 +1124,12 @@ export async function findInboxMatches(
       isExactAmount,
       referenceEvidence,
       declinePenalty,
+      // Not `candidate.date || transactionItem.date`, the way `dateScore` above
+      // falls back: that reads as nought days apart, which is the closest a
+      // pair can be, for a document that carries no date at all.
+      daysApart: candidate.date
+        ? daysBetween(candidate.date, transactionItem.date)
+        : undefined,
     });
 
     if (confidence < suggestedThreshold) continue;

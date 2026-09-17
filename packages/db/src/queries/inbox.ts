@@ -21,6 +21,7 @@ import {
   calculateCurrencyScore as calculateUnifiedCurrencyScore,
   calculateDateScore as calculateUnifiedDateScore,
   calculateNameScore as calculateUnifiedNameScore,
+  daysBetween,
   isExactAmountMatch,
   scoreMatch,
 } from "../utils/transaction-matching";
@@ -869,6 +870,9 @@ export async function getInboxSearch(
             currencyScore,
             isSameCurrency,
             isExactAmount,
+            daysApart: candidate.date
+              ? daysBetween(candidate.date, txContext.date)
+              : undefined,
           });
 
           return {
@@ -1023,6 +1027,9 @@ export async function getInboxSearch(
               currencyScore,
               isSameCurrency,
               isExactAmount,
+              daysApart: candidate.date
+                ? daysBetween(candidate.date, transaction.date)
+                : undefined,
             });
 
             return {
