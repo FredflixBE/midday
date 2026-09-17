@@ -20,6 +20,18 @@ import {
  */
 const BATCH_SIZE = 8;
 
+/** What comparing against the books' own files came to. */
+export type BooksComparison = {
+  /** Files the books hold, as the query reported them. */
+  booksFiles: number;
+  /** Files of the zip that were compared. */
+  compared: number;
+  /** Of those, how many had a books file of the same size to compare with. */
+  withCandidates: number;
+  /** Candidates whose bytes could not be read. */
+  unreadableCandidates: number;
+};
+
 export type BooksZipResult = {
   included: number;
   failed: number;
@@ -56,8 +68,10 @@ export function useDownloadBooksZip() {
     hash: string,
     booksPathsBySize: Map<number, string[][]>,
     booksHashes: Map<string, string | null>,
+    tally: BooksComparison,
   ): Promise<boolean> => {
     const candidates = booksPathsBySize.get(entry.file.size ?? -1) ?? [];
+    if (candidates.length > 0) tally.withCandidates += 1;
 
     for (const path of candidates) {
       const key = path.join("/");
@@ -68,6 +82,7 @@ export function useDownloadBooksZip() {
         );
         const blob = blobs[0];
         booksHashes.set(key, blob ? await sha256(blob) : null);
+        if (!blob) tally.unreadableCandidates += 1;
       }
 
       if (booksHashes.get(key) === hash) return true;
@@ -103,10 +118,21 @@ export function useDownloadBooksZip() {
       // The books' copies to compare bytes against, by size, and their hashes
       // once read — a size is often shared by one file, and the same one can
       // answer for several payments.
+      // `?? []` so an API that predates this route's third field degrades to
+      // "the comparison did not run", which _Not included.txt then says, rather
+      // than throwing halfway through a download.
       const booksPathsBySize = options.leaveOutWhatTheBooksHave
-        ? booksFilePathsBySize(booksFiles)
+        ? booksFilePathsBySize(booksFiles ?? [])
         : new Map<number, string[][]>();
       const booksHashes = new Map<string, string | null>();
+      // What the comparison did, so the zip can say it rather than leave a
+      // silent "nothing matched" to be guessed at.
+      const comparison: BooksComparison = {
+        booksFiles: booksFiles?.length ?? 0,
+        compared: 0,
+        withCandidates: 0,
+        unreadableCandidates: 0,
+      };
 
       setProgress({ done: 0, total: plan.files.length });
 
@@ -136,12 +162,14 @@ export function useDownloadBooksZip() {
           // The last resort for a file no number could place: the books may
           // hold this very file. Only sizes they have are even looked at, so
           // this costs nothing for a file they cannot have (FF-1583).
+          comparison.compared += 1;
           if (
             await booksHoldTheSameFile(
               entry,
               hash,
               booksPathsBySize,
               booksHashes,
+              comparison,
             )
           ) {
             sameFileInBooks.push(entry);
@@ -166,6 +194,7 @@ export function useDownloadBooksZip() {
           failed,
           duplicates,
           sameFileInBooks,
+          comparison,
         }),
       );
 

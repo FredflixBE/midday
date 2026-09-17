@@ -466,3 +466,48 @@ test("_Not included.txt names the files the books turned out to hold", () => {
     "Invoices left out because the books hold the same file (1)",
   );
 });
+
+describe("what _Not included.txt says about the check itself", () => {
+  const plan = planBooksZip([payment({ files: [file({})] })], PERIOD);
+
+  test("says what was compared, even when nothing was left out", () => {
+    const text = booksZipNotIncluded(plan, PERIOD, {
+      failed: [],
+      duplicates: [],
+      comparison: {
+        booksFiles: 387,
+        compared: 56,
+        withCandidates: 49,
+        unreadableCandidates: 0,
+      },
+    });
+
+    expect(text).toContain(
+      "56 of the files here were compared with the 387 files the books hold.",
+    );
+    expect(text).toContain("49 had a file of the same size to compare with");
+  });
+
+  test("says when the books' files could not be read", () => {
+    const text = booksZipNotIncluded(plan, PERIOD, {
+      failed: [],
+      duplicates: [],
+      comparison: {
+        booksFiles: 387,
+        compared: 56,
+        withCandidates: 49,
+        unreadableCandidates: 49,
+      },
+    });
+
+    expect(text).toContain(
+      "49 of the books' files could not be read, so those could not be ruled out.",
+    );
+  });
+
+  test("says nothing about a check that never ran", () => {
+    expect(
+      booksZipNotIncluded(plan, PERIOD, { failed: [], duplicates: [] }),
+    ).not.toContain("How this was checked");
+  });
+});
