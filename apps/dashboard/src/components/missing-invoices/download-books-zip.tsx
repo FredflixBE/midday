@@ -25,16 +25,15 @@ import { useUserQuery } from "@/hooks/use-user";
  * until Midday delivers invoices to the books itself, the zip is the hand-over.
  */
 /**
- * What the button says while it works. The first number is how many documents
- * are being checked against the books, not how many the zip will hold — most
- * are usually left out, and the old "Downloading 8 of 56" read as 56 invoices
- * to hand over (FF-1583).
+ * What the button says while it works — a number only once it is the number of
+ * invoices the zip will hold. While checking there is nothing true to count:
+ * those documents are candidates, and most are left out (FF-1583).
  */
 function label(progress: BooksZipProgress): string {
   if (progress.phase === "packing") {
-    return `Packing ${progress.total} ${progress.total === 1 ? "invoice" : "invoices"}…`;
+    return `Packing ${progress.invoices} ${progress.invoices === 1 ? "invoice" : "invoices"}…`;
   }
-  return `Checking ${progress.done} of ${progress.total} against the books…`;
+  return "Checking against the books…";
 }
 
 /** What the toast says under the count, or nothing when there is nothing to add. */
