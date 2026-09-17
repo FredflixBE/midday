@@ -10,6 +10,7 @@ import { describe, expect, test } from "bun:test";
 import {
   type BooksZipPayment,
   BYTE_ORDER_MARK,
+  booksFilePathsBySize,
   booksInvoiceNumberSet,
   booksZipName,
   booksZipNotIncluded,
@@ -44,6 +45,7 @@ function file(
   return {
     name: "Invoice-0BB37ACA-0017.pdf",
     path: ["team", "inbox", "Invoice-0BB37ACA-0017.pdf"],
+    size: 1000,
     contentType: "application/pdf",
     invoiceNumber: "0BB37ACA-0017",
     copyGroup: "g1",
@@ -432,4 +434,35 @@ describe("booksZipNotIncluded", () => {
 
 test("booksZipName says the period", () => {
   expect(booksZipName(PERIOD)).toBe("Invoices 2026-01-01 to 2026-06-30.zip");
+});
+
+describe("booksFilePathsBySize", () => {
+  test("groups the books' files by size, several to a size", () => {
+    const bySize = booksFilePathsBySize([
+      { path: ["t", "inbox", "a.pdf"], size: 1000 },
+      { path: ["t", "inbox", "b.pdf"], size: 1000 },
+      { path: ["t", "inbox", "c.pdf"], size: 2000 },
+    ]);
+
+    expect(bySize.get(1000)).toEqual([
+      ["t", "inbox", "a.pdf"],
+      ["t", "inbox", "b.pdf"],
+    ]);
+    expect(bySize.get(2000)).toHaveLength(1);
+    expect(bySize.get(3000)).toBeUndefined();
+  });
+});
+
+test("_Not included.txt names the files the books turned out to hold", () => {
+  const plan = planBooksZip([payment({ files: [file({})] })], PERIOD);
+
+  const text = booksZipNotIncluded(plan, PERIOD, {
+    failed: [],
+    duplicates: [],
+    sameFileInBooks: [plan.files[0]!],
+  });
+
+  expect(text).toContain(
+    "Invoices left out because the books hold the same file (1)",
+  );
 });

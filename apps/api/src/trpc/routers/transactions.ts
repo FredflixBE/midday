@@ -21,6 +21,7 @@ import {
   createTransaction,
   deleteTransactions,
   getBankAccountById,
+  getBooksFiles,
   getBooksInvoiceNumbers,
   getInvoicesForBooks,
   getMissingInvoices,
@@ -129,12 +130,13 @@ export const transactionsRouter = createTRPCRouter({
       // The numbers come with the payments rather than from a second route:
       // they are read for the same download, and two calls could disagree if a
       // pull landed between them.
-      const [payments, booksInvoiceNumbers] = await Promise.all([
+      const [payments, booksInvoiceNumbers, booksFiles] = await Promise.all([
         getInvoicesForBooks(db, { teamId: teamId!, ...input }),
         getBooksInvoiceNumbers(db, { teamId: teamId! }),
+        getBooksFiles(db, { teamId: teamId! }),
       ]);
 
-      return { payments, booksInvoiceNumbers };
+      return { payments, booksInvoiceNumbers, booksFiles };
     }),
 
   getSimilarTransactions: protectedProcedure

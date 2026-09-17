@@ -6,6 +6,7 @@ import { useTRPC } from "@/trpc/client";
 import {
   type BooksZipFile,
   type BooksZipOptions,
+  booksFilePathsBySize,
   booksInvoiceNumberSet,
   booksZipName,
   booksZipNotIncluded,
@@ -44,17 +45,49 @@ export function useDownloadBooksZip() {
 
   const signedUrls = useMutation(trpc.documents.signedUrls.mutationOptions());
 
+  /**
+   * Whether the books hold this exact file. Compared on the bytes, never on a
+   * size alone: 365 of the 387 pulled documents have a size of their own, so a
+   * shared size is uncommon but not impossible, and a wrong answer here would
+   * withhold an invoice the books never had.
+   */
+  const booksHoldTheSameFile = async (
+    entry: BooksZipFile,
+    hash: string,
+    booksPathsBySize: Map<number, string[][]>,
+    booksHashes: Map<string, string | null>,
+  ): Promise<boolean> => {
+    const candidates = booksPathsBySize.get(entry.file.size ?? -1) ?? [];
+
+    for (const path of candidates) {
+      const key = path.join("/");
+      if (!booksHashes.has(key)) {
+        const blobs = await fetchBatch(
+          [{ ...entry, file: { ...entry.file, path } }],
+          (paths) => signedUrls.mutateAsync(paths),
+        );
+        const blob = blobs[0];
+        booksHashes.set(key, blob ? await sha256(blob) : null);
+      }
+
+      if (booksHashes.get(key) === hash) return true;
+    }
+
+    return false;
+  };
+
   const download = async (
     options: BooksZipOptions,
   ): Promise<BooksZipResult> => {
     try {
-      const { payments, booksInvoiceNumbers } = await queryClient.fetchQuery({
-        ...trpc.transactions.invoicesForBooks.queryOptions({
-          from: options.from,
-          to: options.to,
-        }),
-        staleTime: 0,
-      });
+      const { payments, booksInvoiceNumbers, booksFiles } =
+        await queryClient.fetchQuery({
+          ...trpc.transactions.invoicesForBooks.queryOptions({
+            from: options.from,
+            to: options.to,
+          }),
+          staleTime: 0,
+        });
 
       const plan = planBooksZip(
         payments,
@@ -65,7 +98,15 @@ export function useDownloadBooksZip() {
       const kept: BooksZipFile[] = [];
       const failed: BooksZipFile[] = [];
       const duplicates: BooksZipFile[] = [];
+      const sameFileInBooks: BooksZipFile[] = [];
       const seen = new Set<string>();
+      // The books' copies to compare bytes against, by size, and their hashes
+      // once read — a size is often shared by one file, and the same one can
+      // answer for several payments.
+      const booksPathsBySize = options.leaveOutWhatTheBooksHave
+        ? booksFilePathsBySize(booksFiles)
+        : new Map<number, string[][]>();
+      const booksHashes = new Map<string, string | null>();
 
       setProgress({ done: 0, total: plan.files.length });
 
@@ -92,6 +133,21 @@ export function useDownloadBooksZip() {
             continue;
           }
 
+          // The last resort for a file no number could place: the books may
+          // hold this very file. Only sizes they have are even looked at, so
+          // this costs nothing for a file they cannot have (FF-1583).
+          if (
+            await booksHoldTheSameFile(
+              entry,
+              hash,
+              booksPathsBySize,
+              booksHashes,
+            )
+          ) {
+            sameFileInBooks.push(entry);
+            continue;
+          }
+
           seen.add(hash);
           zip.file(entry.zipPath, blob);
           kept.push(entry);
@@ -106,7 +162,11 @@ export function useDownloadBooksZip() {
       zip.file("_Overview.csv", booksZipOverview(kept));
       zip.file(
         "_Not included.txt",
-        booksZipNotIncluded(plan, options, { failed, duplicates }),
+        booksZipNotIncluded(plan, options, {
+          failed,
+          duplicates,
+          sameFileInBooks,
+        }),
       );
 
       const zipBlob = await zip.generateAsync({
@@ -121,7 +181,10 @@ export function useDownloadBooksZip() {
         included: kept.length,
         failed: failed.length,
         withoutInvoice: plan.withoutInvoice.length,
-        leftOut: plan.inBooksLeftOut.length + plan.settledLeftOut.length,
+        leftOut:
+          plan.inBooksLeftOut.length +
+          plan.settledLeftOut.length +
+          sameFileInBooks.length,
       };
     } finally {
       setProgress(null);
