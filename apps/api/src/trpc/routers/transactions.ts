@@ -9,6 +9,7 @@ import {
   getTransactionByIdSchema,
   getTransactionsSchema,
   importTransactionsSchema,
+  invoicesForBooksSchema,
   moveToReviewSchema,
   searchTransactionMatchSchema,
   updateTransactionSchema,
@@ -20,6 +21,7 @@ import {
   createTransaction,
   deleteTransactions,
   getBankAccountById,
+  getInvoicesForBooks,
   getMissingInvoices,
   getSimilarTransactions,
   getTransactionById,
@@ -118,6 +120,13 @@ export const transactionsRouter = createTRPCRouter({
   missingInvoices: protectedProcedure.query(async ({ ctx: { db, teamId } }) => {
     return getMissingInvoices(db, { teamId: teamId! });
   }),
+
+  /** What the zip of invoices for the accountant is built from (FF-1581). */
+  invoicesForBooks: protectedProcedure
+    .input(invoicesForBooksSchema)
+    .query(async ({ input, ctx: { db, teamId } }) => {
+      return getInvoicesForBooks(db, { teamId: teamId!, ...input });
+    }),
 
   getSimilarTransactions: protectedProcedure
     .input(getSimilarTransactionsSchema)

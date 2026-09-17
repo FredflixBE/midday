@@ -424,3 +424,30 @@ describe("tRPC: transactions.export", () => {
     );
   });
 });
+
+describe("tRPC: transactions.invoicesForBooks", () => {
+  beforeEach(() => {
+    mocks.getInvoicesForBooks.mockReset();
+    mocks.getInvoicesForBooks.mockImplementation(() => []);
+  });
+
+  test("reads the period for the caller's team", async () => {
+    const caller = createCaller(createTestContext());
+    await caller.invoicesForBooks({ from: "2026-01-01", to: "2026-06-30" });
+
+    expect(mocks.getInvoicesForBooks).toHaveBeenCalledWith(expect.anything(), {
+      teamId: "test-team-id",
+      from: "2026-01-01",
+      to: "2026-06-30",
+    });
+  });
+
+  test("refuses a period that ends before it starts", async () => {
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.invoicesForBooks({ from: "2026-06-30", to: "2026-01-01" }),
+    ).rejects.toThrow();
+    expect(mocks.getInvoicesForBooks).not.toHaveBeenCalled();
+  });
+});

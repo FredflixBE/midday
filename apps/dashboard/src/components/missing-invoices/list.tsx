@@ -24,6 +24,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { FormatAmount } from "@/components/format-amount";
+import { DownloadBooksZip } from "@/components/missing-invoices/download-books-zip";
 import { useTransactionParams } from "@/hooks/use-transaction-params";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
@@ -43,7 +44,10 @@ function Heading({ count, readyToConfirm, groups }: MissingInvoices) {
 
   return (
     <div className="border-b border-border pb-4">
-      <h1 className="text-2xl font-serif">Missing invoices</h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-2xl font-serif">Missing invoices</h1>
+        <DownloadBooksZip />
+      </div>
       <p className="mt-1 text-sm text-[#878787]">
         {count === 0
           ? "Every payment that needs an invoice has one."

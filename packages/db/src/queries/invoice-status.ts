@@ -1,7 +1,18 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  sql,
+} from "drizzle-orm";
 import type { SQL } from "drizzle-orm/sql/sql";
 import type { Database } from "../client";
 import {
+  bankAccounts,
   type booksStatusEnum,
   inbox,
   transactionAttachments,
@@ -359,6 +370,160 @@ function withCountAndTotals(group: MissingInvoiceGroup): MissingInvoiceGroup {
       amount,
     })),
   };
+}
+
+export type InvoiceForBooksFile = {
+  name: string;
+  /** Where the file is in the `vault` bucket. */
+  path: string[];
+  contentType: string;
+  /** The invoice number of the inbox document this file came from, if any. */
+  invoiceNumber: string | null;
+  /**
+   * The inbox group the document belongs to — the primary's id — or null for a
+   * file uploaded straight onto the payment. Two files of one payment in the
+   * same group are the same invoice reaching Midday twice, or an invoice and its
+   * own receipt; the zip tells those apart, this only says they belong together.
+   */
+  copyGroup: string | null;
+  /** The document was pulled from the books, so the books already hold it. */
+  fromBooks: boolean;
+};
+
+export type InvoiceForBooks = {
+  id: string;
+  date: string;
+  /** The bank's description of the payment. */
+  name: string;
+  amount: number;
+  currency: string;
+  /** Who was paid, spelled as their newest payment in the period spells it. */
+  supplier: string | null;
+  account: { name: string | null; isCard: boolean };
+  booksStatus: (typeof booksStatusEnum.enumValues)[number] | null;
+  /** Empty when Midday holds no invoice for the payment. */
+  files: InvoiceForBooksFile[];
+};
+
+/**
+ * Every expense of a period that needs a supplier invoice, with the files
+ * Midday holds for it — what the zip for the accountant is made of (FF-1581).
+ *
+ * Midday's own records only. A page must not ask the books (FF-1498), so
+ * "already in the books" is what `books_status` says for a card payment and
+ * nothing at all for a payment from a bank account.
+ *
+ * A payment marked as needing no invoice is left out; one still waiting for its
+ * invoice is kept with no files, so the zip can say what it could not include.
+ */
+export async function getInvoicesForBooks(
+  db: Database,
+  params: { teamId: string; from: string; to: string },
+): Promise<InvoiceForBooks[]> {
+  const { teamId, from, to } = params;
+
+  const rows = await db
+    .select({
+      id: transactions.id,
+      date: transactions.date,
+      name: transactions.name,
+      amount: transactions.amount,
+      currency: transactions.currency,
+      counterpartyName: transactions.counterpartyName,
+      merchantName: transactions.merchantName,
+      booksStatus: transactions.booksStatus,
+      accountName: bankAccounts.name,
+      accountType: bankAccounts.type,
+    })
+    .from(transactions)
+    .leftJoin(bankAccounts, eq(bankAccounts.id, transactions.bankAccountId))
+    .where(
+      and(
+        eq(transactions.teamId, teamId),
+        gte(transactions.date, from),
+        lte(transactions.date, to),
+        invoiceStatusFilterSql(teamId, [
+          "invoice_attached",
+          "invoice_missing",
+          "invoice_pending",
+        ]),
+      ),
+    )
+    // Newest first, so the first spelling met for a supplier is its newest —
+    // the same rule the missing-invoices headings use.
+    .orderBy(desc(transactions.date), transactions.id);
+
+  if (rows.length === 0) return [];
+
+  const files = await db
+    .select({
+      transactionId: transactionAttachments.transactionId,
+      name: transactionAttachments.name,
+      path: transactionAttachments.path,
+      contentType: transactionAttachments.type,
+      invoiceNumber: inbox.invoiceNumber,
+      inboxId: inbox.id,
+      groupedInboxId: inbox.groupedInboxId,
+      referenceId: inbox.referenceId,
+    })
+    .from(transactionAttachments)
+    .leftJoin(
+      inbox,
+      and(
+        eq(inbox.attachmentId, transactionAttachments.id),
+        eq(inbox.teamId, teamId),
+      ),
+    )
+    .where(
+      and(
+        eq(transactionAttachments.teamId, teamId),
+        inArray(
+          transactionAttachments.transactionId,
+          rows.map((row) => row.id),
+        ),
+      ),
+    )
+    .orderBy(asc(transactionAttachments.createdAt), transactionAttachments.id);
+
+  const filesByPayment = new Map<string, InvoiceForBooksFile[]>();
+  for (const file of files) {
+    if (!file.transactionId) continue;
+    const list = filesByPayment.get(file.transactionId) ?? [];
+    list.push({
+      name: file.name ?? "",
+      path: file.path ?? [],
+      contentType: file.contentType ?? "",
+      invoiceNumber: file.invoiceNumber,
+      copyGroup: file.inboxId ? (file.groupedInboxId ?? file.inboxId) : null,
+      fromBooks:
+        file.referenceId?.startsWith(YUKI_INBOX_REFERENCE_PREFIX) ?? false,
+    });
+    filesByPayment.set(file.transactionId, list);
+  }
+
+  const supplierByKey = new Map<string, string>();
+
+  return rows.map((row) => {
+    const key = counterpartyKey(row);
+    if (key && !supplierByKey.has(key)) {
+      supplierByKey.set(
+        key,
+        row.counterpartyName?.trim() || row.merchantName?.trim() || key,
+      );
+    }
+
+    return {
+      id: row.id,
+      date: row.date,
+      name: row.name,
+      amount: row.amount,
+      currency: row.currency,
+      supplier: key ? (supplierByKey.get(key) ?? null) : null,
+      account: { name: row.accountName, isCard: row.accountType === "credit" },
+      booksStatus: row.booksStatus,
+      files: filesByPayment.get(row.id) ?? [],
+    };
+  });
 }
 
 /**

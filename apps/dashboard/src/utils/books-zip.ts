@@ -1,0 +1,296 @@
+/**
+ * The zip of invoices for the accountant (FF-1581): which file goes where and
+ * under what name, and the two text files that say what the zip holds and what
+ * it does not.
+ *
+ * Pure — no fetching and no zipping — so every decision about the layout is here
+ * and testable. `useDownloadBooksZip` does the downloading around it.
+ *
+ * Built from Midday's own records only. A page must not ask the books (FF-1498),
+ * so "already in the books" means what Midday itself knows: a document it
+ * pulled from the books, or a card payment whose `books_status` says settled.
+ */
+
+export type BooksZipPayment = {
+  id: string;
+  date: string;
+  name: string;
+  amount: number;
+  currency: string;
+  supplier: string | null;
+  account: { name: string | null; isCard: boolean };
+  booksStatus: string | null;
+  files: {
+    name: string;
+    path: string[];
+    contentType: string;
+    invoiceNumber: string | null;
+    copyGroup: string | null;
+    fromBooks: boolean;
+  }[];
+};
+
+export type BooksZipOptions = {
+  /** `YYYY-MM-DD`, inclusive. */
+  from: string;
+  /** `YYYY-MM-DD`, inclusive. */
+  to: string;
+  /** Leave out card payments the books have settled. */
+  leaveOutSettledCards: boolean;
+};
+
+export type BooksZipFile = {
+  payment: BooksZipPayment;
+  file: BooksZipPayment["files"][number];
+  zipPath: string;
+  /** The books already hold this document: link it there, do not upload it. */
+  alreadyInBooks: boolean;
+};
+
+export type BooksZipPlan = {
+  files: BooksZipFile[];
+  /** Payments of the period Midday holds no invoice for. */
+  withoutInvoice: BooksZipPayment[];
+  /** Card payments left out because the books settled them. */
+  settledLeftOut: BooksZipPayment[];
+};
+
+/** Written first, so a spreadsheet reads the file as UTF-8. */
+export const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
+
+const ALREADY_IN_BOOKS_FOLDER = "_Already in the books - link, do not upload";
+const NO_SUPPLIER_FOLDER = "No supplier name";
+
+export function booksZipName(options: BooksZipOptions): string {
+  return `Invoices ${options.from} to ${options.to}.zip`;
+}
+
+export function planBooksZip(
+  payments: readonly BooksZipPayment[],
+  options: BooksZipOptions,
+): BooksZipPlan {
+  const files: BooksZipFile[] = [];
+  const withoutInvoice: BooksZipPayment[] = [];
+  const settledLeftOut: BooksZipPayment[] = [];
+  const usedPaths = new Set<string>();
+
+  for (const payment of payments) {
+    // Only a card payment carries an answer from the books; a payment from a
+    // bank account carries nothing, so nothing about it can be left out.
+    if (
+      options.leaveOutSettledCards &&
+      payment.account.isCard &&
+      payment.booksStatus === "in_the_books"
+    ) {
+      settledLeftOut.push(payment);
+      continue;
+    }
+
+    if (payment.files.length === 0) {
+      withoutInvoice.push(payment);
+      continue;
+    }
+
+    for (const { file, alreadyInBooks } of documentsOf(payment)) {
+      const folder = safe(payment.supplier ?? "") || NO_SUPPLIER_FOLDER;
+      const base = `${alreadyInBooks ? `${ALREADY_IN_BOOKS_FOLDER}/` : ""}${folder}/${fileName(payment, file)}`;
+
+      files.push({
+        payment,
+        file,
+        zipPath: unique(base, extensionOf(file), usedPaths),
+        alreadyInBooks,
+      });
+    }
+  }
+
+  return { files, withoutInvoice, settledLeftOut };
+}
+
+/**
+ * The files of one payment worth handing over, and whether the books hold each.
+ *
+ * The inbox groups an invoice that reached Midday twice — by mail and pulled
+ * back from the books — and also an invoice with its own receipt. The two are
+ * told apart by the invoice number: the books' copy of a number Midday also has
+ * from the supplier is left out, and everything else in the group stays. A group
+ * with any copy from the books is a document the books already hold.
+ */
+function documentsOf(
+  payment: BooksZipPayment,
+): { file: BooksZipPayment["files"][number]; alreadyInBooks: boolean }[] {
+  const inBooksGroups = new Set(
+    payment.files
+      .filter((file) => file.fromBooks && file.copyGroup)
+      .map((file) => file.copyGroup),
+  );
+
+  return payment.files
+    .filter(
+      (file) =>
+        !file.fromBooks ||
+        !payment.files.some(
+          (other) =>
+            !other.fromBooks &&
+            other.copyGroup === file.copyGroup &&
+            sameNumber(other.invoiceNumber, file.invoiceNumber),
+        ),
+    )
+    .map((file) => ({
+      file,
+      alreadyInBooks:
+        file.fromBooks ||
+        (file.copyGroup !== null && inBooksGroups.has(file.copyGroup)),
+    }));
+}
+
+function sameNumber(a: string | null, b: string | null): boolean {
+  const normalise = (value: string | null) =>
+    value?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? "";
+  return normalise(a) === normalise(b);
+}
+
+/** `2026-03-12 - EUR 17,38 - Cursor - invoice 0BB37ACA-0017` */
+function fileName(
+  payment: BooksZipPayment,
+  file: BooksZipPayment["files"][number],
+): string {
+  const who = safe(payment.supplier ?? "") || safe(payment.name);
+  const number = file.invoiceNumber ? ` ${safe(file.invoiceNumber)}` : "";
+
+  return `${payment.date} - ${payment.currency} ${amountText(payment.amount)} - ${who} - ${kindOf(file.name)}${number}`;
+}
+
+/**
+ * What the document is, read from its file name. Midday records no such thing,
+ * and suppliers name these files plainly: `Receipt-2291-4410.pdf`, Slack's
+ * "fair billing statement". Only a label — nothing is left out on it.
+ */
+function kindOf(name: string): string {
+  if (/receipt|kwitantie|ontvangstbewijs|re[çc]u\b/i.test(name)) {
+    return "receipt";
+  }
+  if (/statement|afschrift/i.test(name)) return "billing statement";
+  return "invoice";
+}
+
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/heic": ".heic",
+  "image/webp": ".webp",
+};
+
+function extensionOf(file: BooksZipPayment["files"][number]): string {
+  const match = /\.([a-z0-9]{1,5})$/i.exec(file.name);
+  if (match?.[1]) return `.${match[1].toLowerCase()}`;
+  return EXTENSION_BY_TYPE[file.contentType] ?? "";
+}
+
+function unique(base: string, extension: string, used: Set<string>): string {
+  let candidate = `${base}${extension}`;
+  for (let n = 2; used.has(candidate); n++) {
+    candidate = `${base} (${n})${extension}`;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+/** Fit for a folder or file name on every system the zip may be opened on. */
+function safe(value: string): string {
+  return value
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80)
+    .trim();
+}
+
+/** `17,38` and `2.406,58`: how the amount reads to a Belgian accountant. */
+function amountText(amount: number): string {
+  const [whole = "0", cents = "00"] = Math.abs(amount).toFixed(2).split(".");
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${cents}`;
+}
+
+/**
+ * `_Overview.csv`: one row per file. Semicolons, because the amounts carry a
+ * decimal comma and a Belgian spreadsheet splits on semicolons; a byte-order
+ * mark, so it reads the names as UTF-8.
+ */
+export function booksZipOverview(files: readonly BooksZipFile[]): string {
+  const rows = [
+    [
+      "Supplier",
+      "Payment date",
+      "Amount",
+      "Currency",
+      "Card or account",
+      "File",
+      "Description",
+      "Already in the books",
+    ],
+    ...files.map(({ payment, zipPath, alreadyInBooks }) => [
+      payment.supplier ?? "",
+      payment.date,
+      amountText(payment.amount),
+      payment.currency,
+      payment.account.name ?? "",
+      zipPath,
+      payment.name,
+      alreadyInBooks ? "yes" : "no",
+    ]),
+  ];
+
+  return `${BYTE_ORDER_MARK}${rows.map((row) => row.map(csvField).join(";")).join("\r\n")}\r\n`;
+}
+
+function csvField(value: string): string {
+  return /[;"\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/**
+ * `_Not included.txt`: everything of the period the zip does not hold, and why,
+ * so an empty folder is never mistaken for a supplier with nothing to send.
+ */
+export function booksZipNotIncluded(
+  plan: BooksZipPlan,
+  options: BooksZipOptions,
+  download: {
+    failed: readonly BooksZipFile[];
+    duplicates: readonly BooksZipFile[];
+  },
+): string {
+  const paymentLine = (payment: BooksZipPayment) =>
+    `${payment.date}  ${payment.currency} ${amountText(payment.amount)}  ${payment.supplier ?? NO_SUPPLIER_FOLDER}  (${payment.name})`;
+
+  const sections: [string, string[]][] = [
+    [
+      "Payments with no invoice in Midday",
+      plan.withoutInvoice.map(paymentLine),
+    ],
+    [
+      "Card payments left out because the books have settled them",
+      plan.settledLeftOut.map(paymentLine),
+    ],
+    [
+      "Files that could not be downloaded",
+      download.failed.map((file) => file.zipPath),
+    ],
+    [
+      "Identical copies left out",
+      download.duplicates.map((file) => file.zipPath),
+    ],
+  ];
+
+  const written = sections
+    .filter(([, lines]) => lines.length > 0)
+    .map(([title, lines]) => `${title} (${lines.length})\n${lines.join("\n")}`);
+
+  return [
+    `Invoices for the books, ${options.from} to ${options.to}`,
+    ...(written.length > 0
+      ? written
+      : ["Every payment of the period with an invoice is included."]),
+  ].join("\n\n");
+}

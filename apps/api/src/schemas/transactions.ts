@@ -811,6 +811,17 @@ export const updateTransactionsSchema = z.object({
   }),
 });
 
+/** A period for the zip of invoices for the books (FF-1581), both ends inclusive. */
+export const invoicesForBooksSchema = z
+  .object({
+    from: z.string().date(),
+    to: z.string().date(),
+  })
+  .refine((period) => period.from <= period.to, {
+    message: "The period must not end before it starts.",
+    path: ["to"],
+  });
+
 export const getSimilarTransactionsSchema = z.object({
   name: z.string().openapi({
     description: "Name of the transaction.",
