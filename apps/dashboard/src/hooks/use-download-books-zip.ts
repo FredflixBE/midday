@@ -21,6 +21,19 @@ import {
  */
 const BATCH_SIZE = 8;
 
+/**
+ * What the download is doing.
+ *
+ * `checking` counts the files it is comparing against the books, which is not
+ * the number going into the zip — most of them are usually left out. Saying
+ * "Downloading 8 of 56" read as 56 invoices to hand over (FF-1583).
+ */
+export type BooksZipProgress = {
+  phase: "checking" | "packing";
+  done: number;
+  total: number;
+};
+
 /** What comparing against the books' own files came to. */
 export type BooksComparison = {
   /** Files the books hold, as the query reported them. */
@@ -51,10 +64,7 @@ export type BooksZipResult = {
 export function useDownloadBooksZip() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [progress, setProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
+  const [progress, setProgress] = useState<BooksZipProgress | null>(null);
 
   const signedUrls = useMutation(trpc.documents.signedUrls.mutationOptions());
 
@@ -135,7 +145,7 @@ export function useDownloadBooksZip() {
         unreadableCandidates: 0,
       };
 
-      setProgress({ done: 0, total: plan.files.length });
+      setProgress({ phase: "checking", done: 0, total: plan.files.length });
 
       for (let start = 0; start < plan.files.length; start += BATCH_SIZE) {
         const batch = plan.files.slice(start, start + BATCH_SIZE);
@@ -183,6 +193,7 @@ export function useDownloadBooksZip() {
         }
 
         setProgress({
+          phase: "checking",
           done: Math.min(start + BATCH_SIZE, plan.files.length),
           total: plan.files.length,
         });
@@ -216,6 +227,12 @@ export function useDownloadBooksZip() {
           comparison,
         }),
       );
+
+      setProgress({
+        phase: "packing",
+        done: written.length,
+        total: written.length,
+      });
 
       const zipBlob = await zip.generateAsync({
         type: "blob",
