@@ -22,6 +22,7 @@ import {
   calculateCurrencyScore,
   calculateDateScore,
   calculateNameScore,
+  daysBetween,
   isExactAmountMatch,
   type MatchType,
   type ReferenceEvidence,
@@ -863,6 +864,7 @@ export async function findMatches(
       isExactAmount,
       referenceEvidence,
       declinePenalty,
+      daysApart: daysBetween(inboxItem.date, candidate.date),
     });
 
     if (confidence < suggestedThreshold) continue;
@@ -1122,6 +1124,10 @@ export async function findInboxMatches(
       isExactAmount,
       referenceEvidence,
       declinePenalty,
+      daysApart: daysBetween(
+        candidate.date || transactionItem.date,
+        transactionItem.date,
+      ),
     });
 
     if (confidence < suggestedThreshold) continue;
