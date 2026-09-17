@@ -90,7 +90,7 @@ export function hasPendingSuggestionSql(teamId: string): SQL<boolean> {
 
 /**
  * How long after a charge an equal credit still reads as that charge coming
- * back. Days.
+ * back. Days, forward only.
  *
  * A fortnight covers a card reversal, which is what this is for: a terminal
  * that failed, a duplicate tap, a merchant undoing a charge the same week.
@@ -156,32 +156,54 @@ const WINDOW = sql.raw(String(REVERSAL_WINDOW_DAYS));
  * comparing the amount and the date here is the matching FF-1537 permits. It is
  * the comparison *across* systems that is barred.
  *
+ * ## Why the rank has a floor of 1
+ *
+ * A charge always counts itself, so its rank is at least 1 — unless some part
+ * of the bucket is NULL on the row being judged. `bank_account_id` is nullable,
+ * and `NULL = NULL` is NULL, so for such a row *both* counts come out 0 and
+ * `0 >= 0` would mark every one of them reversed and quietly take it off the
+ * list. `GREATEST(1, …)` says the thing that is actually true: with no credit
+ * facing it, nothing is reversed.
+ *
  * Each charge measures the window from itself, so a chain of charges spread
  * over more than a fortnight can read its own neighbourhood slightly
  * differently. For a card reversal, which is days, that cannot arise.
  */
 export function isReversedSql(teamId: string): SQL<boolean> {
-  const bucket = (table: string, amount: SQL) => sql`
+  const bucket = (table: string, amount: SQL, dates: SQL) => sql`
       ${sql.raw(`"${table}"`)}."team_id" = ${teamId}
       AND ${sql.raw(`"${table}"`)}."bank_account_id" = ${OUTER.account}
       AND ${sql.raw(`"${table}"`)}."currency" = ${OUTER.currency}
       AND ${sql.raw(`"${table}"`)}."amount" = ${amount}
-      AND ${sql.raw(`"${table}"`)}."date"
-            BETWEEN ${OUTER.date} - ${WINDOW} AND ${OUTER.date} + ${WINDOW}
+      AND ${sql.raw(`"${table}"`)}."status" NOT IN ('excluded', 'archived')
+      AND ${dates}
       AND ${counterpartyKeySql(table)} = ${OUTER.key}`;
+
+  // The credit comes after the charge. A reversal undoes something that has
+  // already happened, and the ticket says so — "an exactly offsetting credit
+  // from the same merchant a few days later". Symmetric, it would let the
+  // refund of an older purchase cancel a later genuine charge of the same
+  // amount, which is the one mistake this must not make.
+  const creditsAfter = sql`"reversal_credit"."date"
+            BETWEEN ${OUTER.date} AND ${OUTER.date} + ${WINDOW}`;
+
+  // The charges it is ranked against are the ones competing for those same
+  // credits, which is the fortnight either side.
+  const chargesAround = sql`"reversal_charge"."date"
+            BETWEEN ${OUTER.date} - ${WINDOW} AND ${OUTER.date} + ${WINDOW}`;
 
   return sql<boolean>`(
     ${OUTER.amount} < 0
     AND ${OUTER.key} IS NOT NULL
     AND (
       SELECT count(*) FROM ${transactions} AS "reversal_credit"
-      WHERE ${bucket("reversal_credit", sql`- ${OUTER.amount}`)}
-    ) >= (
+      WHERE ${bucket("reversal_credit", sql`- ${OUTER.amount}`, creditsAfter)}
+    ) >= GREATEST(1, (
       SELECT count(*) FROM ${transactions} AS "reversal_charge"
-      WHERE ${bucket("reversal_charge", OUTER.amount)}
+      WHERE ${bucket("reversal_charge", OUTER.amount, chargesAround)}
         AND ("reversal_charge"."date", "reversal_charge"."id")
               <= (${OUTER.date}, ${TRANSACTION_ID})
-    )
+    ))
   )`;
 }
 

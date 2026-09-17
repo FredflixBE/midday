@@ -806,6 +806,43 @@ describe.skipIf(SKIP)("invoice status", () => {
       );
     });
 
+    test("a credit that came first cancels nothing", async () => {
+      // A refund of an older purchase, then a new purchase of the same size a
+      // few days later. A reversal undoes something that has already happened;
+      // read both ways, this one would take a genuine charge off the list.
+      await makeRefund(db, { id: R.firstRefund, date: "2026-03-01" });
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        date: "2026-03-05",
+        counterpartyName: "G7 Taxi",
+      });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("a payment on no account at all stays on the list", async () => {
+      // `bank_account_id` is nullable, and NULL = NULL is NULL — so a row with
+      // no account matches nothing in its own bucket, including itself. Read
+      // without a floor, "no credits and no charges" is 0 >= 0, which would
+      // silently clear every such payment.
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await db
+        .update(transactions)
+        .set({ bankAccountId: null })
+        .where(eq(transactions.id, R.firstTap));
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
     test("a filed invoice still outranks the arithmetic", async () => {
       // Somebody attached a document to this charge. Whatever the numbers say,
       // the document is demonstrably there.
