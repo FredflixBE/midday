@@ -607,8 +607,6 @@ describe.skipIf(SKIP)("supabase/40-functions.sql", () => {
       `insert into documents (team_id, name, title, body)
        values ($1, 'acme-contract.pdf', 'Acme service contract', 'terms and conditions'),
               ($1, 'acme-contract-2.pdf', 'Acme service contract addendum', 'more terms'),
-              -- documents.fts is generated from title || body and is NOT NULL,
-              -- so even a placeholder needs both.
               ($1, 'folder/.folderPlaceholder', 'placeholder', 'placeholder')`,
       [TEAM],
     );
@@ -619,6 +617,7 @@ describe.skipIf(SKIP)("supabase/40-functions.sql", () => {
       "delete from transactions where internal_id like 'fn-%'",
     );
     await client.query("delete from documents where team_id = $1", [TEAM]);
+    await client.query("delete from inbox where team_id = $1", [TEAM]);
     await client.query("delete from customers where team_id = $1", [TEAM]);
     await client.query("delete from teams where id in ($1, $2)", [
       TEAM,
@@ -674,6 +673,75 @@ describe.skipIf(SKIP)("supabase/40-functions.sql", () => {
     );
 
     expect(rows.map((r) => r.title)).not.toContain("folder/.folderPlaceholder");
+  });
+
+  describe("finding a document by what it is called and what it says (FF-1579)", () => {
+    // The live shape: processing writes the text to `content`, nothing writes
+    // `body`, and the stored file name carries an upload suffix.
+    const FILE = "Fredflix - Aangifte RV dividenden 2025_14a9ad8f.pdf";
+
+    beforeAll(async () => {
+      await client.query(
+        `insert into documents (team_id, name, title, content)
+         values ($1, $2, 'Belastingaangifte roerende voorheffing',
+                 'Federale Overheidsdienst Financien, dividenduitkering boekjaar')`,
+        [TEAM, `${TEAM}/inbox/${FILE}`],
+      );
+      await client.query(
+        `insert into inbox (team_id, file_name, display_name, invoice_number)
+         values ($1, $2, 'Federale Overheidsdienst FINANCIEN', '2223048/99999'),
+                ($1, 'invoice_0badcafe.pdf', 'Prisma Data, Inc.', '29A0586F-92955')`,
+        [TEAM, FILE],
+      );
+    });
+
+    const search = async (term: string, type: string) => {
+      const { rows } = await client.query<{ title: string }>(
+        "select title from global_search($1, $2, 'english', 30, 5, 0.01) where type = $3",
+        [term, TEAM, type],
+      );
+      return rows.map((r) => r.title);
+    };
+
+    test("a vault document with no body is found by a word of its title", async () => {
+      expect(await search("Belastingaangifte", "vault")).toContain(
+        "Belastingaangifte roerende voorheffing",
+      );
+    });
+
+    test("a vault document is found by a word of its content", async () => {
+      expect(await search("dividenduitkering", "vault")).toContain(
+        "Belastingaangifte roerende voorheffing",
+      );
+    });
+
+    test("a vault document is found by its file name", async () => {
+      expect(await search("Aangifte RV dividenden 2025", "vault")).toContain(
+        "Belastingaangifte roerende voorheffing",
+      );
+    });
+
+    test("an inbox document is found by its file name, without the upload suffix", async () => {
+      expect(await search("Aangifte RV dividenden 2025", "inbox")).toContain(
+        "Federale Overheidsdienst FINANCIEN",
+      );
+    });
+
+    test("an inbox document is found by its invoice number, whole or by its first part", async () => {
+      expect(await search("2223048/99999", "inbox")).toContain(
+        "Federale Overheidsdienst FINANCIEN",
+      );
+      expect(await search("2223048", "inbox")).toContain(
+        "Federale Overheidsdienst FINANCIEN",
+      );
+      expect(await search("29A0586F-92955", "inbox")).toContain(
+        "Prisma Data, Inc.",
+      );
+    });
+
+    test("a suffix is not a word anyone searches for", async () => {
+      expect(await search("14a9ad8f", "inbox")).toEqual([]);
+    });
   });
 
   test("global_search survives punctuation a user might type", async () => {
@@ -890,20 +958,20 @@ describe.skipIf(SKIP)("supabase/50-documents.sql", () => {
     expect(rows[0]!.parent_id).toBe(TEAM);
   });
 
-  test("a titleless document can be inserted at all", async () => {
-    // documents.fts is generated from title || ' ' || body and NULL
-    // concatenates to NULL, so while the column was NOT NULL this insert
-    // failed outright — which is every document at the moment it is uploaded,
-    // because title and body are filled in later by processing.
+  test("a titleless document can be inserted, and is searchable by its name", async () => {
+    // Every document is titleless at the moment it is uploaded; title and
+    // content are filled in later by processing. documents.fts used to be
+    // title || ' ' || body, so while the column was NOT NULL this insert failed
+    // outright, and once it was not, every vector was NULL. Each part is now
+    // wrapped, so the file name alone makes the document findable (FF-1579).
     await upload("vault", `${TEAM}/no-title.pdf`);
 
-    const { rows } = await client.query<{ fts: string | null }>(
-      "select fts from documents where name = $1",
+    const { rows } = await client.query<{ found: boolean }>(
+      "select fts @@ websearch_to_tsquery('english', 'no title') as found from documents where name = $1",
       [`${TEAM}/no-title.pdf`],
     );
 
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.fts).toBeNull();
+    expect(rows).toEqual([{ found: true }]);
   });
 
   test("a nested file also gets a row for the folder it sits in", async () => {
