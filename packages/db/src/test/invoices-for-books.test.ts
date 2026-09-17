@@ -249,6 +249,7 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
       {
         name: "scan.jpg",
         path: [TEAM_USD_ID, "transactions", "scan.jpg"],
+        size: 900,
         contentType: "image/jpeg",
         invoiceNumber: "900510-281-83",
         copyGroup: XERIUS_MAILED,
@@ -270,6 +271,7 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
       {
         name: "scan.jpg",
         path: [TEAM_USD_ID, "transactions", "scan.jpg"],
+        size: 900,
         contentType: "image/jpeg",
         invoiceNumber: null,
         copyGroup: null,

@@ -26,6 +26,8 @@ export type BooksZipPayment = {
   files: {
     name: string;
     path: string[];
+    /** Bytes, which is how the books' copy of the same file is recognised. */
+    size: number | null;
     contentType: string;
     invoiceNumber: string | null;
     copyGroup: string | null;
@@ -97,6 +99,26 @@ export function booksInvoiceNumberSet(numbers: readonly string[]): Set<string> {
 
 /** The same floor `@midday/yuki` uses: the shortest real number seen is four. */
 const MINIMUM_COMPARABLE_NUMBER = 4;
+
+/**
+ * Where to look for the books' copy of a file, by byte size.
+ *
+ * The last resort, for a file nobody can check by number: 38 of the 39 such
+ * files in the first real download were byte-identical to a document the books
+ * already held. Size only narrows the field — the download compares the bytes,
+ * which is the one identifier that cannot be a coincidence.
+ */
+export function booksFilePathsBySize(
+  files: readonly { path: string[]; size: number }[],
+): Map<number, string[][]> {
+  const bySize = new Map<number, string[][]>();
+  for (const file of files) {
+    const paths = bySize.get(file.size) ?? [];
+    paths.push(file.path);
+    bySize.set(file.size, paths);
+  }
+  return bySize;
+}
 
 /** Written first, so a spreadsheet reads the file as UTF-8. */
 export const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
@@ -233,6 +255,38 @@ function fileName(
 }
 
 /**
+ * A receipt or a billing statement — a document that restates an invoice rather
+ * than being one.
+ *
+ * Used for the last exclusion: when the books already hold the invoice for a
+ * payment, its receipt adds nothing to them. Live shapes: five Claude payments
+ * carry `Invoice-8NCOCMO3-0003.pdf` beside `Receipt-2500-1193-3999.pdf`, and
+ * Slack an invoice beside its "fair billing statement" (FF-1583).
+ */
+export function isSecondaryDocument(fileName: string): boolean {
+  return kindOf(fileName) !== "invoice";
+}
+
+/**
+ * Of the files about to be written, the receipts and statements belonging to a
+ * payment whose invoice the books already have.
+ *
+ * Deliberately not applied to a second *invoice*: two invoices on one payment
+ * are two documents the books may both need, and withholding one of them is the
+ * expensive mistake. A receipt is not.
+ */
+export function secondaryDocumentsCoveredByBooks(
+  kept: readonly BooksZipFile[],
+  coveredPaymentIds: ReadonlySet<string>,
+): BooksZipFile[] {
+  return kept.filter(
+    (entry) =>
+      coveredPaymentIds.has(entry.payment.id) &&
+      isSecondaryDocument(entry.file.name),
+  );
+}
+
+/**
  * What the document is, read from its file name. Midday records no such thing,
  * and suppliers name these files plainly: `Receipt-2291-4410.pdf`, Slack's
  * "fair billing statement". Only a label — nothing is left out on it.
@@ -336,6 +390,17 @@ export function booksZipNotIncluded(
   download: {
     failed: readonly BooksZipFile[];
     duplicates: readonly BooksZipFile[];
+    /** Files the books turned out to hold, the same bytes (FF-1583). */
+    sameFileInBooks?: readonly BooksZipFile[];
+    /** Receipts and statements whose invoice the books already have. */
+    secondaryLeftOut?: readonly BooksZipFile[];
+    /** What the comparison against the books' files came to. */
+    comparison?: {
+      booksFiles: number;
+      compared: number;
+      withCandidates: number;
+      unreadableCandidates: number;
+    };
   },
 ): string {
   const paymentLine = (payment: BooksZipPayment) =>
@@ -357,6 +422,14 @@ export function booksZipNotIncluded(
       plan.settledLeftOut.map(paymentLine),
     ],
     [
+      "Invoices left out because the books hold the same file",
+      (download.sameFileInBooks ?? []).map((file) => file.zipPath),
+    ],
+    [
+      "Receipts and statements left out because the books have the invoice for that payment",
+      (download.secondaryLeftOut ?? []).map((file) => file.zipPath),
+    ],
+    [
       "Files that could not be downloaded",
       download.failed.map((file) => file.zipPath),
     ],
@@ -370,10 +443,27 @@ export function booksZipNotIncluded(
     .filter(([, lines]) => lines.length > 0)
     .map(([title, lines]) => `${title} (${lines.length})\n${lines.join("\n")}`);
 
+  // Always said, even when it found nothing: "nothing was left out" and "the
+  // comparison never ran" look identical in a folder listing, and only one of
+  // them means the zip is right.
+  const checked = download.comparison
+    ? [
+        "How this was checked against the books",
+        `${download.comparison.compared} candidates were compared against the ${download.comparison.booksFiles} files the books hold — not the count of this zip, which is listed above.`,
+        `${download.comparison.withCandidates} had a file of the same size to compare with, and ${(download.sameFileInBooks ?? []).length} turned out to be the same file.`,
+        ...(download.comparison.unreadableCandidates > 0
+          ? [
+              `${download.comparison.unreadableCandidates} of the books' files could not be read, so those could not be ruled out.`,
+            ]
+          : []),
+      ].join("\n")
+    : null;
+
   return [
     `Invoices for the books, ${options.from} to ${options.to}`,
     ...(written.length > 0
       ? written
       : ["Every payment of the period with an invoice is included."]),
+    ...(checked ? [checked] : []),
   ].join("\n\n");
 }

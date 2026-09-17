@@ -431,6 +431,8 @@ describe("tRPC: transactions.invoicesForBooks", () => {
     mocks.getInvoicesForBooks.mockImplementation(() => []);
     mocks.getBooksInvoiceNumbers.mockReset();
     mocks.getBooksInvoiceNumbers.mockImplementation(() => []);
+    mocks.getBooksFiles.mockReset();
+    mocks.getBooksFiles.mockImplementation(() => []);
   });
 
   test("reads the period for the caller's team, with what the books hold", async () => {
@@ -445,6 +447,7 @@ describe("tRPC: transactions.invoicesForBooks", () => {
     expect(result).toEqual({
       payments: [],
       booksInvoiceNumbers: ["#SBIE-1234"],
+      booksFiles: [],
     });
 
     expect(mocks.getInvoicesForBooks).toHaveBeenCalledWith(expect.anything(), {

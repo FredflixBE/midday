@@ -11,6 +11,7 @@ import { format, startOfYear } from "date-fns";
 import { useState } from "react";
 import type { DateRange } from "react-day-picker";
 import {
+  type BooksZipProgress,
   type BooksZipResult,
   useDownloadBooksZip,
 } from "@/hooks/use-download-books-zip";
@@ -23,6 +24,18 @@ import { useUserQuery } from "@/hooks/use-user";
  * Here rather than under Export because it is how this list is finished for now:
  * until Midday delivers invoices to the books itself, the zip is the hand-over.
  */
+/**
+ * What the button says while it works — a number only once it is the number of
+ * invoices the zip will hold. While checking there is nothing true to count:
+ * those documents are candidates, and most are left out (FF-1583).
+ */
+function label(progress: BooksZipProgress): string {
+  if (progress.phase === "packing") {
+    return `Packing ${progress.invoices} ${progress.invoices === 1 ? "invoice" : "invoices"}…`;
+  }
+  return "Checking against the books…";
+}
+
 /** What the toast says under the count, or nothing when there is nothing to add. */
 function describe(result: BooksZipResult): string | undefined {
   const notes = [
@@ -67,7 +80,7 @@ export function DownloadBooksZip() {
       toast({
         variant: result.failed > 0 ? "error" : "success",
         duration: 6000,
-        title: `${result.included} ${result.included === 1 ? "file" : "files"} in the zip.`,
+        title: `${result.included} ${result.included === 1 ? "invoice" : "invoices"} to upload.`,
         description: describe(result),
       });
     } catch (error) {
@@ -130,9 +143,7 @@ export function DownloadBooksZip() {
             onClick={start}
             disabled={!range?.from || !range?.to || isPending}
           >
-            {progress
-              ? `Downloading ${progress.done} of ${progress.total}…`
-              : "Download"}
+            {progress ? label(progress) : "Download"}
           </Button>
         </div>
       </PopoverContent>
