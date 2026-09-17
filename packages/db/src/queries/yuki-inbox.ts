@@ -43,6 +43,14 @@ export type InboxRowForYukiPull = {
   referenceId: string | null;
   invoiceNumber: string | null;
   groupedInboxId: string | null;
+  /**
+   * What the row says the invoice is dated and totals, which the pull uses only
+   * to refuse grouping a Yuki document with it — never to decide that two
+   * documents are the same (FF-1574).
+   */
+  date: string | null;
+  amount: number | null;
+  currency: string | null;
   status: string | null;
   /**
    * Whether Midday's matcher has ever offered this row a transaction.
@@ -88,6 +96,9 @@ export async function getInboxRowsForYukiPull(
       referenceId: inbox.referenceId,
       invoiceNumber: inbox.invoiceNumber,
       groupedInboxId: inbox.groupedInboxId,
+      date: inbox.date,
+      amount: inbox.amount,
+      currency: inbox.currency,
       status: inbox.status,
       hasMatchSuggestions: sql<boolean>`exists (select 1 from ${transactionMatchSuggestions} where ${transactionMatchSuggestions.inboxId} = ${inbox.id})`,
     })

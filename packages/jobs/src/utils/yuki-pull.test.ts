@@ -40,6 +40,9 @@ function inboxRow(
     referenceId: null,
     invoiceNumber: null,
     groupedInboxId: null,
+    date: null,
+    amount: null,
+    currency: null,
     status: "done",
     hasMatchSuggestions: false,
     ...overrides,
@@ -301,6 +304,269 @@ describe("planYukiPull", () => {
 
     expect(plan.pull).toHaveLength(1);
     expect(plan.pull[0]?.groupWith).toBeNull();
+  });
+
+  describe("a reference a supplier reuses across invoices (FF-1574)", () => {
+    // The real shapes from the live books. Each supplier puts a number in
+    // Yuki's reference that is not an invoice number, so different invoices
+    // share it — and a group is matched as one unit, so a wrong one drags an
+    // unrelated invoice onto a payment.
+
+    test("does not file a new KBC notice as a copy of an older one", () => {
+      // Policy number C20601746442 on monthly notices.
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "jun-2026",
+            reference: "C20601746442",
+            documentDate: "2026-06-10",
+            amount: "202.98",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "jan-2025",
+            invoiceNumber: "c20601746442",
+            date: "2025-01-10",
+            amount: 191.03,
+            currency: "EUR",
+          }),
+          inboxRow({
+            id: "nov-2025",
+            invoiceNumber: "C20601746442",
+            date: "2025-11-10",
+            amount: 196.79,
+            currency: "EUR",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBeNull();
+      expect(plan.counts.duplicates).toBe(0);
+    });
+
+    test("does not group KBC's yearly bills on their structured reference", () => {
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "2026",
+            reference: "153/7933/96229",
+            documentDate: "2026-01-15",
+            amount: "28.83",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "2025",
+            invoiceNumber: "153/7933/96229",
+            date: "2025-02-27",
+            amount: 43.39,
+            currency: "EUR",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBeNull();
+    });
+
+    test("does not group Xerius invoices on the member number", () => {
+      // The recurrence of 2026-09-17: the April invoice was filed as a copy of
+      // the July one.
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "apr",
+            reference: "900510.281.83",
+            documentDate: "2026-04-22",
+            amount: "1260.18",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "jan",
+            invoiceNumber: "900510.281.83",
+            date: "2026-01-28",
+            amount: 2406.58,
+            currency: "EUR",
+          }),
+          inboxRow({
+            id: "jul",
+            invoiceNumber: "900510.281.83",
+            date: "2026-07-29",
+            amount: 1214.7,
+            currency: "EUR",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBeNull();
+    });
+
+    test("does not group two new documents of one run on a reference Yuki reuses", () => {
+      // Nothing in the inbox yet to disagree with, but the archive itself
+      // carries the reference on invoices of different dates: it is not an
+      // invoice number, whatever the totals of one pair say.
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "jan",
+            reference: "900510.281.83",
+            documentDate: "2026-01-28",
+            amount: "1214.70",
+          }),
+          yukiDocument({
+            documentId: "jul",
+            reference: "900510.281.83",
+            documentDate: "2026-07-29",
+            amount: "1214.70",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "mail",
+            invoiceNumber: "900510.281.83",
+            amount: 1214.7,
+            currency: "EUR",
+          }),
+        ],
+      });
+
+      expect(plan.pull.map((c) => c.groupWith)).toEqual([null, null]);
+    });
+
+    test("does not group on a number two separate inbox rows carry with different dates", () => {
+      // No totals to compare: the two rows alone show the number recurs.
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "d1",
+            reference: "C20601746442",
+            amount: null,
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "jan",
+            invoiceNumber: "C20601746442",
+            date: "2025-01-10",
+          }),
+          inboxRow({
+            id: "nov",
+            invoiceNumber: "C20601746442",
+            date: "2025-11-10",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBeNull();
+    });
+
+    test("counts a group once, so a copy already grouped does not make its number look reused", () => {
+      // Four Eyes again, after the first pull grouped the Yuki copy onto the
+      // mail row: a later document carrying the number still hangs off it.
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "another-copy",
+            reference: "202501499",
+            documentDate: "2025-10-31",
+            amount: "1330.40",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "mail",
+            invoiceNumber: "202501499",
+            date: "2025-11-30",
+            amount: 1330.4,
+            currency: "EUR",
+          }),
+          inboxRow({
+            id: "yuki",
+            invoiceNumber: "202501499",
+            date: "2025-10-31",
+            amount: 1330.4,
+            currency: "EUR",
+            groupedInboxId: "mail",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBe("mail");
+    });
+
+    test("does not group when the totals disagree, even on a reference seen once", () => {
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "d1",
+            reference: "INV-2026-0042",
+            amount: "121.00",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "row-1",
+            invoiceNumber: "INV-2026-0042",
+            amount: 99.5,
+            currency: "EUR",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBeNull();
+    });
+
+    test("still groups a genuine copy that arrived by mail, dated a month apart", () => {
+      // Four Eyes invoice 202501499: the mail copy carries 2025-11-30, Yuki's
+      // record 2025-10-31, and both bill EUR 1,330.40. A date is not a reason
+      // to refuse — an extractor reads a due date as readily as an issue date.
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "four-eyes",
+            reference: "202501499",
+            documentDate: "2025-10-31",
+            amount: "1330.40",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "mail",
+            invoiceNumber: "202501499",
+            date: "2025-11-30",
+            amount: 1330.4,
+            currency: "EUR",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBe("mail");
+    });
+
+    test("does not let a total in another currency refuse a copy", () => {
+      // Yuki's archive total is the euro it booked; a row that bills dollars
+      // (FF-1572) says nothing about whether that is the same invoice.
+      const plan = planYukiPull({
+        archive: archiveOf(
+          yukiDocument({
+            documentId: "d1",
+            reference: "INV-2026-0042",
+            amount: "18.37",
+          }),
+        ),
+        inboxRows: [
+          inboxRow({
+            id: "row-1",
+            invoiceNumber: "INV-2026-0042",
+            amount: 19.95,
+            currency: "USD",
+          }),
+        ],
+      });
+
+      expect(plan.pull[0]?.groupWith).toBe("row-1");
+    });
   });
 
   test("bounds a run and reports what it left behind, newest first", () => {
