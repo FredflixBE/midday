@@ -12,6 +12,7 @@ import {
   booksZipNotIncluded,
   booksZipOverview,
   planBooksZip,
+  secondaryDocumentsCoveredByBooks,
 } from "@/utils/books-zip";
 
 /**
@@ -187,13 +188,31 @@ export function useDownloadBooksZip() {
         });
       }
 
-      zip.file("_Overview.csv", booksZipOverview(kept));
+      // Last: a receipt whose invoice the books already have is not something
+      // to upload. Decided after the loop, because whether the invoice is in
+      // the books is only known once its bytes have been compared (FF-1583).
+      const covered = new Set(
+        [
+          ...plan.inBooksLeftOut.map(({ payment }) => payment.id),
+          ...sameFileInBooks.map((entry) => entry.payment.id),
+        ].filter(Boolean),
+      );
+      const secondaryLeftOut = options.leaveOutWhatTheBooksHave
+        ? secondaryDocumentsCoveredByBooks(kept, covered)
+        : [];
+      for (const entry of secondaryLeftOut) {
+        zip.remove(entry.zipPath);
+      }
+      const written = kept.filter((entry) => !secondaryLeftOut.includes(entry));
+
+      zip.file("_Overview.csv", booksZipOverview(written));
       zip.file(
         "_Not included.txt",
         booksZipNotIncluded(plan, options, {
           failed,
           duplicates,
           sameFileInBooks,
+          secondaryLeftOut,
           comparison,
         }),
       );
@@ -207,13 +226,14 @@ export function useDownloadBooksZip() {
       await saveFile(zipBlob, booksZipName(options));
 
       return {
-        included: kept.length,
+        included: written.length,
         failed: failed.length,
         withoutInvoice: plan.withoutInvoice.length,
         leftOut:
           plan.inBooksLeftOut.length +
           plan.settledLeftOut.length +
-          sameFileInBooks.length,
+          sameFileInBooks.length +
+          secondaryLeftOut.length,
       };
     } finally {
       setProgress(null);
