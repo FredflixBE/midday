@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm";
 import type { Database } from "../client";
 import { transactions } from "../schema";
+import { counterpartyKeySql } from "../utils/counterparty";
 
 /**
  * Where a run parks a payment it could not classify. Not an answer: a row here
@@ -151,13 +152,9 @@ export async function getCategoriesByCounterparty(
     return new Map();
   }
 
-  // The SQL twin of `counterpartyKey`. `nullif` on each side, not a plain
-  // coalesce: a counterparty of `"  "` must fall through to the merchant name
-  // here exactly as it does there, or the two disagree about who a payment was to.
-  const name = sql<string>`coalesce(
-    nullif(lower(trim(${transactions.counterpartyName})), ''),
-    nullif(lower(trim(${transactions.merchantName})), '')
-  )`;
+  // The SQL twin of `counterpartyKey`, shared with the reversal rule so the
+  // three cannot drift apart.
+  const name = counterpartyKeySql("transactions") as SQL<string>;
 
   const rows = await db
     .select({

@@ -1,3 +1,5 @@
+import { type SQL, sql } from "drizzle-orm";
+
 /**
  * How a counterparty is identified when something needs to treat several
  * payments as coming from the same party: the name the bank gave, or the
@@ -33,4 +35,25 @@ export function counterpartyKey(transaction: {
   }
 
   return null;
+}
+
+/**
+ * The same key, computed in SQL, for a named `transactions` table or alias.
+ *
+ * `nullif` on each side rather than a plain coalesce: a counterparty of `"  "`
+ * has to fall through to the merchant name here exactly as it does above, or
+ * the two disagree about who a payment was to.
+ *
+ * Every column is spelled out with its table, which is the point of taking the
+ * table's name rather than drizzle's column objects. Interpolating a column
+ * lets drizzle decide how to qualify it, and in a single-table select it emits
+ * a bare `"counterparty_name"` — which inside a correlated subquery binds to
+ * the *subquery's* table and compares a row with itself. The name is always a
+ * literal in this codebase, never user input.
+ */
+export function counterpartyKeySql(table: string): SQL<string | null> {
+  return sql.raw(`coalesce(
+    nullif(lower(trim("${table}"."counterparty_name")), ''),
+    nullif(lower(trim("${table}"."merchant_name")), '')
+  )`) as SQL<string | null>;
 }

@@ -30,6 +30,7 @@ import {
 } from "../schema";
 import {
   BANK_USD_CHECKING_ID,
+  BANK_USD_SAVINGS_ID,
   seedAll,
   TEAM_USD_ID,
   TEST_USER_ID,
@@ -43,7 +44,7 @@ import {
 
 const SKIP = !isTestDatabaseAvailable();
 
-/** Every transaction this file makes is an expense on the same account. */
+/** An expense on the checking account unless the test says otherwise. */
 async function makeTransaction(
   db: Database,
   overrides: {
@@ -57,6 +58,7 @@ async function makeTransaction(
     categorySlug?: string;
     counterpartyName?: string | null;
     merchantName?: string | null;
+    bankAccountId?: string;
   },
 ) {
   await db.insert(transactions).values({
@@ -67,7 +69,7 @@ async function makeTransaction(
     amount: overrides.amount ?? -100,
     currency: "USD",
     teamId: TEAM_USD_ID,
-    bankAccountId: BANK_USD_CHECKING_ID,
+    bankAccountId: overrides.bankAccountId ?? BANK_USD_CHECKING_ID,
     internalId: `ff1499-${overrides.id}`,
     status: overrides.status ?? "posted",
     internal: overrides.internal ?? false,
@@ -648,6 +650,213 @@ describe.skipIf(SKIP)("invoice status", () => {
         "slack",
         "Zapier",
       ]);
+    });
+  });
+
+  describe("a charge that came straight back", () => {
+    // A taxi in Paris whose terminal kept failing: the driver tapped three
+    // times, all three charged, two were refunded. One EUR 40 ride, five rows
+    // asking for EUR 200 of invoices (FF-1567). Both sides of every pair are
+    // inside Midday — one system, one source, one currency — which is the
+    // amount-and-date matching FF-1537 permits.
+    const R = {
+      firstTap: "c0000000-0000-0000-0000-0000000000b1",
+      secondTap: "c0000000-0000-0000-0000-0000000000b2",
+      thirdTap: "c0000000-0000-0000-0000-0000000000b3",
+      firstRefund: "c0000000-0000-0000-0000-0000000000b4",
+      secondRefund: "c0000000-0000-0000-0000-0000000000b5",
+    };
+
+    /** Money back from the same payee, a day or two later. */
+    async function makeRefund(
+      db: Database,
+      overrides: {
+        id: string;
+        date?: string;
+        amount?: number;
+        counterpartyName?: string | null;
+        bankAccountId?: string;
+      },
+    ) {
+      await makeTransaction(db, {
+        id: overrides.id,
+        name: "Refund",
+        date: overrides.date ?? "2026-03-02",
+        amount: overrides.amount ?? 100,
+        counterpartyName: overrides.counterpartyName ?? "G7 Taxi",
+        bankAccountId: overrides.bankAccountId,
+      });
+    }
+
+    test("an exactly offsetting refund means no invoice is needed", async () => {
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await makeRefund(db, { id: R.firstRefund });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "no_invoice_needed",
+      );
+      expect(await countMissingInvoices(db, { teamId: TEAM_USD_ID })).toBe(0);
+    });
+
+    test("three taps and two refunds ask for one invoice, not three", async () => {
+      // The arithmetic tells the story without anyone describing it: two
+      // cancel, one survives, and the survivor is the ride that happened.
+      for (const id of [R.firstTap, R.secondTap, R.thirdTap]) {
+        await makeTransaction(db, {
+          id,
+          name: "Taxi",
+          counterpartyName: "G7 Taxi",
+        });
+      }
+      await makeRefund(db, { id: R.firstRefund, date: "2026-03-02" });
+      await makeRefund(db, { id: R.secondRefund, date: "2026-03-03" });
+
+      const { count, groups } = await getMissingInvoices(db, {
+        teamId: TEAM_USD_ID,
+      });
+
+      expect(count).toBe(1);
+      expect(groups[0]?.transactions.map((row) => row.id)).toEqual([
+        R.thirdTap,
+      ]);
+    });
+
+    test("a partial refund is a different question, and stays on the list", async () => {
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await makeRefund(db, { id: R.firstRefund, amount: 40 });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("nothing is netted across two accounts", async () => {
+      // The same purchase reaches Midday twice — once from the bank feed, once
+      // from the card ledger. Cancelling one against the other would hide a
+      // charge that was never refunded. That duplication is filed separately.
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await makeRefund(db, {
+        id: R.firstRefund,
+        bankAccountId: BANK_USD_SAVINGS_ID,
+      });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("a refund from somebody else cancels nothing", async () => {
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await makeRefund(db, {
+        id: R.firstRefund,
+        counterpartyName: "Eurostar",
+      });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("a credit a month later is not a reversal", async () => {
+      // A fortnight covers a card reversal. Beyond it, an equal credit from the
+      // same supplier is as likely to be a refund of something else entirely.
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await makeRefund(db, { id: R.firstRefund, date: "2026-04-05" });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("two payments naming nobody do not cancel each other", async () => {
+      // 26 of 125 rows on the live books name nobody. Without a payee there is
+      // no evidence the credit undoes this charge rather than another, and the
+      // rule this list runs under is that an automatic answer must be one a
+      // person can check.
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Card payment",
+        counterpartyName: null,
+        merchantName: null,
+      });
+      await makeRefund(db, { id: R.firstRefund, counterpartyName: null });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("a credit that came first cancels nothing", async () => {
+      // A refund of an older purchase, then a new purchase of the same size a
+      // few days later. A reversal undoes something that has already happened;
+      // read both ways, this one would take a genuine charge off the list.
+      await makeRefund(db, { id: R.firstRefund, date: "2026-03-01" });
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        date: "2026-03-05",
+        counterpartyName: "G7 Taxi",
+      });
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("a payment on no account at all stays on the list", async () => {
+      // `bank_account_id` is nullable, and NULL = NULL is NULL — so a row with
+      // no account matches nothing in its own bucket, including itself. Read
+      // without a floor, "no credits and no charges" is 0 >= 0, which would
+      // silently clear every such payment.
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await db
+        .update(transactions)
+        .set({ bankAccountId: null })
+        .where(eq(transactions.id, R.firstTap));
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("a filed invoice still outranks the arithmetic", async () => {
+      // Somebody attached a document to this charge. Whatever the numbers say,
+      // the document is demonstrably there.
+      await makeTransaction(db, {
+        id: R.firstTap,
+        name: "Taxi",
+        counterpartyName: "G7 Taxi",
+      });
+      await makeRefund(db, { id: R.firstRefund });
+      await attachDocument(db, R.firstTap);
+
+      expect((await statusOf(db, R.firstTap))?.invoiceStatus).toBe(
+        "invoice_attached",
+      );
     });
   });
 
