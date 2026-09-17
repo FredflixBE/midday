@@ -42,6 +42,7 @@
  */
 
 import { closeDb, connectDb } from "@midday/db/client";
+import { electInboxGroupPrimary } from "@midday/db/queries";
 import { inbox } from "@midday/db/schema";
 import { inboxTypeFromFileName } from "@midday/documents";
 import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
@@ -54,25 +55,6 @@ type Row = {
   createdAt: string;
   groupedInboxId: string | null;
 };
-
-/**
- * The same election `groupRelatedInboxItems` makes: prefer an invoice, then the
- * oldest. Kept here rather than imported because that function elects while it
- * groups, and these rows are grouped already.
- */
-function electPrimary(members: Row[]): Row {
-  return members.reduce((primary, item) => {
-    if (item.type === "invoice" && primary.type !== "invoice") {
-      return item;
-    }
-    if (item.type === primary.type) {
-      return new Date(item.createdAt) < new Date(primary.createdAt)
-        ? item
-        : primary;
-    }
-    return primary;
-  });
-}
 
 async function main() {
   const write = process.argv.includes("--confirm");
@@ -149,7 +131,7 @@ async function main() {
     if (group.length < 2) {
       return [];
     }
-    const primary = electPrimary(group);
+    const primary = electInboxGroupPrimary(group as [Row, ...Row[]]);
     return primary.id === key ? [] : [{ group, primary }];
   });
 

@@ -221,7 +221,7 @@ export async function processInboxUpload(
       type: resolveInboxType({
         documentType: result.document_type,
         fileName: resolvedFileName,
-        fallback: result.type === "expense" ? "expense" : "invoice",
+        fallback: result.type,
       }),
       invoiceNumber: result.invoice_number ?? undefined,
       status: "analyzing",

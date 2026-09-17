@@ -392,7 +392,7 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
         type: resolveInboxType({
           documentType: result.document_type,
           fileName: filename,
-          fallback: result.type === "expense" ? "expense" : "invoice",
+          fallback: result.type,
         }),
         invoiceNumber: result.invoice_number ?? undefined,
         // "analyzing" keeps it there until matching completes; "no_charge" is

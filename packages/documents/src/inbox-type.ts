@@ -15,8 +15,8 @@
  *
  * The extraction has known the difference all along: `document_type` is
  * `invoice | receipt | other` on both schemas and was read only to spot
- * `other`. This turns it into the answer, with the file name as a second
- * reading for the one case where `document_type` is not evidence.
+ * `other`. This turns it into the answer, with the file name read first
+ * wherever the supplier put the word in it.
  */
 
 /** The three words `inbox.type` can hold. */
@@ -88,23 +88,35 @@ export type ResolveInboxTypeParams = {
   /** The file as it arrived, name included. */
   fileName?: string | null;
   /**
-   * The processor's own answer — `invoice` for a PDF, `expense` for a photo.
+   * The processor's own answer — `"invoice"` for a PDF, `"expense"` for a
+   * photo, because the processor is chosen from the mimetype.
    *
    * Used only when neither the extraction nor the file name says anything, so
    * that a document with no signal at all keeps the type it has always been
-   * given rather than losing one.
+   * given rather than losing one. Taken loosely typed and narrowed here, so the
+   * three ingestion paths do not each have to spell the narrowing out.
    */
-  fallback: "invoice" | "expense";
+  fallback?: string | null;
 };
 
 /**
  * The type to store for an extracted document.
  *
- * The extraction decides, with one exception: it does not decide *invoice* over
- * a file name that says receipt. `mergeExtractionResults` falls back to
- * `"invoice"` when neither extraction pass committed to a type, so `invoice` is
- * both a judgement and a default and cannot be told apart from the outside.
- * `receipt` is never a default, so it is always a judgement and always wins.
+ * **`other` first, because it is the one answer that is never a default.** Both
+ * merge functions in `utils/validation.ts` fill an absent `document_type` in —
+ * `mergeExtractionResults` with `"invoice"`, `mergeReceiptExtractionResults`
+ * with `"receipt"` — so either of those two can be a judgement the model made
+ * or a blank the merge filled, and from here they are indistinguishable.
+ * Neither ever defaults to `"other"`.
+ *
+ * **Then the file name**, where it says one thing and not the other. A supplier
+ * who writes `Receipt-2179-6847-3809.pdf` is labelling the document, and that
+ * label is worth more than a field that might have been filled in for it. This
+ * is the reading a person does at a glance, 32 times, which is what FF-1533 is
+ * about.
+ *
+ * **Then the extraction**, which is right far more often than not and is all
+ * there is for a file named `5474979359.pdf`.
  */
 export function resolveInboxType({
   documentType,
@@ -115,19 +127,15 @@ export function resolveInboxType({
     return "other";
   }
 
-  if (documentType === "receipt") {
-    return "expense";
-  }
-
   const fromFileName = inboxTypeFromFileName(fileName);
 
   if (fromFileName) {
     return fromFileName;
   }
 
-  if (documentType === "invoice") {
-    return "invoice";
+  if (documentType === "invoice" || documentType === "receipt") {
+    return documentType === "receipt" ? "expense" : "invoice";
   }
 
-  return fallback;
+  return fallback === "expense" ? "expense" : "invoice";
 }

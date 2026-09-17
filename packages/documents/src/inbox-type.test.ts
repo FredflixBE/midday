@@ -61,6 +61,13 @@ describe("resolveInboxType", () => {
     ).toBe("other");
   });
 
+  test("treats an unusable processor answer as the mimetype's default", () => {
+    // `result.type` is typed `string | null` on the way out of the client. The
+    // three ingestion paths used to narrow it each for themselves.
+    expect(resolveInboxType({ fallback: null })).toBe("invoice");
+    expect(resolveInboxType({ fallback: "other" })).toBe("invoice");
+  });
+
   test("keeps the mimetype's guess when nothing else says anything", () => {
     expect(
       resolveInboxType({
@@ -85,16 +92,19 @@ describe("resolveInboxType", () => {
     ).toBe("expense");
   });
 
-  test("does not let the file name overrule an extracted receipt", () => {
-    // Suppliers name a receipt after the invoice it settles. Nothing ever
-    // defaults to "receipt", so the extraction meant it.
+  test("lets the file name correct an extraction that said receipt too", () => {
+    // Both merge functions fill an absent document_type in — one with
+    // "invoice", one with "receipt" — so neither value can be told apart from a
+    // blank once it leaves the extractor. A photographed invoice the supplier
+    // named `Factuur…` is the case: the receipt processor ran because it is an
+    // image, and its merge wrote "receipt" without anything having read that.
     expect(
       resolveInboxType({
         documentType: "receipt",
-        fileName: "Invoice-8NCOCMO3-0007_a1b2c3d4.pdf",
-        fallback: "invoice",
+        fileName: "Factuur 2026-0042.jpg",
+        fallback: "expense",
       }),
-    ).toBe("expense");
+    ).toBe("invoice");
   });
 
   test("does not let the file name overrule a non-financial document", () => {
