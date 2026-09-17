@@ -15,7 +15,9 @@ import {
   booksZipName,
   booksZipNotIncluded,
   booksZipOverview,
+  isSecondaryDocument,
   planBooksZip,
+  secondaryDocumentsCoveredByBooks,
 } from "./books-zip";
 
 const PERIOD = {
@@ -483,7 +485,7 @@ describe("what _Not included.txt says about the check itself", () => {
     });
 
     expect(text).toContain(
-      "56 of the files here were compared with the 387 files the books hold.",
+      "56 candidates were compared against the 387 files the books hold",
     );
     expect(text).toContain("49 had a file of the same size to compare with");
   });
@@ -510,4 +512,70 @@ describe("what _Not included.txt says about the check itself", () => {
       booksZipNotIncluded(plan, PERIOD, { failed: [], duplicates: [] }),
     ).not.toContain("How this was checked");
   });
+});
+
+describe("secondaryDocumentsCoveredByBooks", () => {
+  const plan = planBooksZip(
+    [
+      payment({
+        id: "claude",
+        files: [
+          file({ name: "Invoice-8NCOCMO3-0003.pdf" }),
+          file({ name: "Receipt-2500-1193-3999.pdf", copyGroup: "g2" }),
+        ],
+      }),
+      payment({
+        id: "kbc",
+        supplier: "Kbc Verzekeringen",
+        files: [file({ name: "domiciliering_kbc-polis.pdf", copyGroup: "g3" })],
+      }),
+    ],
+    PERIOD,
+  );
+
+  test("drops a receipt when the books have that payment's invoice", () => {
+    // The live shape: the invoice was just found in the books by its bytes, so
+    // the receipt beside it adds nothing there.
+    const dropped = secondaryDocumentsCoveredByBooks(
+      plan.files,
+      new Set(["claude"]),
+    );
+
+    expect(dropped.map((entry) => entry.file.name)).toEqual([
+      "Receipt-2500-1193-3999.pdf",
+    ]);
+  });
+
+  test("keeps everything of a payment the books have nothing for", () => {
+    expect(secondaryDocumentsCoveredByBooks(plan.files, new Set())).toEqual([]);
+  });
+
+  test("never drops an invoice, which the books may still need", () => {
+    const dropped = secondaryDocumentsCoveredByBooks(
+      plan.files,
+      new Set(["claude", "kbc"]),
+    );
+
+    expect(dropped.every((entry) => isSecondaryDocument(entry.file.name))).toBe(
+      true,
+    );
+    expect(dropped.map((entry) => entry.payment.id)).toEqual(["claude"]);
+  });
+});
+
+test("_Not included.txt names the receipts left out", () => {
+  const plan = planBooksZip(
+    [payment({ files: [file({ name: "Receipt-1.pdf" })] })],
+    PERIOD,
+  );
+
+  expect(
+    booksZipNotIncluded(plan, PERIOD, {
+      failed: [],
+      duplicates: [],
+      secondaryLeftOut: [plan.files[0]!],
+    }),
+  ).toContain(
+    "Receipts and statements left out because the books have the invoice for that payment (1)",
+  );
 });
