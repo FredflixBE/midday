@@ -10,6 +10,7 @@ import { describe, expect, test } from "bun:test";
 import {
   type BooksZipPayment,
   BYTE_ORDER_MARK,
+  booksInvoiceNumberSet,
   booksZipName,
   booksZipNotIncluded,
   booksZipOverview,
@@ -258,6 +259,72 @@ describe("planBooksZip", () => {
     expect(
       booksZipNotIncluded(plan, PERIOD, { failed: [], duplicates: [] }),
     ).toContain("Invoices left out because the books already hold a copy (1)");
+  });
+
+  test("knows the books have an invoice whose number the pull has seen there", () => {
+    // Frederik's order of work: the invoice reaches Midday first, is matched to
+    // its payment, and the books get it later. Once the pull has seen it in
+    // their archive, the number is the answer to "must I still upload this?".
+    const books = booksInvoiceNumberSet(["#0BB37ACA-0017", "SBIE-11996809"]);
+
+    const plan = planBooksZip(
+      [payment({ files: [file({ invoiceNumber: "0bb37aca 0017" })] })],
+      PERIOD,
+      books,
+    );
+
+    expect(plan.files[0]).toMatchObject({
+      alreadyInBooks: true,
+      checkedAgainstTheBooks: true,
+    });
+  });
+
+  test("still hands over an invoice the books have never seen", () => {
+    const books = booksInvoiceNumberSet(["SBIE-11996809"]);
+
+    const plan = planBooksZip(
+      [payment({ files: [file({ invoiceNumber: "INV-2026-0042" })] })],
+      PERIOD,
+      books,
+    );
+
+    expect(plan.files[0]).toMatchObject({
+      alreadyInBooks: false,
+      checkedAgainstTheBooks: true,
+    });
+  });
+
+  test("does not decide on a number too short to mean anything", () => {
+    const books = booksInvoiceNumberSet(["7/2", "12"]);
+
+    expect(books.size).toBe(0);
+    expect(
+      planBooksZip(
+        [payment({ files: [file({ invoiceNumber: "7/2" })] })],
+        PERIOD,
+        books,
+      ).files[0],
+    ).toMatchObject({ alreadyInBooks: false, checkedAgainstTheBooks: false });
+  });
+
+  test("says so when a file carries no number to check", () => {
+    // 37 files of the first real download were uploaded straight onto a payment
+    // and carry no invoice number at all. They are handed over, and the overview
+    // says nothing could be checked, because a second copy in the books cannot
+    // be deleted.
+    const plan = planBooksZip(
+      [payment({ files: [file({ invoiceNumber: null })] })],
+      PERIOD,
+      booksInvoiceNumberSet(["SBIE-11996809"]),
+    );
+
+    expect(plan.files[0]).toMatchObject({
+      alreadyInBooks: false,
+      checkedAgainstTheBooks: false,
+    });
+    expect(booksZipOverview(plan.files)).toContain(
+      "cannot tell - no invoice number",
+    );
   });
 
   test("leaves out card payments the books settled, only when asked", () => {

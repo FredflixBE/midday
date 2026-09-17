@@ -5,7 +5,9 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
+  like,
   lte,
   sql,
 } from "drizzle-orm";
@@ -541,6 +543,39 @@ export async function getInvoicesForBooks(
       files: filesByPayment.get(row.id) ?? [],
     };
   });
+}
+
+/**
+ * Every invoice number Midday has seen on a document pulled from the books.
+ *
+ * This is how the zip knows what the books already hold without asking them: a
+ * page must not call the accounting system (FF-1498), and the pull already
+ * mirrors its archive into the inbox. Returned raw, and compared with
+ * `comparableInvoiceReference` — one normaliser, or the drift between two shows
+ * up as a duplicate upload.
+ *
+ * Bounded by what the pull has fetched: its cutoff is 2025-01-01 and each run
+ * has a limit, so an invoice the books hold but the pull has not reached yet is
+ * not in here. Run the pull before a download to keep this honest.
+ */
+export async function getBooksInvoiceNumbers(
+  db: Database,
+  params: { teamId: string },
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ invoiceNumber: inbox.invoiceNumber })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        isNotNull(inbox.invoiceNumber),
+        like(inbox.referenceId, `${YUKI_INBOX_REFERENCE_PREFIX}%`),
+      ),
+    );
+
+  return rows
+    .map((row) => row.invoiceNumber)
+    .filter((number): number is string => number !== null);
 }
 
 /**

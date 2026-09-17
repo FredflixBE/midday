@@ -6,6 +6,7 @@ import { useTRPC } from "@/trpc/client";
 import {
   type BooksZipFile,
   type BooksZipOptions,
+  booksInvoiceNumberSet,
   booksZipName,
   booksZipNotIncluded,
   booksZipOverview,
@@ -47,7 +48,7 @@ export function useDownloadBooksZip() {
     options: BooksZipOptions,
   ): Promise<BooksZipResult> => {
     try {
-      const payments = await queryClient.fetchQuery({
+      const { payments, booksInvoiceNumbers } = await queryClient.fetchQuery({
         ...trpc.transactions.invoicesForBooks.queryOptions({
           from: options.from,
           to: options.to,
@@ -55,7 +56,11 @@ export function useDownloadBooksZip() {
         staleTime: 0,
       });
 
-      const plan = planBooksZip(payments, options);
+      const plan = planBooksZip(
+        payments,
+        options,
+        booksInvoiceNumberSet(booksInvoiceNumbers),
+      );
       const zip = new JSZip();
       const kept: BooksZipFile[] = [];
       const failed: BooksZipFile[] = [];

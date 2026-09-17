@@ -12,7 +12,10 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
-import { getInvoicesForBooks } from "../queries/invoice-status";
+import {
+  getBooksInvoiceNumbers,
+  getInvoicesForBooks,
+} from "../queries/invoice-status";
 import { inbox, transactionAttachments, transactions } from "../schema";
 import {
   BANK_CREDIT_CARD_ID,
@@ -275,5 +278,27 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
       },
     ]);
     expect(payments.find((p) => p.id === NO_INVOICE_YET)?.files).toEqual([]);
+  });
+
+  test("reports the invoice numbers the books' own documents carry", async () => {
+    // What answers "must I still upload this?" when Midday's copy arrived
+    // first: the numbers the pull has seen in the archive, raw, to be compared
+    // with the one normaliser (FF-1583).
+    expect(
+      new Set(await getBooksInvoiceNumbers(db, { teamId: TEAM_USD_ID })),
+    ).toEqual(new Set(["0BB37ACA-0017", "900510-281-83"]));
+  });
+
+  test("leaves out a number no document of the books carries", async () => {
+    // The Cursor invoice is now only Midday's own copy: its number is not
+    // something the books have been seen to hold.
+    await db
+      .update(inbox)
+      .set({ referenceId: null })
+      .where(eq(inbox.id, PULLED));
+
+    expect(await getBooksInvoiceNumbers(db, { teamId: TEAM_USD_ID })).toEqual([
+      "900510-281-83",
+    ]);
   });
 });

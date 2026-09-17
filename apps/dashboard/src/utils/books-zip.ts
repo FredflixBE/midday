@@ -7,9 +7,12 @@
  * and testable. `useDownloadBooksZip` does the downloading around it.
  *
  * Built from Midday's own records only. A page must not ask the books (FF-1498),
- * so "already in the books" means what Midday itself knows: a document it
- * pulled from the books, or a card payment whose `books_status` says settled.
+ * so "already in the books" means what Midday itself knows: a document pulled
+ * from their archive, a document whose copy was, an invoice number the pull has
+ * seen there, or a card payment whose `books_status` says settled.
  */
+
+import { comparableInvoiceReference } from "@midday/utils/invoice-reference";
 
 export type BooksZipPayment = {
   id: string;
@@ -51,6 +54,13 @@ export type BooksZipFile = {
   zipPath: string;
   /** The books already hold this document: link it there, do not upload it. */
   alreadyInBooks: boolean;
+  /**
+   * False when the file carries no invoice number Midday could compare, so
+   * nothing is known either way and it is handed over to be safe. Uploading a
+   * second copy to the books is the harmful direction — they have no delete —
+   * so this is said out loud in the overview rather than guessed.
+   */
+  checkedAgainstTheBooks: boolean;
 };
 
 export type BooksZipPlan = {
@@ -66,6 +76,28 @@ export type BooksZipPlan = {
   }[];
 };
 
+/**
+ * The comparable form of every invoice number the books hold, ready to be asked
+ * about one file at a time.
+ *
+ * Normalised with the one rule the Yuki integration uses, and numbers shorter
+ * than the floor are dropped: a three-character match is as likely to be
+ * somebody else's invoice.
+ */
+export function booksInvoiceNumberSet(numbers: readonly string[]): Set<string> {
+  const comparable = new Set<string>();
+  for (const number of numbers) {
+    const normalised = comparableInvoiceReference(number);
+    if (normalised && normalised.length >= MINIMUM_COMPARABLE_NUMBER) {
+      comparable.add(normalised);
+    }
+  }
+  return comparable;
+}
+
+/** The same floor `@midday/yuki` uses: the shortest real number seen is four. */
+const MINIMUM_COMPARABLE_NUMBER = 4;
+
 /** Written first, so a spreadsheet reads the file as UTF-8. */
 export const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
 
@@ -79,6 +111,8 @@ export function booksZipName(options: BooksZipOptions): string {
 export function planBooksZip(
   payments: readonly BooksZipPayment[],
   options: BooksZipOptions,
+  /** Comparable numbers of the invoices the books hold; see {@link booksInvoiceNumberSet}. */
+  booksNumbers: ReadonlySet<string> = new Set(),
 ): BooksZipPlan {
   const files: BooksZipFile[] = [];
   const withoutInvoice: BooksZipPayment[] = [];
@@ -104,7 +138,10 @@ export function planBooksZip(
       continue;
     }
 
-    for (const { file, alreadyInBooks } of documentsOf(payment)) {
+    for (const { file, alreadyInBooks, checkedAgainstTheBooks } of documentsOf(
+      payment,
+      booksNumbers,
+    )) {
       if (options.leaveOutWhatTheBooksHave && alreadyInBooks) {
         inBooksLeftOut.push({ payment, file });
         continue;
@@ -118,6 +155,7 @@ export function planBooksZip(
         file,
         zipPath: unique(base, extensionOf(file), usedPaths),
         alreadyInBooks,
+        checkedAgainstTheBooks,
       });
     }
   }
@@ -136,7 +174,12 @@ export function planBooksZip(
  */
 function documentsOf(
   payment: BooksZipPayment,
-): { file: BooksZipPayment["files"][number]; alreadyInBooks: boolean }[] {
+  booksNumbers: ReadonlySet<string>,
+): {
+  file: BooksZipPayment["files"][number];
+  alreadyInBooks: boolean;
+  checkedAgainstTheBooks: boolean;
+}[] {
   return payment.files
     .filter(
       (file) =>
@@ -148,14 +191,28 @@ function documentsOf(
             sameNumber(other.invoiceNumber, file.invoiceNumber),
         ),
     )
-    .map((file) => ({
-      file,
-      // Whether the books hold a copy is a fact about the document, answered by
-      // the query across the whole inbox (FF-1583). Asking only the files on
-      // this payment missed every invoice whose pulled copy is matched to no
-      // payment — which is what a fresh upload to the books looks like.
-      alreadyInBooks: file.fromBooks || file.booksHaveIt,
-    }));
+    .map((file) => {
+      const number = file.invoiceNumber
+        ? comparableInvoiceReference(file.invoiceNumber)
+        : null;
+      const comparable =
+        number && number.length >= MINIMUM_COMPARABLE_NUMBER ? number : null;
+
+      return {
+        file,
+        // Three ways to know the books have it, in order of directness: the file
+        // came from them; some copy of the document did (FF-1583); or its number
+        // is one the pull has seen in their archive — which is the answer to
+        // "what do I still have to upload?" when Midday's copy arrived first.
+        alreadyInBooks:
+          file.fromBooks ||
+          file.booksHaveIt ||
+          (comparable !== null && booksNumbers.has(comparable)),
+        // A file with no usable number cannot be checked either way.
+        checkedAgainstTheBooks:
+          file.fromBooks || file.booksHaveIt || comparable !== null,
+      };
+    });
 }
 
 function sameNumber(a: string | null, b: string | null): boolean {
@@ -244,16 +301,22 @@ export function booksZipOverview(files: readonly BooksZipFile[]): string {
       "Description",
       "Already in the books",
     ],
-    ...files.map(({ payment, zipPath, alreadyInBooks }) => [
-      payment.supplier ?? "",
-      payment.date,
-      amountText(payment.amount),
-      payment.currency,
-      payment.account.name ?? "",
-      zipPath,
-      payment.name,
-      alreadyInBooks ? "yes" : "no",
-    ]),
+    ...files.map(
+      ({ payment, zipPath, alreadyInBooks, checkedAgainstTheBooks }) => [
+        payment.supplier ?? "",
+        payment.date,
+        amountText(payment.amount),
+        payment.currency,
+        payment.account.name ?? "",
+        zipPath,
+        payment.name,
+        alreadyInBooks
+          ? "yes"
+          : checkedAgainstTheBooks
+            ? "no"
+            : "cannot tell - no invoice number",
+      ],
+    ),
   ];
 
   return `${BYTE_ORDER_MARK}${rows.map((row) => row.map(csvField).join(";")).join("\r\n")}\r\n`;
