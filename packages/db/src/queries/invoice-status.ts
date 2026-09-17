@@ -5,7 +5,9 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
+  like,
   lte,
   sql,
 } from "drizzle-orm";
@@ -388,6 +390,15 @@ export type InvoiceForBooksFile = {
   copyGroup: string | null;
   /** The document was pulled from the books, so the books already hold it. */
   fromBooks: boolean;
+  /**
+   * Some document in the same copy group was pulled from the books, so the
+   * books hold this invoice even though this file is Midday's own copy of it.
+   *
+   * Independent of whether that copy is attached to a payment, which is the
+   * whole point: a document pulled back from the books is often matched to no
+   * payment at all, and it still proves the books have the invoice (FF-1583).
+   */
+  booksHaveIt: boolean;
 };
 
 export type InvoiceForBooks = {
@@ -465,6 +476,13 @@ export async function getInvoicesForBooks(
       inboxId: inbox.id,
       groupedInboxId: inbox.groupedInboxId,
       referenceId: inbox.referenceId,
+      booksHaveIt: sql<boolean>`EXISTS (
+        SELECT 1 FROM ${inbox} AS books_copy
+        WHERE books_copy.team_id = ${teamId}
+          AND books_copy.reference_id LIKE ${`${YUKI_INBOX_REFERENCE_PREFIX}%`}
+          AND COALESCE(books_copy.grouped_inbox_id, books_copy.id)
+              = COALESCE(${inbox.groupedInboxId}, ${inbox.id})
+      )`.as("booksHaveIt"),
     })
     .from(transactionAttachments)
     .leftJoin(
@@ -497,6 +515,7 @@ export async function getInvoicesForBooks(
       copyGroup: file.inboxId ? (file.groupedInboxId ?? file.inboxId) : null,
       fromBooks:
         file.referenceId?.startsWith(YUKI_INBOX_REFERENCE_PREFIX) ?? false,
+      booksHaveIt: file.booksHaveIt ?? false,
     });
     filesByPayment.set(file.transactionId, list);
   }
@@ -524,6 +543,39 @@ export async function getInvoicesForBooks(
       files: filesByPayment.get(row.id) ?? [],
     };
   });
+}
+
+/**
+ * Every invoice number Midday has seen on a document pulled from the books.
+ *
+ * This is how the zip knows what the books already hold without asking them: a
+ * page must not call the accounting system (FF-1498), and the pull already
+ * mirrors its archive into the inbox. Returned raw, and compared with
+ * `comparableInvoiceReference` — one normaliser, or the drift between two shows
+ * up as a duplicate upload.
+ *
+ * Bounded by what the pull has fetched: its cutoff is 2025-01-01 and each run
+ * has a limit, so an invoice the books hold but the pull has not reached yet is
+ * not in here. Run the pull before a download to keep this honest.
+ */
+export async function getBooksInvoiceNumbers(
+  db: Database,
+  params: { teamId: string },
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ invoiceNumber: inbox.invoiceNumber })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        isNotNull(inbox.invoiceNumber),
+        like(inbox.referenceId, `${YUKI_INBOX_REFERENCE_PREFIX}%`),
+      ),
+    );
+
+  return rows
+    .map((row) => row.invoiceNumber)
+    .filter((number): number is string => number !== null);
 }
 
 /**

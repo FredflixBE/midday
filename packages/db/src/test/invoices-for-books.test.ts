@@ -10,8 +10,12 @@
  *   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5433/midday_test bun test src/test/invoices-for-books.test.ts
  */
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import type { Database } from "../client";
-import { getInvoicesForBooks } from "../queries/invoice-status";
+import {
+  getBooksInvoiceNumbers,
+  getInvoicesForBooks,
+} from "../queries/invoice-status";
 import { inbox, transactionAttachments, transactions } from "../schema";
 import {
   BANK_CREDIT_CARD_ID,
@@ -37,6 +41,8 @@ const OUTSIDE_PERIOD = "d5000000-0000-0000-0000-0000000000a6";
 
 const MAILED = "d5000000-0000-0000-0000-0000000000b1";
 const PULLED = "d5000000-0000-0000-0000-0000000000b2";
+const XERIUS_MAILED = "d5000000-0000-0000-0000-0000000000b3";
+const XERIUS_PULLED_UNATTACHED = "d5000000-0000-0000-0000-0000000000b4";
 
 describe.skipIf(SKIP)("getInvoicesForBooks", () => {
   let db: Database;
@@ -86,7 +92,7 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
       payment(OUTSIDE_PERIOD, { date: "2031-04-01", merchantName: "Cursor" }),
     ]);
 
-    const [mailedFile, pulledFile] = await db
+    const [mailedFile, pulledFile, xeriusFile] = await db
       .insert(transactionAttachments)
       .values([
         {
@@ -137,6 +143,28 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
         groupedInboxId: MAILED,
         transactionId: CARD_CHARGE,
         attachmentId: pulledFile!.id,
+        status: "done",
+      },
+      {
+        id: XERIUS_MAILED,
+        teamId: TEAM_USD_ID,
+        fileName: "scan.jpg",
+        filePath: [TEAM_USD_ID, "transactions", "scan.jpg"],
+        invoiceNumber: "900510-281-83",
+        transactionId: TRANSFER_PAYMENT,
+        attachmentId: xeriusFile!.id,
+        status: "done",
+      },
+      {
+        // Pulled back from the books yesterday and matched to no payment, which
+        // is what 73 of the live pulled documents look like (FF-1583).
+        id: XERIUS_PULLED_UNATTACHED,
+        teamId: TEAM_USD_ID,
+        fileName: "Xerius - 900510-281-83.pdf",
+        filePath: [TEAM_USD_ID, "inbox", "Xerius - 900510-281-83.pdf"],
+        invoiceNumber: "900510-281-83",
+        referenceId: "yuki:doc-xerius-0001",
+        groupedInboxId: XERIUS_MAILED,
         status: "done",
       },
     ]);
@@ -190,6 +218,7 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
           invoiceNumber: f.invoiceNumber,
           copyGroup: f.copyGroup,
           fromBooks: f.fromBooks,
+          booksHaveIt: f.booksHaveIt,
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     ).toEqual([
@@ -198,17 +227,21 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
         invoiceNumber: "0BB37ACA-0017",
         copyGroup: MAILED,
         fromBooks: true,
+        booksHaveIt: true,
       },
       {
         name: "Invoice-0BB37ACA-0017_1a2b3c4d.pdf",
         invoiceNumber: "0BB37ACA-0017",
         copyGroup: MAILED,
         fromBooks: false,
+        booksHaveIt: true,
       },
     ]);
   });
 
-  test("keeps a file uploaded straight onto a payment, with nothing from the inbox", async () => {
+  test("says the books hold an invoice whose pulled copy is attached to nothing", async () => {
+    // The Xerius invoice: Midday's own scan is on the payment, and the copy
+    // pulled from the books sits in the inbox matched to no payment (FF-1583).
     const payments = await read();
     const transfer = payments.find((p) => p.id === TRANSFER_PAYMENT);
 
@@ -217,11 +250,55 @@ describe.skipIf(SKIP)("getInvoicesForBooks", () => {
         name: "scan.jpg",
         path: [TEAM_USD_ID, "transactions", "scan.jpg"],
         contentType: "image/jpeg",
+        invoiceNumber: "900510-281-83",
+        copyGroup: XERIUS_MAILED,
+        fromBooks: false,
+        booksHaveIt: true,
+      },
+    ]);
+  });
+
+  test("claims nothing for a payment whose file came from neither the inbox nor the books", async () => {
+    await db
+      .update(inbox)
+      .set({ attachmentId: null, transactionId: null })
+      .where(eq(inbox.id, XERIUS_MAILED));
+
+    const payments = await read();
+
+    expect(payments.find((p) => p.id === TRANSFER_PAYMENT)?.files).toEqual([
+      {
+        name: "scan.jpg",
+        path: [TEAM_USD_ID, "transactions", "scan.jpg"],
+        contentType: "image/jpeg",
         invoiceNumber: null,
         copyGroup: null,
         fromBooks: false,
+        booksHaveIt: false,
       },
     ]);
     expect(payments.find((p) => p.id === NO_INVOICE_YET)?.files).toEqual([]);
+  });
+
+  test("reports the invoice numbers the books' own documents carry", async () => {
+    // What answers "must I still upload this?" when Midday's copy arrived
+    // first: the numbers the pull has seen in the archive, raw, to be compared
+    // with the one normaliser (FF-1583).
+    expect(
+      new Set(await getBooksInvoiceNumbers(db, { teamId: TEAM_USD_ID })),
+    ).toEqual(new Set(["0BB37ACA-0017", "900510-281-83"]));
+  });
+
+  test("leaves out a number no document of the books carries", async () => {
+    // The Cursor invoice is now only Midday's own copy: its number is not
+    // something the books have been seen to hold.
+    await db
+      .update(inbox)
+      .set({ referenceId: null })
+      .where(eq(inbox.id, PULLED));
+
+    expect(await getBooksInvoiceNumbers(db, { teamId: TEAM_USD_ID })).toEqual([
+      "900510-281-83",
+    ]);
   });
 });

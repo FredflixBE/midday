@@ -7,9 +7,12 @@
  * and testable. `useDownloadBooksZip` does the downloading around it.
  *
  * Built from Midday's own records only. A page must not ask the books (FF-1498),
- * so "already in the books" means what Midday itself knows: a document it
- * pulled from the books, or a card payment whose `books_status` says settled.
+ * so "already in the books" means what Midday itself knows: a document pulled
+ * from their archive, a document whose copy was, an invoice number the pull has
+ * seen there, or a card payment whose `books_status` says settled.
  */
+
+import { comparableInvoiceReference } from "@midday/utils/invoice-reference";
 
 export type BooksZipPayment = {
   id: string;
@@ -27,6 +30,8 @@ export type BooksZipPayment = {
     invoiceNumber: string | null;
     copyGroup: string | null;
     fromBooks: boolean;
+    /** Some copy of this invoice was pulled from the books (FF-1583). */
+    booksHaveIt: boolean;
   }[];
 };
 
@@ -35,8 +40,12 @@ export type BooksZipOptions = {
   from: string;
   /** `YYYY-MM-DD`, inclusive. */
   to: string;
-  /** Leave out card payments the books have settled. */
-  leaveOutSettledCards: boolean;
+  /**
+   * Leave out what the books already have: the invoices they hold a copy of,
+   * and the card payments they have settled. On by default, so the zip is what
+   * the books still need (FF-1583).
+   */
+  leaveOutWhatTheBooksHave: boolean;
 };
 
 export type BooksZipFile = {
@@ -45,6 +54,13 @@ export type BooksZipFile = {
   zipPath: string;
   /** The books already hold this document: link it there, do not upload it. */
   alreadyInBooks: boolean;
+  /**
+   * False when the file carries no invoice number Midday could compare, so
+   * nothing is known either way and it is handed over to be safe. Uploading a
+   * second copy to the books is the harmful direction — they have no delete —
+   * so this is said out loud in the overview rather than guessed.
+   */
+  checkedAgainstTheBooks: boolean;
 };
 
 export type BooksZipPlan = {
@@ -53,7 +69,34 @@ export type BooksZipPlan = {
   withoutInvoice: BooksZipPayment[];
   /** Card payments left out because the books settled them. */
   settledLeftOut: BooksZipPayment[];
+  /** Invoices left out because the books already hold a copy. */
+  inBooksLeftOut: {
+    payment: BooksZipPayment;
+    file: BooksZipPayment["files"][number];
+  }[];
 };
+
+/**
+ * The comparable form of every invoice number the books hold, ready to be asked
+ * about one file at a time.
+ *
+ * Normalised with the one rule the Yuki integration uses, and numbers shorter
+ * than the floor are dropped: a three-character match is as likely to be
+ * somebody else's invoice.
+ */
+export function booksInvoiceNumberSet(numbers: readonly string[]): Set<string> {
+  const comparable = new Set<string>();
+  for (const number of numbers) {
+    const normalised = comparableInvoiceReference(number);
+    if (normalised && normalised.length >= MINIMUM_COMPARABLE_NUMBER) {
+      comparable.add(normalised);
+    }
+  }
+  return comparable;
+}
+
+/** The same floor `@midday/yuki` uses: the shortest real number seen is four. */
+const MINIMUM_COMPARABLE_NUMBER = 4;
 
 /** Written first, so a spreadsheet reads the file as UTF-8. */
 export const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
@@ -68,17 +111,21 @@ export function booksZipName(options: BooksZipOptions): string {
 export function planBooksZip(
   payments: readonly BooksZipPayment[],
   options: BooksZipOptions,
+  /** Comparable numbers of the invoices the books hold; see {@link booksInvoiceNumberSet}. */
+  booksNumbers: ReadonlySet<string> = new Set(),
 ): BooksZipPlan {
   const files: BooksZipFile[] = [];
   const withoutInvoice: BooksZipPayment[] = [];
   const settledLeftOut: BooksZipPayment[] = [];
+  const inBooksLeftOut: BooksZipPlan["inBooksLeftOut"] = [];
   const usedPaths = new Set<string>();
 
   for (const payment of payments) {
     // Only a card payment carries an answer from the books; a payment from a
-    // bank account carries nothing, so nothing about it can be left out.
+    // bank account carries nothing, so nothing about it can be left out on
+    // that ground.
     if (
-      options.leaveOutSettledCards &&
+      options.leaveOutWhatTheBooksHave &&
       payment.account.isCard &&
       payment.booksStatus === "in_the_books"
     ) {
@@ -91,7 +138,15 @@ export function planBooksZip(
       continue;
     }
 
-    for (const { file, alreadyInBooks } of documentsOf(payment)) {
+    for (const { file, alreadyInBooks, checkedAgainstTheBooks } of documentsOf(
+      payment,
+      booksNumbers,
+    )) {
+      if (options.leaveOutWhatTheBooksHave && alreadyInBooks) {
+        inBooksLeftOut.push({ payment, file });
+        continue;
+      }
+
       const folder = safe(payment.supplier ?? "") || NO_SUPPLIER_FOLDER;
       const base = `${alreadyInBooks ? `${ALREADY_IN_BOOKS_FOLDER}/` : ""}${folder}/${fileName(payment, file)}`;
 
@@ -100,11 +155,12 @@ export function planBooksZip(
         file,
         zipPath: unique(base, extensionOf(file), usedPaths),
         alreadyInBooks,
+        checkedAgainstTheBooks,
       });
     }
   }
 
-  return { files, withoutInvoice, settledLeftOut };
+  return { files, withoutInvoice, settledLeftOut, inBooksLeftOut };
 }
 
 /**
@@ -118,13 +174,12 @@ export function planBooksZip(
  */
 function documentsOf(
   payment: BooksZipPayment,
-): { file: BooksZipPayment["files"][number]; alreadyInBooks: boolean }[] {
-  const inBooksGroups = new Set(
-    payment.files
-      .filter((file) => file.fromBooks && file.copyGroup)
-      .map((file) => file.copyGroup),
-  );
-
+  booksNumbers: ReadonlySet<string>,
+): {
+  file: BooksZipPayment["files"][number];
+  alreadyInBooks: boolean;
+  checkedAgainstTheBooks: boolean;
+}[] {
   return payment.files
     .filter(
       (file) =>
@@ -136,12 +191,28 @@ function documentsOf(
             sameNumber(other.invoiceNumber, file.invoiceNumber),
         ),
     )
-    .map((file) => ({
-      file,
-      alreadyInBooks:
-        file.fromBooks ||
-        (file.copyGroup !== null && inBooksGroups.has(file.copyGroup)),
-    }));
+    .map((file) => {
+      const number = file.invoiceNumber
+        ? comparableInvoiceReference(file.invoiceNumber)
+        : null;
+      const comparable =
+        number && number.length >= MINIMUM_COMPARABLE_NUMBER ? number : null;
+
+      return {
+        file,
+        // Three ways to know the books have it, in order of directness: the file
+        // came from them; some copy of the document did (FF-1583); or its number
+        // is one the pull has seen in their archive — which is the answer to
+        // "what do I still have to upload?" when Midday's copy arrived first.
+        alreadyInBooks:
+          file.fromBooks ||
+          file.booksHaveIt ||
+          (comparable !== null && booksNumbers.has(comparable)),
+        // A file with no usable number cannot be checked either way.
+        checkedAgainstTheBooks:
+          file.fromBooks || file.booksHaveIt || comparable !== null,
+      };
+    });
 }
 
 function sameNumber(a: string | null, b: string | null): boolean {
@@ -230,16 +301,22 @@ export function booksZipOverview(files: readonly BooksZipFile[]): string {
       "Description",
       "Already in the books",
     ],
-    ...files.map(({ payment, zipPath, alreadyInBooks }) => [
-      payment.supplier ?? "",
-      payment.date,
-      amountText(payment.amount),
-      payment.currency,
-      payment.account.name ?? "",
-      zipPath,
-      payment.name,
-      alreadyInBooks ? "yes" : "no",
-    ]),
+    ...files.map(
+      ({ payment, zipPath, alreadyInBooks, checkedAgainstTheBooks }) => [
+        payment.supplier ?? "",
+        payment.date,
+        amountText(payment.amount),
+        payment.currency,
+        payment.account.name ?? "",
+        zipPath,
+        payment.name,
+        alreadyInBooks
+          ? "yes"
+          : checkedAgainstTheBooks
+            ? "no"
+            : "cannot tell - no invoice number",
+      ],
+    ),
   ];
 
   return `${BYTE_ORDER_MARK}${rows.map((row) => row.map(csvField).join(";")).join("\r\n")}\r\n`;
@@ -268,6 +345,12 @@ export function booksZipNotIncluded(
     [
       "Payments with no invoice in Midday",
       plan.withoutInvoice.map(paymentLine),
+    ],
+    [
+      "Invoices left out because the books already hold a copy",
+      plan.inBooksLeftOut.map(
+        ({ payment, file }) => `${paymentLine(payment)}  ${file.name}`,
+      ),
     ],
     [
       "Card payments left out because the books have settled them",

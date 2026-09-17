@@ -429,11 +429,23 @@ describe("tRPC: transactions.invoicesForBooks", () => {
   beforeEach(() => {
     mocks.getInvoicesForBooks.mockReset();
     mocks.getInvoicesForBooks.mockImplementation(() => []);
+    mocks.getBooksInvoiceNumbers.mockReset();
+    mocks.getBooksInvoiceNumbers.mockImplementation(() => []);
   });
 
-  test("reads the period for the caller's team", async () => {
+  test("reads the period for the caller's team, with what the books hold", async () => {
+    mocks.getBooksInvoiceNumbers.mockImplementation(() => ["#SBIE-1234"]);
+
     const caller = createCaller(createTestContext());
-    await caller.invoicesForBooks({ from: "2026-01-01", to: "2026-06-30" });
+    const result = await caller.invoicesForBooks({
+      from: "2026-01-01",
+      to: "2026-06-30",
+    });
+
+    expect(result).toEqual({
+      payments: [],
+      booksInvoiceNumbers: ["#SBIE-1234"],
+    });
 
     expect(mocks.getInvoicesForBooks).toHaveBeenCalledWith(expect.anything(), {
       teamId: "test-team-id",
