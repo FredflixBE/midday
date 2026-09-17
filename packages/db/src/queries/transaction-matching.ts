@@ -1124,10 +1124,12 @@ export async function findInboxMatches(
       isExactAmount,
       referenceEvidence,
       declinePenalty,
-      daysApart: daysBetween(
-        candidate.date || transactionItem.date,
-        transactionItem.date,
-      ),
+      // Not `candidate.date || transactionItem.date`, the way `dateScore` above
+      // falls back: that reads as nought days apart, which is the closest a
+      // pair can be, for a document that carries no date at all.
+      daysApart: candidate.date
+        ? daysBetween(candidate.date, transactionItem.date)
+        : undefined,
     });
 
     if (confidence < suggestedThreshold) continue;

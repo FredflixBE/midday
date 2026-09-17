@@ -1027,7 +1027,9 @@ export async function getInboxSearch(
               currencyScore,
               isSameCurrency,
               isExactAmount,
-              daysApart: daysBetween(candidate.date!, transaction.date),
+              daysApart: candidate.date
+                ? daysBetween(candidate.date, transaction.date)
+                : undefined,
             });
 
             return {
