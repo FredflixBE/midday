@@ -1877,15 +1877,18 @@ export const documents = pgTable(
     tag: text(),
     title: text(),
     body: text(),
-    // Not notNull, and deliberately so. The expression concatenates title and
-    // body, and NULL || anything is NULL, so a document with neither could not
-    // be inserted at all — which is every document at the moment it is
-    // uploaded, since title and body are filled in later by processing. The
-    // dump this schema was introspected from defines the column without the
-    // constraint; the constraint was an artifact of the introspection.
+    // What global search matches a Vault document on (FF-1579): its title, its
+    // file name and the text processing read out of it. Each part is wrapped in
+    // coalesce, because NULL || anything is NULL — the expression used to be
+    // title || body, nothing ever writes body, and every document's vector was
+    // NULL. The file name is the last path segment without the upload suffix and
+    // extension, so `…/Aangifte RV 2025_14a9ad8f.pdf` indexes `Aangifte RV 2025`.
+    //
+    // Not notNull: the column never was on the databases this schema was
+    // introspected from, and a constraint would change nothing a search reads.
     fts: tsvector("fts").generatedAlwaysAs(
       (): SQL =>
-        sql`to_tsvector('english'::regconfig, ((title || ' '::text) || body))`,
+        sql`to_tsvector('english'::regconfig, ((((COALESCE(title, ''::text) || ' '::text) || COALESCE(regexp_replace(name, '^.*/|(_[0-9a-f]{8})?[.][^./]*$'::text, ''::text, 'g'::text), ''::text)) || ' '::text) || COALESCE(content, ''::text)))`,
     ),
     summary: text(),
     content: text(),
@@ -2657,11 +2660,16 @@ export const inbox = pgTable(
     website: text(),
     senderEmail: text("sender_email"),
     displayName: text("display_name"),
+    // The sender and products, as generate_inbox_fts has always indexed, plus
+    // the file name without its upload suffix and the invoice number (FF-1579).
+    // The number goes in twice: as written, so `29A0586F-92955` matches as a
+    // phrase, and split at its punctuation, because the parser keeps
+    // `2223048/99999` as one token and a search for `2223048` would miss it.
     fts: tsvector("fts")
       .notNull()
       .generatedAlwaysAs(
         (): SQL =>
-          sql`generate_inbox_fts(display_name, extract_product_names((meta -> 'products'::text)))`,
+          sql`(generate_inbox_fts(display_name, extract_product_names((meta -> 'products'::text))) || to_tsvector('english'::regconfig, ((((COALESCE(regexp_replace(file_name, '(_[0-9a-f]{8})?[.][^./]*$'::text, ''::text), ''::text) || ' '::text) || COALESCE(invoice_number, ''::text)) || ' '::text) || COALESCE(regexp_replace(invoice_number, '[^[:alnum:]]+'::text, ' '::text, 'g'::text), ''::text))))`,
       ),
     type: inboxTypeEnum(),
     description: text(),
