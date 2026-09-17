@@ -85,6 +85,13 @@
       "when": 1789333775202,
       "tag": "0011_original_currency_amount",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789660623971,
+      "tag": "0012_searchable_vault_and_inbox",
+      "breakpoints": true
     }
   ]
 }

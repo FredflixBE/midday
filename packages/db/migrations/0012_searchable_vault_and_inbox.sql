@@ -1,0 +1,4 @@
+ALTER TABLE "documents" drop column "fts";--> statement-breakpoint
+ALTER TABLE "documents" ADD COLUMN "fts" "tsvector" GENERATED ALWAYS AS (to_tsvector('english'::regconfig, ((((COALESCE(title, ''::text) || ' '::text) || COALESCE(regexp_replace(name, '^.*/|(_[0-9a-f]{8})?[.][^./]*$'::text, ''::text, 'g'::text), ''::text)) || ' '::text) || COALESCE(content, ''::text)))) STORED;--> statement-breakpoint
+ALTER TABLE "inbox" drop column "fts";--> statement-breakpoint
+ALTER TABLE "inbox" ADD COLUMN "fts" "tsvector" GENERATED ALWAYS AS ((generate_inbox_fts(display_name, extract_product_names((meta -> 'products'::text))) || to_tsvector('english'::regconfig, ((((COALESCE(regexp_replace(file_name, '(_[0-9a-f]{8})?[.][^./]*$'::text, ''::text), ''::text) || ' '::text) || COALESCE(invoice_number, ''::text)) || ' '::text) || COALESCE(regexp_replace(invoice_number, '[^[:alnum:]]+'::text, ' '::text, 'g'::text), ''::text))))) STORED NOT NULL;

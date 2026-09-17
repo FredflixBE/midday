@@ -4,6 +4,7 @@ import type { Database } from "../client";
 import { inbox, transactionMatchSuggestions } from "../schema";
 import { createActivity } from "./activities";
 import {
+  confirmPendingSuggestionsForTransaction,
   fetchInboxWithTransaction,
   matchTransaction,
   updateInbox,
@@ -279,6 +280,7 @@ export async function confirmSuggestedMatch(
         id: inboxId,
         transactionId,
         teamId,
+        userId,
       });
 
       await createActivity(tx, {
@@ -300,25 +302,11 @@ export async function confirmSuggestedMatch(
 
     // Confirm pending suggestions for inbox items that were matched as part
     // of this group — only where the inbox item now points to this transaction
-    await tx
-      .update(transactionMatchSuggestions)
-      .set({
-        status: "confirmed",
-        userActionAt: new Date().toISOString(),
-        userId,
-      })
-      .where(
-        and(
-          eq(transactionMatchSuggestions.transactionId, transactionId),
-          eq(transactionMatchSuggestions.teamId, teamId),
-          eq(transactionMatchSuggestions.status, "pending"),
-          sql`${transactionMatchSuggestions.inboxId} IN (
-            SELECT ${inbox.id} FROM ${inbox}
-            WHERE ${inbox.transactionId} = ${transactionId}
-              AND ${inbox.teamId} = ${teamId}
-          )`,
-        ),
-      );
+    await confirmPendingSuggestionsForTransaction(tx, {
+      teamId,
+      transactionId,
+      userId,
+    });
 
     return result;
   });
