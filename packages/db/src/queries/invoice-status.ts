@@ -22,7 +22,7 @@ import {
   transactionMatchSuggestions,
   transactions,
 } from "../schema";
-import { counterpartyKey } from "../utils/counterparty";
+import { counterpartyKey, counterpartyKeySql } from "../utils/counterparty";
 import { YUKI_INBOX_REFERENCE_PREFIX } from "./yuki-inbox";
 
 /**
@@ -89,6 +89,103 @@ export function hasPendingSuggestionSql(teamId: string): SQL<boolean> {
 }
 
 /**
+ * How long after a charge an equal credit still reads as that charge coming
+ * back. Days.
+ *
+ * A fortnight covers a card reversal, which is what this is for: a terminal
+ * that failed, a duplicate tap, a merchant undoing a charge the same week.
+ * Beyond it an equal credit from the same supplier is as likely to be a refund
+ * of something else entirely, and guessing costs more than the row does.
+ */
+const REVERSAL_WINDOW_DAYS = 14;
+
+/**
+ * Every reference to the row being judged, spelled out.
+ *
+ * Same reason as {@link TRANSACTION_ID}, and it bites harder here: these sit
+ * inside subqueries over `transactions` itself, so an unqualified column would
+ * bind to the subquery's copy and compare every row with itself — a predicate
+ * that is true for everything and looks, in the output, exactly like a rule
+ * that works.
+ */
+const OUTER = {
+  amount: sql`"transactions"."amount"`,
+  currency: sql`"transactions"."currency"`,
+  date: sql`"transactions"."date"`,
+  account: sql`"transactions"."bank_account_id"`,
+  key: counterpartyKeySql("transactions"),
+};
+
+/** The window, as a literal so Postgres reads `date - 14` as date arithmetic. */
+const WINDOW = sql.raw(String(REVERSAL_WINDOW_DAYS));
+
+/**
+ * This charge came straight back: an equal credit from the same payee, on the
+ * same account, within a fortnight — and not one already spoken for by an
+ * earlier charge (FF-1567).
+ *
+ * ## Why counting beats matching
+ *
+ * A taxi in Paris whose terminal kept failing: three taps, three charges, two
+ * refunded. One ride. An `EXISTS` asking each charge "is there an offsetting
+ * credit?" answers yes three times and cancels the ride itself, so the pairing
+ * has to be **one to one** — two refunds may cancel two charges and never
+ * three.
+ *
+ * Rather than pair rows, this counts them. Inside one bucket — team, account,
+ * currency, payee, amount, fortnight — a charge is reversed when its rank among
+ * the charges, oldest first, is no greater than the number of credits. Three
+ * charges against two credits: ranks 1 and 2 are reversed, rank 3 stays, and
+ * the one that stays is the ride that happened. Greedy pairing, without the
+ * pairing.
+ *
+ * ## What it will not do
+ *
+ * - **Partial refunds.** The credit must be the charge's exact opposite.
+ *   Anything else is a different question and stays on the list.
+ * - **Netting across accounts.** The bucket is one `bank_account_id`. The same
+ *   purchase reaching Midday twice — once from the bank feed, once from the
+ *   card ledger — is duplication, filed separately, and cancelling one against
+ *   the other would hide a charge nobody was refunded for.
+ * - **Payments naming nobody.** 26 of 125 rows on the live books name no payee.
+ *   Without one there is no evidence a credit undoes *this* charge, and this
+ *   list runs on the rule that an automatic answer must be one a person can
+ *   check.
+ *
+ * Both sides are Midday's own rows — one system, one source, one currency — so
+ * comparing the amount and the date here is the matching FF-1537 permits. It is
+ * the comparison *across* systems that is barred.
+ *
+ * Each charge measures the window from itself, so a chain of charges spread
+ * over more than a fortnight can read its own neighbourhood slightly
+ * differently. For a card reversal, which is days, that cannot arise.
+ */
+export function isReversedSql(teamId: string): SQL<boolean> {
+  const bucket = (table: string, amount: SQL) => sql`
+      ${sql.raw(`"${table}"`)}."team_id" = ${teamId}
+      AND ${sql.raw(`"${table}"`)}."bank_account_id" = ${OUTER.account}
+      AND ${sql.raw(`"${table}"`)}."currency" = ${OUTER.currency}
+      AND ${sql.raw(`"${table}"`)}."amount" = ${amount}
+      AND ${sql.raw(`"${table}"`)}."date"
+            BETWEEN ${OUTER.date} - ${WINDOW} AND ${OUTER.date} + ${WINDOW}
+      AND ${counterpartyKeySql(table)} = ${OUTER.key}`;
+
+  return sql<boolean>`(
+    ${OUTER.amount} < 0
+    AND ${OUTER.key} IS NOT NULL
+    AND (
+      SELECT count(*) FROM ${transactions} AS "reversal_credit"
+      WHERE ${bucket("reversal_credit", sql`- ${OUTER.amount}`)}
+    ) >= (
+      SELECT count(*) FROM ${transactions} AS "reversal_charge"
+      WHERE ${bucket("reversal_charge", OUTER.amount)}
+        AND ("reversal_charge"."date", "reversal_charge"."id")
+              <= (${OUTER.date}, ${TRANSACTION_ID})
+    )
+  )`;
+}
+
+/**
  * What can have a supplier invoice at all.
  *
  * Money coming in has no supplier invoice to find, and neither does a transfer
@@ -147,12 +244,21 @@ export function isExpenseSql(): SQL<boolean> {
  * answers for the rest, which is how a bank fee leaves the work list for good.
  * A suggestion is last, so a document already filed is never described as one
  * still waiting to be confirmed — 1 transaction on the live books has both.
+ *
+ * A charge that came straight back needs no invoice either, and says so before
+ * any suggestion is considered: money that was refunded has no invoice to find,
+ * whatever the matcher offered for it. It says so *after* `completed`, so a
+ * person's own mark is never second-guessed, and after the attachment, so a
+ * document that is demonstrably there still wins. `no_invoice_needed` rather
+ * than a fifth value of its own: the reason is worth showing one day, but it is
+ * a word on the screen and not a different answer (see `isReversedSql`).
  */
 export function invoiceStatusSql(teamId: string): SQL<InvoiceStatus | null> {
   return sql<InvoiceStatus | null>`CASE
     WHEN NOT ${isExpenseSql()} THEN NULL
     WHEN ${hasAttachmentSql(teamId)} THEN 'invoice_attached'
     WHEN ${transactions.status} = 'completed' THEN 'no_invoice_needed'
+    WHEN ${isReversedSql(teamId)} THEN 'no_invoice_needed'
     WHEN ${hasPendingSuggestionSql(teamId)} THEN 'invoice_pending'
     ELSE 'invoice_missing'
   END`;
