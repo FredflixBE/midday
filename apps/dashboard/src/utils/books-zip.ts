@@ -360,6 +360,13 @@ export function booksZipNotIncluded(
     duplicates: readonly BooksZipFile[];
     /** Files the books turned out to hold, the same bytes (FF-1583). */
     sameFileInBooks?: readonly BooksZipFile[];
+    /** What the comparison against the books' files came to. */
+    comparison?: {
+      booksFiles: number;
+      compared: number;
+      withCandidates: number;
+      unreadableCandidates: number;
+    };
   },
 ): string {
   const paymentLine = (payment: BooksZipPayment) =>
@@ -398,10 +405,27 @@ export function booksZipNotIncluded(
     .filter(([, lines]) => lines.length > 0)
     .map(([title, lines]) => `${title} (${lines.length})\n${lines.join("\n")}`);
 
+  // Always said, even when it found nothing: "nothing was left out" and "the
+  // comparison never ran" look identical in a folder listing, and only one of
+  // them means the zip is right.
+  const checked = download.comparison
+    ? [
+        "How this was checked against the books",
+        `${download.comparison.compared} of the files here were compared with the ${download.comparison.booksFiles} files the books hold.`,
+        `${download.comparison.withCandidates} had a file of the same size to compare with, and ${(download.sameFileInBooks ?? []).length} turned out to be the same file.`,
+        ...(download.comparison.unreadableCandidates > 0
+          ? [
+              `${download.comparison.unreadableCandidates} of the books' files could not be read, so those could not be ruled out.`,
+            ]
+          : []),
+      ].join("\n")
+    : null;
+
   return [
     `Invoices for the books, ${options.from} to ${options.to}`,
     ...(written.length > 0
       ? written
       : ["Every payment of the period with an invoice is included."]),
+    ...(checked ? [checked] : []),
   ].join("\n\n");
 }
