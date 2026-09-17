@@ -120,8 +120,9 @@ function comparable(reference: string | null): string | null {
  */
 function inboxRowsByInvoiceNumber(
   rows: readonly InboxRowForYukiPull[],
-): Map<string, string> {
-  const byNumber = new Map<string, string>();
+): Map<string, InboxRowForYukiPull> {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const byNumber = new Map<string, InboxRowForYukiPull>();
 
   // Two passes, so the answer does not depend on the order rows arrive in. A
   // row that is nobody's sibling is a group's primary and wins outright; only
@@ -131,18 +132,104 @@ function inboxRowsByInvoiceNumber(
   for (const row of rows) {
     if (row.groupedInboxId !== null) continue;
     const number = comparable(row.invoiceNumber);
-    if (number && !byNumber.has(number)) byNumber.set(number, row.id);
+    if (number && !byNumber.has(number)) byNumber.set(number, row);
   }
 
   for (const row of rows) {
     if (row.groupedInboxId === null) continue;
     const number = comparable(row.invoiceNumber);
     if (number && !byNumber.has(number)) {
-      byNumber.set(number, row.groupedInboxId);
+      // The primary itself when it is listed; otherwise the sibling stands in
+      // for what the group says the invoice is, under the primary's id.
+      const primary = byId.get(row.groupedInboxId);
+      byNumber.set(number, primary ?? { ...row, id: row.groupedInboxId });
     }
   }
 
   return byNumber;
+}
+
+/**
+ * References that are carried by more than one invoice, so are not invoice
+ * numbers at all (FF-1574).
+ *
+ * Suppliers put other numbers in the field Yuki calls the reference: KBC
+ * Verzekeringen its policy number and its yearly structured payment reference,
+ * Xerius the member number. Those recur on invoice after invoice, and the only
+ * sign of it that needs no reading of the PDF is the same reference on
+ * documents of different dates — across Yuki's purchase invoices, or across
+ * inbox rows that are not already one group. A reference seen that way groups
+ * nothing, whatever a single pair of documents agrees on.
+ *
+ * Rows already grouped together count once: they are one invoice, and the mail
+ * copy of an invoice routinely carries another date than Yuki's record of it.
+ */
+function reusedReferences(
+  documents: readonly YukiArchiveDocument[],
+  rows: readonly InboxRowForYukiPull[],
+): Set<string> {
+  const datesByNumber = new Map<string, Set<string>>();
+  const note = (reference: string | null, date: string | null) => {
+    const number = comparable(reference);
+    if (!number || !date) return;
+    const dates = datesByNumber.get(number) ?? new Set<string>();
+    dates.add(date);
+    datesByNumber.set(number, dates);
+  };
+
+  for (const document of documents) {
+    if (document.type !== YUKI_INVOICE_DOCUMENT_TYPES.purchaseInvoice) continue;
+    note(document.reference, document.documentDate);
+  }
+
+  // One date per group, the primary's where it has one.
+  const groupDates = new Map<string, { number: string; date: string }>();
+  for (const row of rows) {
+    const number = comparable(row.invoiceNumber);
+    if (!number || !row.date) continue;
+    const group = row.groupedInboxId ?? row.id;
+    if (row.groupedInboxId === null || !groupDates.has(group)) {
+      groupDates.set(group, { number, date: row.date });
+    }
+  }
+
+  const inboxDatesByNumber = new Map<string, Set<string>>();
+  for (const { number, date } of groupDates.values()) {
+    const dates = inboxDatesByNumber.get(number) ?? new Set<string>();
+    dates.add(date);
+    inboxDatesByNumber.set(number, dates);
+  }
+
+  const reused = new Set<string>();
+  for (const map of [datesByNumber, inboxDatesByNumber]) {
+    for (const [number, dates] of map) {
+      if (dates.size > 1) reused.add(number);
+    }
+  }
+  return reused;
+}
+
+/**
+ * Whether the totals of a Yuki document and an inbox row say they are two
+ * different invoices.
+ *
+ * This only ever refuses. The epic's rule is that amounts and dates never
+ * decide a match on their own, and they do not here: two documents are still
+ * grouped only on an invoice number. A number that agrees while the totals do
+ * not is the reused reference of FF-1574, and grouping on it is the damage.
+ *
+ * Yuki's archive total is the euro it booked, so a row in another currency, or
+ * either side without a total, cannot refuse anything.
+ */
+function totalsDisagree(
+  document: YukiArchiveDocument,
+  row: InboxRowForYukiPull,
+): boolean {
+  if (row.amount === null || row.currency !== "EUR") return false;
+  if (!document.amount) return false;
+  const booked = Number(document.amount);
+  if (!Number.isFinite(booked)) return false;
+  return Math.round(booked * 100) !== Math.round(row.amount * 100);
 }
 
 export function planYukiPull(params: {
@@ -166,6 +253,7 @@ export function planYukiPull(params: {
   }
 
   const byNumber = inboxRowsByInvoiceNumber(inboxRows);
+  const reused = reusedReferences(archive.documents, inboxRows);
 
   const counts = {
     purchaseInvoices: 0,
@@ -219,9 +307,10 @@ export function planYukiPull(params: {
 
   const pull = eligible.slice(0, Math.max(0, limit)).map((document) => {
     const number = comparable(document.reference);
+    const row = number && !reused.has(number) ? byNumber.get(number) : null;
     return {
       document,
-      groupWith: number ? (byNumber.get(number) ?? null) : null,
+      groupWith: row && !totalsDisagree(document, row) ? row.id : null,
     };
   });
 
