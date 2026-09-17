@@ -247,8 +247,14 @@ function GroupCard({ group }: { group: Group }) {
 
               {/*
                * Two markers, and both change what you would do. A suggestion is
-               * one click; an invoice the accountant already holds is a trip to
-               * the books rather than to the supplier.
+               * one click; a payment the books have settled is a trip to the
+               * books rather than to the supplier.
+               *
+               * "Settled", not "your accountant has the invoice" (FF-1568). The
+               * books close an item with or without a document — a taxi ride
+               * with no receipt goes to a collective creditor and is closed
+               * because nothing is coming — and Yuki does not say which. Both
+               * readings send you to the books; only the old one could be false.
                *
                * The books agreeing with this page — "still needs an invoice" —
                * is deliberately not marked. It is true of nearly every row here
@@ -266,8 +272,8 @@ function GroupCard({ group }: { group: Group }) {
                 </Marker>
               ) : null}
               {transaction.booksStatus === "in_the_books" ? (
-                <Marker title="Your accountant already has this invoice. It can be fetched from the books rather than from the supplier.">
-                  Your accountant has it
+                <Marker title="Your accountant has settled this payment in the books, with or without an invoice. Look in the books before asking the supplier.">
+                  Settled in the books
                 </Marker>
               ) : null}
             </span>
