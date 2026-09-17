@@ -250,6 +250,7 @@ export const mocks = {
   getMissingInvoices: mock(() => ({ groups: [], count: 0 })) as MockFn,
   getInvoicesForBooks: mock(() => []) as MockFn,
   getBooksInvoiceNumbers: mock(() => []) as MockFn,
+  getBooksFiles: mock(() => []) as MockFn,
   updateInbox: mock(() => ({})) as MockFn,
   deleteInbox: mock(() => ({})) as MockFn,
   deleteInboxMany: mock(() =>
@@ -908,6 +909,7 @@ const dbQueriesMock = new Proxy(
     getMissingInvoices: mocks.getMissingInvoices,
     getInvoicesForBooks: mocks.getInvoicesForBooks,
     getBooksInvoiceNumbers: mocks.getBooksInvoiceNumbers,
+    getBooksFiles: mocks.getBooksFiles,
     // A real value, not a mock: the transactions schema builds a zod enum from
     // it at module load, so a stub would make every status fail validation.
     INVOICE_STATUSES: [

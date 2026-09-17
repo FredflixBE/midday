@@ -26,6 +26,8 @@ export type BooksZipPayment = {
   files: {
     name: string;
     path: string[];
+    /** Bytes, which is how the books' copy of the same file is recognised. */
+    size: number | null;
     contentType: string;
     invoiceNumber: string | null;
     copyGroup: string | null;
@@ -97,6 +99,26 @@ export function booksInvoiceNumberSet(numbers: readonly string[]): Set<string> {
 
 /** The same floor `@midday/yuki` uses: the shortest real number seen is four. */
 const MINIMUM_COMPARABLE_NUMBER = 4;
+
+/**
+ * Where to look for the books' copy of a file, by byte size.
+ *
+ * The last resort, for a file nobody can check by number: 38 of the 39 such
+ * files in the first real download were byte-identical to a document the books
+ * already held. Size only narrows the field — the download compares the bytes,
+ * which is the one identifier that cannot be a coincidence.
+ */
+export function booksFilePathsBySize(
+  files: readonly { path: string[]; size: number }[],
+): Map<number, string[][]> {
+  const bySize = new Map<number, string[][]>();
+  for (const file of files) {
+    const paths = bySize.get(file.size) ?? [];
+    paths.push(file.path);
+    bySize.set(file.size, paths);
+  }
+  return bySize;
+}
 
 /** Written first, so a spreadsheet reads the file as UTF-8. */
 export const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);
@@ -336,6 +358,8 @@ export function booksZipNotIncluded(
   download: {
     failed: readonly BooksZipFile[];
     duplicates: readonly BooksZipFile[];
+    /** Files the books turned out to hold, the same bytes (FF-1583). */
+    sameFileInBooks?: readonly BooksZipFile[];
   },
 ): string {
   const paymentLine = (payment: BooksZipPayment) =>
@@ -355,6 +379,10 @@ export function booksZipNotIncluded(
     [
       "Card payments left out because the books have settled them",
       plan.settledLeftOut.map(paymentLine),
+    ],
+    [
+      "Invoices left out because the books hold the same file",
+      (download.sameFileInBooks ?? []).map((file) => file.zipPath),
     ],
     [
       "Files that could not be downloaded",

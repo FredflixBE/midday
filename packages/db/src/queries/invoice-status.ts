@@ -378,6 +378,8 @@ export type InvoiceForBooksFile = {
   name: string;
   /** Where the file is in the `vault` bucket. */
   path: string[];
+  /** Bytes, which is how the same file is recognised in the books (FF-1583). */
+  size: number | null;
   contentType: string;
   /** The invoice number of the inbox document this file came from, if any. */
   invoiceNumber: string | null;
@@ -471,6 +473,7 @@ export async function getInvoicesForBooks(
       transactionId: transactionAttachments.transactionId,
       name: transactionAttachments.name,
       path: transactionAttachments.path,
+      size: transactionAttachments.size,
       contentType: transactionAttachments.type,
       invoiceNumber: inbox.invoiceNumber,
       inboxId: inbox.id,
@@ -510,6 +513,7 @@ export async function getInvoicesForBooks(
     list.push({
       name: file.name ?? "",
       path: file.path ?? [],
+      size: file.size,
       contentType: file.contentType ?? "",
       invoiceNumber: file.invoiceNumber,
       copyGroup: file.inboxId ? (file.groupedInboxId ?? file.inboxId) : null,
@@ -576,6 +580,39 @@ export async function getBooksInvoiceNumbers(
   return rows
     .map((row) => row.invoiceNumber)
     .filter((number): number is string => number !== null);
+}
+
+/** A file the books hold, as far as recognising the same bytes needs it. */
+export type BooksFile = { path: string[]; size: number };
+
+/**
+ * Every file Midday pulled from the books, by size and location.
+ *
+ * For the files nobody can check by number: 38 of the 39 such files in the
+ * first real download were **byte-identical** to a document the books already
+ * held (measured 2026-09-17). Size is the cheap filter, and the download
+ * compares the bytes themselves — a file's content is the one identifier that
+ * cannot be a coincidence, and it needs nothing from the accounting system.
+ */
+export async function getBooksFiles(
+  db: Database,
+  params: { teamId: string },
+): Promise<BooksFile[]> {
+  const rows = await db
+    .select({ path: inbox.filePath, size: inbox.size })
+    .from(inbox)
+    .where(
+      and(
+        eq(inbox.teamId, params.teamId),
+        isNotNull(inbox.size),
+        isNotNull(inbox.filePath),
+        like(inbox.referenceId, `${YUKI_INBOX_REFERENCE_PREFIX}%`),
+      ),
+    );
+
+  return rows.flatMap((row) =>
+    row.path && row.size ? [{ path: row.path, size: row.size }] : [],
+  );
 }
 
 /**
