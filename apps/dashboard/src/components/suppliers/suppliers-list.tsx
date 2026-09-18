@@ -157,15 +157,8 @@ export function SuppliersList() {
                   router.push(`/transactions/suppliers/${supplier.id}`)
                 }
               >
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span className="truncate">{supplier.name}</span>
-                    {supplier.source !== "manual" ? (
-                      <span className="shrink-0 border border-border px-1.5 text-[10px] text-[#878787]">
-                        AI
-                      </span>
-                    ) : null}
-                  </div>
+                <TableCell className="max-w-0 truncate">
+                  {supplier.name}
                 </TableCell>
                 <TableCell className="max-w-0">
                   {supplier.category ? (
