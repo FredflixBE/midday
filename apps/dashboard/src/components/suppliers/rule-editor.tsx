@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useDebounceValue } from "usehooks-ts";
 import { FormatAmount } from "@/components/format-amount";
 import { useInvalidateTransactionQueries } from "@/hooks/use-invalidate-transaction-queries";
+import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { RULE_FIELD_LABELS, type SupplierRuleField } from "./rule-label";
 
@@ -64,6 +65,7 @@ export function RuleEditor({
   const queryClient = useQueryClient();
   const invalidateTransactions = useInvalidateTransactionQueries();
   const { toast } = useToast();
+  const { data: user } = useUserQuery();
 
   const [field, setField] = useState<SupplierRuleField>(defaultField);
   const [value, setValue] = useState("");
@@ -186,7 +188,7 @@ export function RuleEditor({
                   className="flex items-center gap-3 px-3 py-1.5 text-xs"
                 >
                   <span className="w-20 shrink-0 text-[#878787]">
-                    {formatDate(row.date)}
+                    {formatDate(row.date, user?.dateFormat)}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{row.name}</span>
                   <span className="shrink-0">

@@ -8,6 +8,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  max,
   ne,
   or,
   type SQL,
@@ -105,6 +106,7 @@ export async function getSuppliers(db: Database, params: { teamId: string }) {
     .select({
       supplierId: transactions.supplierId,
       transactionCount: count().as("transaction_count"),
+      lastPaymentDate: max(transactions.date).as("last_payment_date"),
     })
     .from(transactions)
     .where(
@@ -144,6 +146,38 @@ export async function getSuppliers(db: Database, params: { teamId: string }) {
       transactionCount:
         sql<number>`coalesce(${linked.transactionCount}, 0)`.mapWith(Number),
       ruleCount: sql<number>`coalesce(${ruled.ruleCount}, 0)`.mapWith(Number),
+      lastPaymentDate: linked.lastPaymentDate,
+      // What went out to this supplier, per currency and never summed across
+      // them — the same rule the Missing invoices totals keep. Signed, as
+      // every other amount on the screen is.
+      spend: sql<{ currency: string; amount: number }[]>`coalesce((
+        SELECT json_agg(
+          json_build_object('currency', "per"."currency", 'amount', "per"."amount")
+          ORDER BY "per"."currency"
+        )
+        FROM (
+          SELECT "t"."currency", sum("t"."amount") AS "amount"
+          FROM ${transactions} AS "t"
+          WHERE "t"."team_id" = ${params.teamId}
+            AND "t"."supplier_id" = "suppliers"."id"
+            AND "t"."amount" < 0
+          GROUP BY "t"."currency"
+        ) AS "per"
+      ), '[]'::json)`,
+      // One number to sort by: the same spend in the team's base currency,
+      // where each payment says what it was worth in it. Only for ordering;
+      // the screen shows the per-currency figures above.
+      spendInBaseCurrency: sql<number>`coalesce((
+        SELECT sum(
+          CASE WHEN "t"."currency" = "team"."base_currency"
+            THEN "t"."amount" ELSE "t"."base_amount" END
+        )
+        FROM ${transactions} AS "t"
+        JOIN "teams" AS "team" ON "team"."id" = "t"."team_id"
+        WHERE "t"."team_id" = ${params.teamId}
+          AND "t"."supplier_id" = "suppliers"."id"
+          AND "t"."amount" < 0
+      ), 0)`.mapWith(Number),
     })
     .from(suppliers)
     .leftJoin(

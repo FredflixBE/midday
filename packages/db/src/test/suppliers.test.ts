@@ -190,6 +190,9 @@ describe.skipIf(SKIP)("suppliers", () => {
         name: "Cursor Inc",
         transactionCount: 2,
         ruleCount: 1,
+        lastPaymentDate: "2026-03-01",
+        // Two payments of 100 out, in the one currency they were paid in.
+        spend: [{ currency: "USD", amount: -200 }],
       });
     });
   });
