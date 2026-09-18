@@ -19,6 +19,7 @@ import {
   createSupplier,
   deleteSupplier,
   deleteSupplierRule,
+  fillSupplierDefaultCategories,
   findOrCreateSupplier,
   getCategoriesBySupplier,
   getSupplierRules,
@@ -702,6 +703,65 @@ describe.skipIf(SKIP)("suppliers", () => {
 
       expect(answers.get(agreed.id)).toBe("software");
       expect(answers.has(split.id)).toBe(false);
+    });
+  });
+
+  describe("filling a supplier's usual category", () => {
+    const TRAVEL = "10000000-0000-0000-0000-000000000011";
+
+    async function paid(supplierId: string, categorySlug: string | null) {
+      const id = await payment({ categorySlug });
+      await setTransactionSupplier(db, {
+        teamId: TEAM_USD_ID,
+        transactionId: id,
+        supplierId,
+      });
+    }
+
+    test("takes the one category the payments agree on, and leaves a split alone", async () => {
+      const agreed = await supplier("Agreed");
+      const split = await supplier("Split");
+      await paid(agreed.id, "software");
+      await paid(agreed.id, "software");
+      await paid(agreed.id, null);
+      await paid(split.id, "software");
+      await paid(split.id, "travel");
+
+      const filled = await fillSupplierDefaultCategories(db, {
+        teamId: TEAM_USD_ID,
+      });
+
+      const rows = await db
+        .select({ name: suppliers.name, category: suppliers.defaultCategoryId })
+        .from(suppliers)
+        .where(eq(suppliers.teamId, TEAM_USD_ID));
+
+      expect(filled).toBe(1);
+      expect(Object.fromEntries(rows.map((r) => [r.name, r.category]))).toEqual(
+        {
+          Agreed: SOFTWARE,
+          Split: null,
+        },
+      );
+    });
+
+    test("never replaces a usual category that is already set", async () => {
+      const chosen = await createSupplier(db, {
+        teamId: TEAM_USD_ID,
+        name: "Chosen",
+        defaultCategoryId: TRAVEL,
+      });
+      await paid(chosen.id, "software");
+
+      expect(
+        await fillSupplierDefaultCategories(db, { teamId: TEAM_USD_ID }),
+      ).toBe(0);
+
+      const [row] = await db
+        .select({ category: suppliers.defaultCategoryId })
+        .from(suppliers)
+        .where(eq(suppliers.id, chosen.id));
+      expect(row?.category).toBe(TRAVEL);
     });
   });
 });

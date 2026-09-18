@@ -1341,9 +1341,11 @@ export const suppliers = pgTable(
     teamId: uuid("team_id").notNull(),
     name: text().notNull(),
     vatNumber: text("vat_number"),
-    // What this supplier's payments usually are. Set by a person; the
-    // transaction can still differ. When it is empty, enrichment remembers the
-    // category this supplier's payments have consistently had instead.
+    // What this supplier's payments usually are; the transaction can still
+    // differ. Filled from the payments once they all agree
+    // (`fillSupplierDefaultCategories`), never overwritten automatically after
+    // that, and changeable by a person. Empty while the payments disagree —
+    // that disagreement is what a person settles here.
     defaultCategoryId: uuid("default_category_id"),
     // Overrides the category's `can_have_supplier_invoice`. Null means the
     // category decides, which is the usual case.

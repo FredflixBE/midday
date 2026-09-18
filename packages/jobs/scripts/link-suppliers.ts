@@ -19,6 +19,9 @@
  *
  * Its cost is one model question per new counterparty, not per payment.
  *
+ * Last, it gives every supplier with no usual category the one its payments
+ * all agree on, and leaves the ones whose payments disagree for a person.
+ *
  * Prints no supplier names or amounts: this repository is public.
  */
 
@@ -26,10 +29,11 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { askSuppliersWith } from "@jobs/utils/supplier-question";
 import { closeDb, connectDb } from "@midday/db/client";
 import {
+  fillSupplierDefaultCategories,
   groupForSupplierQuestions,
   recogniseSuppliers,
 } from "@midday/db/queries";
-import { transactions } from "@midday/db/schema";
+import { suppliers, transactions } from "@midday/db/schema";
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 
 /** Payments per recognition pass. Keeps one model prompt a readable size. */
@@ -52,7 +56,6 @@ async function main() {
 
   if (teams.length === 0) {
     console.log("Every payment already has a supplier, or a person's answer.");
-    return;
   }
 
   const google = createGoogleGenerativeAI({
@@ -116,6 +119,36 @@ async function main() {
       `  ${guessed} linked on the model's word alone, shown as a guess`,
     );
     console.log(`  ${rows.length - linked} still have none, and say so`);
+  }
+
+  await fillUsualCategories(db, write);
+}
+
+/**
+ * Give every supplier with no usual category the one its payments all agree
+ * on. Suppliers whose payments disagree stay empty for a person to settle.
+ */
+async function fillUsualCategories(
+  db: Awaited<ReturnType<typeof connectDb>>,
+  write: boolean,
+) {
+  const teams = await db
+    .selectDistinct({ teamId: suppliers.teamId })
+    .from(suppliers)
+    .where(isNull(suppliers.defaultCategoryId));
+
+  for (const { teamId } of teams) {
+    if (!write) {
+      console.log(
+        `\n━━━ team ${teamId.slice(0, 8)}… — suppliers with no usual category would be filled where their payments agree`,
+      );
+      continue;
+    }
+
+    const filled = await fillSupplierDefaultCategories(db, { teamId });
+    console.log(
+      `\n━━━ team ${teamId.slice(0, 8)}… — ${filled} suppliers given the usual category their payments agree on`,
+    );
   }
 }
 

@@ -1100,7 +1100,7 @@ export async function linkTransactionsByGuess(
  * model — the memory FF-1554's `getCategoriesByCounterparty` stood in for,
  * keyed on identity instead of spelling.
  *
- * The supplier's own default wins: a person set it. Where there is none, the
+ * The supplier's own default wins. Where there is none, the
  * category the supplier's expenses have **consistently** had — one category
  * across all of them. A supplier with two is one this team has not made its
  * mind up about, and gets no answer rather than a majority vote, because the
@@ -1198,4 +1198,83 @@ export async function getSupplierTransactions(
     )
     .orderBy(desc(transactions.date), transactions.id)
     .limit(params.limit ?? 500);
+}
+
+/**
+ * Give each supplier with no usual category the one its payments have all had
+ * — the answer `getCategoriesBySupplier` was already giving from history, made
+ * visible on the supplier where a person can see and change it (decided with
+ * Frederik, 2026-09-18).
+ *
+ * Never overwrites a usual category that is set, whoever set it, and leaves a
+ * supplier whose payments disagree empty: which of two categories is right is
+ * a person's call. `supplierIds` narrows it to those suppliers; without it
+ * every supplier on the team is looked at.
+ *
+ * Returns how many suppliers it filled.
+ */
+export async function fillSupplierDefaultCategories(
+  db: DatabaseOrTransaction,
+  params: { teamId: string; supplierIds?: string[] },
+): Promise<number> {
+  if (params.supplierIds && params.supplierIds.length === 0) return 0;
+
+  const empty = await db
+    .select({ id: suppliers.id })
+    .from(suppliers)
+    .where(
+      and(
+        eq(suppliers.teamId, params.teamId),
+        isNull(suppliers.defaultCategoryId),
+        params.supplierIds
+          ? inArray(suppliers.id, params.supplierIds)
+          : undefined,
+      ),
+    );
+
+  if (empty.length === 0) return 0;
+
+  // Only the history half of the memory: these suppliers have no default, so
+  // this is exactly "the one category their payments have all had".
+  const agreed = await getCategoriesBySupplier(db, {
+    teamId: params.teamId,
+    supplierIds: empty.map((row) => row.id),
+  });
+
+  if (agreed.size === 0) return 0;
+
+  const categories = await db
+    .select({ id: transactionCategories.id, slug: transactionCategories.slug })
+    .from(transactionCategories)
+    .where(
+      and(
+        eq(transactionCategories.teamId, params.teamId),
+        inArray(transactionCategories.slug, [...new Set(agreed.values())]),
+      ),
+    );
+  const idBySlug = new Map(categories.map((row) => [row.slug, row.id]));
+
+  let filled = 0;
+
+  for (const [supplierId, slug] of agreed) {
+    const categoryId = idBySlug.get(slug);
+    if (!categoryId) continue;
+
+    const updated = await db
+      .update(suppliers)
+      .set({ defaultCategoryId: categoryId })
+      .where(
+        and(
+          eq(suppliers.id, supplierId),
+          eq(suppliers.teamId, params.teamId),
+          // Somebody may have chosen one since the read.
+          isNull(suppliers.defaultCategoryId),
+        ),
+      )
+      .returning({ id: suppliers.id });
+
+    filled += updated.length;
+  }
+
+  return filled;
 }
