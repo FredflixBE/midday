@@ -63,7 +63,7 @@ export type KnownSupplier = { name: string; aliases: string[] };
 
 export type AskSuppliers = (
   questions: SupplierQuestion[],
-  known: KnownSupplier[],
+  known: readonly KnownSupplier[],
 ) => Promise<(SupplierAnswer | null | undefined)[]>;
 
 /** Below this the model's supplier is not used at all. */
@@ -78,7 +78,8 @@ export const SUPPLIER_CONFIDENCE_MIN = 0.6;
 const MAX_ROUNDS = 3;
 
 /**
- * How many existing suppliers the model is shown. About 60 today. Past the
+ * How many existing suppliers are loaded to show the model — about 60 today,
+ * plus whatever one run creates. Past the
  * bound the ones paid least often are left out, and a new spelling of one of
  * those becomes a duplicate again — which a merge folds back, keeping the
  * spelling as an alias so it does not recur.

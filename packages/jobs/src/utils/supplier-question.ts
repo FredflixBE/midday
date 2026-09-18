@@ -22,7 +22,7 @@ export const supplierAnswerSchema = z.object({
     .string()
     .nullable()
     .describe(
-      "The legal entity that was paid, with its legal suffix (BV, NV, VZW, Ltd, Inc). Null when it cannot be told.",
+      "The legal entity that was paid: a known supplier's name exactly as listed, otherwise the name with its legal suffix (BV, NV, VZW, Ltd, Inc). Null when it cannot be told.",
     ),
   confidence: z
     .number()
@@ -45,7 +45,7 @@ export const supplierAnswerSchema = z.object({
 
 export function generateSupplierPrompt(
   questions: SupplierQuestion[],
-  known: KnownSupplier[],
+  known: readonly KnownSupplier[],
 ): string {
   const list = questions
     .map((question, index) => {
@@ -65,8 +65,10 @@ export function generateSupplierPrompt(
 
   const knownList = known
     .map((supplier) => {
-      const also = supplier.aliases.map((alias) => JSON.stringify(alias));
-      return `- ${JSON.stringify(supplier.name)}${also.length > 0 ? ` (also written ${also.join(", ")})` : ""}`;
+      const line = `- "${supplier.name}"`;
+      if (supplier.aliases.length === 0) return line;
+      const also = supplier.aliases.map((alias) => `"${alias}"`).join(", ");
+      return `${line} (also written ${also})`;
     })
     .join("\n");
 
@@ -80,6 +82,8 @@ When a transaction was paid to one of these companies, answer supplier with
 its name exactly as listed first, even when the transaction spells it
 differently. Give a new name only when none of them is the company paid — and
 do not stretch one to fit: "KBC Bank NV" is not "KBC Verzekeringen NV".
+namedBy and span still describe the transaction's own words, not the listed
+name.
 `
       : "";
 

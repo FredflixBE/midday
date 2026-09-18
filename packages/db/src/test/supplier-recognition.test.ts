@@ -43,7 +43,10 @@ function fakeModel(answers: Record<string, SupplierAnswer | null>) {
   const asked: SupplierQuestion[] = [];
   const shown: KnownSupplier[][] = [];
 
-  const ask = async (questions: SupplierQuestion[], known: KnownSupplier[]) => {
+  const ask = async (
+    questions: SupplierQuestion[],
+    known: readonly KnownSupplier[],
+  ) => {
     asked.push(...questions);
     shown.push([...known]);
     return questions.map((question) => {
