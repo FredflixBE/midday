@@ -28,6 +28,8 @@ import {
   bankAccounts,
   bankConnections,
   inbox,
+  supplierRules,
+  suppliers,
   tags,
   transactionAttachments,
   transactionCategories,
@@ -855,6 +857,19 @@ export async function getTransactionById(
         name: bankConnections.name,
         logoUrl: bankConnections.logoUrl,
       },
+      // Who was paid, and what made it so — a rule, named, a guess, or a
+      // person (FF-1555). Without the rule, a wrong supplier is untraceable.
+      supplier: {
+        id: suppliers.id,
+        name: suppliers.name,
+      },
+      supplierLink: transactions.supplierLink,
+      supplierRule: {
+        id: supplierRules.id,
+        field: supplierRules.field,
+        value: supplierRules.value,
+        source: supplierRules.source,
+      },
       tags: sql<Array<{ id: string; name: string | null }>>`COALESCE((
         SELECT json_agg(jsonb_build_object('id', t.id, 'name', t.name))
         FROM ${transactionTags} tt
@@ -910,6 +925,8 @@ export async function getTransactionById(
       ),
     )
     .leftJoin(inbox, eq(inbox.id, transactionMatchSuggestions.inboxId))
+    .leftJoin(suppliers, eq(suppliers.id, transactions.supplierId))
+    .leftJoin(supplierRules, eq(supplierRules.id, transactions.supplierRuleId))
     .where(
       and(
         eq(transactions.id, params.id),
