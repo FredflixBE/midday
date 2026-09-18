@@ -17,6 +17,7 @@ import {
   getSupplierById,
   getSupplierRules,
   getSuppliers,
+  getSupplierTransactions,
   mergeSuppliers,
   previewSupplierRule,
   resetTransactionSupplier,
@@ -67,6 +68,16 @@ export const suppliersRouter = createTRPCRouter({
       });
 
       return { ...supplier, rules };
+    }),
+
+  /** The payments behind a supplier's count. */
+  transactions: protectedProcedure
+    .input(getSupplierByIdSchema)
+    .query(async ({ input, ctx: { db, teamId } }) => {
+      return getSupplierTransactions(db, {
+        teamId: teamId!,
+        supplierId: input.id,
+      });
     }),
 
   /** The rules that say a text names nobody, which belong to no supplier. */

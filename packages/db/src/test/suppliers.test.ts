@@ -387,6 +387,7 @@ describe.skipIf(SKIP)("suppliers", () => {
       );
 
       expect(preview.total).toBe(3);
+      expect(preview.changing).toBe(1);
       // Already the bank's by a longer, more specific rule: it stays there.
       expect(effects[leaseA]).toBe("outranked");
       expect(effects[leaseB]).toBe("link");

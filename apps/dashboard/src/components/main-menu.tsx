@@ -37,6 +37,10 @@ const items = [
         name: "Missing invoices",
       },
       {
+        path: "/transactions/suppliers",
+        name: "Suppliers",
+      },
+      {
         path: "/transactions/categories",
         name: "Categories",
       },

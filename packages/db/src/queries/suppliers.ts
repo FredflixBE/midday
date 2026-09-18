@@ -830,7 +830,11 @@ export type SupplierRulePreviewRow = {
 export async function previewSupplierRule(
   db: Database,
   params: SupplierRuleInput & { limit?: number },
-): Promise<{ rows: SupplierRulePreviewRow[]; total: number }> {
+): Promise<{
+  rows: SupplierRulePreviewRow[];
+  total: number;
+  changing: number;
+}> {
   const value = ruleValueOrThrow(params.field, params.value);
   const draftId = "draft";
 
@@ -875,7 +879,15 @@ export async function previewSupplierRule(
       effect: previewEffect(rules, row, params.supplierId, draftId),
     }));
 
-  return { rows: preview.slice(0, params.limit ?? 200), total: preview.length };
+  return {
+    rows: preview.slice(0, params.limit ?? 200),
+    total: preview.length,
+    // Over every match, not only the rows returned, so the sentence the
+    // screen builds from it is true however long the list is.
+    changing: preview.filter((row) =>
+      ["link", "move", "unlink"].includes(row.effect),
+    ).length,
+  };
 }
 
 function previewEffect(
@@ -1069,4 +1081,33 @@ export async function getCategoriesBySupplier(
   }
 
   return answers;
+}
+
+/**
+ * The payments that point at a supplier, newest first, each with what linked
+ * it — so the count beside a supplier opens onto the rows it counts, and an AI
+ * guess among them reads as one.
+ */
+export async function getSupplierTransactions(
+  db: Database,
+  params: { teamId: string; supplierId: string; limit?: number },
+) {
+  return db
+    .select({
+      id: transactions.id,
+      date: transactions.date,
+      name: transactions.name,
+      amount: transactions.amount,
+      currency: transactions.currency,
+      supplierLink: transactions.supplierLink,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.teamId, params.teamId),
+        eq(transactions.supplierId, params.supplierId),
+      ),
+    )
+    .orderBy(desc(transactions.date), transactions.id)
+    .limit(params.limit ?? 500);
 }

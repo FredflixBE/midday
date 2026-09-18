@@ -180,6 +180,13 @@ function GroupCard({ group }: { group: Group }) {
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">
             {group.name ?? "No supplier on the payment"}
+            {/* Grouped by the name on the payments, not by a supplier:
+                nothing has linked one yet (FF-1555). */}
+            {group.key !== null && group.supplierId === null ? (
+              <span className="ml-2 text-xs font-normal text-[#878787]">
+                no supplier linked
+              </span>
+            ) : null}
           </div>
           <div className="mt-0.5 text-xs text-[#878787]">
             {group.count} {group.count === 1 ? "payment" : "payments"}
