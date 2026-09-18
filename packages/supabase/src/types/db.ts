@@ -2957,48 +2957,6 @@ export type Database = {
         };
         Relationships: [];
       };
-      transaction_enrichments: {
-        Row: {
-          category_slug: string | null;
-          created_at: string;
-          id: string;
-          name: string | null;
-          system: boolean | null;
-          team_id: string | null;
-        };
-        Insert: {
-          category_slug?: string | null;
-          created_at?: string;
-          id?: string;
-          name?: string | null;
-          system?: boolean | null;
-          team_id?: string | null;
-        };
-        Update: {
-          category_slug?: string | null;
-          created_at?: string;
-          id?: string;
-          name?: string | null;
-          system?: boolean | null;
-          team_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "transaction_enrichments_category_slug_team_id_fkey";
-            columns: ["category_slug", "team_id"];
-            isOneToOne: false;
-            referencedRelation: "transaction_categories";
-            referencedColumns: ["slug", "team_id"];
-          },
-          {
-            foreignKeyName: "transaction_enrichments_team_id_fkey";
-            columns: ["team_id"];
-            isOneToOne: false;
-            referencedRelation: "teams";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       transaction_match_suggestions: {
         Row: {
           amount_score: number | null;

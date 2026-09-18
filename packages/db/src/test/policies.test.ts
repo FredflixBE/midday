@@ -5,6 +5,7 @@
  * policies then allow, against a real database.
  */
 import { describe, expect, test } from "bun:test";
+import { pgTable, uuid } from "drizzle-orm/pg-core";
 import {
   KNOWN_POLICIES_WITHOUT_EXPRESSION,
   policyStatements,
@@ -54,7 +55,7 @@ describe("policyStatements", () => {
     //
     // transaction_enrichments had the last one. FF-1442 deleted it rather than
     // completing it: the only completion consistent with the dump was
-    // USING (true), and nothing needs the table from a browser anyway.
+    // USING (true), and nothing needed the table from a browser anyway.
     const dead = policies
       .filter((p) => p.command === "UPDATE" && !p.using && p.withCheck)
       .map((p) => `${p.table} ${p.name}`);
@@ -77,11 +78,15 @@ describe("policyStatements", () => {
     // signed-in browser and a table. A table whose policies are all deleted
     // must therefore still be listed here — if it is skipped for having none,
     // deleting the last policy silently opens the table to everyone.
-    expect(enableRls).toContain(
-      'ALTER TABLE public."transaction_enrichments" ENABLE ROW LEVEL SECURITY;',
-    );
-    expect(
-      policies.filter((p) => p.table.includes("transaction_enrichments")),
-    ).toEqual([]);
+    //
+    // transaction_enrichments was the live example until FF-1601 dropped it,
+    // so the case is built here.
+    const closed = pgTable("closed_on_purpose", { id: uuid() }).enableRLS();
+    const statements = policyStatements([closed]);
+
+    expect(statements.enableRls).toEqual([
+      'ALTER TABLE public."closed_on_purpose" ENABLE ROW LEVEL SECURITY;',
+    ]);
+    expect(statements.policies).toEqual([]);
   });
 });

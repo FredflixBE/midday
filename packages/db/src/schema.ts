@@ -2616,62 +2616,6 @@ export const invoiceProducts = pgTable(
   ],
 );
 
-export const transactionEnrichments = pgTable(
-  "transaction_enrichments",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-      .defaultNow()
-      .notNull(),
-    name: text(),
-    teamId: uuid("team_id"),
-    categorySlug: text("category_slug"),
-    system: boolean().default(false),
-  },
-  (table) => [
-    index("transaction_enrichments_category_slug_team_id_idx").using(
-      "btree",
-      table.categorySlug.asc().nullsLast().op("text_ops"),
-      table.teamId.asc().nullsLast().op("uuid_ops"),
-    ),
-    foreignKey({
-      columns: [table.teamId, table.categorySlug],
-      foreignColumns: [
-        transactionCategories.teamId,
-        transactionCategories.slug,
-      ],
-      name: "transaction_enrichments_category_slug_team_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.teamId],
-      foreignColumns: [teams.id],
-      name: "transaction_enrichments_team_id_fkey",
-    }).onDelete("cascade"),
-    unique("unique_team_name").on(table.name, table.teamId),
-  ],
-  /**
-   * Row level security on, and deliberately no policies: nothing may reach
-   * this table with the publishable key.
-   *
-   * It had two, both recovered verbatim from the dump and both wrong. The
-   * UPDATE one had a WITH CHECK and no USING, which selects no row and so
-   * updates nothing. The INSERT one was WITH CHECK (true) to `authenticated`,
-   * which let any signed-in user write a row for any team.
-   *
-   * Neither is replaced, because there is nothing to serve. This table is
-   * merchant-name → category mappings read by public.update_enrich_transaction(),
-   * a BEFORE INSERT trigger on transactions that this fork deliberately never
-   * recreated — categories come from the enrich-transaction job now. Nothing
-   * in the repository reads or writes the table.
-   *
-   * enableRLS is what keeps that true. Supabase grants the API roles ALL on
-   * tables in `public` through default privileges, so a table with RLS *off*
-   * is open to every signed-in user; RLS on with no policies is what closes
-   * it. It also stops drizzle-kit generating a DISABLE ROW LEVEL SECURITY
-   * once the last policy goes.
-   */
-).enableRLS();
-
 export const users = pgTable(
   "users",
   {
@@ -3774,7 +3718,6 @@ export const teamsRelations = relations(teams, ({ many }) => ({
   apiKeys: many(apiKeys),
   shortLinks: many(shortLinks),
   invoiceTemplates: many(invoiceTemplates),
-  transactionEnrichments: many(transactionEnrichments),
   users: many(users),
   trackerProjects: many(trackerProjects),
   inboxes: many(inbox),
@@ -3807,7 +3750,6 @@ export const transactionCategoriesRelations = relations(
   transactionCategories,
   ({ one, many }) => ({
     transactions: many(transactions),
-    transactionEnrichments: many(transactionEnrichments),
     team: one(teams, {
       fields: [transactionCategories.teamId],
       references: [teams.id],
@@ -4084,20 +4026,6 @@ export const invoiceTemplatesRelations = relations(
   ({ one }) => ({
     team: one(teams, {
       fields: [invoiceTemplates.teamId],
-      references: [teams.id],
-    }),
-  }),
-);
-
-export const transactionEnrichmentsRelations = relations(
-  transactionEnrichments,
-  ({ one }) => ({
-    transactionCategory: one(transactionCategories, {
-      fields: [transactionEnrichments.teamId],
-      references: [transactionCategories.teamId],
-    }),
-    team: one(teams, {
-      fields: [transactionEnrichments.teamId],
       references: [teams.id],
     }),
   }),
