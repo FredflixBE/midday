@@ -10,7 +10,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * One supplier's page (FF-1555): its settings, payments and rules. Everything
+ * One supplier's page (FF-1555): its settings, commitments (FF-1591),
+ * payments and rules. Everything
  * it reads is loaded with the page, so it renders once, complete.
  */
 export default async function Supplier(props: {
@@ -21,6 +22,7 @@ export default async function Supplier(props: {
   prefetch(trpc.suppliers.list.queryOptions());
   prefetch(trpc.suppliers.getById.queryOptions({ id }));
   prefetch(trpc.suppliers.transactions.queryOptions({ id }));
+  prefetch(trpc.commitments.list.queryOptions({ supplierId: id }));
 
   return (
     <div className="max-w-screen-lg pt-6">

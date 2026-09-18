@@ -19,6 +19,7 @@ import { enrichmentSchema } from "@jobs/utils/enrichment-schema";
 import { processBatch } from "@jobs/utils/process-batch";
 import { askSuppliersWith } from "@jobs/utils/supplier-question";
 import {
+  detectCommitments,
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
   markTransactionsAsEnrichmentFailed,
@@ -391,6 +392,29 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
         }
       },
     );
+
+    // Which commitment each payment continues, and which series are new
+    // (FF-1591). After categorising, because the category is what tells a card
+    // settlement from a supplier's own payment. Only this run's suppliers are
+    // read. A failure costs the attaching and nothing else, and the next run
+    // for that supplier does it, so it is logged rather than failing the run.
+    const supplierIds = [
+      ...new Set(
+        recognised.flatMap((transaction) =>
+          transaction.supplierId ? [transaction.supplierId] : [],
+        ),
+      ),
+    ];
+
+    try {
+      const detected = await detectCommitments(db, { teamId, supplierIds });
+      this.logger.info("Commitments detected", { teamId, ...detected });
+    } catch (error) {
+      this.logger.error("Commitment detection failed", {
+        teamId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
 
     const firstFailure = failures[0];
 

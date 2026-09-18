@@ -73,6 +73,34 @@ describe("detectSeries", () => {
     expect(series[0]?.priceKind).toBe("fixed");
   });
 
+  test("a price that rose two months ago is still a fixed price", () => {
+    const payments = [
+      ...["03", "04", "05", "06"].map((month) =>
+        pay(`2026-${month}-28`, -196.79),
+      ),
+      pay("2026-07-28", -202.98),
+      pay("2026-08-28", -202.98),
+    ];
+
+    const [insurance] = detectSeries(payments, { today: TODAY });
+
+    expect(insurance).toMatchObject({ priceKind: "fixed", amount: -202.98 });
+  });
+
+  test("a quarterly invoice paid two weeks early stays on rhythm", () => {
+    const payments = [
+      pay("2025-11-10", -1330),
+      pay("2026-02-16", -1359.79),
+      pay("2026-05-18", -1359.79),
+      pay("2026-08-03", -1359.79),
+    ];
+
+    const [accountant] = detectSeries(payments, { today: TODAY });
+
+    expect(accountant?.cadence).toBe("quarterly");
+    expect(accountant?.payments).toHaveLength(4);
+  });
+
   test("one supplier billing three subscriptions is three series", () => {
     // Google: 13.99 all year, 39.00 all year, 8.10 since May — all on the 2nd.
     const payments: SeriesPayment[] = [];

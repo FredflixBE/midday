@@ -65,6 +65,7 @@ import { useTRPC } from "@/trpc/client";
 import { getColorFromName } from "@/utils/categories";
 import { RuleEditor } from "./rule-editor";
 import { RuleLabel } from "./rule-label";
+import { SupplierCommitments } from "./supplier-commitments";
 
 type Supplier = RouterOutputs["suppliers"]["list"][number];
 
@@ -130,6 +131,7 @@ export function SupplierDetail({ id }: { id: string }) {
         </div>
       </div>
 
+      <SupplierCommitments supplierId={supplier.id} />
       <SupplierPayments supplierId={supplier.id} />
       <SupplierRules supplier={supplier} />
     </div>

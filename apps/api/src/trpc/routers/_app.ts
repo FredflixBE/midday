@@ -8,6 +8,7 @@ import { bankAccountsRouter } from "./bank-accounts";
 import { bankConnectionsRouter } from "./bank-connections";
 import { bankingRouter } from "./banking";
 
+import { commitmentsRouter } from "./commitments";
 import { connectorsRouter } from "./connectors";
 import { customersRouter } from "./customers";
 import { documentTagAssignmentsRouter } from "./document-tag-assignments";
@@ -74,6 +75,7 @@ export const appRouter = createTRPCRouter({
   oauthApplications: oauthApplicationsRouter,
 
   suppliers: suppliersRouter,
+  commitments: commitmentsRouter,
   tags: tagsRouter,
   team: teamRouter,
   trackerEntries: trackerEntriesRouter,

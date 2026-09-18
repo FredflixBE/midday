@@ -56,10 +56,14 @@ const MONTHS: Record<Cadence, number> = {
   yearly: 12,
 };
 
-/** How far from the expected day a payment may land and still be on rhythm. */
+/**
+ * How far from the expected day a payment may land and still be on rhythm.
+ * Quarterly is wider because a quarterly invoice is paid when it is paid:
+ * Four Eyes' landed 15 days early in August 2026.
+ */
 const TOLERANCE_DAYS: Record<Cadence, number> = {
   monthly: 7,
-  quarterly: 12,
+  quarterly: 16,
   yearly: 20,
 };
 
@@ -241,7 +245,9 @@ function summarise(chain: SeriesPayment[], cadence: Cadence): DetectedSeries {
   const recent = chain.slice(-RECENT);
   const last = chain.at(-1)!;
   const amounts = recent.map((p) => p.amount);
-  const tail = chain.slice(-3);
+  // The last two, not more: KBC Verzekeringen went from €196.79 to €202.98
+  // two months ago and is a fixed price all the same.
+  const tail = chain.slice(-2);
 
   const billed = price(last);
   const foreign = billed.currency !== last.currency;
