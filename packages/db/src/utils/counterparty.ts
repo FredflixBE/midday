@@ -14,7 +14,7 @@ import { type SQL, sql } from "drizzle-orm";
  * supplier link would.
  *
  * One implementation, used by the categoriser's grouping (FF-1554), supplier
- * recognition's grouping and the missing-invoices fallback (FF-1552).
+ * recognition's grouping (FF-1555) and the books zip's folders (FF-1581).
  * `counterpartyKeySql` computes the same expression in SQL, and the two have to
  * agree.
  */

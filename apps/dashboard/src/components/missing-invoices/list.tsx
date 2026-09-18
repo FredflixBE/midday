@@ -53,7 +53,7 @@ function Heading({ count, readyToConfirm, groups }: MissingInvoices) {
           ? "Every payment that needs an invoice has one."
           : `${count} ${count === 1 ? "payment" : "payments"} across ${suppliers} ${
               suppliers === 1 ? "supplier" : "suppliers"
-            }${hasUnnamed ? ", plus the ones that name nobody" : ""}.`}
+            }${hasUnnamed ? ", plus the ones with no supplier" : ""}.`}
       </p>
       {readyToConfirm > 0 ? (
         <p className="mt-1 text-sm">
@@ -179,7 +179,7 @@ function GroupCard({ group }: { group: Group }) {
       <div className="flex items-center justify-between gap-4 px-4 py-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">
-            {group.name ?? "No supplier on the payment"}
+            {group.name ?? "No supplier"}
           </div>
           <div className="mt-0.5 text-xs text-[#878787]">
             {group.count} {group.count === 1 ? "payment" : "payments"}

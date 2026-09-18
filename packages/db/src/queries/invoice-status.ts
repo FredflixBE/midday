@@ -322,20 +322,11 @@ export type MissingInvoice = {
 };
 
 export type MissingInvoiceGroup = {
-  /**
-   * `supplier:<id>` for a supplier's payments, the normalised counterparty for
-   * payments no supplier is linked to yet, or null for the ones naming nobody.
-   */
+  /** `supplier:<id>` for a supplier's payments, null for the ones with none. */
   key: string | null;
-  /**
-   * The heading: the supplier's name, else the counterparty as it was last
-   * written, or null for the no-name group.
-   */
+  /** The supplier's name, or null for the payments with no supplier. */
   name: string | null;
-  /**
-   * The supplier the group is, or null when it is only a name on the payments
-   * — recognisable, but nothing has linked it to a supplier yet (FF-1555).
-   */
+  /** The supplier the group is, or null for the payments with no supplier. */
   supplierId: string | null;
   count: number;
   /** How many of `count` have an invoice suggested and waiting on a yes. */
@@ -365,21 +356,24 @@ export type MissingInvoices = {
  * invoices is one errand, not four, and a flat list of 125 is a wall rather than
  * a to-do list.
  *
- * A payment linked to a supplier is grouped by that supplier (FF-1555), so two
- * spellings of one company are one errand. A payment with no supplier yet falls
- * back to the name on it — see `counterpartyKey` — which is a presentation
- * affordance and not a claim about who the supplier is: its group says so.
+ * A payment is grouped by its supplier (FF-1555), so two spellings of one
+ * company are one errand.
  *
  * The groups run alphabetically. Ordering them by size made a supplier's place
  * move every time a payment joined or left it, which at twenty suppliers is a
  * list you search rather than read (FF-1575).
  *
- * ## The no-name group
+ * ## The no-supplier group
  *
- * Whatever names nobody goes in one group at the end rather than being dropped
- * or scattered. 26 of the 125 have no counterparty at all. This is where that is
- * visible, which is the rule the whole design runs under: an automatic answer
- * may be wrong as long as a person can see it.
+ * Every payment with no supplier goes in one group at the end rather than being
+ * dropped or scattered (FF-1602). Until history had suppliers this group would
+ * have been most of the page, so those payments were grouped by the name
+ * printed on them instead; with history linked (3 of 281 expenses without a
+ * supplier on 2026-09-18) they are few enough to read as one group. A name
+ * printed on a payment is not a supplier — `Diverse leveranciers Restaurant` is
+ * many restaurants — and it no longer becomes a heading. This group is also
+ * where recognition's failures are visible, which is the rule the whole design
+ * runs under: an automatic answer may be wrong as long as a person can see it.
  *
  * ## Why a suggested match is still on this list
  *
@@ -410,8 +404,6 @@ export async function getMissingInvoices(
       name: transactions.name,
       amount: transactions.amount,
       currency: transactions.currency,
-      counterpartyName: transactions.counterpartyName,
-      merchantName: transactions.merchantName,
       supplierId: transactions.supplierId,
       supplierName: suppliers.name,
       booksStatus: transactions.booksStatus,
@@ -425,33 +417,25 @@ export async function getMissingInvoices(
         invoiceStatusFilterSql(teamId, ["invoice_missing", "invoice_pending"]),
       ),
     )
-    // Newest first, then by id so the order — and therefore which spelling
-    // becomes the heading — is the same on every run.
+    // Newest first, then by id so the order is the same on every run.
     .orderBy(desc(transactions.date), transactions.id);
 
   const byKey = new Map<string, MissingInvoiceGroup>();
-  // The payments naming nobody, kept aside so they land last whatever their
+  // The payments with no supplier, kept aside so they land last whatever their
   // number.
   const unnamed: MissingInvoice[] = [];
 
   for (const row of rows) {
-    const key = row.supplierId
-      ? `supplier:${row.supplierId}`
-      : counterpartyKey(row);
-    // The names are what the grouping is made of; a row does not carry them on
+    // The supplier is what the grouping is made of; a row does not carry it on
     // to the screen, where the heading above it already says who was paid.
-    const {
-      counterpartyName,
-      merchantName,
-      supplierId,
-      supplierName,
-      ...transaction
-    } = row;
+    const { supplierId, supplierName, ...transaction } = row;
 
-    if (!key) {
+    if (!supplierId) {
       unnamed.push(transaction);
       continue;
     }
+
+    const key = `supplier:${supplierId}`;
 
     const group = byKey.get(key);
 
@@ -462,13 +446,7 @@ export async function getMissingInvoices(
 
     byKey.set(key, {
       key,
-      // The name as the most recent payment wrote it: rows are newest first, so
-      // a supplier that has since been renamed reads as it does today. The same
-      // first-non-blank rule `counterpartyKey` uses, so the heading is a name
-      // from the party the key was built from.
-      name:
-        supplierName ??
-        (counterpartyName?.trim() || merchantName?.trim() || null),
+      name: supplierName,
       supplierId,
       count: 0,
       readyToConfirm: 0,
@@ -480,13 +458,11 @@ export async function getMissingInvoices(
   const named = [...byKey.values()]
     .map(withCountAndTotals)
     // Alphabetical, ignoring case, so a supplier is found where its name says
-    // rather than where its count happens to put it today (FF-1575). The key
-    // breaks a tie between two spellings that only differ in case.
-    .sort(
-      (a, b) =>
-        (a.name ?? "").localeCompare(b.name ?? "", undefined, {
-          sensitivity: "base",
-        }) || (a.key ?? "").localeCompare(b.key ?? ""),
+    // rather than where its count happens to put it today (FF-1575).
+    .sort((a, b) =>
+      (a.name ?? "").localeCompare(b.name ?? "", undefined, {
+        sensitivity: "base",
+      }),
     );
 
   const groups =
