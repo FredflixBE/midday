@@ -228,9 +228,10 @@ describe.skipIf(SKIP)("suppliers", () => {
         value: "KBC  verzekeringen",
       });
 
-      expect(await getSupplierRules(db, { teamId: TEAM_USD_ID })).toHaveLength(
-        1,
-      );
+      const rules = await getSupplierRules(db, { teamId: TEAM_USD_ID });
+      expect(rules).toHaveLength(1);
+      // The count beside a rule is the payments it linked — the one here.
+      expect(rules[0]?.matchedCount).toBe(1);
       expect((await linkOf(policy)).supplierId).toBe(two.id);
     });
 
@@ -560,6 +561,17 @@ describe.skipIf(SKIP)("suppliers", () => {
         .from(suppliers)
         .where(inArray(suppliers.id, [merged.id]));
       expect(gone).toHaveLength(0);
+
+      // The model naming the merged supplier again finds the kept one.
+      const again = await findOrCreateSupplier(db, {
+        teamId: TEAM_USD_ID,
+        name: "XERIUS",
+        source: "enrichment",
+      });
+      expect(again).toMatchObject({
+        created: false,
+        supplier: { id: kept.id },
+      });
 
       // A later payment in the merged spelling finds the kept supplier.
       const later = await payment({ name: "Xerius Be2000 Antwerpen Betaling" });

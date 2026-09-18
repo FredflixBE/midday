@@ -21,6 +21,7 @@ import {
   mergeSuppliers,
   previewSupplierRule,
   resetTransactionSupplier,
+  SupplierInputError,
   SupplierMergeError,
   SupplierNameTakenError,
   saveSupplierRule,
@@ -39,10 +40,21 @@ function asUserError(error: unknown): never {
   if (error instanceof SupplierNameTakenError) {
     throw new TRPCError({ code: "CONFLICT", message: error.message });
   }
-  if (error instanceof SupplierMergeError) {
+  if (
+    error instanceof SupplierMergeError ||
+    error instanceof SupplierInputError
+  ) {
     throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
   }
   throw error;
+}
+
+/** A missing row is said as one, not returned as a quiet null. */
+function found<T>(value: T | null): T {
+  if (value === null) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+  return value;
 }
 
 export const suppliersRouter = createTRPCRouter({
@@ -104,7 +116,7 @@ export const suppliersRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(deleteSupplierSchema)
     .mutation(async ({ input, ctx: { db, teamId } }) => {
-      return deleteSupplier(db, { id: input.id, teamId: teamId! });
+      return found(await deleteSupplier(db, { id: input.id, teamId: teamId! }));
     }),
 
   merge: protectedProcedure
@@ -119,7 +131,9 @@ export const suppliersRouter = createTRPCRouter({
   previewRule: protectedProcedure
     .input(supplierRuleSchema)
     .query(async ({ input, ctx: { db, teamId } }) => {
-      return previewSupplierRule(db, { ...input, teamId: teamId! });
+      return previewSupplierRule(db, { ...input, teamId: teamId! }).catch(
+        asUserError,
+      );
     }),
 
   /** Save a rule and bring every payment a person has not decided in line. */
@@ -130,26 +144,34 @@ export const suppliersRouter = createTRPCRouter({
         ...input,
         teamId: teamId!,
         source: "manual",
-      });
+      }).catch(asUserError);
     }),
 
   deleteRule: protectedProcedure
     .input(deleteSupplierRuleSchema)
     .mutation(async ({ input, ctx: { db, teamId } }) => {
-      return deleteSupplierRule(db, { id: input.id, teamId: teamId! });
+      return found(
+        await deleteSupplierRule(db, { id: input.id, teamId: teamId! }),
+      );
     }),
 
   /** A person's answer for one payment. Nothing automatic moves it again. */
   setForTransaction: protectedProcedure
     .input(setTransactionSupplierSchema)
     .mutation(async ({ input, ctx: { db, teamId } }) => {
-      return setTransactionSupplier(db, { ...input, teamId: teamId! });
+      return found(
+        await setTransactionSupplier(db, { ...input, teamId: teamId! }).catch(
+          asUserError,
+        ),
+      );
     }),
 
   /** Hand a payment back to the rules. */
   resetForTransaction: protectedProcedure
     .input(resetTransactionSupplierSchema)
     .mutation(async ({ input, ctx: { db, teamId } }) => {
-      return resetTransactionSupplier(db, { ...input, teamId: teamId! });
+      return found(
+        await resetTransactionSupplier(db, { ...input, teamId: teamId! }),
+      );
     }),
 });

@@ -942,6 +942,7 @@ const dbQueriesMock = new Proxy(
     // failure by `instanceof`.
     SupplierNameTakenError: class SupplierNameTakenError extends Error {},
     SupplierMergeError: class SupplierMergeError extends Error {},
+    SupplierInputError: class SupplierInputError extends Error {},
     getInvoicesForBooks: mocks.getInvoicesForBooks,
     getBooksInvoiceNumbers: mocks.getBooksInvoiceNumbers,
     getBooksFiles: mocks.getBooksFiles,

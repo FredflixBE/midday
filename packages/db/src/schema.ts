@@ -1353,6 +1353,11 @@ export const suppliers = pgTable(
     source: text().default("manual").notNull(),
     // The supplier's id in an accounting system, once something links it.
     externalId: text("external_id"),
+    // Names of suppliers merged into this one. The model that produced
+    // `Xerius` beside `Xerius Sociaal Verzekeringsfonds VZW` will produce it
+    // again, and finding it here is what stops a merge being undone by the
+    // next enrichment run.
+    aliases: text().array().notNull().default(sql`'{}'::text[]`),
   },
   (table) => [
     index("suppliers_team_id_idx").on(table.teamId),

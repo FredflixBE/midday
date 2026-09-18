@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
   createSupplier,
   mergeSuppliers,
+  SupplierInputError,
   SupplierMergeError,
   SupplierNameTakenError,
   saveSupplierRule,
@@ -61,6 +62,32 @@ describe("tRPC: suppliers", () => {
       code: "BAD_REQUEST",
       message: "two contacts in the books",
     });
+  });
+
+  test("a payment that is not this team's is not found, not quietly skipped", async () => {
+    asMock(setTransactionSupplier).mockImplementation(() =>
+      Promise.resolve(null),
+    );
+
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.setForTransaction({ transactionId: A, supplierId: B }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  test("another team's supplier is a bad request, not a server error", async () => {
+    asMock(setTransactionSupplier).mockImplementation(() =>
+      Promise.reject(
+        new SupplierInputError("That supplier does not belong to this team"),
+      ),
+    );
+
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.setForTransaction({ transactionId: A, supplierId: B }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   test("a rule a person saves is theirs, and scoped to their team", async () => {

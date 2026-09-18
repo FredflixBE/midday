@@ -365,4 +365,27 @@ describe.skipIf(SKIP)("supplier recognition", () => {
       ["counterparty_name", "sd worx sociaal secretariaat vzw"],
     ]);
   });
+
+  test("a processor's account is not kept as a rule when the text names the supplier", async () => {
+    // A SEPA debit collected by a processor carries the processor's IBAN. As a
+    // rule it would outrank everything and hand every later payment through
+    // that processor to this one merchant.
+    const model = fakeModel({
+      Mollie: byText("Cafe Mokka", "Mollie Cafe Mokka"),
+    });
+    const collected = await payment({
+      name: "Mollie Cafe Mokka Order 7731",
+      counterpartyName: "Stichting Mollie Payments",
+      counterpartyIban: "NL55 ABNA 0000 0000 00",
+    });
+
+    await recogniseSuppliers(db, {
+      teamId: TEAM_USD_ID,
+      transactions: [collected],
+      ask: model.ask,
+    });
+
+    const rules = await getSupplierRules(db, { teamId: TEAM_USD_ID });
+    expect(rules.map((rule) => rule.field)).toEqual(["name"]);
+  });
 });

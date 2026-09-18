@@ -75,6 +75,14 @@ export class SupplierNameTakenError extends Error {
   }
 }
 
+/** A request a person can correct: a missing name, another team's id. */
+export class SupplierInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SupplierInputError";
+  }
+}
+
 function isUniqueViolation(error: unknown): boolean {
   const code =
     (error as { code?: string })?.code ??
@@ -170,7 +178,7 @@ export async function createSupplier(
   const name = normaliseSupplierName(params.name);
 
   if (!name) {
-    throw new Error("A supplier needs a name");
+    throw new SupplierInputError("A supplier needs a name");
   }
 
   if (params.defaultCategoryId) {
@@ -218,7 +226,15 @@ export async function findOrCreateSupplier(
       .where(
         and(
           eq(suppliers.teamId, params.teamId),
-          sql`lower(${suppliers.name}) = lower(${name})`,
+          // Its own name, or the name of a supplier merged into it. Spelled
+          // out, because inside `unnest` a bare column would not say whose.
+          sql`(
+            lower("suppliers"."name") = lower(${name})
+            OR EXISTS (
+              SELECT 1 FROM unnest("suppliers"."aliases") AS "alias"
+              WHERE lower("alias") = lower(${name})
+            )
+          )`,
         ),
       )
       .limit(1);
@@ -260,7 +276,7 @@ export async function updateSupplier(
 
   if (updates.name !== undefined) {
     updates.name = normaliseSupplierName(updates.name);
-    if (!updates.name) throw new Error("A supplier needs a name");
+    if (!updates.name) throw new SupplierInputError("A supplier needs a name");
   }
 
   if (updates.defaultCategoryId) {
@@ -312,17 +328,17 @@ export async function deleteSupplier(
       )
       .returning();
 
-    return supplier
-      ? { supplier, released: released.map((row) => row.id) }
-      : null;
+    if (!supplier) return null;
+
+    await applySupplierRules(tx, {
+      teamId: params.teamId,
+      transactionIds: released.map((row) => row.id),
+    });
+
+    return { supplier };
   });
 
   if (!deleted) return null;
-
-  await applySupplierRules(db, {
-    teamId: params.teamId,
-    transactionIds: deleted.released,
-  });
 
   return deleted.supplier;
 }
@@ -338,7 +354,10 @@ export class SupplierMergeError extends Error {
  * Fold one supplier into another: two rows that turn out to be one company.
  *
  * The model will produce `Xerius` and `Xerius Sociaal Verzekeringsfonds VZW`
- * before anyone notices, so this is needed from the first day. Everything the
+ * before anyone notices, so this is needed from the first day. The merged
+ * name is kept as an alias of the survivor, so the model naming it again
+ * lands on the kept supplier rather than re-creating the one merged away.
+ * Everything the
  * merged supplier had moves to the one kept — its payments with their link
  * unchanged, so a person's choice stays a person's choice, and its rules, so
  * every spelling that recognised the old row now recognises the kept one. The
@@ -418,6 +437,13 @@ export async function mergeSuppliers(
         canHaveSupplierInvoice:
           target.canHaveSupplierInvoice ?? source.canHaveSupplierInvoice,
         externalId: target.externalId ?? source.externalId,
+        aliases: [
+          ...new Set(
+            [...target.aliases, source.name, ...source.aliases].filter(
+              (alias) => alias.toLowerCase() !== target.name.toLowerCase(),
+            ),
+          ),
+        ],
         // A person having kept this row is a person's decision about it.
         source:
           target.source === "manual" || source.source === "manual"
@@ -448,7 +474,7 @@ async function assertCategoryOnTeam(
     .limit(1);
 
   if (!category) {
-    throw new Error("That category does not belong to this team");
+    throw new SupplierInputError("That category does not belong to this team");
   }
 }
 
@@ -468,9 +494,12 @@ export async function getSupplierRules(
       value: supplierRules.value,
       source: supplierRules.source,
       createdAt: supplierRules.createdAt,
+      // `"supplier_rules"."id"` spelled out: in a single-table select drizzle
+      // renders the column bare, and inside this subquery a bare `"id"` binds
+      // to the transaction and counts nothing.
       matchedCount: sql<number>`(
         SELECT count(*) FROM ${transactions}
-        WHERE ${transactions.supplierRuleId} = ${supplierRules.id}
+        WHERE ${transactions.supplierRuleId} = "supplier_rules"."id"
       )`.mapWith(Number),
     })
     .from(supplierRules)
@@ -502,7 +531,8 @@ export type SupplierRuleInput = {
 
 function ruleValueOrThrow(field: SupplierRuleField, value: string): string {
   const normalised = normaliseRuleValue(field, value);
-  if (!normalised) throw new Error("A rule needs something to match");
+  if (!normalised)
+    throw new SupplierInputError("A rule needs something to match");
   return normalised;
 }
 
@@ -570,14 +600,21 @@ export async function insertSupplierRuleIfAbsent(
   return inserted ?? null;
 }
 
-/** Save a rule and apply it to every payment a person has not decided. */
+/**
+ * Save a rule and apply it to every payment a person has not decided.
+ *
+ * One transaction, so the rules and the links cannot be left disagreeing — a
+ * payment that says "matched by rule X" has to be one rule X matches.
+ */
 export async function saveSupplierRule(
   db: Database,
   params: SupplierRuleInput,
 ) {
-  const rule = await upsertSupplierRule(db, params);
-  const applied = await applySupplierRules(db, { teamId: params.teamId });
-  return { rule, applied };
+  return db.transaction(async (tx) => {
+    const rule = await upsertSupplierRule(tx, params);
+    const applied = await applySupplierRules(tx, { teamId: params.teamId });
+    return { rule, applied };
+  });
 }
 
 /**
@@ -588,38 +625,40 @@ export async function deleteSupplierRule(
   db: Database,
   params: { teamId: string; id: string },
 ) {
-  const [rule] = await db
-    .delete(supplierRules)
-    .where(
-      and(
-        eq(supplierRules.id, params.id),
-        eq(supplierRules.teamId, params.teamId),
-      ),
-    )
-    .returning();
+  return db.transaction(async (tx) => {
+    const [rule] = await tx
+      .delete(supplierRules)
+      .where(
+        and(
+          eq(supplierRules.id, params.id),
+          eq(supplierRules.teamId, params.teamId),
+        ),
+      )
+      .returning();
 
-  if (!rule) return null;
+    if (!rule) return null;
 
-  // The foreign key has already cleared `supplier_rule_id` on the rows it
-  // linked, so they are found by what is left: a rule link with no rule.
-  const orphaned = await db
-    .update(transactions)
-    .set({ supplierId: null, supplierLink: null })
-    .where(
-      and(
-        eq(transactions.teamId, params.teamId),
-        eq(transactions.supplierLink, "rule"),
-        isNull(transactions.supplierRuleId),
-      ),
-    )
-    .returning({ id: transactions.id });
+    // The foreign key has already cleared `supplier_rule_id` on the rows it
+    // linked, so they are found by what is left: a rule link with no rule.
+    const orphaned = await tx
+      .update(transactions)
+      .set({ supplierId: null, supplierLink: null })
+      .where(
+        and(
+          eq(transactions.teamId, params.teamId),
+          eq(transactions.supplierLink, "rule"),
+          isNull(transactions.supplierRuleId),
+        ),
+      )
+      .returning({ id: transactions.id });
 
-  const applied = await applySupplierRules(db, {
-    teamId: params.teamId,
-    transactionIds: orphaned.map((row) => row.id),
+    const applied = await applySupplierRules(tx, {
+      teamId: params.teamId,
+      transactionIds: orphaned.map((row) => row.id),
+    });
+
+    return { rule, applied };
   });
-
-  return { rule, applied };
 }
 
 async function assertSupplierOnTeam(
@@ -634,7 +673,7 @@ async function assertSupplierOnTeam(
     .limit(1);
 
   if (!supplier) {
-    throw new Error("That supplier does not belong to this team");
+    throw new SupplierInputError("That supplier does not belong to this team");
   }
 }
 
@@ -903,9 +942,11 @@ function previewEffect(
   const next = nextLink(rules, row);
 
   if (next.supplierId === row.supplierId) {
-    return next.supplierRuleId === draftId || row.supplierId === supplierId
-      ? "unchanged"
-      : "outranked";
+    // Outranked only when another rule is what keeps it; a model's guess that
+    // simply stands, or a supplier it already has, is unchanged.
+    return next.supplierRuleId && next.supplierRuleId !== draftId
+      ? "outranked"
+      : "unchanged";
   }
 
   if (!next.supplierId) return "unlink";

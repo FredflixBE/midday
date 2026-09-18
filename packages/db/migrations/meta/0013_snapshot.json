@@ -1,5 +1,5 @@
 {
-  "id": "344ad606-6a2b-45d6-a1e1-c8db2a0a349b",
+  "id": "43b87d90-64d9-4ff4-838d-9ea77249c2a1",
   "prevId": "6f8651d6-490d-4a1d-9c23-41bfbe79899a",
   "version": "7",
   "dialect": "postgresql",
@@ -7453,6 +7453,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "aliases": {
+          "name": "aliases",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
         }
       },
       "indexes": {

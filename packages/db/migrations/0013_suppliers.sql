@@ -21,7 +21,8 @@ CREATE TABLE "suppliers" (
 	"default_category_id" uuid,
 	"can_have_supplier_invoice" boolean,
 	"source" text DEFAULT 'manual' NOT NULL,
-	"external_id" text
+	"external_id" text,
+	"aliases" text[] DEFAULT '{}'::text[] NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "suppliers" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

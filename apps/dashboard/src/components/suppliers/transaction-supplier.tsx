@@ -3,6 +3,7 @@
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { Button } from "@midday/ui/button";
 import { Label } from "@midday/ui/label";
+import { ToastAction } from "@midday/ui/toast";
 import { useToast } from "@midday/ui/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
@@ -20,13 +21,19 @@ type Transaction = NonNullable<RouterOutputs["transactions"]["getById"]>;
  * the field says where its value came from — a rule, named; the model on its
  * own; or a person — and a person can always overrule it. Their answer is
  * final: no rule and no enrichment run moves it again.
+ *
+ * A correction on one payment is also offered as a rule for its counterparty,
+ * so the next payment from the same party is right too — the same gesture as
+ * "mark similar transactions", kept instead of applied once and forgotten.
+ * Offered, not done: the counterparty may be a collective name the accountant
+ * uses for many businesses, and only a person can tell.
  */
 export function TransactionSupplier({
   transaction,
 }: {
   transaction: Pick<
     Transaction,
-    "id" | "supplier" | "supplierLink" | "supplierRule"
+    "id" | "supplier" | "supplierLink" | "supplierRule" | "counterpartyName"
   >;
 }) {
   const trpc = useTRPC();
@@ -41,9 +48,51 @@ export function TransactionSupplier({
       description: error.message,
     });
 
+  const saveRule = useMutation(
+    trpc.suppliers.saveRule.mutationOptions({
+      onSuccess: ({ applied }) => {
+        invalidate();
+        const changed = applied.linked + applied.moved + applied.unlinked;
+        toast({
+          duration: 4000,
+          variant: "success",
+          title: "Rule saved",
+          description: `${changed} other ${changed === 1 ? "payment" : "payments"} changed. Payments set by a person were left alone.`,
+        });
+      },
+      onError,
+    }),
+  );
+
   const set = useMutation(
     trpc.suppliers.setForTransaction.mutationOptions({
-      onSuccess: invalidate,
+      onSuccess: (_, variables) => {
+        invalidate();
+
+        const counterparty = transaction.counterpartyName?.trim();
+        const chosen = variables.supplierId;
+        if (!counterparty || !chosen) return;
+
+        toast({
+          duration: 8000,
+          title: "Supplier set for this payment",
+          description: `Link every payment from "${counterparty}" to this supplier too?`,
+          action: (
+            <ToastAction
+              altText="Make it a rule"
+              onClick={() =>
+                saveRule.mutate({
+                  supplierId: chosen,
+                  field: "counterparty_name",
+                  value: counterparty,
+                })
+              }
+            >
+              Make it a rule
+            </ToastAction>
+          ),
+        });
+      },
       onError,
     }),
   );

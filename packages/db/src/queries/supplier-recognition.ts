@@ -237,9 +237,12 @@ export async function recogniseSuppliers(
 /**
  * The rules one answer is kept as.
  *
- * - The IBAN of each payment, where the bank sent one: the account paid is the
- *   strongest identifier there is, and it survives a trading name the text does
- *   not share.
+ * - The IBAN of each payment, where the bank sent one — but only when the
+ *   model says the counterparty is the supplier. The account paid is the
+ *   strongest identifier there is, and it outranks every other rule, which is
+ *   exactly why it must not be kept when the counterparty is a payment
+ *   processor collecting for someone else: its account would then send every
+ *   later payment through that processor to this one merchant.
  * - The counterparty name, when the model says that field names the supplier.
  * - Otherwise a leading span of each payment's text, when the model's span is
  *   one — see `leadingSpanRule` for what is refused.
@@ -264,10 +267,12 @@ export function rulesFromAnswer(
   };
 
   for (const transaction of pending) {
-    add(
-      "counterparty_iban",
-      normaliseRuleValue("counterparty_iban", transaction.counterpartyIban),
-    );
+    if (answer.namedBy === "counterparty") {
+      add(
+        "counterparty_iban",
+        normaliseRuleValue("counterparty_iban", transaction.counterpartyIban),
+      );
+    }
 
     if (answer.namedBy === "counterparty" && transaction.counterpartyName) {
       add(
