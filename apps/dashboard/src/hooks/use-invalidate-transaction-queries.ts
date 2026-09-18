@@ -58,6 +58,9 @@ export function useInvalidateTransactionQueries() {
     queryClient.invalidateQueries({
       queryKey: trpc.suppliers.list.queryKey(),
     });
+    queryClient.invalidateQueries({
+      queryKey: trpc.suppliers.transactions.queryKey(),
+    });
 
     // Invalidate global search
     queryClient.invalidateQueries({

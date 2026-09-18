@@ -16,6 +16,7 @@ import { formatDate } from "@midday/utils/format";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { Category } from "@/components/category";
 import { FormatAmount } from "@/components/format-amount";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
@@ -106,7 +107,7 @@ export function SuppliersList() {
             <SortableHead sortKey="name" sort={sort} onSort={toggleSort}>
               Supplier
             </SortableHead>
-            <TableHead>Usual category</TableHead>
+            <TableHead>Category</TableHead>
             <SortableHead
               sortKey="payments"
               sort={sort}
@@ -165,8 +166,15 @@ export function SuppliersList() {
                     ) : null}
                   </div>
                 </TableCell>
-                <TableCell className="text-[#878787]">
-                  {supplier.defaultCategory?.name ?? null}
+                <TableCell className="max-w-0">
+                  {supplier.category ? (
+                    <Category
+                      name={supplier.category.name}
+                      color={supplier.category.color ?? undefined}
+                    />
+                  ) : supplier.categoryMixed ? (
+                    <span className="text-[#878787]">Mixed</span>
+                  ) : null}
                 </TableCell>
                 <TableCell className="text-right">
                   {supplier.transactionCount}

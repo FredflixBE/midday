@@ -137,12 +137,31 @@ export async function getSuppliers(db: Database, params: { teamId: string }) {
       externalId: suppliers.externalId,
       canHaveSupplierInvoice: suppliers.canHaveSupplierInvoice,
       createdAt: suppliers.createdAt,
-      defaultCategory: {
-        id: transactionCategories.id,
-        name: transactionCategories.name,
-        slug: transactionCategories.slug,
-        color: transactionCategories.color,
-      },
+      // The category its payments share, read from the payments rather than
+      // stored on the supplier: the category belongs to the payment. More
+      // than one is "mixed", which is what a person tidies on the supplier's
+      // page; `uncategorized` is nobody's answer and is not counted.
+      categories: sql<{
+        count: number;
+        slug: string | null;
+        name: string | null;
+        color: string | null;
+      }>`(
+        SELECT json_build_object(
+          'count', count(DISTINCT "t"."category_slug"),
+          'slug', min("t"."category_slug"),
+          'name', min("c"."name"),
+          'color', min("c"."color")
+        )
+        FROM ${transactions} AS "t"
+        LEFT JOIN ${transactionCategories} AS "c"
+          ON "c"."team_id" = "t"."team_id" AND "c"."slug" = "t"."category_slug"
+        WHERE "t"."team_id" = ${params.teamId}
+          AND "t"."supplier_id" = "suppliers"."id"
+          AND "t"."amount" < 0
+          AND "t"."category_slug" IS NOT NULL
+          AND "t"."category_slug" <> ${UNCATEGORIZED}
+      )`,
       transactionCount:
         sql<number>`coalesce(${linked.transactionCount}, 0)`.mapWith(Number),
       ruleCount: sql<number>`coalesce(${ruled.ruleCount}, 0)`.mapWith(Number),
@@ -180,14 +199,24 @@ export async function getSuppliers(db: Database, params: { teamId: string }) {
       ), 0)`.mapWith(Number),
     })
     .from(suppliers)
-    .leftJoin(
-      transactionCategories,
-      eq(transactionCategories.id, suppliers.defaultCategoryId),
-    )
     .leftJoin(linked, eq(linked.supplierId, suppliers.id))
     .leftJoin(ruled, eq(ruled.supplierId, suppliers.id))
     .where(eq(suppliers.teamId, params.teamId))
-    .orderBy(sql`lower(${suppliers.name})`);
+    .orderBy(sql`lower(${suppliers.name})`)
+    .then((rows) =>
+      rows.map(({ categories, ...row }) => ({
+        ...row,
+        category:
+          categories.count === 1 && categories.slug
+            ? {
+                slug: categories.slug,
+                name: categories.name ?? categories.slug,
+                color: categories.color,
+              }
+            : null,
+        categoryMixed: categories.count > 1,
+      })),
+    );
 }
 
 export async function getSupplierById(
@@ -209,7 +238,6 @@ export type CreateSupplierParams = {
   teamId: string;
   name: string;
   vatNumber?: string | null;
-  defaultCategoryId?: string | null;
   canHaveSupplierInvoice?: boolean | null;
   source?: SupplierSource;
 };
@@ -225,10 +253,6 @@ export async function createSupplier(
     throw new SupplierInputError("A supplier needs a name");
   }
 
-  if (params.defaultCategoryId) {
-    await assertCategoryOnTeam(db, params.teamId, params.defaultCategoryId);
-  }
-
   try {
     const [supplier] = await db
       .insert(suppliers)
@@ -236,7 +260,6 @@ export async function createSupplier(
         teamId: params.teamId,
         name,
         vatNumber: params.vatNumber ?? null,
-        defaultCategoryId: params.defaultCategoryId ?? null,
         canHaveSupplierInvoice: params.canHaveSupplierInvoice ?? null,
         source: params.source ?? "manual",
       })
@@ -311,7 +334,6 @@ export type UpdateSupplierParams = {
   id: string;
   name?: string;
   vatNumber?: string | null;
-  defaultCategoryId?: string | null;
   canHaveSupplierInvoice?: boolean | null;
 };
 
@@ -324,10 +346,6 @@ export async function updateSupplier(
   if (updates.name !== undefined) {
     updates.name = normaliseSupplierName(updates.name);
     if (!updates.name) throw new SupplierInputError("A supplier needs a name");
-  }
-
-  if (updates.defaultCategoryId) {
-    await assertCategoryOnTeam(db, teamId, updates.defaultCategoryId);
   }
 
   try {
@@ -480,7 +498,6 @@ export async function mergeSuppliers(
       .update(suppliers)
       .set({
         vatNumber: target.vatNumber ?? source.vatNumber,
-        defaultCategoryId: target.defaultCategoryId ?? source.defaultCategoryId,
         canHaveSupplierInvoice:
           target.canHaveSupplierInvoice ?? source.canHaveSupplierInvoice,
         externalId: target.externalId ?? source.externalId,
@@ -502,27 +519,6 @@ export async function mergeSuppliers(
 
     return { supplier: merged!, movedTransactions: moved.length };
   });
-}
-
-async function assertCategoryOnTeam(
-  db: DatabaseOrTransaction,
-  teamId: string,
-  categoryId: string,
-) {
-  const [category] = await db
-    .select({ id: transactionCategories.id })
-    .from(transactionCategories)
-    .where(
-      and(
-        eq(transactionCategories.id, categoryId),
-        eq(transactionCategories.teamId, teamId),
-      ),
-    )
-    .limit(1);
-
-  if (!category) {
-    throw new SupplierInputError("That category does not belong to this team");
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1100,8 +1096,7 @@ export async function linkTransactionsByGuess(
  * model — the memory FF-1554's `getCategoriesByCounterparty` stood in for,
  * keyed on identity instead of spelling.
  *
- * The supplier's own default wins. Where there is none, the
- * category the supplier's expenses have **consistently** had — one category
+ * The category the supplier's expenses have **consistently** had — one category
  * across all of them. A supplier with two is one this team has not made its
  * mind up about, and gets no answer rather than a majority vote, because the
  * majority is wrong on the live books (Xerius: `contractors` twice,
@@ -1116,24 +1111,6 @@ export async function getCategoriesBySupplier(
 
   if (wanted.length === 0) return answers;
 
-  const defaults = await db
-    .select({ supplierId: suppliers.id, slug: transactionCategories.slug })
-    .from(suppliers)
-    .innerJoin(
-      transactionCategories,
-      eq(transactionCategories.id, suppliers.defaultCategoryId),
-    )
-    .where(
-      and(eq(suppliers.teamId, params.teamId), inArray(suppliers.id, wanted)),
-    );
-
-  for (const row of defaults) {
-    if (row.slug) answers.set(row.supplierId, row.slug);
-  }
-
-  const remaining = wanted.filter((id) => !answers.has(id));
-  if (remaining.length === 0) return answers;
-
   const history = await db
     .select({
       supplierId: transactions.supplierId,
@@ -1143,7 +1120,7 @@ export async function getCategoriesBySupplier(
     .where(
       and(
         eq(transactions.teamId, params.teamId),
-        inArray(transactions.supplierId, remaining),
+        inArray(transactions.supplierId, wanted),
         isNotNull(transactions.categorySlug),
         ne(transactions.categorySlug, UNCATEGORIZED),
         lte(transactions.amount, 0),
@@ -1188,8 +1165,23 @@ export async function getSupplierTransactions(
       amount: transactions.amount,
       currency: transactions.currency,
       supplierLink: transactions.supplierLink,
+      // Only a manually added payment can be deleted — the same rule the
+      // transactions table's bulk bar applies.
+      manual: transactions.manual,
+      category: {
+        slug: transactionCategories.slug,
+        name: transactionCategories.name,
+        color: transactionCategories.color,
+      },
     })
     .from(transactions)
+    .leftJoin(
+      transactionCategories,
+      and(
+        eq(transactionCategories.teamId, transactions.teamId),
+        eq(transactionCategories.slug, transactions.categorySlug),
+      ),
+    )
     .where(
       and(
         eq(transactions.teamId, params.teamId),
@@ -1198,83 +1190,4 @@ export async function getSupplierTransactions(
     )
     .orderBy(desc(transactions.date), transactions.id)
     .limit(params.limit ?? 500);
-}
-
-/**
- * Give each supplier with no usual category the one its payments have all had
- * — the answer `getCategoriesBySupplier` was already giving from history, made
- * visible on the supplier where a person can see and change it (decided with
- * Frederik, 2026-09-18).
- *
- * Never overwrites a usual category that is set, whoever set it, and leaves a
- * supplier whose payments disagree empty: which of two categories is right is
- * a person's call. `supplierIds` narrows it to those suppliers; without it
- * every supplier on the team is looked at.
- *
- * Returns how many suppliers it filled.
- */
-export async function fillSupplierDefaultCategories(
-  db: DatabaseOrTransaction,
-  params: { teamId: string; supplierIds?: string[] },
-): Promise<number> {
-  if (params.supplierIds && params.supplierIds.length === 0) return 0;
-
-  const empty = await db
-    .select({ id: suppliers.id })
-    .from(suppliers)
-    .where(
-      and(
-        eq(suppliers.teamId, params.teamId),
-        isNull(suppliers.defaultCategoryId),
-        params.supplierIds
-          ? inArray(suppliers.id, params.supplierIds)
-          : undefined,
-      ),
-    );
-
-  if (empty.length === 0) return 0;
-
-  // Only the history half of the memory: these suppliers have no default, so
-  // this is exactly "the one category their payments have all had".
-  const agreed = await getCategoriesBySupplier(db, {
-    teamId: params.teamId,
-    supplierIds: empty.map((row) => row.id),
-  });
-
-  if (agreed.size === 0) return 0;
-
-  const categories = await db
-    .select({ id: transactionCategories.id, slug: transactionCategories.slug })
-    .from(transactionCategories)
-    .where(
-      and(
-        eq(transactionCategories.teamId, params.teamId),
-        inArray(transactionCategories.slug, [...new Set(agreed.values())]),
-      ),
-    );
-  const idBySlug = new Map(categories.map((row) => [row.slug, row.id]));
-
-  let filled = 0;
-
-  for (const [supplierId, slug] of agreed) {
-    const categoryId = idBySlug.get(slug);
-    if (!categoryId) continue;
-
-    const updated = await db
-      .update(suppliers)
-      .set({ defaultCategoryId: categoryId })
-      .where(
-        and(
-          eq(suppliers.id, supplierId),
-          eq(suppliers.teamId, params.teamId),
-          // Somebody may have chosen one since the read.
-          isNull(suppliers.defaultCategoryId),
-        ),
-      )
-      .returning({ id: suppliers.id });
-
-    filled += updated.length;
-  }
-
-  return filled;
 }

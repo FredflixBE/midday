@@ -99,6 +99,13 @@
       "when": 1789747732941,
       "tag": "0013_suppliers",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789755493853,
+      "tag": "0014_supplier_category_from_payments",
+      "breakpoints": true
     }
   ]
 }

@@ -21,7 +21,6 @@ export default async function Supplier(props: {
   prefetch(trpc.suppliers.list.queryOptions());
   prefetch(trpc.suppliers.getById.queryOptions({ id }));
   prefetch(trpc.suppliers.transactions.queryOptions({ id }));
-  prefetch(trpc.transactionCategories.get.queryOptions());
 
   return (
     <div className="max-w-screen-lg pt-6">

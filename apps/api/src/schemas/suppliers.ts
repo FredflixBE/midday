@@ -3,7 +3,6 @@ import { z } from "@hono/zod-openapi";
 const supplierFields = {
   name: z.string().trim().min(1).max(200),
   vatNumber: z.string().trim().max(50).nullable().optional(),
-  defaultCategoryId: z.string().uuid().nullable().optional(),
   canHaveSupplierInvoice: z.boolean().nullable().optional(),
 };
 

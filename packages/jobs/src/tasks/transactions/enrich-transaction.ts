@@ -19,7 +19,6 @@ import { enrichmentSchema } from "@jobs/utils/enrichment-schema";
 import { processBatch } from "@jobs/utils/process-batch";
 import { askSuppliersWith } from "@jobs/utils/supplier-question";
 import {
-  fillSupplierDefaultCategories,
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
   markTransactionsAsEnrichmentFailed,
@@ -413,33 +412,6 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
           `for a replay. First failure: ${firstFailure.message}`,
         { cause: firstFailure.error },
       );
-    }
-
-    // A supplier whose payments now all agree on a category gets it as its
-    // usual one, where a person can see and change it. The first payment of a
-    // supplier the model just created is what gives it its category. Only
-    // fills what is empty, so a person's choice is never touched.
-    const suppliersSeen = [
-      ...new Set(
-        recognised
-          .map((transaction) => transaction.supplierId)
-          .filter((id): id is string => id !== null),
-      ),
-    ];
-
-    try {
-      const filled = await fillSupplierDefaultCategories(db, {
-        teamId,
-        supplierIds: suppliersSeen,
-      });
-      this.logger.info("Usual categories filled", { teamId, filled });
-    } catch (error) {
-      // Categorisation succeeded and the memory still works from history;
-      // only the visible default is missing. Logged, not fatal.
-      this.logger.error("Could not fill suppliers' usual categories", {
-        teamId,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
     }
 
     if (recognitionFailure) {

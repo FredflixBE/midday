@@ -19,7 +19,6 @@ import {
   createSupplier,
   deleteSupplier,
   deleteSupplierRule,
-  fillSupplierDefaultCategories,
   findOrCreateSupplier,
   getCategoriesBySupplier,
   getSupplierRules,
@@ -49,8 +48,6 @@ import {
 } from "./helpers/test-database";
 
 const SKIP = !isTestDatabaseAvailable();
-
-const SOFTWARE = "10000000-0000-0000-0000-000000000010";
 
 let sequence = 0;
 
@@ -164,19 +161,12 @@ describe.skipIf(SKIP)("suppliers", () => {
       ).rejects.toBeInstanceOf(SupplierNameTakenError);
     });
 
-    test("a default category must be one of the team's own", async () => {
-      await expect(
-        createSupplier(db, {
-          teamId: TEAM_EUR_ID,
-          name: "Cursor Inc",
-          defaultCategoryId: SOFTWARE,
-        }),
-      ).rejects.toThrow();
-    });
-
     test("the list counts the payments and rules behind each supplier", async () => {
       const cursor = await supplier("Cursor Inc");
-      await payment({ name: "CURSOR AI POWERED IDE SAN FRANCISCO CA" });
+      await payment({
+        name: "CURSOR AI POWERED IDE SAN FRANCISCO CA",
+        categorySlug: "software",
+      });
       await payment({ name: "CURSOR USAGE DEC NEW YORK NY" });
       await saveSupplierRule(db, {
         teamId: TEAM_USD_ID,
@@ -194,7 +184,26 @@ describe.skipIf(SKIP)("suppliers", () => {
         lastPaymentDate: "2026-03-01",
         // Two payments of 100 out, in the one currency they were paid in.
         spend: [{ currency: "USD", amount: -200 }],
+        // Read from the payments: the one category they share.
+        category: { slug: "software" },
+        categoryMixed: false,
       });
+    });
+
+    test("a supplier whose payments disagree on the category reads as mixed", async () => {
+      const sdWorx = await supplier("SD Worx");
+      await payment({ name: "Sd Worx Factuur 1", categorySlug: "software" });
+      await payment({ name: "Sd Worx Factuur 2", categorySlug: "travel" });
+      await saveSupplierRule(db, {
+        teamId: TEAM_USD_ID,
+        supplierId: sdWorx.id,
+        field: "name",
+        value: "Sd Worx",
+      });
+
+      const [row] = await getSuppliers(db, { teamId: TEAM_USD_ID });
+
+      expect(row).toMatchObject({ category: null, categoryMixed: true });
     });
   });
 
@@ -522,7 +531,7 @@ describe.skipIf(SKIP)("suppliers", () => {
         teamId: TEAM_USD_ID,
         name: "Xerius",
         vatNumber: "BE0000.000.000",
-        defaultCategoryId: SOFTWARE,
+        canHaveSupplierInvoice: false,
         source: "enrichment",
       });
 
@@ -551,7 +560,7 @@ describe.skipIf(SKIP)("suppliers", () => {
       expect(result.movedTransactions).toBe(2);
       expect(result.supplier).toMatchObject({
         vatNumber: "BE0409.080.608",
-        defaultCategoryId: SOFTWARE,
+        canHaveSupplierInvoice: false,
       });
       expect(await linkOf(byRule)).toMatchObject({
         supplierId: kept.id,
@@ -657,28 +666,7 @@ describe.skipIf(SKIP)("suppliers", () => {
   });
 
   describe("remembered categories", () => {
-    test("the supplier's own default wins over its history", async () => {
-      const cursor = await createSupplier(db, {
-        teamId: TEAM_USD_ID,
-        name: "Cursor Inc",
-        defaultCategoryId: SOFTWARE,
-      });
-      const id = await payment({ categorySlug: "travel" });
-      await setTransactionSupplier(db, {
-        teamId: TEAM_USD_ID,
-        transactionId: id,
-        supplierId: cursor.id,
-      });
-
-      const answers = await getCategoriesBySupplier(db, {
-        teamId: TEAM_USD_ID,
-        supplierIds: [cursor.id],
-      });
-
-      expect(answers.get(cursor.id)).toBe("software");
-    });
-
-    test("without a default, a consistent history answers and a split one does not", async () => {
+    test("a consistent history answers, and a split one does not", async () => {
       const agreed = await supplier("Agreed");
       const split = await supplier("Split");
 
@@ -703,65 +691,6 @@ describe.skipIf(SKIP)("suppliers", () => {
 
       expect(answers.get(agreed.id)).toBe("software");
       expect(answers.has(split.id)).toBe(false);
-    });
-  });
-
-  describe("filling a supplier's usual category", () => {
-    const TRAVEL = "10000000-0000-0000-0000-000000000011";
-
-    async function paid(supplierId: string, categorySlug: string | null) {
-      const id = await payment({ categorySlug });
-      await setTransactionSupplier(db, {
-        teamId: TEAM_USD_ID,
-        transactionId: id,
-        supplierId,
-      });
-    }
-
-    test("takes the one category the payments agree on, and leaves a split alone", async () => {
-      const agreed = await supplier("Agreed");
-      const split = await supplier("Split");
-      await paid(agreed.id, "software");
-      await paid(agreed.id, "software");
-      await paid(agreed.id, null);
-      await paid(split.id, "software");
-      await paid(split.id, "travel");
-
-      const filled = await fillSupplierDefaultCategories(db, {
-        teamId: TEAM_USD_ID,
-      });
-
-      const rows = await db
-        .select({ name: suppliers.name, category: suppliers.defaultCategoryId })
-        .from(suppliers)
-        .where(eq(suppliers.teamId, TEAM_USD_ID));
-
-      expect(filled).toBe(1);
-      expect(Object.fromEntries(rows.map((r) => [r.name, r.category]))).toEqual(
-        {
-          Agreed: SOFTWARE,
-          Split: null,
-        },
-      );
-    });
-
-    test("never replaces a usual category that is already set", async () => {
-      const chosen = await createSupplier(db, {
-        teamId: TEAM_USD_ID,
-        name: "Chosen",
-        defaultCategoryId: TRAVEL,
-      });
-      await paid(chosen.id, "software");
-
-      expect(
-        await fillSupplierDefaultCategories(db, { teamId: TEAM_USD_ID }),
-      ).toBe(0);
-
-      const [row] = await db
-        .select({ category: suppliers.defaultCategoryId })
-        .from(suppliers)
-        .where(eq(suppliers.id, chosen.id));
-      expect(row?.category).toBe(TRAVEL);
     });
   });
 });

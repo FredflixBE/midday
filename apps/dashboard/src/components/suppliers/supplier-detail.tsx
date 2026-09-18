@@ -13,6 +13,7 @@ import {
   AlertDialogTrigger,
 } from "@midday/ui/alert-dialog";
 import { Button } from "@midday/ui/button";
+import { Checkbox } from "@midday/ui/checkbox";
 import { Icons } from "@midday/ui/icons";
 import { Input } from "@midday/ui/input";
 import { Label } from "@midday/ui/label";
@@ -40,12 +41,14 @@ import {
 } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Category } from "@/components/category";
 import { FormatAmount } from "@/components/format-amount";
-import { SelectCategory } from "@/components/select-category";
+import { BulkEditBar } from "@/components/tables/transactions/bulk-edit-bar";
 import { useInvalidateTransactionQueries } from "@/hooks/use-invalidate-transaction-queries";
 import { useTransactionParams } from "@/hooks/use-transaction-params";
 import { useUserQuery } from "@/hooks/use-user";
+import { useTransactionsStore } from "@/store/transactions";
 import { useTRPC } from "@/trpc/client";
 import { RuleEditor } from "./rule-editor";
 import { RuleLabel } from "./rule-label";
@@ -158,7 +161,7 @@ function SupplierSettings({ supplier }: { supplier: Supplier }) {
         : "category";
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 gap-4">
       <div>
         <Label className="mb-2 block">Name</Label>
         <Input
@@ -172,20 +175,6 @@ function SupplierSettings({ supplier }: { supplier: Supplier }) {
               );
             }
           }}
-        />
-      </div>
-
-      <div>
-        <Label className="mb-2 block">Usual category</Label>
-        <SelectCategory
-          // @ts-expect-error - the list's category has no children
-          selected={
-            supplier.defaultCategory?.id ? supplier.defaultCategory : undefined
-          }
-          hideLoading
-          onChange={(category) =>
-            update.mutate({ id: supplier.id, defaultCategoryId: category.id })
-          }
         />
       </div>
 
@@ -399,7 +388,12 @@ const LINK_LABELS = {
   person: "Manual",
 } as const;
 
-/** The rows behind the supplier's payment count, each opening its sheet. */
+/**
+ * The rows behind the supplier's payment count, and where a supplier's
+ * category is fixed: select payments and recategorise them with the same bulk
+ * bar the transactions table uses. The category lives on the payment; the
+ * supplier only reads it back (FF-1555, 2026-09-18).
+ */
 function SupplierPayments({ supplierId }: { supplierId: string }) {
   const trpc = useTRPC();
   const { setParams } = useTransactionParams();
@@ -408,23 +402,66 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
     trpc.suppliers.transactions.queryOptions({ id: supplierId }),
   );
 
+  // The transactions table's own selection, so its bulk bar works unchanged.
+  // Cleared on the way in and out: it is shared with that table, and a
+  // selection made on one page must not act on the other.
+  const { rowSelectionByTab, setRowSelection, setCanDelete } =
+    useTransactionsStore();
+  const selection = rowSelectionByTab.all;
+
+  useEffect(() => {
+    setRowSelection("all", {});
+    return () => setRowSelection("all", {});
+  }, [setRowSelection]);
+
+  const selectedIds = Object.keys(selection).filter((id) => selection[id]);
+  const allSelected = data.length > 0 && selectedIds.length === data.length;
+
+  // Only a manually added payment can be deleted, as on the transactions table.
+  useEffect(() => {
+    const selected = data.filter((row) => selection[row.id]);
+    setCanDelete(selected.length > 0 && selected.every((row) => row.manual));
+  }, [data, selection, setCanDelete]);
+
+  const toggle = (id: string, checked: boolean) =>
+    setRowSelection("all", (current) => {
+      const next = { ...current };
+      if (checked) next[id] = true;
+      else delete next[id];
+      return next;
+    });
+
+  const toggleAll = (checked: boolean) =>
+    setRowSelection(
+      "all",
+      checked ? Object.fromEntries(data.map((row) => [row.id, true])) : {},
+    );
+
   return (
     <div>
       <h2 className="mb-3 text-lg">Payments</h2>
       <Table>
-        <TableHeader>
+        <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
+            <TableHead className="w-10">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(checked) => toggleAll(checked === true)}
+                disabled={data.length === 0}
+              />
+            </TableHead>
             <TableHead className="w-32">Date</TableHead>
             <TableHead>Description</TableHead>
-            <TableHead className="w-40 text-right">Amount</TableHead>
-            <TableHead className="w-36 text-right">Linked</TableHead>
+            <TableHead className="w-48">Category</TableHead>
+            <TableHead className="w-36 text-right">Amount</TableHead>
+            <TableHead className="w-28 text-right">Linked</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={4}
+                colSpan={6}
                 className="py-8 text-center text-[#878787]"
               >
                 No payments yet.
@@ -435,12 +472,32 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
               <TableRow
                 key={row.id}
                 className="cursor-pointer"
+                data-state={selection[row.id] ? "selected" : undefined}
                 onClick={() => setParams({ transactionId: row.id })}
               >
+                <TableCell
+                  className="w-10"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <Checkbox
+                    checked={Boolean(selection[row.id])}
+                    onCheckedChange={(checked) =>
+                      toggle(row.id, checked === true)
+                    }
+                  />
+                </TableCell>
                 <TableCell className="whitespace-nowrap text-[#878787]">
                   {formatDate(row.date, user?.dateFormat)}
                 </TableCell>
                 <TableCell className="max-w-0 truncate">{row.name}</TableCell>
+                <TableCell className="max-w-0">
+                  {row.category?.slug ? (
+                    <Category
+                      name={row.category.name}
+                      color={row.category.color ?? undefined}
+                    />
+                  ) : null}
+                </TableCell>
                 <TableCell className="whitespace-nowrap text-right">
                   <FormatAmount amount={row.amount} currency={row.currency} />
                 </TableCell>
@@ -452,6 +509,8 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
           )}
         </TableBody>
       </Table>
+
+      <BulkEditBar />
     </div>
   );
 }

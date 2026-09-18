@@ -1341,12 +1341,6 @@ export const suppliers = pgTable(
     teamId: uuid("team_id").notNull(),
     name: text().notNull(),
     vatNumber: text("vat_number"),
-    // What this supplier's payments usually are; the transaction can still
-    // differ. Filled from the payments once they all agree
-    // (`fillSupplierDefaultCategories`), never overwritten automatically after
-    // that, and changeable by a person. Empty while the payments disagree —
-    // that disagreement is what a person settles here.
-    defaultCategoryId: uuid("default_category_id"),
     // Overrides the category's `can_have_supplier_invoice`. Null means the
     // category decides, which is the usual case.
     canHaveSupplierInvoice: boolean("can_have_supplier_invoice"),
@@ -1375,11 +1369,6 @@ export const suppliers = pgTable(
       foreignColumns: [teams.id],
       name: "suppliers_team_id_fkey",
     }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.defaultCategoryId],
-      foreignColumns: [transactionCategories.id],
-      name: "suppliers_default_category_id_fkey",
-    }).onDelete("set null"),
     pgPolicy("Suppliers can be handled by members of the team", {
       as: "permissive",
       for: "all",
@@ -3700,10 +3689,6 @@ export const suppliersRelations = relations(suppliers, ({ one, many }) => ({
   team: one(teams, {
     fields: [suppliers.teamId],
     references: [teams.id],
-  }),
-  defaultCategory: one(transactionCategories, {
-    fields: [suppliers.defaultCategoryId],
-    references: [transactionCategories.id],
   }),
   rules: many(supplierRules),
   transactions: many(transactions),
