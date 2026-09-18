@@ -15,7 +15,6 @@ import {
 import { Button } from "@midday/ui/button";
 import { Checkbox } from "@midday/ui/checkbox";
 import { Icons } from "@midday/ui/icons";
-import { Input } from "@midday/ui/input";
 import { Label } from "@midday/ui/label";
 import {
   Select,
@@ -39,6 +38,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
+import { Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -114,14 +114,7 @@ export function SupplierDetail({ id }: { id: string }) {
       <div className="space-y-4 border-b border-border pb-4">
         <BackLink />
         <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <h1 className="truncate text-2xl font-serif">{supplier.name}</h1>
-            {supplier.source !== "manual" ? (
-              <span className="shrink-0 border border-border px-1.5 text-[10px] text-[#878787]">
-                AI
-              </span>
-            ) : null}
-          </div>
+          <SupplierName supplier={supplier} />
           <div className="flex shrink-0 gap-2">
             <MergeSupplier supplier={supplier} />
             <DeleteSupplier supplier={supplier} />
@@ -148,10 +141,66 @@ function BackLink() {
   );
 }
 
+/**
+ * The page title is the supplier's name, and it is where the name is changed:
+ * a pencil on hover, the title turns into a field, Enter or leaving it saves
+ * and Escape puts it back.
+ */
+function SupplierName({ supplier }: { supplier: Supplier }) {
+  const trpc = useTRPC();
+  const options = useSupplierMutationOptions();
+  const update = useMutation(trpc.suppliers.update.mutationOptions(options));
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(supplier.name);
+
+  const save = () => {
+    setEditing(false);
+    const next = name.trim();
+    if (!next || next === supplier.name) {
+      setName(supplier.name);
+      return;
+    }
+    update.mutate(
+      { id: supplier.id, name: next },
+      { onError: () => setName(supplier.name) },
+    );
+  };
+
+  if (editing) {
+    return (
+      <input
+        // biome-ignore lint/a11y/noAutofocus: opened by a click on the title
+        autoFocus
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        onBlur={save}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            setName(supplier.name);
+            setEditing(false);
+          }
+        }}
+        className="min-w-0 flex-1 bg-transparent font-serif text-2xl outline-none border-b border-border"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="group flex min-w-0 items-center gap-2 text-left"
+    >
+      <h1 className="truncate font-serif text-2xl">{name}</h1>
+      <Pencil className="size-4 shrink-0 text-[#878787] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+    </button>
+  );
+}
+
 function SupplierSettings({ supplier }: { supplier: Supplier }) {
   const trpc = useTRPC();
   const options = useSupplierMutationOptions();
-  const [name, setName] = useState(supplier.name);
   const update = useMutation(trpc.suppliers.update.mutationOptions(options));
 
   const invoiceChoice =
@@ -163,22 +212,6 @@ function SupplierSettings({ supplier }: { supplier: Supplier }) {
 
   return (
     <div className="grid grid-cols-2 gap-4">
-      <div>
-        <Label className="mb-2 block">Name</Label>
-        <Input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onBlur={() => {
-            if (name.trim() && name.trim() !== supplier.name) {
-              update.mutate(
-                { id: supplier.id, name: name.trim() },
-                { onError: () => setName(supplier.name) },
-              );
-            }
-          }}
-        />
-      </div>
-
       <div>
         <Label className="mb-2 block">Invoices</Label>
         <Select
