@@ -120,6 +120,13 @@
       "when": 1789773818651,
       "tag": "0016_drop_transaction_enrichments",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789774208710,
+      "tag": "0017_commitments",
+      "breakpoints": true
     }
   ]
 }

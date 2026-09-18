@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm";
 import type { Database, DatabaseOrTransaction } from "../client";
 import {
+  commitments,
   supplierRules,
   suppliers,
   transactionCategories,
@@ -487,6 +488,18 @@ export async function mergeSuppliers(
         and(
           eq(supplierRules.teamId, params.teamId),
           eq(supplierRules.supplierId, source.id),
+        ),
+      );
+
+    // Its commitments too (FF-1591): deleting the source would take them with
+    // it, and a person's confirmation with them.
+    await tx
+      .update(commitments)
+      .set({ supplierId: target.id })
+      .where(
+        and(
+          eq(commitments.teamId, params.teamId),
+          eq(commitments.supplierId, source.id),
         ),
       );
 
