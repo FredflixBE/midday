@@ -20,6 +20,7 @@ import {
   countMissingInvoices,
   getMissingInvoices,
 } from "../queries/invoice-status";
+import { createSupplier, setTransactionSupplier } from "../queries/suppliers";
 import { getTransactions } from "../queries/transactions";
 import {
   inbox,
@@ -317,6 +318,107 @@ describe.skipIf(SKIP)("invoice status", () => {
       });
 
       expect(data.map((row) => row.id)).toEqual([T.nothing]);
+    });
+  });
+
+  describe("the supplier's override on the category (FF-1555)", () => {
+    async function paidTo(
+      transactionId: string,
+      canHaveSupplierInvoice: boolean | null,
+    ) {
+      const supplier = await createSupplier(db, {
+        teamId: TEAM_USD_ID,
+        name: `Supplier ${transactionId}`,
+        canHaveSupplierInvoice,
+      });
+      await setTransactionSupplier(db, {
+        teamId: TEAM_USD_ID,
+        transactionId,
+        supplierId: supplier.id,
+      });
+    }
+
+    test("a supplier that does send invoices overrules a no-invoice category", async () => {
+      await makeCategory(db, "taxes", false);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Xerius",
+        categorySlug: "taxes",
+      });
+      await paidTo(T.nothing, true);
+
+      expect((await statusOf(db, T.nothing))?.invoiceStatus).toBe(
+        "invoice_missing",
+      );
+    });
+
+    test("a supplier that never sends one overrules a category that expects it", async () => {
+      await makeCategory(db, "insurance", true);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Kbc Verzekeringen",
+        categorySlug: "insurance",
+      });
+      await paidTo(T.nothing, false);
+
+      expect((await statusOf(db, T.nothing))?.invoiceStatus).toBeNull();
+      expect(
+        (await getMissingInvoices(db, { teamId: TEAM_USD_ID })).count,
+      ).toBe(0);
+    });
+
+    test("a supplier with no opinion leaves the category to decide", async () => {
+      await makeCategory(db, "taxes", false);
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Btw Ontvangsten",
+        categorySlug: "taxes",
+      });
+      await paidTo(T.nothing, null);
+
+      expect((await statusOf(db, T.nothing))?.invoiceStatus).toBeNull();
+    });
+  });
+
+  describe("grouped by supplier, where one is linked (FF-1555)", () => {
+    test("two spellings of one supplier are one group, under the supplier's name", async () => {
+      await makeTransaction(db, {
+        id: T.nothing,
+        name: "Xerius",
+        counterpartyName: "Xerius",
+      });
+      await makeTransaction(db, {
+        id: T.suggested,
+        name: "Xerius Sociaal Verzekeringsfonds",
+        counterpartyName: "Xerius Sociaal Verzekeringsfonds Vz",
+      });
+      await makeTransaction(db, {
+        id: T.completed,
+        name: "Cursor",
+        counterpartyName: "Cursor",
+      });
+
+      const xerius = await createSupplier(db, {
+        teamId: TEAM_USD_ID,
+        name: "Xerius Sociaal Verzekeringsfonds VZW",
+      });
+      for (const id of [T.nothing, T.suggested]) {
+        await setTransactionSupplier(db, {
+          teamId: TEAM_USD_ID,
+          transactionId: id,
+          supplierId: xerius.id,
+        });
+      }
+
+      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
+
+      expect(
+        groups.map((group) => [group.name, group.supplierId, group.count]),
+      ).toEqual([
+        // Not linked yet: still grouped by its name, and says it has no supplier.
+        ["Cursor", null, 1],
+        ["Xerius Sociaal Verzekeringsfonds VZW", xerius.id, 2],
+      ]);
     });
   });
 

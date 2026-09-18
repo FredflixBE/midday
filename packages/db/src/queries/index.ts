@@ -33,6 +33,7 @@ export * from "./provider-notification-batches";
 export * from "./reports";
 export * from "./search";
 export * from "./short-links";
+export * from "./supplier-recognition";
 export * from "./suppliers";
 export * from "./tags";
 export * from "./teams";
