@@ -443,8 +443,8 @@ describe.skipIf(SKIP)("invoice status", () => {
 
   describe("the missing invoices, grouped by who was paid", () => {
     test("one supplier is one group, however many payments it has", async () => {
-      // 125 rows on the live books collapse to 31 counterparties. That
-      // collapsing is the whole reason this page is legible.
+      // 125 rows on the live books collapse to 31 suppliers. That collapsing
+      // is the whole reason this page is legible.
       await makeTransaction(db, {
         id: T.nothing,
         name: "Cursor",

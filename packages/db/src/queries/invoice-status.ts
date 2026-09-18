@@ -423,7 +423,7 @@ export async function getMissingInvoices(
   const byKey = new Map<string, MissingInvoiceGroup>();
   // The payments with no supplier, kept aside so they land last whatever their
   // number.
-  const unnamed: MissingInvoice[] = [];
+  const noSupplier: MissingInvoice[] = [];
 
   for (const row of rows) {
     // The supplier is what the grouping is made of; a row does not carry it on
@@ -431,7 +431,7 @@ export async function getMissingInvoices(
     const { supplierId, supplierName, ...transaction } = row;
 
     if (!supplierId) {
-      unnamed.push(transaction);
+      noSupplier.push(transaction);
       continue;
     }
 
@@ -458,7 +458,8 @@ export async function getMissingInvoices(
   const named = [...byKey.values()]
     .map(withCountAndTotals)
     // Alphabetical, ignoring case, so a supplier is found where its name says
-    // rather than where its count happens to put it today (FF-1575).
+    // rather than where its count happens to put it today (FF-1575). Names are
+    // unique per team ignoring case, so there is no tie to break.
     .sort((a, b) =>
       (a.name ?? "").localeCompare(b.name ?? "", undefined, {
         sensitivity: "base",
@@ -466,7 +467,7 @@ export async function getMissingInvoices(
     );
 
   const groups =
-    unnamed.length > 0
+    noSupplier.length > 0
       ? [
           ...named,
           withCountAndTotals({
@@ -476,7 +477,7 @@ export async function getMissingInvoices(
             count: 0,
             readyToConfirm: 0,
             totals: [],
-            transactions: unnamed,
+            transactions: noSupplier,
           }),
         ]
       : named;
