@@ -14,15 +14,27 @@ import {
 } from "@midday/ui/alert-dialog";
 import { Button } from "@midday/ui/button";
 import { Checkbox } from "@midday/ui/checkbox";
-import { Icons } from "@midday/ui/icons";
-import { Label } from "@midday/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@midday/ui/select";
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@midday/ui/command";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@midday/ui/dropdown-menu";
+import { Icons } from "@midday/ui/icons";
 import {
   Table,
   TableBody,
@@ -53,7 +65,6 @@ import { useTRPC } from "@/trpc/client";
 import { getColorFromName } from "@/utils/categories";
 import { RuleEditor } from "./rule-editor";
 import { RuleLabel } from "./rule-label";
-import { SelectSupplier } from "./select-supplier";
 
 type Supplier = RouterOutputs["suppliers"]["list"][number];
 
@@ -115,14 +126,10 @@ export function SupplierDetail({ id }: { id: string }) {
         <BackLink />
         <div className="flex items-center justify-between gap-4">
           <SupplierName supplier={supplier} />
-          <div className="flex shrink-0 gap-2">
-            <MergeSupplier supplier={supplier} />
-            <DeleteSupplier supplier={supplier} />
-          </div>
+          <SupplierActions supplier={supplier} />
         </div>
       </div>
 
-      <SupplierSettings supplier={supplier} />
       <SupplierPayments supplierId={supplier.id} />
       <SupplierRules supplier={supplier} />
     </div>
@@ -198,48 +205,6 @@ function SupplierName({ supplier }: { supplier: Supplier }) {
   );
 }
 
-function SupplierSettings({ supplier }: { supplier: Supplier }) {
-  const trpc = useTRPC();
-  const options = useSupplierMutationOptions();
-  const update = useMutation(trpc.suppliers.update.mutationOptions(options));
-
-  const invoiceChoice =
-    supplier.canHaveSupplierInvoice === true
-      ? "always"
-      : supplier.canHaveSupplierInvoice === false
-        ? "never"
-        : "category";
-
-  return (
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <Label className="mb-2 block">Invoices</Label>
-        <Select
-          value={invoiceChoice}
-          onValueChange={(choice) =>
-            update.mutate({
-              id: supplier.id,
-              canHaveSupplierInvoice:
-                choice === "always" ? true : choice === "never" ? false : null,
-            })
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(INVOICE_CHOICES).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
-}
-
 function SupplierRules({ supplier }: { supplier: Supplier }) {
   const trpc = useTRPC();
   const options = useSupplierMutationOptions();
@@ -310,73 +275,38 @@ function SupplierRules({ supplier }: { supplier: Supplier }) {
   );
 }
 
-function MergeSupplier({ supplier }: { supplier: Supplier }) {
+/**
+ * Everything that changes the supplier itself, behind one button: whether its
+ * payments need invoices, merging it into the supplier it turned out to be,
+ * and deleting it. The two that cannot be undone still ask first.
+ */
+function SupplierActions({ supplier }: { supplier: Supplier }) {
   const trpc = useTRPC();
   const router = useRouter();
   const options = useSupplierMutationOptions();
-  const [target, setTarget] = useState<{ id: string; name: string } | null>(
-    null,
+  const { data: suppliers } = useSuspenseQuery(
+    trpc.suppliers.list.queryOptions(),
   );
+
+  const [mergeTarget, setMergeTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const update = useMutation(trpc.suppliers.update.mutationOptions(options));
 
   const merge = useMutation(
     trpc.suppliers.merge.mutationOptions({
       ...options,
       onSuccess: (_, variables) => {
         options.onSuccess();
-        setTarget(null);
+        setMergeTarget(null);
         router.push(`/transactions/suppliers/${variables.targetId}`);
       },
     }),
   );
 
-  return (
-    <AlertDialog
-      open={target !== null}
-      onOpenChange={(open) => !open && setTarget(null)}
-    >
-      <div className="w-56">
-        <SelectSupplier
-          placeholder="Merge into…"
-          allowCreate={false}
-          exclude={[supplier.id]}
-          onChange={(chosen) => setTarget(chosen)}
-        />
-      </div>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            Merge {supplier.name} into {target?.name}?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            Its {supplier.transactionCount}{" "}
-            {supplier.transactionCount === 1 ? "payment" : "payments"} and{" "}
-            {supplier.ruleCount} {supplier.ruleCount === 1 ? "rule" : "rules"}{" "}
-            move to {target?.name}, and {supplier.name} goes away. Payments set
-            by a person stay set by a person. {target?.name} keeps its own name
-            and settings, taking {supplier.name}'s only where it has none.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={merge.isPending}
-            onClick={() =>
-              target &&
-              merge.mutate({ sourceId: supplier.id, targetId: target.id })
-            }
-          >
-            Merge
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-function DeleteSupplier({ supplier }: { supplier: Supplier }) {
-  const trpc = useTRPC();
-  const router = useRouter();
-  const options = useSupplierMutationOptions();
   const remove = useMutation(
     trpc.suppliers.delete.mutationOptions({
       ...options,
@@ -387,32 +317,151 @@ function DeleteSupplier({ supplier }: { supplier: Supplier }) {
     }),
   );
 
+  const invoiceChoice =
+    supplier.canHaveSupplierInvoice === true
+      ? "always"
+      : supplier.canHaveSupplierInvoice === false
+        ? "never"
+        : "category";
+
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" disabled={remove.isPending}>
-          Delete
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {supplier.name}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Its rules are deleted, and its {supplier.transactionCount}{" "}
-            {supplier.transactionCount === 1 ? "payment goes" : "payments go"}{" "}
-            back to being recognised — including ones a person set. If it is the
-            same company as another supplier, merge it instead: that keeps its
-            payments together.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={() => remove.mutate({ id: supplier.id })}>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" aria-label="Supplier actions">
+            <Icons.MoreHoriz className="size-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Invoices</DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={invoiceChoice}
+                  onValueChange={(choice) =>
+                    update.mutate({
+                      id: supplier.id,
+                      canHaveSupplierInvoice:
+                        choice === "always"
+                          ? true
+                          : choice === "never"
+                            ? false
+                            : null,
+                    })
+                  }
+                >
+                  {Object.entries(INVOICE_CHOICES).map(([value, label]) => (
+                    <DropdownMenuRadioItem key={value} value={value}>
+                      {label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Merge into</DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="w-72 p-0">
+                <Command>
+                  <CommandInput
+                    placeholder="Search supplier"
+                    // The menu reads typed letters as shortcuts to its items;
+                    // here they belong to the search.
+                    onKeyDown={(event) => event.stopPropagation()}
+                  />
+                  <CommandList className="max-h-72">
+                    <CommandEmpty>No supplier found.</CommandEmpty>
+                    {suppliers
+                      .filter((other) => other.id !== supplier.id)
+                      .map((other) => (
+                        <CommandItem
+                          key={other.id}
+                          value={`${other.name} ${other.id}`}
+                          onSelect={() =>
+                            setMergeTarget({ id: other.id, name: other.name })
+                          }
+                        >
+                          <span className="truncate">{other.name}</span>
+                        </CommandItem>
+                      ))}
+                  </CommandList>
+                </Command>
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={() => setConfirmDelete(true)}
+          >
             Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog
+        open={mergeTarget !== null}
+        onOpenChange={(open) => !open && setMergeTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Merge {supplier.name} into {mergeTarget?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Its {supplier.transactionCount}{" "}
+              {supplier.transactionCount === 1 ? "payment" : "payments"} and{" "}
+              {supplier.ruleCount} {supplier.ruleCount === 1 ? "rule" : "rules"}{" "}
+              move to {mergeTarget?.name}, and {supplier.name} goes away.
+              Payments set by a person stay set by a person.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={merge.isPending}
+              onClick={() =>
+                mergeTarget &&
+                merge.mutate({
+                  sourceId: supplier.id,
+                  targetId: mergeTarget.id,
+                })
+              }
+            >
+              Merge
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {supplier.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Its rules are deleted, and its {supplier.transactionCount}{" "}
+              {supplier.transactionCount === 1 ? "payment goes" : "payments go"}{" "}
+              back to being recognised — including ones a person set. If it is
+              the same company as another supplier, merge it instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={remove.isPending}
+              onClick={() => remove.mutate({ id: supplier.id })}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
