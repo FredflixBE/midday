@@ -443,12 +443,14 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
-            <TableHead className="w-10">
-              <Checkbox
-                checked={allSelected}
-                onCheckedChange={(checked) => toggleAll(checked === true)}
-                disabled={data.length === 0}
-              />
+            <TableHead className="w-12 px-0">
+              <CheckboxBox>
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={(checked) => toggleAll(checked === true)}
+                  disabled={data.length === 0}
+                />
+              </CheckboxBox>
             </TableHead>
             <TableHead className="w-32">Date</TableHead>
             <TableHead>Description</TableHead>
@@ -476,15 +478,17 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
                 onClick={() => setParams({ transactionId: row.id })}
               >
                 <TableCell
-                  className="w-10"
+                  className="w-12 px-0"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <Checkbox
-                    checked={Boolean(selection[row.id])}
-                    onCheckedChange={(checked) =>
-                      toggle(row.id, checked === true)
-                    }
-                  />
+                  <CheckboxBox>
+                    <Checkbox
+                      checked={Boolean(selection[row.id])}
+                      onCheckedChange={(checked) =>
+                        toggle(row.id, checked === true)
+                      }
+                    />
+                  </CheckboxBox>
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-[#878787]">
                   {formatDate(row.date, user?.dateFormat)}
@@ -513,4 +517,14 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
       <BulkEditBar />
     </div>
   );
+}
+
+/**
+ * A checkbox centred in its cell at a fixed height. Inline, it sits on the
+ * text line and the tick makes that line — and the row — taller; the table's
+ * own cell style also drops the right padding around a checkbox, which pulls
+ * it off centre.
+ */
+function CheckboxBox({ children }: { children: React.ReactNode }) {
+  return <div className="flex h-5 items-center justify-center">{children}</div>;
 }
