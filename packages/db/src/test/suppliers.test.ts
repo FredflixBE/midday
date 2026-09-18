@@ -136,6 +136,14 @@ describe.skipIf(SKIP)("suppliers", () => {
       ]);
 
       expect(first.created).toBe(true);
+
+      // Punctuation is not identity: the model wrote both of these.
+      const dotted = await findOrCreateSupplier(db, {
+        teamId: TEAM_USD_ID,
+        name: "Cursor Inc.",
+        source: "enrichment",
+      });
+      expect(dotted.supplier.id).toBe(first.supplier.id);
       expect(again.map((r) => r.supplier.id)).toEqual([
         first.supplier.id,
         first.supplier.id,

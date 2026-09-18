@@ -388,4 +388,35 @@ describe.skipIf(SKIP)("supplier recognition", () => {
     const rules = await getSupplierRules(db, { teamId: TEAM_USD_ID });
     expect(rules.map((rule) => rule.field)).toEqual(["name"]);
   });
+
+  test("a rule the model writes reaches the payments an earlier run left behind", async () => {
+    // The first leasing payment was asked about in one run and the model was
+    // unsure; a later run learnt the rule. The earlier one must follow.
+    const unsure = fakeModel({
+      Betaling: { ...byText("KBC Lease", "Betaling Leasing"), confidence: 0.2 },
+    });
+    const earlier = await payment({
+      name: "Betaling Leasing 0001 0001 Be 2601573144",
+    });
+    await recogniseSuppliers(db, {
+      teamId: TEAM_USD_ID,
+      transactions: [earlier],
+      ask: unsure.ask,
+    });
+    expect((await linkOf(earlier.id)).supplierId).toBeNull();
+
+    const sure = fakeModel({
+      Betaling: byText("KBC Lease", "Betaling Leasing"),
+    });
+    const later = await payment({
+      name: "Betaling Leasing 0001 0001 Be 2602692352",
+    });
+    await recogniseSuppliers(db, {
+      teamId: TEAM_USD_ID,
+      transactions: [later],
+      ask: sure.ask,
+    });
+
+    expect((await linkOf(earlier.id)).supplierName).toBe("KBC Lease");
+  });
 });

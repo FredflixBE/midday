@@ -10,6 +10,7 @@ import {
   lte,
   ne,
   or,
+  type SQL,
   sql,
 } from "drizzle-orm";
 import type { Database, DatabaseOrTransaction } from "../client";
@@ -88,6 +89,15 @@ function isUniqueViolation(error: unknown): boolean {
     (error as { code?: string })?.code ??
     (error as { cause?: { code?: string } })?.cause?.code;
   return code === "23505";
+}
+
+/**
+ * A supplier name reduced to what identifies it: lower case, every run of
+ * punctuation or space made one space. `Vercel Inc.` and `vercel inc` are the
+ * same name; `GitHub B.V.` and `GitHub BV` are not, which a merge fixes.
+ */
+function nameKeySql(value: SQL) {
+  return sql`trim(regexp_replace(lower(${value}), '[^[:alnum:]]+', ' ', 'g'))`;
 }
 
 export async function getSuppliers(db: Database, params: { teamId: string }) {
@@ -228,11 +238,14 @@ export async function findOrCreateSupplier(
           eq(suppliers.teamId, params.teamId),
           // Its own name, or the name of a supplier merged into it. Spelled
           // out, because inside `unnest` a bare column would not say whose.
+          // Compared on letters and digits only, so `Anthropic Inc` and
+          // `Anthropic Inc.` — which the model produced a batch apart — are
+          // one supplier rather than two to merge.
           sql`(
-            lower("suppliers"."name") = lower(${name})
+            ${nameKeySql(sql`"suppliers"."name"`)} = ${nameKeySql(sql`${name}`)}
             OR EXISTS (
               SELECT 1 FROM unnest("suppliers"."aliases") AS "alias"
-              WHERE lower("alias") = lower(${name})
+              WHERE ${nameKeySql(sql`"alias"`)} = ${nameKeySql(sql`${name}`)}
             )
           )`,
         ),

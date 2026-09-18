@@ -133,6 +133,7 @@ export async function recogniseSuppliers(
   // of it only through a rule; a payment the rule did not reach is asked about
   // in its own right next round, rather than handed a neighbour's guess.
   const shown = new Set<string>();
+  let rulesCreated = 0;
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const open = new Set(
@@ -191,13 +192,14 @@ export async function recogniseSuppliers(
       if (created) result.created++;
 
       for (const rule of rulesFromAnswer(pending, answer)) {
-        await insertSupplierRuleIfAbsent(db, {
+        const inserted = await insertSupplierRuleIfAbsent(db, {
           teamId,
           supplierId: supplier.id,
           field: rule.field,
           value: rule.value,
           source: "enrichment",
         });
+        if (inserted) rulesCreated++;
       }
 
       await applySupplierRules(db, { teamId, transactionIds: pendingIds });
@@ -212,6 +214,14 @@ export async function recogniseSuppliers(
         });
       }
     }
+  }
+
+  // A rule the model wrote is a rule like any other: it reaches every payment
+  // no person has decided, not only the ones in this run. Without this, the
+  // first leasing payment taught Midday the rule and the ten before it never
+  // heard about it.
+  if (rulesCreated > 0) {
+    await applySupplierRules(db, { teamId });
   }
 
   const linked = await db
