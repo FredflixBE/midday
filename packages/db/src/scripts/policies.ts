@@ -97,9 +97,8 @@ export function policyStatements(
     }
 
     // A table with RLS on and no policies is closed to the API roles, which is
-    // a deliberate state (transaction_enrichments was one, until FF-1601
-    // dropped it), not an omission — so
-    // enableRLS alone is enough to be worth a statement here. Getting this
+    // a deliberate state, not an omission — so enableRLS alone is enough to be
+    // worth a statement here. Getting this
     // wrong is worse than it sounds: Supabase grants those roles ALL on tables
     // in `public` through default privileges, so a table this loop skips is a
     // table any signed-in user can read and write.
