@@ -24,7 +24,11 @@ import {
 } from "@midday/ui/select";
 import { useToast } from "@midday/ui/use-toast";
 import { formatDate } from "@midday/utils/format";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { useState } from "react";
 import { FormatAmount } from "@/components/format-amount";
 import { SelectCategory } from "@/components/select-category";
@@ -73,7 +77,10 @@ function useSupplierMutationOptions() {
 export function SupplierPanel({ supplier }: { supplier: Supplier }) {
   const trpc = useTRPC();
   const options = useSupplierMutationOptions();
-  const { data } = useQuery(
+  // Suspense rather than a loading state: the list loads these before it
+  // opens the panel (`supplierPanelQueries`), so the panel renders complete
+  // instead of growing section by section while it opens.
+  const { data } = useSuspenseQuery(
     trpc.suppliers.getById.queryOptions({ id: supplier.id }),
   );
 
@@ -171,7 +178,7 @@ export function SupplierPanel({ supplier }: { supplier: Supplier }) {
           re-links past payments too, except the ones a person set.
         </p>
 
-        {data?.rules.length ? (
+        {data.rules.length ? (
           <div className="mb-3 divide-y divide-border border border-border">
             {data.rules.map((rule) => (
               <div
@@ -352,11 +359,11 @@ const LINK_LABELS = {
 function SupplierPayments({ supplierId }: { supplierId: string }) {
   const trpc = useTRPC();
   const { setParams } = useTransactionParams();
-  const { data } = useQuery(
+  const { data } = useSuspenseQuery(
     trpc.suppliers.transactions.queryOptions({ id: supplierId }),
   );
 
-  if (!data?.length) return null;
+  if (data.length === 0) return null;
 
   return (
     <div>

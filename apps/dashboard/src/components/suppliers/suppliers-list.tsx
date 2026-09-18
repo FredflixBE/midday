@@ -3,13 +3,42 @@
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { cn } from "@midday/ui/cn";
 import { Icons } from "@midday/ui/icons";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { parseAsString, useQueryState } from "nuqs";
+import { Suspense, useState } from "react";
 import { useTRPC } from "@/trpc/client";
 import { CollectiveNames } from "./collective-names";
 import { SupplierPanel } from "./supplier-panel";
 
 type Supplier = RouterOutputs["suppliers"]["list"][number];
+
+/**
+ * Everything the panel reads. Loaded before a panel opens, so it opens once
+ * at its full height rather than growing as each section arrives.
+ */
+function useSupplierPanelQueries() {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  const getById = (id: string) => trpc.suppliers.getById.queryOptions({ id });
+  const payments = (id: string) =>
+    trpc.suppliers.transactions.queryOptions({ id });
+  const categories = trpc.transactionCategories.get.queryOptions();
+
+  return {
+    prefetch: (id: string) => {
+      queryClient.prefetchQuery(getById(id));
+      queryClient.prefetchQuery(payments(id));
+      queryClient.prefetchQuery(categories);
+    },
+    ensure: (id: string) =>
+      Promise.all([
+        queryClient.ensureQueryData(getById(id)),
+        queryClient.ensureQueryData(payments(id)),
+        queryClient.ensureQueryData(categories),
+      ]),
+  };
+}
 
 /**
  * Every supplier, with the numbers behind it — how many payments point at it
@@ -23,6 +52,24 @@ export function SuppliersList() {
     trpc.suppliers.list.queryOptions(),
   );
   const [open, setOpen] = useQueryState("supplier", parseAsString);
+  const panel = useSupplierPanelQueries();
+  // The supplier being loaded before its panel opens.
+  const [opening, setOpening] = useState<string | null>(null);
+
+  const toggle = async (id: string) => {
+    if (open === id) {
+      setOpen(null);
+      return;
+    }
+
+    setOpening(id);
+    try {
+      await panel.ensure(id);
+    } finally {
+      setOpening(null);
+    }
+    setOpen(id);
+  };
 
   const byAi = suppliers.filter((supplier) => supplier.source !== "manual");
 
@@ -46,9 +93,9 @@ export function SuppliersList() {
               key={supplier.id}
               supplier={supplier}
               isOpen={open === supplier.id}
-              onToggle={() =>
-                setOpen(open === supplier.id ? null : supplier.id)
-              }
+              isOpening={opening === supplier.id}
+              onToggle={() => toggle(supplier.id)}
+              onIntent={() => panel.prefetch(supplier.id)}
             />
           ))}
         </div>
@@ -62,17 +109,25 @@ export function SuppliersList() {
 function SupplierRow({
   supplier,
   isOpen,
+  isOpening,
   onToggle,
+  onIntent,
 }: {
   supplier: Supplier;
   isOpen: boolean;
+  isOpening: boolean;
   onToggle: () => void;
+  /** Hover or focus: start loading the panel before the click. */
+  onIntent: () => void;
 }) {
   return (
     <div>
       <button
         type="button"
         onClick={onToggle}
+        onMouseEnter={onIntent}
+        onFocus={onIntent}
+        aria-busy={isOpening}
         className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-accent"
       >
         <div className="min-w-0">
@@ -106,7 +161,13 @@ function SupplierRow({
         />
       </button>
 
-      {isOpen ? <SupplierPanel supplier={supplier} /> : null}
+      {isOpen ? (
+        // Its own boundary, so a panel opened straight from a link does not
+        // take the whole list down to the page's fallback while it loads.
+        <Suspense fallback={null}>
+          <SupplierPanel supplier={supplier} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }
