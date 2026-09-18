@@ -4,15 +4,12 @@ import {
   inArray,
   isNotNull,
   isNull,
-  lte,
-  ne,
   or,
   type SQL,
   sql,
 } from "drizzle-orm";
 import type { Database } from "../client";
-import { transactions } from "../schema";
-import { counterpartyKeySql } from "../utils/counterparty";
+import { suppliers, transactions } from "../schema";
 
 /**
  * Where a run parks a payment it could not classify. Not an answer: a row here
@@ -37,6 +34,13 @@ export type TransactionForEnrichment = {
   /** What the bank itself called this payment, where it said (FF-1557). */
   bankTransactionCode: string | null;
   bankTransactionSubCode: string | null;
+  /** The account paid, where the bank sent one — a supplier identifier. */
+  counterpartyIban: string | null;
+  /** A transfer between the team's own accounts, which has no supplier. */
+  internal: boolean | null;
+  /** Who was paid, once recognised (FF-1555). */
+  supplierId: string | null;
+  supplierName: string | null;
 };
 
 export type EnrichmentUpdateData = {
@@ -86,8 +90,13 @@ export async function getTransactionsForEnrichment(
       categorySlug: transactions.categorySlug,
       bankTransactionCode: transactions.bankTransactionCode,
       bankTransactionSubCode: transactions.bankTransactionSubCode,
+      counterpartyIban: transactions.counterpartyIban,
+      internal: transactions.internal,
+      supplierId: transactions.supplierId,
+      supplierName: suppliers.name,
     })
     .from(transactions)
+    .leftJoin(suppliers, eq(suppliers.id, transactions.supplierId))
     .where(
       and(
         eq(transactions.teamId, params.teamId),
@@ -99,104 +108,6 @@ export async function getTransactionsForEnrichment(
         ),
       ),
     );
-}
-
-export type GetCategoriesByCounterpartyParams = {
-  teamId: string;
-  /** Counterparty names as they appear on the transaction, any casing. */
-  names: string[];
-};
-
-/**
- * The category this team has already given each of these counterparties.
- *
- * This is the memory that makes the answer stable. The categoriser is a model,
- * and a model asked the same question twice can answer differently — which is
- * how one payroll agency ended up split across two categories. Once a payment
- * from a counterparty is classified, every later payment from the same
- * counterparty takes that category without asking.
- *
- * It also makes a correction stick: recategorise one payment by hand and the
- * next one from that supplier follows, which is the behaviour anyone keeping
- * books expects and the reason this reads transactions rather than a cache.
- *
- * Deliberately **not** a supplier record. It is an exact match on the trimmed,
- * lower-cased name, with no identity, no merging of near-duplicates and nothing
- * stored. Real supplier identity is FF-1555, and this must not grow into it.
- *
- * **It answers only where this team has been consistent.** A counterparty that
- * has been given two different categories is a disagreement, and propagating the
- * majority would entrench whichever answer happened to win — the live books have
- * Xerius under `contractors` twice and `employer-taxes` once, and the one that
- * loses that vote is the right one. So a split counterparty gets no answer here
- * and goes to the model, and the moment somebody tidies it up to one category it
- * becomes deterministic for good.
- *
- * Expenses only. Money coming in is categorised by a different logic, and a
- * counterparty that both pays and is paid — a tax office that also issues
- * refunds — would otherwise teach this an income category.
- */
-export async function getCategoriesByCounterparty(
-  db: Database,
-  params: GetCategoriesByCounterpartyParams,
-): Promise<Map<string, string>> {
-  const wanted = [
-    ...new Set(
-      params.names
-        .map((name) => name.trim().toLowerCase())
-        .filter((name) => name.length > 0),
-    ),
-  ];
-
-  if (wanted.length === 0) {
-    return new Map();
-  }
-
-  // The SQL twin of `counterpartyKey`, shared with the reversal rule so the
-  // three cannot drift apart.
-  const name = counterpartyKeySql("transactions") as SQL<string>;
-
-  const rows = await db
-    .select({
-      name,
-      categorySlug: transactions.categorySlug,
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.teamId, params.teamId),
-        isNotNull(transactions.categorySlug),
-        ne(transactions.categorySlug, UNCATEGORIZED),
-        lte(transactions.amount, 0),
-        inArray(name, wanted),
-      ),
-    )
-    .groupBy(name, transactions.categorySlug);
-
-  // One row per (name, category). A name with more than one is a name this team
-  // has not made up its mind about, and it is dropped rather than voted on.
-  const byName = new Map<string, string | null>();
-
-  for (const row of rows) {
-    if (!row.categorySlug) continue;
-
-    if (byName.has(row.name) && byName.get(row.name) !== row.categorySlug) {
-      byName.set(row.name, null);
-      continue;
-    }
-
-    byName.set(row.name, row.categorySlug);
-  }
-
-  const agreed = new Map<string, string>();
-
-  for (const [name, categorySlug] of byName) {
-    if (categorySlug) {
-      agreed.set(name, categorySlug);
-    }
-  }
-
-  return agreed;
 }
 
 export type SetTransactionCategoriesParams = {

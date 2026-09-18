@@ -12,12 +12,13 @@ import { expect, test } from "bun:test";
 import type { TransactionForEnrichment } from "@midday/db/queries";
 import {
   categoryFromBankTransactionCode,
-  counterpartyNames,
   generateEnrichmentPrompt,
   groupForEnrichment,
   knownCategories,
   prepareTransactionData,
   prepareUpdateData,
+  settleWithoutModel,
+  supplierIdsOf,
 } from "./enrichment-helpers";
 import {
   type EnrichmentResult,
@@ -38,6 +39,10 @@ function transaction(
     categorySlug: null,
     bankTransactionCode: null,
     bankTransactionSubCode: null,
+    counterpartyIban: null,
+    internal: false,
+    supplierId: null,
+    supplierName: null,
     ...overrides,
   };
 }
@@ -216,18 +221,29 @@ test("a category already chosen is never overwritten, known or not", () => {
   expect(updateData.categorySlug).toBeUndefined();
 });
 
-test("what this team already decided for a counterparty is reused", () => {
+test("what this team already decided for a supplier is reused, whatever the spelling", () => {
+  // Keyed on the supplier, not the printed name: two spellings of one company
+  // were two memories before FF-1555.
   const known = knownCategories(
     [
-      transaction({ id: "a", counterpartyName: "SD Worx" }),
-      transaction({ id: "b", counterpartyName: "sd worx " }),
-      transaction({ id: "c", counterpartyName: "Somebody New" }),
+      transaction({
+        id: "a",
+        counterpartyName: "SD Worx",
+        supplierId: "sdworx",
+      }),
+      transaction({
+        id: "b",
+        counterpartyName: "Sd Worx Sociaal Secretariaat Vzw",
+        supplierId: "sdworx",
+      }),
+      transaction({ id: "c", counterpartyName: "SD Worx", supplierId: null }),
     ],
-    new Map([["sd worx", "employer-taxes"]]),
+    new Map([["sdworx", "employer-taxes"]]),
   );
 
   expect(known.get("a")).toBe("employer-taxes");
   expect(known.get("b")).toBe("employer-taxes");
+  // A payment nothing has linked is not answered by a name that looks alike.
   expect(known.has("c")).toBe(false);
 });
 
@@ -236,11 +252,11 @@ test("the bank outranks the memory, because it is not a guess either way", () =>
     [
       transaction({
         id: "a",
-        counterpartyName: "SD Worx",
+        supplierId: "sdworx",
         bankTransactionSubCode: "SALA",
       }),
     ],
-    new Map([["sd worx", "contractors"]]),
+    new Map([["sdworx", "contractors"]]),
   );
 
   expect(known.get("a")).toBe("salary");
@@ -251,29 +267,41 @@ test("nothing is remembered for a row somebody already classified", () => {
     [
       transaction({
         id: "a",
-        counterpartyName: "SD Worx",
+        supplierId: "sdworx",
         categorySlug: "insurance",
       }),
     ],
-    new Map([["sd worx", "employer-taxes"]]),
+    new Map([["sdworx", "employer-taxes"]]),
   );
 
   expect(known.has("a")).toBe(false);
 });
 
-test("the names a batch asks about are keys, and skip the rows that name nobody", () => {
+test("the suppliers a batch asks about are distinct, and skip the rows with none", () => {
   expect(
-    counterpartyNames([
-      transaction({ id: "a", counterpartyName: "Cursor" }),
-      transaction({
-        id: "b",
-        counterpartyName: null,
-        merchantName: "Adobe Inc",
-      }),
-      transaction({ id: "c", counterpartyName: null, merchantName: null }),
-      transaction({ id: "d", counterpartyName: "   " }),
+    supplierIdsOf([
+      transaction({ id: "a", supplierId: "cursor" }),
+      transaction({ id: "b", supplierId: "cursor" }),
+      transaction({ id: "c", supplierId: null }),
     ]),
-  ).toEqual(["cursor", "adobe inc"]);
+  ).toEqual(["cursor"]);
+});
+
+test("payments linked to one supplier are one question, however they are spelled", () => {
+  const groups = groupForEnrichment([
+    transaction({ id: "a", counterpartyName: "Xerius", supplierId: "x" }),
+    transaction({
+      id: "b",
+      counterpartyName: "Xerius Sociaal Verzekeringsfonds Vz",
+      supplierId: "x",
+    }),
+    transaction({ id: "c", counterpartyName: "Xerius", supplierId: null }),
+  ]);
+
+  expect(groups.map((group) => group.transactions.map((tx) => tx.id))).toEqual([
+    ["a", "b"],
+    ["c"],
+  ]);
 });
 
 test("a batch of uncategorized rows is still asked about categories", () => {
@@ -319,4 +347,44 @@ test("FTDP only identifies a lease with RPMT beside it", () => {
       }),
     ),
   ).toBeNull();
+});
+
+test("a known supplier with a remembered category needs no model at all", () => {
+  const { updates, unchanged, toAsk } = settleWithoutModel(
+    [
+      // Recognised, and its category remembered: settled here.
+      transaction({
+        id: "known",
+        supplierId: "cursor",
+        supplierName: "Cursor Inc",
+        categorySlug: null,
+      }),
+      // Recognised and already categorised, and already named: nothing to do.
+      transaction({
+        id: "done",
+        supplierId: "cursor",
+        supplierName: "Cursor Inc",
+        merchantName: "Cursor Inc",
+        categorySlug: "software",
+      }),
+      // Recognised, but nothing remembers its category: the model decides.
+      transaction({
+        id: "new-category",
+        supplierId: "adobe",
+        supplierName: "Adobe Inc",
+      }),
+      // Not recognised: the model is asked.
+      transaction({ id: "stranger" }),
+    ],
+    new Map([["known", "software"]]),
+  );
+
+  expect(updates).toEqual([
+    {
+      transactionId: "known",
+      data: { merchantName: "Cursor Inc", categorySlug: "software" },
+    },
+  ]);
+  expect(unchanged).toEqual(["done"]);
+  expect(toAsk.map((tx) => tx.id)).toEqual(["new-category", "stranger"]);
 });
