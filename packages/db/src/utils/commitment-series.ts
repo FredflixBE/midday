@@ -198,7 +198,9 @@ function longestChain(
 
   let end = -1;
   for (const [i, entry] of best.entries()) {
-    if (end === -1 || entry.length > best[end]!.length) end = i;
+    // `>=`: of two chains as long, the one that ends later, which is the one
+    // still running.
+    if (end === -1 || entry.length >= best[end]!.length) end = i;
   }
   if (end === -1) return null;
 
@@ -218,15 +220,66 @@ function isSeries(chain: Chain | null, cadence: Cadence, today: string) {
   const months = new Set(chain.payments.map((p) => p.date.slice(0, 7)));
   if (months.size < MIN_MONTHS) return false;
 
-  // A payee that simply went quiet is not predicted: two missed occurrences
-  // and it is history, not a commitment.
-  const last = chain.payments.at(-1)!;
+  return !wentQuiet(chain.payments.at(-1)!.date, cadence, today);
+}
+
+/**
+ * A payee that simply went quiet is not predicted: two missed occurrences and
+ * it is history, not a commitment. Read at detection and again whenever a
+ * commitment's next date is asked for.
+ */
+export function wentQuiet(
+  lastDate: string,
+  cadence: Cadence,
+  today: string,
+): boolean {
   const quietFrom = addMonths(
-    last.date,
+    lastDate,
     MONTHS[cadence] * 2,
-    parse(last.date).getUTCDate(),
+    parse(lastDate).getUTCDate(),
   );
-  return daysBetween(quietFrom, today) <= TOLERANCE_DAYS[cadence];
+  return daysBetween(quietFrom, today) > TOLERANCE_DAYS[cadence];
+}
+
+/**
+ * A chain has to be most of what the supplier was paid over its span — at a
+ * like price, when the price is read. Otherwise anyone paid often — a taxi, a
+ * fuel station, a weekly coffee — holds a monthly-looking chain or five, one
+ * payment picked from each month. Google's three subscriptions billed the same
+ * morning still pass, because each is compared only with its own price.
+ */
+const COVERAGE = 2 / 3;
+
+function coversItsSpan(
+  chain: SeriesPayment[],
+  payments: readonly SeriesPayment[],
+  byPrice: boolean,
+): boolean {
+  const first = chain[0]!.date;
+  const last = chain.at(-1)!.date;
+  const inSpan = payments.filter(
+    (p) =>
+      p.date >= first &&
+      p.date <= last &&
+      (!byPrice || chain.some((member) => samePrice(member, p))),
+  );
+  return chain.length >= inSpan.length * COVERAGE;
+}
+
+/**
+ * The day of the month a series lands on. A median taken around the last
+ * payment's day, wrapping at the month's end, so a debit that falls on the
+ * 31st one month and the 1st the next lands on the 1st — not on the 15th, as
+ * a plain median of 31s and 1s would say.
+ */
+function landingDay(chain: SeriesPayment[]): number {
+  const base = parse(chain.at(-1)!.date).getUTCDate();
+  const offsets = chain.map((p) => {
+    const offset = parse(p.date).getUTCDate() - base;
+    return offset > 15 ? offset - 31 : offset < -15 ? offset + 31 : offset;
+  });
+  const day = base + Math.round(median(offsets));
+  return day < 1 ? day + 31 : day > 31 ? day - 31 : day;
 }
 
 function median(values: number[]): number {
@@ -268,7 +321,7 @@ function summarise(chain: SeriesPayment[], cadence: Cadence): DetectedSeries {
     cadence,
     priceKind,
     payments: chain,
-    day: Math.round(median(chain.map((p) => parse(p.date).getUTCDate()))),
+    day: landingDay(chain),
     amount,
     currency: last.currency,
     amountLow: priceKind === "fixed" ? amount : Math.min(...amounts),
@@ -310,7 +363,10 @@ export function detectSeries(
         const ids = new Set(chain.payments.map((p) => p.id));
         pool = pool.filter((p) => !ids.has(p.id));
 
-        if (isSeries(chain, cadence, params.today)) {
+        if (
+          isSeries(chain, cadence, params.today) &&
+          coversItsSpan(chain.payments, open, byPrice)
+        ) {
           found.push(summarise(chain.payments, cadence));
           open = open.filter((p) => !ids.has(p.id));
         }
@@ -327,11 +383,7 @@ export function detectSeries(
  * currency it is billed in.
  */
 export function extendsSeries(
-  commitment: {
-    cadence: Cadence;
-    priceKind: PriceKind;
-    billedCurrency: string | null;
-  },
+  commitment: { cadence: Cadence; priceKind: PriceKind },
   last: SeriesPayment,
   payment: SeriesPayment,
 ): boolean {

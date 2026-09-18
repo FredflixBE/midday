@@ -235,6 +235,35 @@ describe("detectSeries", () => {
     expect(series[0]?.payments[0]?.date).toBe("2026-06-01");
   });
 
+  test("someone paid every week is not a monthly commitment", () => {
+    // A taxi, a fuel station: one payment picked from each month makes a
+    // chain, and the rest of the month says it is not one.
+    const payments: SeriesPayment[] = [];
+    for (let week = 0; week < 28; week++) {
+      const date = new Date(Date.UTC(2026, 2, 2 + week * 7));
+      payments.push(
+        pay(date.toISOString().slice(0, 10), -20 - ((week * 7) % 30)),
+      );
+    }
+
+    expect(detectSeries(payments, { today: TODAY })).toEqual([]);
+  });
+
+  test("a debit on the 31st one month and the 1st the next lands on the 1st", () => {
+    const payments = [
+      ["2026-03-31", -100],
+      ["2026-05-01", -130],
+      ["2026-05-29", -90],
+      ["2026-07-01", -160],
+      ["2026-07-31", -70],
+      ["2026-09-01", -120],
+    ].map(([date, amount]) => pay(date as string, amount as number));
+
+    const [series] = detectSeries(payments, { today: TODAY });
+
+    expect(series?.day).toBe(1);
+  });
+
   test("scattered one-offs are left alone", () => {
     const payments = [
       pay("2026-02-02", -41.59),
@@ -250,7 +279,6 @@ describe("extendsSeries", () => {
   const monthly = {
     cadence: "monthly" as const,
     priceKind: "fixed" as const,
-    billedCurrency: null,
   };
 
   test("next month's payment at the price extends it", () => {
@@ -282,7 +310,7 @@ describe("extendsSeries", () => {
   test("a foreign price is compared in the currency it was billed in", () => {
     expect(
       extendsSeries(
-        { ...monthly, priceKind: "fixed_foreign", billedCurrency: "USD" },
+        { ...monthly, priceKind: "fixed_foreign" },
         pay("2026-07-16", -25.84, [29, "USD"]),
         pay("2026-08-16", -25.57, [29, "USD"]),
       ),

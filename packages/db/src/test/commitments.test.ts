@@ -116,7 +116,10 @@ describe.skipIf(SKIP)("commitments", () => {
 
     expect(result).toEqual({ attached: 0, proposed: 1 });
 
-    const [found, ...rest] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [found, ...rest] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
     expect(rest).toEqual([]);
     expect(found).toMatchObject({
       supplierId: cursor.id,
@@ -144,7 +147,10 @@ describe.skipIf(SKIP)("commitments", () => {
     });
 
     expect(result).toEqual({ attached: 1, proposed: 0 });
-    const [found] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [found] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
     expect(await commitmentOf(august)).toEqual({
       commitmentId: found!.id,
       commitmentLink: "detected",
@@ -155,7 +161,10 @@ describe.skipIf(SKIP)("commitments", () => {
   test("a rejected series keeps its payments, so it is not proposed again", async () => {
     const { cursor } = await cursorHistory();
     await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
-    const [proposed] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [proposed] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
     await updateCommitment(db, {
       teamId: TEAM_USD_ID,
       id: proposed!.id,
@@ -169,7 +178,7 @@ describe.skipIf(SKIP)("commitments", () => {
     });
 
     expect(result.proposed).toBe(0);
-    const all = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const all = await getCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
     expect(all.map((c) => [c.status, c.payments.length, c.nextDate])).toEqual([
       ["rejected", 7, null],
     ]);
@@ -202,7 +211,7 @@ describe.skipIf(SKIP)("commitments", () => {
 
     await detectCommitments(db, { teamId: TEAM_USD_ID, today: "2026-07-20" });
 
-    const all = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const all = await getCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
     expect(all.map((c) => c.amount)).toEqual([-1155.93]);
     for (const id of settlements) {
       expect((await commitmentOf(id)).commitmentId).toBeNull();
@@ -229,7 +238,10 @@ describe.skipIf(SKIP)("commitments", () => {
   test("detection never edits a commitment a person corrected", async () => {
     const { cursor } = await cursorHistory();
     await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
-    const [found] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [found] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
     await updateCommitment(db, {
       teamId: TEAM_USD_ID,
       id: found!.id,
@@ -241,7 +253,10 @@ describe.skipIf(SKIP)("commitments", () => {
     await payment(cursor.id, "2026-08-28", -19.99);
     await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
 
-    const [after] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [after] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
     expect(after).toMatchObject({
       status: "active",
       kind: "direct_debit",
@@ -254,7 +269,10 @@ describe.skipIf(SKIP)("commitments", () => {
   test("an ended commitment predicts nothing, and ending it dates it", async () => {
     await cursorHistory();
     await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
-    const [found] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [found] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
 
     const ended = await updateCommitment(db, {
       teamId: TEAM_USD_ID,
@@ -263,8 +281,74 @@ describe.skipIf(SKIP)("commitments", () => {
     });
 
     expect(ended?.endsOn).toBe(new Date().toISOString().slice(0, 10));
-    const [after] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [after] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
     expect(after?.nextDate).toBeNull();
+  });
+
+  test("making an ended commitment active again predicts it again", async () => {
+    await cursorHistory();
+    await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
+    const [found] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
+    await updateCommitment(db, {
+      teamId: TEAM_USD_ID,
+      id: found!.id,
+      status: "ended",
+    });
+
+    const active = await updateCommitment(db, {
+      teamId: TEAM_USD_ID,
+      id: found!.id,
+      status: "active",
+    });
+
+    expect(active?.endsOn).toBeNull();
+    const [after] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
+    expect(after?.nextDate).toBe("2026-08-30");
+  });
+
+  test("a commitment whose payee went quiet predicts nothing", async () => {
+    await cursorHistory();
+    await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
+
+    const [later] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: "2026-12-01",
+    });
+
+    expect(later?.nextDate).toBeNull();
+  });
+
+  test("two detections at once propose a series once", async () => {
+    await cursorHistory();
+
+    await Promise.all([
+      detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY }),
+      detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY }),
+    ]);
+
+    expect(await db.select().from(commitments)).toHaveLength(1);
+  });
+
+  test("a correction with nothing in it is refused", async () => {
+    await cursorHistory();
+    await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
+    const [found] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
+
+    await expect(
+      updateCommitment(db, { teamId: TEAM_USD_ID, id: found!.id }),
+    ).rejects.toThrow("Nothing to change");
   });
 
   test("a series read partly from the model's guesses says how many", async () => {
@@ -276,7 +360,10 @@ describe.skipIf(SKIP)("commitments", () => {
 
     await detectCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
 
-    const [found] = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const [found] = await getCommitments(db, {
+      teamId: TEAM_USD_ID,
+      today: TODAY,
+    });
     expect(found?.guessed).toBe(1);
   });
 
@@ -303,7 +390,7 @@ describe.skipIf(SKIP)("commitments", () => {
       targetId: kept.id,
     });
 
-    const all = await getCommitments(db, { teamId: TEAM_USD_ID });
+    const all = await getCommitments(db, { teamId: TEAM_USD_ID, today: TODAY });
     expect(all.map((c) => [c.supplierId, c.payments.length])).toEqual([
       [kept.id, 6],
     ]);

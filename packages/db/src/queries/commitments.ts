@@ -22,6 +22,7 @@ import {
   nextOccurrence,
   type PriceKind,
   type SeriesPayment,
+  wentQuiet,
 } from "../utils/commitment-series";
 import { isReversedSql } from "./invoice-status";
 
@@ -276,10 +277,24 @@ export async function detectCommitments(
   params: { teamId: string; supplierIds?: string[]; today?: string },
 ): Promise<DetectedCommitments> {
   return db.transaction(async (tx) => {
+    // One detection per team at a time. Enrichment runs two batches at once,
+    // and two runs planning the same series would each propose it; the
+    // second would then find its payments taken and leave an empty proposal.
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`commitments:${params.teamId}`}))`,
+    );
+
     const plan = await planCommitments(tx, params);
 
+    const byCommitment = new Map<string, string[]>();
     for (const { transactionId, commitmentId } of plan.attach) {
-      await linkDetected(tx, params.teamId, [transactionId], commitmentId);
+      byCommitment.set(commitmentId, [
+        ...(byCommitment.get(commitmentId) ?? []),
+        transactionId,
+      ]);
+    }
+    for (const [commitmentId, ids] of byCommitment) {
+      await linkDetected(tx, params.teamId, ids, commitmentId);
     }
 
     for (const { supplierId, kind, series } of plan.propose) {
@@ -375,11 +390,12 @@ export type Commitment = {
  * A team's commitments, or one supplier's, with the payments behind each.
  *
  * `nextDate` is only given for a commitment that is predicted: proposed or
- * active, with a payment to count from, and not past its end date.
+ * active, with a payment to count from, not gone quiet, and not past its end
+ * date.
  */
 export async function getCommitments(
   db: DatabaseOrTransaction,
-  params: { teamId: string; supplierId?: string },
+  params: { teamId: string; supplierId?: string; today?: string },
 ): Promise<Commitment[]> {
   const rows = await db
     .select({
@@ -413,6 +429,8 @@ export async function getCommitments(
 
   if (rows.length === 0) return [];
 
+  const now = params.today ?? today();
+
   const payments = await db
     .select({
       id: transactions.id,
@@ -445,11 +463,13 @@ export async function getCommitments(
   return rows.map((row) => {
     const own = byCommitment.get(row.id) ?? [];
     const last = own.at(-1);
-    const predicted = row.status === "proposed" || row.status === "active";
-    const next =
-      predicted && last
-        ? nextOccurrence(last.date, row.cadence, row.day)
-        : null;
+    const predicted =
+      (row.status === "proposed" || row.status === "active") &&
+      last !== undefined &&
+      !wentQuiet(last.date, row.cadence, now);
+    const next = predicted
+      ? nextOccurrence(last.date, row.cadence, row.day)
+      : null;
 
     return {
       ...row,
@@ -478,7 +498,8 @@ export type UpdateCommitmentParams = {
 
 /**
  * A person's correction: confirm, reject, end, or fix what detection read.
- * Ending one without a date ends it today.
+ * Ending one without a date ends it today; making one active or proposed
+ * again clears its end date, or it would stay unpredicted.
  */
 export async function updateCommitment(
   db: DatabaseOrTransaction,
@@ -490,10 +511,18 @@ export async function updateCommitment(
     throw new CommitmentInputError("A day of the month is 1 to 31");
   }
 
+  if (Object.values(patch).every((value) => value === undefined)) {
+    throw new CommitmentInputError("Nothing to change");
+  }
+
   const endsOn =
-    patch.status === "ended" && patch.endsOn === undefined
-      ? today()
-      : patch.endsOn;
+    patch.endsOn !== undefined
+      ? patch.endsOn
+      : patch.status === "ended"
+        ? today()
+        : patch.status === "active" || patch.status === "proposed"
+          ? null
+          : undefined;
 
   const [row] = await db
     .update(commitments)
