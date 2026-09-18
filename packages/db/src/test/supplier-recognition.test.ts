@@ -22,6 +22,7 @@ import {
 } from "../queries/supplier-recognition";
 import {
   getSupplierRules,
+  resetTransactionSupplier,
   saveSupplierRule,
   setTransactionSupplier,
 } from "../queries/suppliers";
@@ -514,7 +515,7 @@ describe.skipIf(SKIP)("supplier recognition", () => {
 
       expect(model.asked).toHaveLength(1);
       expect(result.asked).toBe(0);
-      expect(result.remembered).toBe(1);
+      expect(result.notAskedAgain).toBe(1);
       expect((await linkOf(next.id)).supplierId).toBeNull();
     });
 
@@ -569,6 +570,92 @@ describe.skipIf(SKIP)("supplier recognition", () => {
         transactions: [next],
         ask: model.ask,
       });
+
+      expect(model.asked).toHaveLength(2);
+    });
+
+    /** Asks about one parking payment, which the model cannot name. */
+    async function unanswered(model: ReturnType<typeof fakeModel>) {
+      const first = await payment({
+        name: "Parking Meir 0425",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [first],
+        ask: model.ask,
+      });
+      return first;
+    }
+
+    async function nextParking(model: ReturnType<typeof fakeModel>) {
+      const next = await payment({
+        name: "Parking Meir 0612",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [next],
+        ask: model.ask,
+      });
+    }
+
+    test("a person naming the supplier of another payment from the party ends it too", async () => {
+      const model = fakeModel({ "Parking Meir": unsure });
+      await unanswered(model);
+
+      const [parking] = await db
+        .insert(suppliers)
+        .values({ teamId: TEAM_USD_ID, name: "Parkeerbedrijf Antwerpen" })
+        .returning();
+      const sibling = await payment({
+        name: "Parking Meir 0513",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      await setTransactionSupplier(db, {
+        teamId: TEAM_USD_ID,
+        transactionId: sibling.id,
+        supplierId: parking!.id,
+      });
+
+      await nextParking(model);
+
+      expect(model.asked).toHaveLength(2);
+    });
+
+    test("a person saying the payment has no supplier keeps it", async () => {
+      const model = fakeModel({ "Parking Meir": unsure });
+      const first = await unanswered(model);
+      await setTransactionSupplier(db, {
+        teamId: TEAM_USD_ID,
+        transactionId: first.id,
+        supplierId: null,
+      });
+
+      await nextParking(model);
+
+      expect(model.asked).toHaveLength(1);
+    });
+
+    test("handing the payment back to automation ends it", async () => {
+      const model = fakeModel({ "Parking Meir": unsure });
+      const first = await unanswered(model);
+      await resetTransactionSupplier(db, {
+        teamId: TEAM_USD_ID,
+        transactionId: first.id,
+      });
+
+      await nextParking(model);
+
+      expect(model.asked).toHaveLength(2);
+    });
+
+    test("no answer at all is the model failing, and is asked again", async () => {
+      // The stand-in answers null for text it has no entry for, as a model
+      // returning too few results would leave a gap.
+      const model = fakeModel({});
+      await unanswered(model);
+      await nextParking(model);
 
       expect(model.asked).toHaveLength(2);
     });

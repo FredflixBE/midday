@@ -128,7 +128,7 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
         counterpartiesAsked: recognition.asked,
         suppliersCreated: recognition.created,
         guessedWithoutRule: recognition.guessed,
-        notAskedAgain: recognition.remembered,
+        notAskedAgain: recognition.notAskedAgain,
       });
     } catch (error) {
       recognitionFailure = error;

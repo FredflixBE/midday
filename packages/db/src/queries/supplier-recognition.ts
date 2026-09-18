@@ -120,9 +120,9 @@ export type SupplierRecognition = {
   guessed: number;
   /**
    * Payments not asked about because the model already could not name their
-   * party (FF-1600).
+   * party, in an earlier run or earlier in this one (FF-1600).
    */
-  remembered: number;
+  notAskedAgain: number;
 };
 
 /** A group's key is null when nothing names its party; see `questionKey`. */
@@ -154,7 +154,7 @@ export async function recogniseSuppliers(
     asked: 0,
     created: 0,
     guessed: 0,
-    remembered: 0,
+    notAskedAgain: 0,
   };
 
   if (ids.length === 0) return result;
@@ -199,6 +199,7 @@ export async function recogniseSuppliers(
         (transaction) =>
           open.has(transaction.id) &&
           !shown.has(transaction.id) &&
+          // Again, not only up front: an answer this run may have added a key.
           !isUnanswered(transaction),
       ),
       collective,
@@ -224,10 +225,14 @@ export async function recogniseSuppliers(
       const answer = answers[index];
 
       if (!answer?.supplier || answer.confidence < SUPPLIER_CONFIDENCE_MIN) {
-        // Remembered, so neither the rest of this group in a later round nor
-        // the party's next payment is asked the same question again.
-        await markUnanswered(db, teamId, asked.id);
-        if (group.key !== null) unanswered.keys.add(group.key);
+        // An answer that says it cannot tell is remembered, so neither the
+        // rest of this group in a later round nor the party's next payment is
+        // asked the same question again. A missing answer is the model
+        // failing, not answering, and is asked again next time.
+        if (answer) {
+          await markUnanswered(db, teamId, asked.id);
+          if (group.key !== null) unanswered.keys.add(group.key);
+        }
         continue;
       }
 
@@ -278,17 +283,6 @@ export async function recogniseSuppliers(
     }
   }
 
-  const skipped = outgoing.filter(
-    (transaction) => !shown.has(transaction.id) && isUnanswered(transaction),
-  );
-  result.remembered = (
-    await stillUnlinked(
-      db,
-      teamId,
-      skipped.map((transaction) => transaction.id),
-    )
-  ).length;
-
   // A rule the model wrote is a rule like any other: it reaches every payment
   // no person has decided, not only the ones in this run. Without this, the
   // first leasing payment taught Midday the rule and the ten before it never
@@ -296,6 +290,17 @@ export async function recogniseSuppliers(
   if (rulesCreated > 0) {
     await applySupplierRules(db, { teamId });
   }
+
+  const skipped = outgoing.filter(
+    (transaction) => !shown.has(transaction.id) && isUnanswered(transaction),
+  );
+  result.notAskedAgain = (
+    await stillUnlinked(
+      db,
+      teamId,
+      skipped.map((transaction) => transaction.id),
+    )
+  ).length;
 
   const linked = await db
     .select({
@@ -467,42 +472,62 @@ async function stillUnlinked(
 }
 
 /**
- * The parties the model could not name (FF-1600): every payment it was asked
- * about and gave no usable answer for, while that payment is still unlinked.
+ * The parties the model could not name (FF-1600): every payment it said it
+ * could not tell about, while nothing has given that payment a supplier. A
+ * party is the key questions are grouped on — the counterparty, or merchant,
+ * with the first word of the text.
  *
- * Read from the payments rather than kept as a list of its own, so what ends
- * the memory needs no code of its own: a rule that reaches the payment, or a
- * person who links it, takes it out of this set, and its party is asked about
- * again.
+ * Read from the payments rather than kept as a list of its own. Whatever
+ * links the marked payment clears its mark, and a person naming the supplier
+ * of any payment from that party ends the memory for all of them, so the
+ * model — now shown that supplier — is asked again.
  */
 async function unansweredParties(
   db: DatabaseOrTransaction,
   teamId: string,
   collective: Set<string>,
 ): Promise<{ ids: Set<string>; keys: Set<string> }> {
-  const rows = await db
-    .select({
-      id: transactions.id,
-      name: transactions.name,
-      counterpartyName: transactions.counterpartyName,
-      merchantName: transactions.merchantName,
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.teamId, teamId),
-        isNotNull(transactions.supplierUnansweredAt),
-        isNull(transactions.supplierLink),
+  const party = {
+    id: transactions.id,
+    name: transactions.name,
+    counterpartyName: transactions.counterpartyName,
+    merchantName: transactions.merchantName,
+  };
+
+  const [marked, named] = await Promise.all([
+    db
+      .select(party)
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.teamId, teamId),
+          isNotNull(transactions.supplierUnansweredAt),
+          isNull(transactions.supplierId),
+        ),
       ),
-    );
+    db
+      .select(party)
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.teamId, teamId),
+          eq(transactions.supplierLink, "person"),
+          isNotNull(transactions.supplierId),
+        ),
+      ),
+  ]);
+
+  const namedByPerson = new Set(
+    named.map((row) => questionKey(row, collective)),
+  );
 
   const keys = new Set<string>();
-  for (const row of rows) {
+  for (const row of marked) {
     const key = questionKey(row, collective);
-    if (key !== null) keys.add(key);
+    if (key !== null && !namedByPerson.has(key)) keys.add(key);
   }
 
-  return { ids: new Set(rows.map((row) => row.id)), keys };
+  return { ids: new Set(marked.map((row) => row.id)), keys };
 }
 
 async function markUnanswered(
