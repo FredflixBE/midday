@@ -20,6 +20,7 @@ import { Category } from "@/components/category";
 import { FormatAmount } from "@/components/format-amount";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
+import { getColorFromName } from "@/utils/categories";
 import { CollectiveNames } from "./collective-names";
 
 type Supplier = RouterOutputs["suppliers"]["list"][number];
@@ -170,7 +171,10 @@ export function SuppliersList() {
                   {supplier.category ? (
                     <Category
                       name={supplier.category.name}
-                      color={supplier.category.color ?? undefined}
+                      color={
+                        supplier.category.color ??
+                        getColorFromName(supplier.category.name)
+                      }
                     />
                   ) : supplier.categoryMixed ? (
                     <span className="text-[#878787]">Mixed</span>

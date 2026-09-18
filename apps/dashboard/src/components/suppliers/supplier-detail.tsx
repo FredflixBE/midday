@@ -50,6 +50,7 @@ import { useTransactionParams } from "@/hooks/use-transaction-params";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTransactionsStore } from "@/store/transactions";
 import { useTRPC } from "@/trpc/client";
+import { getColorFromName } from "@/utils/categories";
 import { RuleEditor } from "./rule-editor";
 import { RuleLabel } from "./rule-label";
 import { SelectSupplier } from "./select-supplier";
@@ -498,7 +499,10 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
                   {row.category?.slug ? (
                     <Category
                       name={row.category.name}
-                      color={row.category.color ?? undefined}
+                      color={
+                        row.category.color ??
+                        getColorFromName(row.category.name)
+                      }
                     />
                   ) : null}
                 </TableCell>
