@@ -219,7 +219,7 @@ export function SupplierPanel({ supplier }: { supplier: Supplier }) {
                       <AlertDialogAction
                         onClick={() => deleteRule.mutate({ id: rule.id })}
                       >
-                        Delete rule
+                        Delete
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

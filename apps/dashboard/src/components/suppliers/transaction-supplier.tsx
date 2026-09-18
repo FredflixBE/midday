@@ -76,7 +76,7 @@ export function TransactionSupplier({
           description: `Link every payment from "${counterparty}" to this supplier too?`,
           action: (
             <ToastAction
-              altText="Make it a rule"
+              altText="Apply to all"
               onClick={() =>
                 saveRule.mutate({
                   supplierId: chosen,
@@ -85,7 +85,7 @@ export function TransactionSupplier({
                 })
               }
             >
-              Make it a rule
+              Apply to all
             </ToastAction>
           ),
         });
@@ -138,7 +138,7 @@ export function TransactionSupplier({
             disabled={reset.isPending}
             onClick={() => reset.mutate({ transactionId: transaction.id })}
           >
-            Let Midday decide
+            Reset
           </Button>
         </div>
       ) : null}

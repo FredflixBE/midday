@@ -149,6 +149,7 @@ export function RuleEditor({
         />
 
         <Button
+          className="shrink-0"
           disabled={
             debounced.length < 2 ||
             debounced !== value.trim() ||
@@ -157,7 +158,7 @@ export function RuleEditor({
           }
           onClick={() => save.mutate(input)}
         >
-          Save rule
+          Save
         </Button>
       </div>
 
