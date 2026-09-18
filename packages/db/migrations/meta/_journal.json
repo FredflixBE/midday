@@ -92,6 +92,13 @@
       "when": 1789660623971,
       "tag": "0012_searchable_vault_and_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789746415732,
+      "tag": "0013_suppliers",
+      "breakpoints": true
     }
   ]
 }
