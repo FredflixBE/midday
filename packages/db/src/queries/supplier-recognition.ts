@@ -1,4 +1,14 @@
-import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import type { DatabaseOrTransaction } from "../client";
 import { supplierRules, suppliers, transactions } from "../schema";
 import { counterpartyKey } from "../utils/counterparty";
@@ -23,6 +33,8 @@ import {
  *    so the next payment from the same supplier is step 2.
  *    It is shown the suppliers that already exist, so a second spelling of
  *    one lands on it instead of becoming a duplicate (FF-1603).
+ *    A party it could not name is remembered on the payment and not asked
+ *    about again until a rule or a person links that payment (FF-1600).
  *
  * So the model's cost scales with new suppliers, not with transactions — about
  * 59 in the first year here and near zero a month after. If that stops being
@@ -106,9 +118,15 @@ export type SupplierRecognition = {
   created: number;
   /** Rows linked on the model's word alone, with no rule to show for it. */
   guessed: number;
+  /**
+   * Payments not asked about because the model already could not name their
+   * party (FF-1600).
+   */
+  remembered: number;
 };
 
-type Group = { key: string; transactions: RecognisableTransaction[] };
+/** A group's key is null when nothing names its party; see `questionKey`. */
+type Group = { key: string | null; transactions: RecognisableTransaction[] };
 
 /**
  * Recognise the supplier of each of these transactions, asking the model about
@@ -136,6 +154,7 @@ export async function recogniseSuppliers(
     asked: 0,
     created: 0,
     guessed: 0,
+    remembered: 0,
   };
 
   if (ids.length === 0) return result;
@@ -144,8 +163,20 @@ export async function recogniseSuppliers(
 
   const collective = await collectiveCounterparties(db, teamId);
   const known = await knownSuppliers(db, teamId);
-  const candidates = params.transactions.filter(
+  const unanswered = await unansweredParties(db, teamId, collective);
+
+  const outgoing = params.transactions.filter(
     (transaction) => transaction.amount < 0 && !transaction.internal,
+  );
+  const isUnanswered = (transaction: RecognisableTransaction) => {
+    const key = questionKey(transaction, collective);
+    return (
+      unanswered.ids.has(transaction.id) ||
+      (key !== null && unanswered.keys.has(key))
+    );
+  };
+  const candidates = outgoing.filter(
+    (transaction) => !isUnanswered(transaction),
   );
 
   // The rows the model has been shown itself. A group's answer covers the rest
@@ -165,7 +196,10 @@ export async function recogniseSuppliers(
 
     const groups = groupForSupplierQuestions(
       candidates.filter(
-        (transaction) => open.has(transaction.id) && !shown.has(transaction.id),
+        (transaction) =>
+          open.has(transaction.id) &&
+          !shown.has(transaction.id) &&
+          !isUnanswered(transaction),
       ),
       collective,
     );
@@ -190,6 +224,10 @@ export async function recogniseSuppliers(
       const answer = answers[index];
 
       if (!answer?.supplier || answer.confidence < SUPPLIER_CONFIDENCE_MIN) {
+        // Remembered, so neither the rest of this group in a later round nor
+        // the party's next payment is asked the same question again.
+        await markUnanswered(db, teamId, asked.id);
+        if (group.key !== null) unanswered.keys.add(group.key);
         continue;
       }
 
@@ -239,6 +277,17 @@ export async function recogniseSuppliers(
       }
     }
   }
+
+  const skipped = outgoing.filter(
+    (transaction) => !shown.has(transaction.id) && isUnanswered(transaction),
+  );
+  result.remembered = (
+    await stillUnlinked(
+      db,
+      teamId,
+      skipped.map((transaction) => transaction.id),
+    )
+  ).length;
 
   // A rule the model wrote is a rule like any other: it reaches every payment
   // no person has decided, not only the ones in this run. Without this, the
@@ -344,30 +393,47 @@ export function groupForSupplierQuestions(
   const groups = new Map<string, Group>();
 
   for (const transaction of transactions) {
-    const counterparty = normaliseRuleValue(
-      "counterparty_name",
-      transaction.counterpartyName,
-    );
-    const usable =
-      counterparty && !collective.has(counterparty)
-        ? counterpartyKey(transaction)
-        : counterpartyKey({
-            counterpartyName: null,
-            merchantName: transaction.merchantName,
-          });
+    const key = questionKey(transaction, collective);
+    const slot = key ?? `alone:${transaction.id}`;
 
-    const firstWord =
-      normaliseRuleValue("name", transaction.name)?.split(" ")[0] ?? "";
-    const lead = /\p{L}/u.test(firstWord) ? firstWord : "";
-
-    const key = usable ? `${usable}|${lead}` : `alone:${transaction.id}`;
-
-    const group = groups.get(key);
+    const group = groups.get(slot);
     if (group) group.transactions.push(transaction);
-    else groups.set(key, { key, transactions: [transaction] });
+    else groups.set(slot, { key, transactions: [transaction] });
   }
 
   return [...groups.values()];
+}
+
+/**
+ * The party a payment is asked about as, or null when nothing names one — a
+ * payment with neither a counterparty nor a merchant is asked about alone.
+ */
+function questionKey(
+  transaction: Pick<
+    RecognisableTransaction,
+    "name" | "counterpartyName" | "merchantName"
+  >,
+  collective: Set<string>,
+): string | null {
+  const counterparty = normaliseRuleValue(
+    "counterparty_name",
+    transaction.counterpartyName,
+  );
+  const usable =
+    counterparty && !collective.has(counterparty)
+      ? counterpartyKey(transaction)
+      : counterpartyKey({
+          counterpartyName: null,
+          merchantName: transaction.merchantName,
+        });
+
+  if (!usable) return null;
+
+  const firstWord =
+    normaliseRuleValue("name", transaction.name)?.split(" ")[0] ?? "";
+  const lead = /\p{L}/u.test(firstWord) ? firstWord : "";
+
+  return `${usable}|${lead}`;
 }
 
 function toQuestion(transaction: RecognisableTransaction): SupplierQuestion {
@@ -398,6 +464,58 @@ async function stillUnlinked(
     );
 
   return rows.map((row) => row.id);
+}
+
+/**
+ * The parties the model could not name (FF-1600): every payment it was asked
+ * about and gave no usable answer for, while that payment is still unlinked.
+ *
+ * Read from the payments rather than kept as a list of its own, so what ends
+ * the memory needs no code of its own: a rule that reaches the payment, or a
+ * person who links it, takes it out of this set, and its party is asked about
+ * again.
+ */
+async function unansweredParties(
+  db: DatabaseOrTransaction,
+  teamId: string,
+  collective: Set<string>,
+): Promise<{ ids: Set<string>; keys: Set<string> }> {
+  const rows = await db
+    .select({
+      id: transactions.id,
+      name: transactions.name,
+      counterpartyName: transactions.counterpartyName,
+      merchantName: transactions.merchantName,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.teamId, teamId),
+        isNotNull(transactions.supplierUnansweredAt),
+        isNull(transactions.supplierLink),
+      ),
+    );
+
+  const keys = new Set<string>();
+  for (const row of rows) {
+    const key = questionKey(row, collective);
+    if (key !== null) keys.add(key);
+  }
+
+  return { ids: new Set(rows.map((row) => row.id)), keys };
+}
+
+async function markUnanswered(
+  db: DatabaseOrTransaction,
+  teamId: string,
+  transactionId: string,
+) {
+  await db
+    .update(transactions)
+    .set({ supplierUnansweredAt: sql`now()` })
+    .where(
+      and(eq(transactions.teamId, teamId), eq(transactions.id, transactionId)),
+    );
 }
 
 /** The team's suppliers, the most often paid first, up to the bound. */

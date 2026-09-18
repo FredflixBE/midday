@@ -91,6 +91,7 @@ async function main() {
     let asked = 0;
     let created = 0;
     let guessed = 0;
+    let remembered = 0;
 
     for (let i = 0; i < rows.length; i += CHUNK) {
       const result = await recogniseSuppliers(db, {
@@ -103,6 +104,7 @@ async function main() {
       asked += result.asked;
       created += result.created;
       guessed += result.guessed;
+      remembered += result.remembered;
 
       console.log(
         `  ${Math.min(i + CHUNK, rows.length)} of ${rows.length} read`,
@@ -114,6 +116,9 @@ async function main() {
     console.log(`  ${created} suppliers were created`);
     console.log(
       `  ${guessed} linked on the model's word alone, shown as a guess`,
+    );
+    console.log(
+      `  ${remembered} not asked about: the model could not name that party before`,
     );
     console.log(`  ${rows.length - linked} still have none, and say so`);
   }

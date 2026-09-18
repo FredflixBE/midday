@@ -486,4 +486,117 @@ describe.skipIf(SKIP)("supplier recognition", () => {
 
     expect(model.shown).toEqual([[], [{ name: "Kimakh Wahib", aliases: [] }]]);
   });
+
+  describe("a party the model could not name (FF-1600)", () => {
+    const unsure = { ...byCounterparty("Maybe Ltd"), confidence: 0.3 };
+
+    test("is not asked about again when its next payment arrives", async () => {
+      const model = fakeModel({ "Parking Meir": unsure });
+      const first = await payment({
+        name: "Parking Meir 0425",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [first],
+        ask: model.ask,
+      });
+
+      const next = await payment({
+        name: "Parking Meir 0513",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      const result = await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [next],
+        ask: model.ask,
+      });
+
+      expect(model.asked).toHaveLength(1);
+      expect(result.asked).toBe(0);
+      expect(result.remembered).toBe(1);
+      expect((await linkOf(next.id)).supplierId).toBeNull();
+    });
+
+    test("is not asked about twice in one run either", async () => {
+      const model = fakeModel({ "Parking Meir": unsure });
+      const a = await payment({
+        name: "Parking Meir 0425",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      const b = await payment({
+        name: "Parking Meir 0513",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [a, b],
+        ask: model.ask,
+      });
+
+      expect(model.asked).toHaveLength(1);
+    });
+
+    test("is asked about again once a person has named the supplier", async () => {
+      const model = fakeModel({ "Parking Meir": unsure });
+      const first = await payment({
+        name: "Parking Meir 0425",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [first],
+        ask: model.ask,
+      });
+
+      const [parking] = await db
+        .insert(suppliers)
+        .values({ teamId: TEAM_USD_ID, name: "Parkeerbedrijf Antwerpen" })
+        .returning();
+      await setTransactionSupplier(db, {
+        teamId: TEAM_USD_ID,
+        transactionId: first.id,
+        supplierId: parking!.id,
+      });
+
+      const next = await payment({
+        name: "Parking Meir 0513",
+        counterpartyName: "Parkeerbedrijf Antwerpen",
+      });
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [next],
+        ask: model.ask,
+      });
+
+      expect(model.asked).toHaveLength(2);
+    });
+
+    test("an answer it could not keep as a rule is not remembered as no answer", async () => {
+      // The span is not the start of the text: linked as a guess, and the next
+      // payment is still asked, because the model did name someone.
+      const model = fakeModel({ Xerius: byText("Xerius", "Antwerpen") });
+      const first = await payment({
+        name: "Xerius Be2000 Antwerpen 0425",
+        counterpartyName: "Xerius Sv",
+      });
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [first],
+        ask: model.ask,
+      });
+      const next = await payment({
+        name: "Xerius Be2000 Antwerpen 0513",
+        counterpartyName: "Xerius Sv",
+      });
+      await recogniseSuppliers(db, {
+        teamId: TEAM_USD_ID,
+        transactions: [next],
+        ask: model.ask,
+      });
+
+      expect(model.asked).toHaveLength(2);
+    });
+  });
 });

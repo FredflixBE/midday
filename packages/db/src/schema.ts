@@ -536,6 +536,13 @@ export const transactions = pgTable(
     // Null means nothing has decided yet. `person` with no supplier means
     // somebody decided this payment has none.
     supplierLink: supplierLinkEnum("supplier_link"),
+    // When the model was asked who this payment went to and could not say
+    // (FF-1600). While the payment stays unlinked, its counterparty is not
+    // asked about again; a rule or a person linking it ends that.
+    supplierUnansweredAt: timestamp("supplier_unanswered_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
     ftsVector: tsvector("fts_vector")
       .notNull()
       .generatedAlwaysAs(
