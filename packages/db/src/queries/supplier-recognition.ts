@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { DatabaseOrTransaction } from "../client";
 import { supplierRules, suppliers, transactions } from "../schema";
 import { counterpartyKey } from "../utils/counterparty";
@@ -21,6 +21,8 @@ import {
  * 3. **The model**, for the rest, once per counterparty. It names the supplier
  *    and says which part of the transaction names it; that part becomes a rule,
  *    so the next payment from the same supplier is step 2.
+ *    It is shown the suppliers that already exist, so a second spelling of
+ *    one lands on it instead of becoming a duplicate (FF-1603).
  *
  * So the model's cost scales with new suppliers, not with transactions — about
  * 59 in the first year here and near zero a month after. If that stops being
@@ -53,8 +55,15 @@ export type SupplierAnswer = {
   span: string | null;
 };
 
+/**
+ * A supplier that already exists, shown to the model so it answers with that
+ * name rather than a second spelling of it (FF-1603).
+ */
+export type KnownSupplier = { name: string; aliases: string[] };
+
 export type AskSuppliers = (
   questions: SupplierQuestion[],
+  known: KnownSupplier[],
 ) => Promise<(SupplierAnswer | null | undefined)[]>;
 
 /** Below this the model's supplier is not used at all. */
@@ -67,6 +76,14 @@ export const SUPPLIER_CONFIDENCE_MIN = 0.6;
  * pathological batch from asking forever.
  */
 const MAX_ROUNDS = 3;
+
+/**
+ * How many existing suppliers the model is shown. About 60 today. Past the
+ * bound the ones paid least often are left out, and a new spelling of one of
+ * those becomes a duplicate again — which a merge folds back, keeping the
+ * spelling as an alias so it does not recur.
+ */
+export const KNOWN_SUPPLIERS_MAX = 300;
 
 export type RecognisableTransaction = {
   id: string;
@@ -125,6 +142,7 @@ export async function recogniseSuppliers(
   await applySupplierRules(db, { teamId, transactionIds: ids });
 
   const collective = await collectiveCounterparties(db, teamId);
+  const known = await knownSuppliers(db, teamId);
   const candidates = params.transactions.filter(
     (transaction) => transaction.amount < 0 && !transaction.internal,
   );
@@ -157,6 +175,7 @@ export async function recogniseSuppliers(
 
     const answers = await params.ask(
       groups.map((group) => toQuestion(group.transactions[0]!)),
+      known,
     );
 
     // One group at a time, re-reading what is still unlinked before each: a
@@ -189,7 +208,11 @@ export async function recogniseSuppliers(
         name: answer.supplier,
         source: "enrichment",
       });
-      if (created) result.created++;
+      if (created) {
+        result.created++;
+        // So a later round answers with it too.
+        known.push({ name: supplier.name, aliases: supplier.aliases });
+      }
 
       for (const rule of rulesFromAnswer(pending, answer)) {
         const inserted = await insertSupplierRuleIfAbsent(db, {
@@ -374,6 +397,29 @@ async function stillUnlinked(
     );
 
   return rows.map((row) => row.id);
+}
+
+/** The team's suppliers, the most often paid first, up to the bound. */
+async function knownSuppliers(
+  db: DatabaseOrTransaction,
+  teamId: string,
+): Promise<KnownSupplier[]> {
+  const payments = count(transactions.id);
+
+  return db
+    .select({ name: suppliers.name, aliases: suppliers.aliases })
+    .from(suppliers)
+    .leftJoin(
+      transactions,
+      and(
+        eq(transactions.supplierId, suppliers.id),
+        eq(transactions.teamId, teamId),
+      ),
+    )
+    .where(eq(suppliers.teamId, teamId))
+    .groupBy(suppliers.id)
+    .orderBy(desc(payments), asc(suppliers.name))
+    .limit(KNOWN_SUPPLIERS_MAX);
 }
 
 /** Counterparty names a rule says name nobody. */
