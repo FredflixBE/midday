@@ -251,6 +251,33 @@ export const booksStatusEnum = pgEnum("books_status", [
   "needs_attention",
 ]);
 
+/**
+ * How a transaction came to point at its supplier (FF-1555).
+ *
+ * - `rule`: a stored supplier rule matched it, and `supplier_rule_id` says
+ *   which. Recomputed whenever the rules change, so it always agrees with them.
+ * - `ai`: the model named the supplier but its answer could not be kept as a
+ *   rule, so this one row carries the guess on its own.
+ * - `person`: somebody chose it. Nothing automatic ever moves it again —
+ *   including to "no supplier", which a person can also choose.
+ */
+export const supplierLinkEnum = pgEnum("supplier_link", [
+  "rule",
+  "ai",
+  "person",
+]);
+
+/**
+ * Which part of a transaction a supplier rule reads (FF-1555), in precedence
+ * order: a machine-issued account number before the name the bank printed,
+ * and that before the free text.
+ */
+export const supplierRuleFieldEnum = pgEnum("supplier_rule_field", [
+  "counterparty_iban",
+  "counterparty_name",
+  "name",
+]);
+
 export const transactionStatusEnum = pgEnum("transactionStatus", [
   "posted",
   "pending",
@@ -500,6 +527,15 @@ export const transactions = pgTable(
     // Why the books could not be read for this one, when the status says so.
     // A code, not a sentence: the wording is the screen's to choose.
     booksStatusReason: text("books_status_reason"),
+    // Who was paid (FF-1555). Null until something recognises the supplier,
+    // and `supplier_link` says what did — see `supplierLinkEnum`.
+    supplierId: uuid("supplier_id"),
+    // The rule that matched, so a wrong supplier can be traced to the rule
+    // that produced it. Set only when `supplier_link` is `rule`.
+    supplierRuleId: uuid("supplier_rule_id"),
+    // Null means nothing has decided yet. `person` with no supplier means
+    // somebody decided this payment has none.
+    supplierLink: supplierLinkEnum("supplier_link"),
     ftsVector: tsvector("fts_vector")
       .notNull()
       .generatedAlwaysAs(
@@ -609,6 +645,17 @@ export const transactions = pgTable(
       ],
       name: "transactions_category_slug_team_id_fkey",
     }),
+    foreignKey({
+      columns: [table.supplierId],
+      foreignColumns: [suppliers.id],
+      name: "transactions_supplier_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.supplierRuleId],
+      foreignColumns: [supplierRules.id],
+      name: "transactions_supplier_rule_id_fkey",
+    }).onDelete("set null"),
+    index("transactions_supplier_id_idx").on(table.supplierId),
     unique("transactions_internal_id_key").on(table.internalId),
     pgPolicy("Transactions can be created by a member of the team", {
       as: "permissive",
@@ -1260,6 +1307,130 @@ export const customers = pgTable(
       name: "customers_team_id_fkey",
     }).onDelete("cascade"),
     pgPolicy("Customers can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/**
+ * Who the business pays (FF-1555, ADR-48).
+ *
+ * A separate table, not a kind of customer: `customers` is a CRM record built
+ * for selling, and the VAT office needs none of it. The two share the
+ * convention rather than the table — `name`, `vat_number`, `source`,
+ * `external_id` — so one identifier scheme covers both sides of the books.
+ *
+ * One row per legal counterparty, not per brand: KBC Bank, KBC Verzekeringen
+ * and KBC Leasing are three suppliers with a category each, which is what
+ * makes a category default mean anything.
+ *
+ * The supplier is Midday's own. An accounting system's contact id is one
+ * `external_id` on it, and disconnecting that system loses a lookup key and
+ * keeps every supplier.
+ */
+export const suppliers = pgTable(
+  "suppliers",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    teamId: uuid("team_id").notNull(),
+    name: text().notNull(),
+    vatNumber: text("vat_number"),
+    // Overrides the category's `can_have_supplier_invoice`. Null means the
+    // category decides, which is the usual case.
+    canHaveSupplierInvoice: boolean("can_have_supplier_invoice"),
+    // Where the row came from: `manual` for a person, `enrichment` for the
+    // model. An AI-created supplier stays recognisable as one.
+    source: text().default("manual").notNull(),
+    // The supplier's id in an accounting system, once something links it.
+    externalId: text("external_id"),
+    // Names of suppliers merged into this one. The model that produced
+    // `Xerius` beside `Xerius Sociaal Verzekeringsfonds VZW` will produce it
+    // again, and finding it here is what stops a merge being undone by the
+    // next enrichment run.
+    aliases: text().array().notNull().default(sql`'{}'::text[]`),
+  },
+  (table) => [
+    index("suppliers_team_id_idx").on(table.teamId),
+    // One supplier per name per team. This is what stops two enrichment runs
+    // racing to create the same supplier twice, and what makes renaming one
+    // supplier into another a merge rather than a duplicate.
+    uniqueIndex("suppliers_team_id_name_key").on(
+      table.teamId,
+      sql`lower(${table.name})`,
+    ),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "suppliers_team_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Suppliers can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/**
+ * How a transaction is recognised as a supplier's (FF-1555).
+ *
+ * The rule is the artefact, not the assignment: the model is asked once per
+ * new supplier, and what it answers is stored here, so every later payment is
+ * linked without asking again. A correction is a rule too, which is what makes
+ * it survive the next enrichment run.
+ *
+ * A rule reads one field. An IBAN and a counterparty name match exactly; the
+ * transaction name matches on a **leading span** — `xerius be2000 antwerpen`
+ * — never on a substring anywhere, because the card issuer's name sits in the
+ * boilerplate of every debit-card payment and "contains KBC" matches them all.
+ * Values are stored normalised (see `normaliseRuleValue`).
+ *
+ * A rule with no supplier says the text names nobody: `Diverse leveranciers
+ * Restaurant` is how the accountant files many restaurants together, and it
+ * must never become a company. Recognition skips such a match and looks at the
+ * next field.
+ */
+export const supplierRules = pgTable(
+  "supplier_rules",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    teamId: uuid("team_id").notNull(),
+    supplierId: uuid("supplier_id"),
+    field: supplierRuleFieldEnum().notNull(),
+    value: text().notNull(),
+    // `manual` or `enrichment`, as on `suppliers.source`.
+    source: text().default("manual").notNull(),
+  },
+  (table) => [
+    index("supplier_rules_supplier_id_idx").on(table.supplierId),
+    // One answer per text. Two rules that match the same text identically
+    // would leave the precedence to insertion order.
+    unique("supplier_rules_team_id_field_value_key").on(
+      table.teamId,
+      table.field,
+      table.value,
+    ),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "supplier_rules_team_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.supplierId],
+      foreignColumns: [suppliers.id],
+      name: "supplier_rules_supplier_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Supplier rules can be handled by members of the team", {
       as: "permissive",
       for: "all",
       to: ["public"],
@@ -3500,11 +3671,35 @@ export const transactionsRelations = relations(
       fields: [transactions.teamId],
       references: [transactionCategories.teamId],
     }),
+    supplier: one(suppliers, {
+      fields: [transactions.supplierId],
+      references: [suppliers.id],
+    }),
+    supplierRule: one(supplierRules, {
+      fields: [transactions.supplierRuleId],
+      references: [supplierRules.id],
+    }),
     transactionTags: many(transactionTags),
     transactionAttachments: many(transactionAttachments),
     inboxes: many(inbox),
   }),
 );
+
+export const suppliersRelations = relations(suppliers, ({ one, many }) => ({
+  team: one(teams, {
+    fields: [suppliers.teamId],
+    references: [teams.id],
+  }),
+  rules: many(supplierRules),
+  transactions: many(transactions),
+}));
+
+export const supplierRulesRelations = relations(supplierRules, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [supplierRules.supplierId],
+    references: [suppliers.id],
+  }),
+}));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   transactions: many(transactions),

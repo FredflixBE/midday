@@ -17,6 +17,7 @@ import {
   bankAccounts,
   type booksStatusEnum,
   inbox,
+  suppliers,
   transactionAttachments,
   transactionCategories,
   transactionMatchSuggestions,
@@ -231,8 +232,15 @@ export function isReversedSql(teamId: string): SQL<boolean> {
  * slug, nothing has ruled anything out, so it stays work. A join would drop it
  * silently — the same trap `IS DISTINCT FROM` was guarding against here before.
  *
- * This is the **only** place the flag is read. A supplier-level override
- * (FF-1555) belongs here too, as one more reason the answer can be no.
+ * This is the **only** place the flag is read.
+ *
+ * ## The supplier's override
+ *
+ * The category is the default and the supplier can overrule it, either way
+ * (FF-1555): a supplier whose payments land in a no-invoice category but who
+ * does send invoices, or the reverse. A supplier that leaves it empty — the
+ * usual case — defers to the category, and a payment with neither is still
+ * work, as before.
  *
  * Takes no `teamId`, unlike the two above: the category is matched to the
  * transaction's own team, which is stricter than any value a caller could pass
@@ -244,11 +252,17 @@ export function isExpenseSql(): SQL<boolean> {
   return sql<boolean>`(
     ${transactions.amount} < 0
     AND COALESCE(${transactions.internal}, false) = false
-    AND NOT EXISTS (
-      SELECT 1 FROM ${transactionCategories}
-      WHERE ${transactionCategories.teamId} = ${transactions.teamId}
-        AND ${transactionCategories.slug} = ${transactions.categorySlug}
-        AND ${transactionCategories.canHaveSupplierInvoice} = false
+    AND COALESCE(
+      (
+        SELECT ${suppliers.canHaveSupplierInvoice} FROM ${suppliers}
+        WHERE ${suppliers.id} = "transactions"."supplier_id"
+      ),
+      NOT EXISTS (
+        SELECT 1 FROM ${transactionCategories}
+        WHERE ${transactionCategories.teamId} = ${transactions.teamId}
+          AND ${transactionCategories.slug} = ${transactions.categorySlug}
+          AND ${transactionCategories.canHaveSupplierInvoice} = false
+      )
     )
   )`;
 }
@@ -308,10 +322,21 @@ export type MissingInvoice = {
 };
 
 export type MissingInvoiceGroup = {
-  /** The normalised counterparty, or null for the payments that name nobody. */
+  /**
+   * `supplier:<id>` for a supplier's payments, the normalised counterparty for
+   * payments no supplier is linked to yet, or null for the ones naming nobody.
+   */
   key: string | null;
-  /** The heading: the name as it was last written, or null for the no-name group. */
+  /**
+   * The heading: the supplier's name, else the counterparty as it was last
+   * written, or null for the no-name group.
+   */
   name: string | null;
+  /**
+   * The supplier the group is, or null when it is only a name on the payments
+   * — recognisable, but nothing has linked it to a supplier yet (FF-1555).
+   */
+  supplierId: string | null;
   count: number;
   /** How many of `count` have an invoice suggested and waiting on a yes. */
   readyToConfirm: number;
@@ -338,10 +363,12 @@ export type MissingInvoices = {
  *
  * 125 rows on the live books are 31 counterparties. Fetching four Cursor
  * invoices is one errand, not four, and a flat list of 125 is a wall rather than
- * a to-do list. The grouping is a **presentation affordance** — see
- * `counterpartyKey` — and never a stored supplier link. If two spellings of one
- * supplier land under separate headings, the cost is an odd heading, not a wrong
- * financial claim.
+ * a to-do list.
+ *
+ * A payment linked to a supplier is grouped by that supplier (FF-1555), so two
+ * spellings of one company are one errand. A payment with no supplier yet falls
+ * back to the name on it — see `counterpartyKey` — which is a presentation
+ * affordance and not a claim about who the supplier is: its group says so.
  *
  * The groups run alphabetically. Ordering them by size made a supplier's place
  * move every time a payment joined or left it, which at twenty suppliers is a
@@ -385,10 +412,13 @@ export async function getMissingInvoices(
       currency: transactions.currency,
       counterpartyName: transactions.counterpartyName,
       merchantName: transactions.merchantName,
+      supplierId: transactions.supplierId,
+      supplierName: suppliers.name,
       booksStatus: transactions.booksStatus,
       hasSuggestion: hasPendingSuggestionSql(teamId).as("hasSuggestion"),
     })
     .from(transactions)
+    .leftJoin(suppliers, eq(suppliers.id, transactions.supplierId))
     .where(
       and(
         eq(transactions.teamId, teamId),
@@ -405,10 +435,18 @@ export async function getMissingInvoices(
   const unnamed: MissingInvoice[] = [];
 
   for (const row of rows) {
-    const key = counterpartyKey(row);
+    const key = row.supplierId
+      ? `supplier:${row.supplierId}`
+      : counterpartyKey(row);
     // The names are what the grouping is made of; a row does not carry them on
     // to the screen, where the heading above it already says who was paid.
-    const { counterpartyName, merchantName, ...transaction } = row;
+    const {
+      counterpartyName,
+      merchantName,
+      supplierId,
+      supplierName,
+      ...transaction
+    } = row;
 
     if (!key) {
       unnamed.push(transaction);
@@ -428,7 +466,10 @@ export async function getMissingInvoices(
       // a supplier that has since been renamed reads as it does today. The same
       // first-non-blank rule `counterpartyKey` uses, so the heading is a name
       // from the party the key was built from.
-      name: counterpartyName?.trim() || merchantName?.trim() || null,
+      name:
+        supplierName ??
+        (counterpartyName?.trim() || merchantName?.trim() || null),
+      supplierId,
       count: 0,
       readyToConfirm: 0,
       totals: [],
@@ -455,6 +496,7 @@ export async function getMissingInvoices(
           withCountAndTotals({
             key: null,
             name: null,
+            supplierId: null,
             count: 0,
             readyToConfirm: 0,
             totals: [],

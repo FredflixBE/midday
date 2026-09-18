@@ -33,6 +33,7 @@ import { Note } from "./note";
 import { SelectCategory } from "./select-category";
 import { SelectTags } from "./select-tags";
 import { SuggestedMatch } from "./suggested-match";
+import { TransactionSupplier } from "./suppliers/transaction-supplier";
 import { TaxAmount } from "./tax-amount";
 import { TransactionAttachments } from "./transaction-attachments";
 import { TransactionBankAccount } from "./transaction-bank-account";
@@ -404,6 +405,8 @@ export function TransactionDetails() {
           )}
         </div>
       </div>
+
+      {data ? <TransactionSupplier transaction={data} /> : null}
 
       <div className="mt-6">
         <Label htmlFor="tags" className="mb-2 block">

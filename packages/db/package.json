@@ -35,6 +35,7 @@
     "./sql": "./src/sql.ts",
     "./utils/api-keys": "./src/utils/api-keys.ts",
     "./utils/counterparty": "./src/utils/counterparty.ts",
+    "./utils/supplier-rules": "./src/utils/supplier-rules.ts",
     "./utils/search-query": "./src/utils/search-query.ts",
     "./utils/health": "./src/utils/health.ts",
     "./utils/currency": "./src/utils/currency.ts",

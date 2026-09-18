@@ -8,13 +8,15 @@ import { type SQL, sql } from "drizzle-orm";
  * Exact match, so it merges repeats and not near-misses — `Xerius` and `Xerius
  * Sociaal Verzekeringsfonds Vz` are two counterparties here. That is a
  * deliberate limit, not an oversight: merging spellings needs a real supplier
- * identity, which is FF-1555. Until then, this is a **presentation and recall
- * affordance** and never a financial claim. An odd grouping heading costs
- * nothing; a wrong supplier link would.
+ * identity, which is the supplier link (FF-1555); this is what stands in for
+ * it on a payment nothing has linked yet. A **presentation affordance** and
+ * never a financial claim. An odd grouping heading costs nothing; a wrong
+ * supplier link would.
  *
- * One implementation, used by the categoriser's recall (FF-1554) and the
- * missing-invoices grouping (FF-1552). `getCategoriesByCounterparty` computes
- * the same expression in SQL, and the two have to agree.
+ * One implementation, used by the categoriser's grouping (FF-1554), supplier
+ * recognition's grouping and the missing-invoices fallback (FF-1552).
+ * `counterpartyKeySql` computes the same expression in SQL, and the two have to
+ * agree.
  */
 export function counterpartyKey(transaction: {
   counterpartyName: string | null;

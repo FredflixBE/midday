@@ -54,6 +54,14 @@ export function useInvalidateTransactionQueries() {
       queryKey: trpc.transactions.missingInvoices.queryKey(),
     });
 
+    // A payment's supplier changes the counts on the suppliers page (FF-1555).
+    queryClient.invalidateQueries({
+      queryKey: trpc.suppliers.list.queryKey(),
+    });
+    queryClient.invalidateQueries({
+      queryKey: trpc.suppliers.transactions.queryKey(),
+    });
+
     // Invalidate global search
     queryClient.invalidateQueries({
       queryKey: trpc.search.global.queryKey(),

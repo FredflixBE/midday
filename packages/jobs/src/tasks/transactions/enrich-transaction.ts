@@ -13,13 +13,16 @@ import {
   prepareTransactionData,
   prepareUpdateData,
   resolveKnownCategories,
+  settleWithoutModel,
 } from "@jobs/utils/enrichment-helpers";
 import { enrichmentSchema } from "@jobs/utils/enrichment-schema";
 import { processBatch } from "@jobs/utils/process-batch";
+import { askSuppliersWith } from "@jobs/utils/supplier-question";
 import {
   getTransactionsForEnrichment,
   markTransactionsAsEnriched,
   markTransactionsAsEnrichmentFailed,
+  recogniseSuppliers,
   setTransactionCategories,
   type UpdateTransactionEnrichmentParams,
   updateTransactionEnrichments,
@@ -28,6 +31,12 @@ import { schemaTask } from "@trigger.dev/sdk";
 import { generateObject } from "ai";
 
 const BATCH_SIZE = 50;
+
+// gemini-2.5-flash-lite was retired: Google returns "no longer available to
+// new users" and names this as its successor. It is also the right size for
+// the job — gemini-3-flash-preview handles the same batch correctly but takes
+// ~200s to 3.5-flash-lite's ~2s.
+const MODEL = "gemini-3.5-flash-lite";
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
@@ -77,12 +86,12 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
     });
 
     // Get transactions that need enrichment
-    const transactionsToEnrich = await getTransactionsForEnrichment(db, {
+    const eligible = await getTransactionsForEnrichment(db, {
       transactionIds,
       teamId,
     });
 
-    if (transactionsToEnrich.length === 0) {
+    if (eligible.length === 0) {
       this.logger.info("No transactions need enrichment", { teamId });
       return {
         enrichedCount: 0,
@@ -94,7 +103,45 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
     this.logger.info("Starting transaction enrichment", {
       teamId,
-      transactionCount: transactionsToEnrich.length,
+      transactionCount: eligible.length,
+    });
+
+    // Who was paid, before what it was for (FF-1555). Stored rules answer
+    // first; the model is asked only about payments none of them recognise,
+    // and its answer is kept as a rule so the same supplier is never asked
+    // about twice. A failure here leaves those payments with no supplier —
+    // visibly, on the row — and the run still categorises; it is reported as
+    // a failure at the end rather than swallowed.
+    let recognitionFailure: unknown = null;
+
+    try {
+      const recognition = await recogniseSuppliers(db, {
+        teamId,
+        transactions: eligible,
+        ask: askSuppliersWith(google(MODEL)),
+      });
+
+      this.logger.info("Suppliers recognised", {
+        teamId,
+        linked: recognition.suppliers.size,
+        of: eligible.length,
+        counterpartiesAsked: recognition.asked,
+        suppliersCreated: recognition.created,
+        guessedWithoutRule: recognition.guessed,
+      });
+    } catch (error) {
+      recognitionFailure = error;
+      this.logger.error("Supplier recognition failed", {
+        teamId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+
+    // Re-read, so every row carries the supplier recognition just wrote —
+    // including the ones written before a failure.
+    const recognised = await getTransactionsForEnrichment(db, {
+      transactionIds: eligible.map((transaction) => transaction.id),
+      teamId,
     });
 
     // What nothing needs to ask a model about: the bank's own ISO 20022 code,
@@ -103,17 +150,35 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
     // This is what stops one payroll agency being split across two categories.
     const known = await resolveKnownCategories(db, {
       teamId,
-      batch: transactionsToEnrich,
-    });
-
-    this.logger.info("Categories that need no model", {
-      teamId,
-      known: known.size,
-      of: transactionsToEnrich.length,
+      batch: recognised,
     });
 
     const totals: EnrichmentTotals = { enriched: 0, unchanged: 0, failed: 0 };
     const failures: BatchFailure[] = [];
+
+    // A payment from a supplier already known, whose category is decided or
+    // remembered, is finished here with no model call. This is what keeps the
+    // model's cost proportional to new suppliers rather than to payments.
+    const settled = settleWithoutModel(recognised, known);
+
+    if (settled.updates.length > 0) {
+      await updateTransactionEnrichments(db, settled.updates);
+      totals.enriched += settled.updates.length;
+    }
+    if (settled.unchanged.length > 0) {
+      await markTransactionsAsEnriched(db, settled.unchanged);
+      totals.unchanged += settled.unchanged.length;
+    }
+
+    const transactionsToEnrich = settled.toAsk;
+
+    this.logger.info("Categories that need no model", {
+      teamId,
+      known: known.size,
+      settledWithoutModel: settled.updates.length + settled.unchanged.length,
+      toAsk: transactionsToEnrich.length,
+      of: recognised.length,
+    });
 
     // Process in batches of 50
     await processBatch(
@@ -139,11 +204,7 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
         try {
           const { object } = await generateObject({
-            // gemini-2.5-flash-lite was retired: Google returns "no longer
-            // available to new users" and names this as its successor. It is
-            // also the right size for the job — gemini-3-flash-preview handles
-            // the same batch correctly but takes ~200s to 3.5-flash-lite's ~2s.
-            model: google("gemini-3.5-flash-lite"),
+            model: google(MODEL),
             prompt,
             output: "array",
             schema: enrichmentSchema,
@@ -344,12 +405,25 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
       // either. The counts go in the message because a failed run stores no
       // output.
       throw new Error(
-        `Enrichment failed for ${totals.failed} of ${transactionsToEnrich.length} transactions ` +
+        `Enrichment failed for ${totals.failed} of ${recognised.length} transactions ` +
           `in ${failures.length} of ${Math.ceil(transactionsToEnrich.length / BATCH_SIZE)} batches ` +
           `(${totals.enriched} enriched, ${totals.unchanged} unchanged). ` +
           `They are marked finished so the UI does not hang, and stay eligible ` +
           `for a replay. First failure: ${firstFailure.message}`,
         { cause: firstFailure.error },
+      );
+    }
+
+    if (recognitionFailure) {
+      // Categorisation finished; only the supplier half did not. Failing the
+      // run is what makes that visible where runs are watched. The payments
+      // it missed show "no supplier", and `bun run --cwd packages/jobs
+      // link-suppliers` recognises them later.
+      throw new Error(
+        `Supplier recognition failed for team ${teamId}; categorisation completed ` +
+          `(${totals.enriched} enriched, ${totals.unchanged} unchanged). ` +
+          `First failure: ${recognitionFailure instanceof Error ? recognitionFailure.message : "Unknown error"}`,
+        { cause: recognitionFailure },
       );
     }
 

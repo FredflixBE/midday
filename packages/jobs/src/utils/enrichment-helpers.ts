@@ -1,6 +1,6 @@
 import type { Database } from "@midday/db/client";
 import {
-  getCategoriesByCounterparty,
+  getCategoriesBySupplier,
   type TransactionForEnrichment,
   UNCATEGORIZED,
 } from "@midday/db/queries";
@@ -252,9 +252,10 @@ export function categoryFromBankTransactionCode(transaction: {
  * two categories over twelve payments. Asking once and applying the answer to
  * the whole group is what makes the same supplier get the same category.
  *
- * Matching is exact on the trimmed, lower-cased name, so it merges repeats and
+ * A payment linked to a supplier groups by that supplier, so two spellings of
+ * one company are one question (FF-1555). One nothing has linked yet falls back
+ * to an exact match on the trimmed, lower-cased name, which merges repeats and
  * not near-misses: `Xerius` and `Xerius Sociaal Verzekeringsfonds` stay apart.
- * Merging those needs a real supplier identity, which is FF-1555.
  *
  * A payment naming nobody is its own group. 26 of 125 rows on the live books
  * have no counterparty, and pooling them would apply one supplier's answer to
@@ -275,7 +276,11 @@ export function groupForEnrichment(
   for (const transaction of batch) {
     const named = counterpartyKey(transaction);
     // Unnamed rows key on their id, which nothing else can collide with.
-    const key = named ? `named:${named}` : `alone:${transaction.id}`;
+    const key = transaction.supplierId
+      ? `supplier:${transaction.supplierId}`
+      : named
+        ? `named:${named}`
+        : `alone:${transaction.id}`;
 
     const existing = groups.get(key);
 
@@ -293,16 +298,19 @@ export function groupForEnrichment(
  * The categories nothing needs to ask a model about.
  *
  * Two sources, in order. The bank's own ISO 20022 code, where it identifies a
- * category outright. Then what this team has already decided for that
- * counterparty, which is what keeps one supplier in one category and makes a
- * human's correction carry forward.
+ * category outright. Then the supplier's — its default, or what its payments
+ * have consistently had (`getCategoriesBySupplier`) — which is what keeps one
+ * supplier in one category and makes a human's correction carry forward.
+ *
+ * Keyed on the supplier rather than on the name the bank printed (FF-1555):
+ * five spellings of one company used to be five memories.
  *
  * Returns transaction id → category, and says nothing about the rows it cannot
  * answer for. Those are the model's to guess at.
  */
 export function knownCategories(
   batch: TransactionForEnrichment[],
-  fromCounterparty: Map<string, string>,
+  fromSupplier: Map<string, string>,
 ): Map<string, string> {
   const known = new Map<string, string>();
 
@@ -318,8 +326,9 @@ export function knownCategories(
       continue;
     }
 
-    const named = counterpartyKey(transaction);
-    const remembered = named ? fromCounterparty.get(named) : undefined;
+    const remembered = transaction.supplierId
+      ? fromSupplier.get(transaction.supplierId)
+      : undefined;
 
     if (remembered) {
       known.set(transaction.id, remembered);
@@ -329,11 +338,15 @@ export function knownCategories(
   return known;
 }
 
-/** The counterparty names a batch would want a remembered category for. */
-export function counterpartyNames(batch: TransactionForEnrichment[]): string[] {
-  return batch
-    .map((transaction) => counterpartyKey(transaction))
-    .filter((name): name is string => name !== null);
+/** The suppliers a batch would want a remembered category for. */
+export function supplierIdsOf(batch: TransactionForEnrichment[]): string[] {
+  return [
+    ...new Set(
+      batch
+        .map((transaction) => transaction.supplierId)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
 }
 
 /**
@@ -344,9 +357,9 @@ export async function resolveKnownCategories(
   db: Database,
   params: { teamId: string; batch: TransactionForEnrichment[] },
 ): Promise<Map<string, string>> {
-  const remembered = await getCategoriesByCounterparty(db, {
+  const remembered = await getCategoriesBySupplier(db, {
     teamId: params.teamId,
-    names: counterpartyNames(params.batch),
+    supplierIds: supplierIdsOf(params.batch),
   });
 
   return knownCategories(params.batch, remembered);
@@ -407,4 +420,60 @@ export function prepareUpdateData(
   }
 
   return updateData;
+}
+
+/**
+ * What a run can finish without the model: payments whose supplier is known
+ * and whose category is either already decided or remembered for that
+ * supplier (FF-1555).
+ *
+ * This is what makes the model's cost scale with new suppliers rather than
+ * with transactions. A payment from a supplier the team has paid before is
+ * recognised by a rule and categorised from memory, and the model is asked
+ * nothing about it. Its merchant name, where it has none, is the supplier's
+ * name — the same legal-entity name the model would have been asked for.
+ */
+export function settleWithoutModel(
+  batch: TransactionForEnrichment[],
+  known: Map<string, string>,
+): {
+  updates: { transactionId: string; data: UpdateData }[];
+  unchanged: string[];
+  toAsk: TransactionForEnrichment[];
+} {
+  const updates: { transactionId: string; data: UpdateData }[] = [];
+  const unchanged: string[] = [];
+  const toAsk: TransactionForEnrichment[] = [];
+
+  for (const transaction of batch) {
+    const needsCategory =
+      isUnanswered(transaction.categorySlug) && transaction.amount <= 0;
+    const knownCategory = known.get(transaction.id);
+
+    if (
+      !transaction.supplierId ||
+      !transaction.supplierName ||
+      (needsCategory && !(knownCategory && isValidCategory(knownCategory)))
+    ) {
+      toAsk.push(transaction);
+      continue;
+    }
+
+    const data: UpdateData = {};
+
+    if (!transaction.merchantName) {
+      data.merchantName = transaction.supplierName;
+    }
+    if (needsCategory && knownCategory) {
+      data.categorySlug = knownCategory;
+    }
+
+    if (data.merchantName || data.categorySlug) {
+      updates.push({ transactionId: transaction.id, data });
+    } else {
+      unchanged.push(transaction.id);
+    }
+  }
+
+  return { updates, unchanged, toAsk };
 }
