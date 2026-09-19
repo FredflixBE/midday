@@ -19,6 +19,7 @@ import { useQueryState } from "nuqs";
 import { useDeferredValue } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
+import { DownloadQuotePdf } from "./download-quote-pdf";
 import { MODE_LABELS } from "./editor/fields";
 import {
   QUOTE_FILTERS,
@@ -83,6 +84,7 @@ export function QuotesList() {
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Sent</TableHead>
               <TableHead>Valid until</TableHead>
+              <TableHead className="w-[52px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -114,6 +116,15 @@ export function QuotesList() {
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   {date(row.held?.validUntil ?? row.version.validUntil)}
+                </TableCell>
+                {/* The version the number names, like the editor opens on. */}
+                <TableCell className="py-0">
+                  <DownloadQuotePdf
+                    compact
+                    versionId={row.version.id}
+                    quoteNumber={row.quoteNumber}
+                    version={row.version.version}
+                  />
                 </TableCell>
               </TableRow>
             ))}
