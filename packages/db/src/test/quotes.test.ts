@@ -361,7 +361,7 @@ describe.skipIf(SKIP)("quotes", () => {
         teamId: TEAM_USD_ID,
         versionId: draft.id,
         sentTo: "customer@example.com",
-        pricing: { frozen: true },
+        pricing: { scenarios: [] },
       });
       return quote.id;
     }
@@ -373,7 +373,7 @@ describe.skipIf(SKIP)("quotes", () => {
       expect(quote?.versions[0]).toMatchObject({
         status: "sent",
         sentTo: "customer@example.com",
-        pricing: { frozen: true },
+        pricing: { scenarios: [] },
       });
       expect(quote?.versions[0]?.sentAt).not.toBeNull();
     });
