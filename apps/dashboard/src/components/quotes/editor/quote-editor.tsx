@@ -186,13 +186,18 @@ function VersionEditor({
             headerLocked={version.version > 1}
             disabled={!editable}
           />
+        </fieldset>
 
-          <QuoteBlocks
-            content={draft.content}
-            change={change}
-            editable={editable}
-          />
+        {/* Outside the fieldset: a sent version's text is still read, and a
+            block still expands to be read full screen (FF-1624). The blocks
+            turn every control of their own off on a sent version. */}
+        <QuoteBlocks
+          content={draft.content}
+          change={change}
+          editable={editable}
+        />
 
+        <fieldset disabled={!editable} className="min-w-0 space-y-10">
           <QuoteRates
             content={draft.content}
             products={products}
