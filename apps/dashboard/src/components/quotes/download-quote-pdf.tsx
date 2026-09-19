@@ -1,6 +1,6 @@
 "use client";
 
-import { formatQuoteVersion } from "@midday/quote";
+import { quotePdfFilename } from "@midday/quote";
 import { Button } from "@midday/ui/button";
 import { Download } from "lucide-react";
 import { useState } from "react";
@@ -43,11 +43,10 @@ export function DownloadQuotePdf({
     setBusy(true);
     try {
       if (saved && !(await saved())) return;
-      const name = formatQuoteVersion(quoteNumber, version).replace(
-        /\s+/g,
-        "-",
+      await downloadFile(
+        quotePdfUrl(versionId, user.fileKey),
+        quotePdfFilename(quoteNumber, version),
       );
-      await downloadFile(quotePdfUrl(versionId, user.fileKey), `${name}.pdf`);
     } finally {
       setBusy(false);
     }

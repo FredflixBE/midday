@@ -5,11 +5,12 @@ import { Document, Image, Page, Text, View } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/types";
 import type { ReactNode } from "react";
 import type { EditorDoc } from "../content";
-import type {
-  ComparisonView,
-  QuoteDocument,
-  ScenarioRow,
-  ScenarioView,
+import {
+  type ComparisonView,
+  type QuoteDocument,
+  type ScenarioRow,
+  type ScenarioView,
+  scenarioParts,
 } from "./document";
 import { fill } from "./labels";
 
@@ -248,17 +249,11 @@ function Scenario({
   doc: QuoteDocument;
 }) {
   const { labels } = doc;
-  // The heading keeps its first line with it, and the last line stays with
-  // the totals, so neither is left alone at the foot of a page.
-  const rows = scenario.rows;
-  const lastIndex = rows.length - 1;
-  const headEnd = Math.min(
-    rows.findIndex((row) => row.type === "item") + 1 || rows.length,
-    Math.max(lastIndex, 0),
-  );
-  const head = rows.slice(0, headEnd);
-  const middle = rows.slice(headEnd, lastIndex);
-  const last = rows[lastIndex];
+  const { head, middle, tail, together } = scenarioParts(scenario.rows);
+  const rows = (list: ScenarioRow[], offset: number) =>
+    list.map((row, index) => (
+      <Row key={(offset + index).toString()} row={row} oneOff={labels.oneOff} />
+    ));
 
   return (
     <View style={{ marginBottom: 24 }}>
@@ -297,23 +292,18 @@ function Scenario({
             borderBottomColor: "#000",
           }}
         />
-        {head.map((row, index) => (
-          <Row key={index.toString()} row={row} oneOff={labels.oneOff} />
-        ))}
+        {rows(head, 0)}
+        {together ? <Totals scenario={scenario} /> : null}
       </View>
 
-      {middle.map((row, index) => (
-        <Row
-          key={(headEnd + index).toString()}
-          row={row}
-          oneOff={labels.oneOff}
-        />
-      ))}
+      {rows(middle, head.length)}
 
-      <View wrap={false}>
-        {last ? <Row row={last} oneOff={labels.oneOff} /> : null}
-        <Totals scenario={scenario} />
-      </View>
+      {together ? null : (
+        <View wrap={false}>
+          {rows(tail, head.length + middle.length)}
+          <Totals scenario={scenario} />
+        </View>
+      )}
 
       <Listing
         title={labels.byProduct}
@@ -427,6 +417,15 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
           <View style={{ flex: 1, marginRight: 10 }}>
             <Text style={{ ...small, marginBottom: 2 }}>{labels.from}</Text>
             <Rich doc={doc.fromDetails} />
+            {/* The bank account belongs with the sender's legal details. */}
+            {doc.paymentDetails ? (
+              <View style={{ marginTop: 6 }}>
+                <Text style={{ ...small, marginBottom: 2 }}>
+                  {labels.paymentDetails}
+                </Text>
+                <Rich doc={doc.paymentDetails} />
+              </View>
+            ) : null}
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={{ ...small, marginBottom: 2 }}>{labels.to}</Text>
@@ -474,15 +473,6 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
         )}
 
         {hasPricing ? null : <Notes doc={doc} />}
-
-        {doc.paymentDetails ? (
-          <View wrap={false} style={{ marginTop: 8 }}>
-            <Text style={{ ...small, marginBottom: 2 }}>
-              {labels.paymentDetails}
-            </Text>
-            <Rich doc={doc.paymentDetails} />
-          </View>
-        ) : null}
 
         <View
           fixed

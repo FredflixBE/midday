@@ -264,6 +264,45 @@ function conditions(recurrence: Recurrence, labels: QuoteLabels) {
   return `${parts.join(", ")}.`;
 }
 
+const nonZero = (value: Amount) => value.amount > 0 || (value.max ?? 0) > 0;
+
+function sectionsWithItems(scenario: Scenario) {
+  let count = 0;
+  let open = false;
+  for (const line of scenario.lines) {
+    if (line.type === "section") {
+      if (open) count++;
+      open = false;
+    } else if (line.type === "item" && !line.optional) {
+      open = true;
+    }
+  }
+  return open ? count + 1 : count;
+}
+
+/**
+ * A scenario's rows in three runs for the page: up to its first line, which
+ * stays with the heading; from its last line on, which stays with the
+ * totals; and what lies between, free to break. With one line, all of it
+ * stays together.
+ */
+export function scenarioParts(rows: ScenarioRow[]) {
+  const first = rows.findIndex((r) => r.type === "item");
+  let last = -1;
+  rows.forEach((r, index) => {
+    if (r.type === "item") last = index;
+  });
+  if (first === -1 || first === last) {
+    return { head: rows, middle: [], tail: [], together: true };
+  }
+  return {
+    head: rows.slice(0, first + 1),
+    middle: rows.slice(first + 1, last),
+    tail: rows.slice(last),
+    together: false,
+  };
+}
+
 function scenarioView(
   scenario: Scenario,
   priced: ScenarioPricing,
@@ -281,9 +320,10 @@ function scenarioView(
     scenario.lines.flatMap((l) => (l.type === "item" ? [[l.id, l]] : [])),
   ) as Map<string, ItemLine>;
 
-  // Subtotals only say something when there is more than one section.
+  // Subtotals only say something when more than one section has lines to
+  // add up; a section that is empty, or only optional, does not count.
   const sections = new Map(priced.sections.map((s) => [s.lineId, s]));
-  const showSubtotals = priced.sections.length > 1;
+  const showSubtotals = sectionsWithItems(scenario) > 1;
 
   const rows: ScenarioRow[] = [];
   let open = sections.get(null);
@@ -295,7 +335,7 @@ function scenarioView(
       label: labels.subtotal,
       amount: format.money(open.amount),
     });
-    if (open.oneOff.amount > 0 || (open.oneOff.max ?? 0) > 0) {
+    if (nonZero(open.oneOff)) {
       rows.push({
         type: "subtotal",
         label: `${labels.subtotal}, ${labels.oneOff.toLowerCase()}`,
@@ -338,7 +378,7 @@ function scenarioView(
     priced.products.length > 1
       ? priced.products.flatMap((p) => {
           const out: ScenarioView["products"] = [];
-          if (p.hours.amount > 0 || (p.hours.max ?? 0) > 0) {
+          if (nonZero(p.hours)) {
             out.push({
               name: name(p.productId),
               quantity: format.quantity(p.hours),
@@ -346,7 +386,7 @@ function scenarioView(
               amount: format.money(p.amount),
             });
           }
-          if (p.oneOffHours.amount > 0 || (p.oneOffHours.max ?? 0) > 0) {
+          if (nonZero(p.oneOffHours)) {
             out.push({
               name: `${name(p.productId)}, ${labels.oneOff.toLowerCase()}`,
               quantity: format.quantity(p.oneOffHours),
@@ -397,7 +437,7 @@ function scenarioView(
         strong: true,
       });
     }
-    if (t.oneOff.amount > 0 || (t.oneOff.max ?? 0) > 0) {
+    if (nonZero(t.oneOff)) {
       totals.push({
         label: labels.oneOff,
         value: format.money(t.oneOff),
@@ -488,6 +528,22 @@ function comparisonView(
           : "–",
       ),
     });
+    // What is charged once is never added to what recurs, so it has a row.
+    if (
+      scenarios.some(
+        ({ priced }) =>
+          priced.totals.kind === "recurring" && nonZero(priced.totals.oneOff),
+      )
+    ) {
+      rows.push({
+        label: labels.oneOff,
+        values: each(({ priced }) =>
+          priced.totals.kind === "recurring" && nonZero(priced.totals.oneOff)
+            ? format.money(priced.totals.oneOff)
+            : "–",
+        ),
+      });
+    }
   } else {
     rows.push({
       label: labels.total,

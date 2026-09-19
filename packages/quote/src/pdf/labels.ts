@@ -7,7 +7,6 @@
 export const QUOTE_LABELS = {
   en: {
     quote: "Quote",
-    version: "version {version}",
     issueDate: "Date",
     validUntil: "Valid until",
     from: "From",
@@ -51,7 +50,6 @@ export const QUOTE_LABELS = {
   },
   nl: {
     quote: "Offerte",
-    version: "versie {version}",
     issueDate: "Datum",
     validUntil: "Geldig tot",
     from: "Van",
