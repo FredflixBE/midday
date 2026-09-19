@@ -20,7 +20,11 @@ import {
   countMissingInvoices,
   getMissingInvoices,
 } from "../queries/invoice-status";
-import { createSupplier, setTransactionSupplier } from "../queries/suppliers";
+import {
+  createSupplier,
+  findOrCreateSupplier,
+  setTransactionSupplier,
+} from "../queries/suppliers";
 import { getTransactions } from "../queries/transactions";
 import {
   inbox,
@@ -60,6 +64,8 @@ async function makeTransaction(
     counterpartyName?: string | null;
     merchantName?: string | null;
     bankAccountId?: string;
+    /** Linked to the supplier of this name, created if there is none. */
+    supplier?: string;
   },
 ) {
   await db.insert(transactions).values({
@@ -79,6 +85,19 @@ async function makeTransaction(
     counterpartyName: overrides.counterpartyName ?? null,
     merchantName: overrides.merchantName ?? null,
   });
+
+  if (overrides.supplier) {
+    const { supplier } = await findOrCreateSupplier(db, {
+      teamId: TEAM_USD_ID,
+      name: overrides.supplier,
+      source: "manual",
+    });
+    await setTransactionSupplier(db, {
+      teamId: TEAM_USD_ID,
+      transactionId: overrides.id,
+      supplierId: supplier.id,
+    });
+  }
 }
 
 /** A document in the vault, attached to a transaction. */
@@ -415,31 +434,31 @@ describe.skipIf(SKIP)("invoice status", () => {
       expect(
         groups.map((group) => [group.name, group.supplierId, group.count]),
       ).toEqual([
-        // Not linked yet: still grouped by its name, and says it has no supplier.
-        ["Cursor", null, 1],
         ["Xerius Sociaal Verzekeringsfonds VZW", xerius.id, 2],
+        // Not linked: in the one group of payments with no supplier.
+        [null, null, 1],
       ]);
     });
   });
 
   describe("the missing invoices, grouped by who was paid", () => {
     test("one supplier is one group, however many payments it has", async () => {
-      // 125 rows on the live books collapse to 31 counterparties. That
-      // collapsing is the whole reason this page is legible.
+      // 125 rows on the live books collapse to 31 suppliers. That collapsing
+      // is the whole reason this page is legible.
       await makeTransaction(db, {
         id: T.nothing,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
       await makeTransaction(db, {
         id: T.attached,
         name: "Cursor",
-        counterpartyName: "cursor ",
+        supplier: "cursor",
       });
       await makeTransaction(db, {
         id: T.suggested,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
       });
 
       const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
@@ -453,12 +472,12 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
       await makeTransaction(db, {
         id: T.suggested,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
       });
 
       const { groups, count } = await getMissingInvoices(db, {
@@ -472,42 +491,34 @@ describe.skipIf(SKIP)("invoice status", () => {
       );
     });
 
-    test("a blank counterparty falls through to the merchant name", async () => {
-      // `merchant_name` covers 279 of 288 expenses on the live books. A
-      // counterparty of "  " must not hide it, or those payments read as naming
-      // nobody and land in the wrong group.
-      await makeTransaction(db, {
-        id: T.nothing,
-        name: "Adobe",
-        counterpartyName: "   ",
-        merchantName: "Adobe Inc",
-      });
-
-      const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
-
-      expect(groups[0]?.name).toBe("Adobe Inc");
-      expect(groups[0]?.key).toBe("adobe inc");
-    });
-
-    test("whatever names nobody goes in its own group, at the end", async () => {
-      // 26 of the 125 have no counterparty. The rule is that the AI may be
-      // wrong as long as a person can see it, so these are visible rather than
-      // quietly dropped or scattered.
+    test("every payment with no supplier is in one group at the end, whatever name it carries", async () => {
+      // Once history has suppliers, what is left without one is few enough to
+      // read as one group (FF-1602). A collective name such as "Diverse
+      // leveranciers Restaurant" is not a supplier and is no longer a heading.
       await makeTransaction(db, {
         id: T.nothing,
         name: "Unknown payment",
         counterpartyName: null,
       });
       await makeTransaction(db, {
+        id: T.attached,
+        name: "Le Quai Son Antwerpen",
+        counterpartyName: "Diverse leveranciers Restaurant",
+      });
+      await makeTransaction(db, {
         id: T.suggested,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
       });
 
       const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
 
-      expect(groups.at(-1)?.name).toBeNull();
-      expect(groups.at(-1)?.count).toBe(1);
+      expect(
+        groups.map((group) => [group.key, group.name, group.count]),
+      ).toEqual([
+        [expect.stringMatching(/^supplier:/), "Adobe", 1],
+        [null, null, 2],
+      ]);
     });
 
     test("a payment that cannot have an invoice is not here at all", async () => {
@@ -531,12 +542,12 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
       });
       await makeTransaction(db, {
         id: T.attached,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
       });
 
       expect(
@@ -557,7 +568,7 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
         status: "completed",
       });
 
@@ -572,13 +583,13 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
         booksStatus: "invoice_missing",
       });
       await makeTransaction(db, {
         id: T.suggested,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
 
       const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });
@@ -591,13 +602,13 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
         amount: -100,
       });
       await makeTransaction(db, {
         id: T.attached,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
         amount: -50,
       });
 
@@ -612,7 +623,7 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.suggested,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
       await suggestMatch(
         db,
@@ -635,19 +646,19 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
         date: "2026-07-30",
       });
       await makeTransaction(db, {
         id: T.suggested,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
         date: "2026-03-30",
       });
       await makeTransaction(db, {
         id: T.attached,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
         date: "2026-02-28",
       });
       await suggestMatch(
@@ -671,12 +682,12 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
       });
       await makeTransaction(db, {
         id: T.suggested,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
       await suggestMatch(
         db,
@@ -701,7 +712,7 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.attached,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
       await suggestMatch(
         db,
@@ -721,27 +732,27 @@ describe.skipIf(SKIP)("invoice status", () => {
       await makeTransaction(db, {
         id: T.nothing,
         name: "slack",
-        counterpartyName: "slack",
+        supplier: "slack",
       });
       await makeTransaction(db, {
         id: T.suggested,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
       await makeTransaction(db, {
         id: T.attached,
         name: "Cursor",
-        counterpartyName: "Cursor",
+        supplier: "Cursor",
       });
       await makeTransaction(db, {
         id: T.completed,
         name: "Adobe",
-        counterpartyName: "Adobe",
+        supplier: "Adobe",
       });
       await makeTransaction(db, {
         id: T.settled,
         name: "Zapier",
-        counterpartyName: "Zapier",
+        supplier: "Zapier",
       });
 
       const { groups } = await getMissingInvoices(db, { teamId: TEAM_USD_ID });

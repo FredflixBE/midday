@@ -40,7 +40,7 @@ type Group = MissingInvoices["groups"][number];
  */
 function Heading({ count, readyToConfirm, groups }: MissingInvoices) {
   const suppliers = groups.filter((group) => group.key !== null).length;
-  const hasUnnamed = groups.some((group) => group.key === null);
+  const hasNoSupplier = groups.some((group) => group.key === null);
 
   return (
     <div className="border-b border-border pb-4">
@@ -53,7 +53,7 @@ function Heading({ count, readyToConfirm, groups }: MissingInvoices) {
           ? "Every payment that needs an invoice has one."
           : `${count} ${count === 1 ? "payment" : "payments"} across ${suppliers} ${
               suppliers === 1 ? "supplier" : "suppliers"
-            }${hasUnnamed ? ", plus the ones that name nobody" : ""}.`}
+            }${hasNoSupplier ? ", plus the ones with no supplier" : ""}.`}
       </p>
       {readyToConfirm > 0 ? (
         <p className="mt-1 text-sm">
@@ -179,7 +179,7 @@ function GroupCard({ group }: { group: Group }) {
       <div className="flex items-center justify-between gap-4 px-4 py-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">
-            {group.name ?? "No supplier on the payment"}
+            {group.name ?? "No supplier"}
           </div>
           <div className="mt-0.5 text-xs text-[#878787]">
             {group.count} {group.count === 1 ? "payment" : "payments"}
@@ -190,8 +190,9 @@ function GroupCard({ group }: { group: Group }) {
           </div>
         </div>
 
-        {/* One errand per supplier, not per payment. */}
-        {asksFirst ? (
+        {/* One errand per supplier, not per payment. The payments with no
+            supplier are many parties, so there is nothing to mark at once. */}
+        {group.supplierId === null ? null : asksFirst ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" disabled={update.isPending}>
@@ -204,11 +205,9 @@ function GroupCard({ group }: { group: Group }) {
                   Mark {group.count} payments as needing no invoice?
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Every payment under{" "}
-                  {group.name ?? "payments with no supplier"} leaves this list.
-                  Nothing is deleted and your reports do not change — you are
-                  saying these will never have a supplier invoice. You can put
-                  them back.
+                  Every payment under {group.name} leaves this list. Nothing is
+                  deleted and your reports do not change — you are saying these
+                  will never have a supplier invoice. You can put them back.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
