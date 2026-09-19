@@ -1,18 +1,17 @@
 "use client";
 
 import type { Editor } from "@tiptap/react";
-import {
-  Bold,
-  Heading1,
-  Heading2,
-  Heading3,
-  Italic,
-  List,
-  ListOrdered,
-  Strikethrough,
-  Underline,
-} from "lucide-react";
+import { Heading1, Heading2, Heading3 } from "lucide-react";
 import { useState } from "react";
+import {
+  MdOutlineFormatBold,
+  MdOutlineFormatItalic,
+  MdOutlineFormatListBulleted,
+  MdOutlineFormatListNumbered,
+  MdOutlineFormatStrikethrough,
+  MdOutlineFormatUnderlined,
+} from "react-icons/md";
+import { Separator } from "../../../separator";
 import { BubbleMenuItem } from "../bubble-menu/bubble-item";
 import { LinkItem } from "../bubble-menu/link-item";
 
@@ -41,14 +40,14 @@ export function Toolbar({ editor }: { editor: Editor }) {
         );
       })}
 
-      <Separator />
+      <Divider />
 
       <BubbleMenuItem
         editor={editor}
         action={() => editor.chain().focus().toggleBulletList().run()}
         isActive={editor.isActive("bulletList")}
       >
-        <List className="size-4" />
+        <MdOutlineFormatListBulleted className="size-4" />
         <span className="sr-only">Bullet list</span>
       </BubbleMenuItem>
 
@@ -57,18 +56,18 @@ export function Toolbar({ editor }: { editor: Editor }) {
         action={() => editor.chain().focus().toggleOrderedList().run()}
         isActive={editor.isActive("orderedList")}
       >
-        <ListOrdered className="size-4" />
+        <MdOutlineFormatListNumbered className="size-4" />
         <span className="sr-only">Numbered list</span>
       </BubbleMenuItem>
 
-      <Separator />
+      <Divider />
 
       <BubbleMenuItem
         editor={editor}
         action={() => editor.chain().focus().toggleBold().run()}
         isActive={editor.isActive("bold")}
       >
-        <Bold className="size-4" />
+        <MdOutlineFormatBold className="size-4" />
         <span className="sr-only">Bold</span>
       </BubbleMenuItem>
 
@@ -77,7 +76,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
         action={() => editor.chain().focus().toggleItalic().run()}
         isActive={editor.isActive("italic")}
       >
-        <Italic className="size-4" />
+        <MdOutlineFormatItalic className="size-4" />
         <span className="sr-only">Italic</span>
       </BubbleMenuItem>
 
@@ -86,7 +85,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
         action={() => editor.chain().focus().toggleUnderline().run()}
         isActive={editor.isActive("underline")}
       >
-        <Underline className="size-4" />
+        <MdOutlineFormatUnderlined className="size-4" />
         <span className="sr-only">Underline</span>
       </BubbleMenuItem>
 
@@ -95,17 +94,17 @@ export function Toolbar({ editor }: { editor: Editor }) {
         action={() => editor.chain().focus().toggleStrike().run()}
         isActive={editor.isActive("strike")}
       >
-        <Strikethrough className="size-4" />
+        <MdOutlineFormatStrikethrough className="size-4" />
         <span className="sr-only">Strike</span>
       </BubbleMenuItem>
 
-      <Separator />
+      <Divider />
 
       <LinkItem editor={editor} open={openLink} setOpen={setOpenLink} />
     </div>
   );
 }
 
-function Separator() {
-  return <div className="mx-1 h-4 w-px bg-border" />;
+function Divider() {
+  return <Separator orientation="vertical" className="mx-1 h-4" />;
 }

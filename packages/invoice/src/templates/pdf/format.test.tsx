@@ -249,7 +249,7 @@ describe("formatEditorContent", () => {
     );
   });
 
-  test("underlines text the toolbar underlined", () => {
+  test("underlines text carrying the underline mark", () => {
     const doc = {
       type: "doc",
       content: [
