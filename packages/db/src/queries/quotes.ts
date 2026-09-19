@@ -14,6 +14,10 @@ import {
   quoteHeadline,
   quoteNumberSequence,
 } from "@midday/quote";
+import type {
+  QuoteLanguage as PdfLanguage,
+  QuotePdfInput,
+} from "@midday/quote/pdf";
 import { and, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
@@ -564,6 +568,87 @@ export async function markQuoteVersionSent(
   });
 
   return quoteId ? getQuote(db, { id: quoteId, teamId: params.teamId }) : null;
+}
+
+/**
+ * What the PDF of a version is made from (FF-1613): the version as it stands,
+ * priced from the pricing frozen when it was sent, or at today's rates while
+ * a draft (and for a version sent before pricing was frozen). Around it: the
+ * product names, the countries that decide the VAT note, the team's labels,
+ * and the logo and payment details of the default invoice template. Null
+ * when the version is not the team's.
+ */
+export async function getQuotePdfInput(
+  db: DatabaseOrTransaction,
+  params: { teamId: string; versionId: string },
+): Promise<QuotePdfInput | null> {
+  const [row] = await db
+    .select({ version: quoteVersions, quote: quotes })
+    .from(quoteVersions)
+    .innerJoin(quotes, eq(quotes.id, quoteVersions.quoteId))
+    .where(
+      and(
+        eq(quoteVersions.id, params.versionId),
+        eq(quoteVersions.teamId, params.teamId),
+      ),
+    );
+  if (!row) return null;
+  const { quote, version } = row;
+  const content = version.content as QuoteContent;
+
+  const pricing =
+    (version.pricing as PricingResult | null) ??
+    priceVersion(
+      content,
+      (await ratesForTeam(db, params.teamId))(quote.customerId),
+    );
+
+  const products = await db
+    .select({ id: invoiceProducts.id, name: invoiceProducts.name })
+    .from(invoiceProducts)
+    .where(eq(invoiceProducts.teamId, params.teamId));
+  const [customer] = quote.customerId
+    ? await db
+        .select({ countryCode: customers.countryCode })
+        .from(customers)
+        .where(eq(customers.id, quote.customerId))
+    : [];
+  const [team] = await db
+    .select({ countryCode: teams.countryCode })
+    .from(teams)
+    .where(eq(teams.id, params.teamId));
+  const [template] = await db
+    .select({
+      logoUrl: invoiceTemplates.logoUrl,
+      paymentDetails: invoiceTemplates.paymentDetails,
+    })
+    .from(invoiceTemplates)
+    .where(eq(invoiceTemplates.teamId, params.teamId))
+    .orderBy(desc(invoiceTemplates.isDefault), invoiceTemplates.createdAt)
+    .limit(1);
+  const settings = await getQuoteSettings(db, params.teamId);
+
+  return {
+    quoteNumber: quote.quoteNumber,
+    title: quote.title,
+    kind: quote.kind,
+    language: quote.language as PdfLanguage,
+    currency: quote.currency,
+    version: version.version,
+    mode: version.mode,
+    issueDate: version.issueDate,
+    validUntil: version.validUntil,
+    fromDetails: version.fromDetails,
+    customerDetails: version.customerDetails,
+    content,
+    pricing,
+    productNames: Object.fromEntries(products.map((p) => [p.id, p.name])),
+    customerCountryCode: customer?.countryCode ?? null,
+    teamCountryCode: team?.countryCode ?? null,
+    labels: settings.labels,
+    logoUrl: template?.logoUrl ?? null,
+    paymentDetails: template?.paymentDetails ?? null,
+  };
 }
 
 /**

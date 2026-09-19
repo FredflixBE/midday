@@ -586,6 +586,8 @@
     "packages/quote": {
       "name": "@midday/quote",
       "dependencies": {
+        "@midday/invoice": "workspace:*",
+        "@react-pdf/renderer": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {

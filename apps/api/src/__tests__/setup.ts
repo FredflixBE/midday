@@ -285,6 +285,8 @@ export const mocks = {
   listQuotes: mock(() => []) as MockFn,
   markQuoteVersionSent: mock(() => ({})) as MockFn,
   setQuoteOutcome: mock(() => ({})) as MockFn,
+  // Quote PDF (FF-1613)
+  getQuotePdfInput: mock(() => null) as MockFn,
   getInvoicesForBooks: mock(() => []) as MockFn,
   getBooksInvoiceNumbers: mock(() => []) as MockFn,
   getBooksFiles: mock(() => []) as MockFn,
@@ -973,6 +975,7 @@ const dbQueriesMock = new Proxy(
     listQuotes: mocks.listQuotes,
     markQuoteVersionSent: mocks.markQuoteVersionSent,
     setQuoteOutcome: mocks.setQuoteOutcome,
+    getQuotePdfInput: mocks.getQuotePdfInput,
     QuoteInputError: class QuoteInputError extends Error {},
     CommitmentInputError: class CommitmentInputError extends Error {},
     // Real classes, not mocks: the router tells a person's mistake from a

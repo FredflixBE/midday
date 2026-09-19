@@ -24,6 +24,7 @@ import {
 import { type ReactNode, useMemo, useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
+import { DownloadQuotePdf } from "../download-quote-pdf";
 import { toProductRates } from "../quote-pricing";
 import { quoteState } from "../quote-state";
 import { useErrorToast } from "../use-error-toast";
@@ -161,6 +162,12 @@ function VersionEditor({
           </div>
           <div className="flex items-center gap-2">
             {controls}
+            <DownloadQuotePdf
+              versionId={version.id}
+              quoteNumber={quote.quoteNumber}
+              version={version.version}
+              saved={editable ? saved : undefined}
+            />
             {editable ? (
               <MarkSentButton
                 quoteId={quote.id}

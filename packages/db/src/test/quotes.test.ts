@@ -20,6 +20,7 @@ import { setCustomerProductRate } from "../queries/product-rates";
 import {
   createQuote,
   getQuote,
+  getQuotePdfInput,
   getQuoteSettings,
   listQuotes,
   markQuoteVersionSent,
@@ -651,6 +652,159 @@ describe.skipIf(SKIP)("quotes", () => {
         .where(eq(invoiceProducts.id, product.id));
 
       expect(await sendWith(product.id)).toBe(100000);
+    });
+  });
+
+  describe("what the PDF is made from", () => {
+    async function productAt(price: number) {
+      return createInvoiceProduct(db, {
+        teamId: TEAM_USD_ID,
+        createdBy: TEST_USER_ID,
+        name: "Development",
+        price,
+        currency: "USD",
+        unit: "hour",
+      });
+    }
+
+    function tenHoursOf(productId: string): QuoteContent {
+      return {
+        blocks: [{ id: "b1", type: "pricing" }],
+        rates: { productRates: {}, volumeTiers: [], termTiers: [] },
+        displayUnit: "days",
+        hoursPerDay: 7.5,
+        scenarios: [
+          {
+            id: "s1",
+            name: "Fixed price",
+            recommended: false,
+            pricing: "fixed",
+            capped: false,
+            recurrence: null,
+            adjustmentOverride: null,
+            paymentSchedule: [],
+            lines: [
+              {
+                id: "l1",
+                type: "item",
+                title: "Workshop",
+                description: null,
+                productId,
+                hours: 10,
+                hoursMax: null,
+                optional: false,
+                once: false,
+              },
+            ],
+          },
+        ],
+      };
+    }
+
+    const total = (input: Awaited<ReturnType<typeof getQuotePdfInput>>) => {
+      const totals = input!.pricing.scenarios[0]!.totals;
+      return totals.kind === "project" ? totals.total.amount : null;
+    };
+
+    async function draftWith(productId: string) {
+      const quote = await create();
+      const draft = draftOf(quote);
+      await updateQuoteDraft(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        content: tenHoursOf(productId),
+      });
+      return { quote, draft };
+    }
+
+    test("a draft, priced at today's rates, with everything around it", async () => {
+      await db.insert(invoiceTemplates).values({
+        teamId: TEAM_USD_ID,
+        isDefault: true,
+        logoUrl: "https://example.com/logo.png",
+        fromDetails: { type: "doc", content: [] },
+        paymentDetails: { type: "doc", content: [] },
+      });
+      await db
+        .update(customers)
+        .set({ countryCode: "NL" })
+        .where(eq(customers.id, customerId));
+      const product = await productAt(100);
+      const { quote, draft } = await draftWith(product.id);
+      await updateQuoteSettings(db, {
+        teamId: TEAM_USD_ID,
+        labels: { en: { estimate: "Our estimate." } },
+      });
+
+      const input = await getQuotePdfInput(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+
+      expect(input).toMatchObject({
+        quoteNumber: quote.quoteNumber,
+        title: "Maintenance proposal",
+        kind: "project",
+        language: "en",
+        currency: "USD",
+        version: 1,
+        mode: "estimate",
+        issueDate: TODAY,
+        validUntil: "2026-10-19",
+        content: { displayUnit: "days", hoursPerDay: 7.5 },
+        productNames: { [product.id]: "Development" },
+        customerCountryCode: "NL",
+        labels: { en: { estimate: "Our estimate." } },
+        logoUrl: "https://example.com/logo.png",
+        paymentDetails: { type: "doc", content: [] },
+      });
+      expect(input!.customerDetails).toEqual(draft.customerDetails);
+      expect(input!.fromDetails).toEqual(draft.fromDetails);
+      expect(total(input)).toBe(100000);
+    });
+
+    test("a sent version, from the pricing frozen when it was sent", async () => {
+      const product = await productAt(100);
+      const { draft } = await draftWith(product.id);
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+      await db
+        .update(invoiceProducts)
+        .set({ price: 200 })
+        .where(eq(invoiceProducts.id, product.id));
+
+      const input = await getQuotePdfInput(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+      expect(total(input)).toBe(100000);
+    });
+
+    test("a version sent before pricing was frozen is priced now", async () => {
+      const product = await productAt(100);
+      const { draft } = await draftWith(product.id);
+      await db
+        .update(quoteVersions)
+        .set({ status: "sent", pricing: null })
+        .where(eq(quoteVersions.id, draft.id));
+
+      const input = await getQuotePdfInput(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+      expect(total(input)).toBe(100000);
+    });
+
+    test("another team's version is not found", async () => {
+      const { draft } = await draftWith((await productAt(100)).id);
+      expect(
+        await getQuotePdfInput(db, {
+          teamId: TEAM_EUR_ID,
+          versionId: draft.id,
+        }),
+      ).toBeNull();
     });
   });
 
