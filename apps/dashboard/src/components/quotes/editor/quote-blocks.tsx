@@ -2,6 +2,7 @@
 
 import type { Block, QuoteContent } from "@midday/quote";
 import { Button } from "@midday/ui/button";
+import { cn } from "@midday/ui/cn";
 import { Editor } from "@midday/ui/editor";
 import { Input } from "@midday/ui/input";
 import { Trash2 } from "lucide-react";
@@ -151,7 +152,14 @@ function TextBlockEditor({
       <Editor
         initialContent={block.body}
         editable={editable}
-        className="min-h-[72px] px-3 py-2 text-sm leading-relaxed"
+        className={cn(
+          "min-h-[72px] px-3 py-2 text-sm leading-relaxed",
+          // Tailwind's reset flattens these; the PDF shows them, so should this.
+          "[&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5",
+          "[&_.tiptap_h1]:mb-0 [&_.tiptap_h1]:text-base [&_.tiptap_h1]:font-medium",
+          "[&_.tiptap_h2]:mb-0 [&_.tiptap_h2]:text-sm [&_.tiptap_h2]:font-medium",
+          "[&_.tiptap_h3]:font-medium",
+        )}
         onUpdate={(editor) =>
           onChange({
             body: (editor.isEmpty
