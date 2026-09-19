@@ -72,7 +72,7 @@ const items = [
   {
     path: "/quotes",
     name: "Quotes",
-    children: [{ path: "/quotes?create=true", name: "Create new" }],
+    children: [{ path: "/quotes?createQuote=true", name: "Create new" }],
   },
   {
     path: "/tracker",

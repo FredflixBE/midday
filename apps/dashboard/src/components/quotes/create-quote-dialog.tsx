@@ -25,9 +25,12 @@ import {
 } from "./editor/fields";
 import { useErrorToast } from "./use-error-toast";
 
-/** `?create=true` on the quotes page opens it, as the sidebar's Create new does. */
+/**
+ * `?createQuote=true` opens it, as the sidebar's Create new does. Not
+ * `create`: the tracker's Create Project sheet listens for that on every page.
+ */
 export function useCreateQuoteParam() {
-  return useQueryState("create", parseAsBoolean.withDefault(false));
+  return useQueryState("createQuote", parseAsBoolean.withDefault(false));
 }
 
 /**
