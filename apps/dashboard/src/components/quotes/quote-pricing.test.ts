@@ -3,29 +3,33 @@ import {
   formatAdjustment,
   formatHours,
   formatQuoteAmount,
-  toWorkTypeRates,
+  toProductRates,
 } from "./quote-pricing";
 
 /** Intl separates symbol and number with a no-break space; compare on content. */
 const plain = (value: string) => value.replace(/\s/g, " ");
 
-test("rates are every work type's default, archived ones included, and the customer's own", () => {
-  const rates = toWorkTypeRates(
+test("rates are every product's price, inactive ones included, and the customer's own", () => {
+  const rates = toProductRates(
     [
-      { id: "wt-1", hourlyRate: 100 },
-      { id: "wt-2", hourlyRate: 85.5 },
+      { id: "p-1", price: 100 },
+      { id: "p-2", price: 85.5 },
     ],
-    [{ workTypeId: "wt-2", hourlyRate: 90 }],
+    [{ productId: "p-2", hourlyRate: 90 }],
   );
 
   expect(rates).toEqual({
-    defaults: { "wt-1": 100, "wt-2": 85.5 },
-    customer: { "wt-2": 90 },
+    defaults: { "p-1": 100, "p-2": 85.5 },
+    customer: { "p-2": 90 },
   });
 });
 
-test("rates not loaded yet are no rates, so pricing reports them missing", () => {
-  expect(toWorkTypeRates(undefined, undefined)).toEqual({
+test("a product without a price has no rate, so pricing reports it missing", () => {
+  expect(toProductRates([{ id: "p-1", price: null }], []).defaults).toEqual({});
+});
+
+test("rates not loaded yet are no rates", () => {
+  expect(toProductRates(undefined, undefined)).toEqual({
     defaults: {},
     customer: {},
   });

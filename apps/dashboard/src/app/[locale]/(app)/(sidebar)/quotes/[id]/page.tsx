@@ -9,14 +9,14 @@ export const metadata: Metadata = {
   title: "Quote | Midday",
 };
 
-/** One quote in the editor (FF-1611), with the work types it prices from. */
+/** One quote in the editor (FF-1611), with the products it prices from. */
 export default async function Quote(props: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await props.params;
 
   prefetch(trpc.quotes.get.queryOptions({ id }));
-  prefetch(trpc.workTypes.list.queryOptions({ includeArchived: true }));
+  prefetch(trpc.productRates.products.queryOptions());
 
   return (
     <HydrateClient>

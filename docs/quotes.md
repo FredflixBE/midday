@@ -14,7 +14,7 @@ A quote is a proposal text plus one or more priced scenarios, sent as a PDF. Eve
 | Version | One revision of the quote. What gets sent. Holds the mode, validity, text, scenarios. |
 | Scenario | A complete priced variant inside a version. The client accepts exactly one. |
 | Line | A row in a scenario: a section heading, a note, or a priced item. |
-| Work type | A fixed team-wide list (first-line maintenance, development, follow-up, …), each with a default hourly rate. |
+| Product | One of Midday's products (the same list invoices use; first-line maintenance, development, …). On a quote its price is the hourly rate (FF-1620). |
 | Adjustment | A percentage on the rate, driven by volume of hours and/or contract term. |
 | Optional line | A priced item shown with its price but outside the scenario total. The client may take it or leave it. |
 | Mode | `estimate` (not binding, an invitation to negotiate) or `firm` (binding offer until the validity date). |
@@ -39,19 +39,18 @@ New package `packages/quote` (mirrors `packages/invoice`): the zod schema for th
 
 ## 3. Data model
 
-Four new tables plus one per-customer override table. All carry `team_id` with the usual team RLS policy.
+Three new tables (quotes, versions, settings) plus one per-customer rate table on top of Midday's products. All carry `team_id` with the usual team RLS policy.
 
 ### 3.1 Rates
 
 ```
-work_types
-  id, team_id, name, hourly_rate numeric(10,2), currency,
-  position int, archived_at timestamptz null
+invoice_products                  -- Midday's own products; on a quote, price = hourly rate
+  id, team_id, name, price numeric(10,2), currency, unit, is_active
 
-customer_work_type_rates
-  customer_id → customers, work_type_id → work_types, team_id,
+customer_product_rates
+  customer_id → customers, product_id → invoice_products, team_id,
   hourly_rate numeric(10,2)
-  primary key (customer_id, work_type_id)
+  primary key (customer_id, product_id)
 ```
 
 Rates are stored per hour. Day rates are displayed as hours per day × the hourly rate (see 3.4).
@@ -106,7 +105,7 @@ Scenarios and lines live as jsonb inside the version, not in their own tables. T
 type QuoteContent = {
   blocks: Block[];                       // the proposal text, in order
   rates: {
-    workTypeRates: Record<WorkTypeId, number>;  // quote-level overrides
+    productRates: Record<ProductId, number>;   // quote-level overrides
     volumeTiers: { minHours: number; percent: number }[];  // e.g. {100, -5}
     termTiers:   { minMonths: number; percent: number }[]; // e.g. {24, -5}
   };
@@ -143,7 +142,7 @@ type Line =
   | {
       id: string; type: "item";
       title: string; description: string | null;
-      workTypeId: string;
+      productId: string;
       hours: number;                     // fixed: the hours; range: the minimum
       hoursMax: number | null;           // range only
       optional: boolean;
@@ -175,9 +174,9 @@ Pricing is one pure function in `packages/quote`, `priceVersion(content, rates) 
 ### 4.1 The hourly rate of a line
 
 ```
-base  = content.rates.workTypeRates[wt]      -- quote override
-     ?? customer_work_type_rates[customer][wt] -- customer override
-     ?? work_types[wt].hourly_rate             -- default
+base  = content.rates.productRates[p]         -- quote override
+     ?? customer_product_rates[customer][p]    -- customer override
+     ?? invoice_products[p].price              -- default
 rate  = round(base × (1 + adjustment / 100))   -- see Open 3
 ```
 
@@ -198,7 +197,7 @@ adjustment = scenario.adjustmentOverride
 
 - Item: `hours × rate`; for range also `hoursMax × rate`.
 - Section subtotal: sum of the items under it until the next section.
-- **Work-type subtotal**: sum per work type across the scenario (use case A asks for days split by type of work).
+- **Product subtotal**: sum per product across the scenario (use case A asks for days split by type of work).
 - Optional items are priced but left out of every total. They are listed separately as "Optional: …, +€x".
 
 ### 4.4 Project scenarios
@@ -229,12 +228,13 @@ The editor shows all scenarios of the version side by side: total (or min–max)
 - **Quote editor** as a full page (a quote is too big for the invoice sheet):
   - header: customer, title, kind, mode, language, validity
   - the text blocks, reorderable, with the pricing block among them
-  - scenarios as tabs; each tab has a line table (drag to reorder; work type select; hours or min–max; optional toggle; one-off toggle for recurring) plus the recurrence and payment settings
+  - scenarios as tabs; each tab has a line table (drag to reorder; product picker; hours or min–max; optional toggle; one-off toggle for recurring) plus the recurrence and payment settings
   - rate settings for the quote: overrides and tiers
   - the internal comparison panel
   - actions: Duplicate scenario, Download PDF, Mark as sent, Revise, Set outcome
-- **Settings → Quotes**: work types and default rates, number prefix, default validity, default blocks, labels.
-- **Customer details**: rate overrides per work type.
+- **Products**: its own page in the sidebar; a product's price is its default hourly rate on quotes.
+- **Settings → Quotes**: number prefix, default validity, default blocks, labels.
+- **Customer details**: rate overrides per product.
 
 Following the rule that screens stay minimal: no helper text or provenance labels under fields.
 
@@ -255,7 +255,7 @@ A new react-pdf template in `packages/quote`, downloaded from the dashboard. It'
 
 **Phase 1: send a multi-scenario estimate as a PDF (the first real use case).**
 
-1. Work types, default rates and customer overrides: schema, settings screen, customer screen.
+1. Rates from products, with customer overrides (first built as a separate list of work types, FF-1607; moved onto Midday's products by FF-1620).
 2. Quote schema, version rules (draft, sent, superseded, revise), numbering, zod content schema, `quote_settings`.
 3. Pricing module with unit tests for use cases A–E.
 4. Quote editor: header, blocks, scenarios, lines, rates, comparison panel.
@@ -279,5 +279,5 @@ A new react-pdf template in `packages/quote`, downloaded from the dashboard. It'
 4. **Show the discount on the PDF** ("€185 − 5% = €176") or only the resulting rate? Proposed: only the rate.
 5. **VAT.** Proposed: amounts excluding VAT with a statement to that effect, and a reverse-charge note for customers outside Belgium. No VAT calculation in v1.
 6. **Number format.** Proposed: `OFF-0001`, versions shown as `OFF-0001 v2` from the second version on.
-7. **Tracker conversion (phase 2).** A tracker project has one rate and an estimate in whole hours. Proposed: one project per accepted quote, rate = total ÷ hours (blended), estimate = hours rounded up (the max for range, per year for recurring). Comparing hours per work type needs tracker entries tagged with a work type. That comes later.
+7. **Tracker conversion (phase 2).** A tracker project has one rate and an estimate in whole hours. Proposed: one project per accepted quote, rate = total ÷ hours (blended), estimate = hours rounded up (the max for range, per year for recurring). Comparing hours per product needs tracker entries tagged with a product. That comes later.
 8. **Hours per day.** Proposed: 8, set per team, overridable per quote.

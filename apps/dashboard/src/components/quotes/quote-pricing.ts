@@ -1,21 +1,24 @@
-import type { Amount, WorkTypeRates } from "@midday/quote";
+import type { Amount, ProductRates } from "@midday/quote";
 import { formatAmount } from "@/utils/format";
 
 /**
- * The rates a quote is priced with in the editor (FF-1611): every work
- * type's default, archived ones included so older lines still price, and the
- * customer's own. The quote's own overrides are in its content.
+ * The rates a quote is priced with in the editor (FF-1620): each product's
+ * price as its hourly rate, inactive ones included so older lines still
+ * price, and the customer's own. A product without a price has no rate. The
+ * quote's own overrides are in its content.
  */
-export function toWorkTypeRates(
-  workTypes: { id: string; hourlyRate: number }[] | undefined,
-  customerRates: { workTypeId: string; hourlyRate: number }[] | undefined,
-): WorkTypeRates {
+export function toProductRates(
+  products: { id: string; price: number | null }[] | undefined,
+  customerRates: { productId: string; hourlyRate: number }[] | undefined,
+): ProductRates {
   return {
     defaults: Object.fromEntries(
-      (workTypes ?? []).map((w) => [w.id, w.hourlyRate]),
+      (products ?? []).flatMap((p) =>
+        p.price === null ? [] : [[p.id, p.price]],
+      ),
     ),
     customer: Object.fromEntries(
-      (customerRates ?? []).map((r) => [r.workTypeId, r.hourlyRate]),
+      (customerRates ?? []).map((r) => [r.productId, r.hourlyRate]),
     ),
   };
 }

@@ -15,6 +15,8 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import type { QuoteContent } from "@midday/quote";
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
+import { createInvoiceProduct } from "../queries/invoice-products";
+import { setCustomerProductRate } from "../queries/product-rates";
 import {
   createQuote,
   getQuote,
@@ -28,11 +30,12 @@ import {
   updateQuoteSettings,
 } from "../queries/quotes";
 import {
-  archiveWorkType,
-  createWorkType,
-  setCustomerWorkTypeRate,
-} from "../queries/work-types";
-import { customers, invoiceTemplates, quotes, quoteVersions } from "../schema";
+  customers,
+  invoiceProducts,
+  invoiceTemplates,
+  quotes,
+  quoteVersions,
+} from "../schema";
 import {
   seedAll,
   TEAM_EUR_ID,
@@ -549,10 +552,10 @@ describe.skipIf(SKIP)("quotes", () => {
   });
 
   describe("sending prices the version", () => {
-    function oneScenario(workTypeId: string, hours: number): QuoteContent {
+    function oneScenario(productId: string, hours: number): QuoteContent {
       return {
         blocks: [{ id: "b1", type: "pricing" }],
-        rates: { workTypeRates: {}, volumeTiers: [], termTiers: [] },
+        rates: { productRates: {}, volumeTiers: [], termTiers: [] },
         displayUnit: "hours",
         hoursPerDay: 8,
         scenarios: [
@@ -571,7 +574,7 @@ describe.skipIf(SKIP)("quotes", () => {
                 type: "item",
                 title: "Workshop",
                 description: null,
-                workTypeId,
+                productId,
                 hours,
                 hoursMax: null,
                 optional: false,
@@ -583,13 +586,13 @@ describe.skipIf(SKIP)("quotes", () => {
       };
     }
 
-    async function sendWith(workTypeId: string) {
+    async function sendWith(productId: string) {
       const quote = await create();
       const draft = draftOf(quote);
       await updateQuoteDraft(db, {
         teamId: TEAM_USD_ID,
         versionId: draft.id,
-        content: oneScenario(workTypeId, 10),
+        content: oneScenario(productId, 10),
       });
       const sent = await markQuoteVersionSent(db, {
         teamId: TEAM_USD_ID,
@@ -601,41 +604,53 @@ describe.skipIf(SKIP)("quotes", () => {
       return pricing.scenarios[0]!.totals.total.amount;
     }
 
-    test("with the team's default rate when it is not given one", async () => {
-      const workType = await createWorkType(db, {
+    test("with the product's price when it is not given one", async () => {
+      const product = await createInvoiceProduct(db, {
         teamId: TEAM_USD_ID,
+        createdBy: TEST_USER_ID,
         name: "Development",
-        hourlyRate: 100,
+        price: 100,
+        currency: "USD",
+        unit: "hour",
       });
 
-      expect(await sendWith(workType.id)).toBe(100000);
+      expect(await sendWith(product.id)).toBe(100000);
     });
 
-    test("with the customer's own rate over the default", async () => {
-      const workType = await createWorkType(db, {
+    test("with the customer's own rate over the product's price", async () => {
+      const product = await createInvoiceProduct(db, {
         teamId: TEAM_USD_ID,
+        createdBy: TEST_USER_ID,
         name: "Development",
-        hourlyRate: 100,
+        price: 100,
+        currency: "USD",
+        unit: "hour",
       });
-      await setCustomerWorkTypeRate(db, {
+      await setCustomerProductRate(db, {
         teamId: TEAM_USD_ID,
         customerId,
-        workTypeId: workType.id,
+        productId: product.id,
         hourlyRate: 120,
       });
 
-      expect(await sendWith(workType.id)).toBe(120000);
+      expect(await sendWith(product.id)).toBe(120000);
     });
 
-    test("an archived work type still prices the lines that use it", async () => {
-      const workType = await createWorkType(db, {
+    test("an inactive product still prices the lines that use it", async () => {
+      const product = await createInvoiceProduct(db, {
         teamId: TEAM_USD_ID,
+        createdBy: TEST_USER_ID,
         name: "Development",
-        hourlyRate: 100,
+        price: 100,
+        currency: "USD",
+        unit: "hour",
       });
-      await archiveWorkType(db, { teamId: TEAM_USD_ID, id: workType.id });
+      await db
+        .update(invoiceProducts)
+        .set({ isActive: false })
+        .where(eq(invoiceProducts.id, product.id));
 
-      expect(await sendWith(workType.id)).toBe(100000);
+      expect(await sendWith(product.id)).toBe(100000);
     });
   });
 
@@ -817,10 +832,13 @@ describe.skipIf(SKIP)("quotes", () => {
     });
 
     test("each row has its amount, a draft's at today's rates", async () => {
-      const workType = await createWorkType(db, {
+      const product = await createInvoiceProduct(db, {
         teamId: TEAM_USD_ID,
+        createdBy: TEST_USER_ID,
         name: "Development",
-        hourlyRate: 100,
+        price: 100,
+        currency: "USD",
+        unit: "hour",
       });
       const quote = await create();
       await updateQuoteDraft(db, {
@@ -828,7 +846,7 @@ describe.skipIf(SKIP)("quotes", () => {
         versionId: draftOf(quote).id,
         content: {
           blocks: [],
-          rates: { workTypeRates: {}, volumeTiers: [], termTiers: [] },
+          rates: { productRates: {}, volumeTiers: [], termTiers: [] },
           displayUnit: "hours",
           hoursPerDay: 8,
           scenarios: [
@@ -847,7 +865,7 @@ describe.skipIf(SKIP)("quotes", () => {
                   type: "item",
                   title: "Workshop",
                   description: null,
-                  workTypeId: workType.id,
+                  productId: product.id,
                   hours: 10,
                   hoursMax: null,
                   optional: false,
@@ -858,10 +876,10 @@ describe.skipIf(SKIP)("quotes", () => {
           ],
         },
       });
-      await setCustomerWorkTypeRate(db, {
+      await setCustomerProductRate(db, {
         teamId: TEAM_USD_ID,
         customerId,
-        workTypeId: workType.id,
+        productId: product.id,
         hourlyRate: 90,
       });
 

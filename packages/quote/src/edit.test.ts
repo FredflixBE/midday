@@ -21,7 +21,7 @@ function item(id: string, hours = 8) {
     type: "item" as const,
     title: "Workshop",
     description: null,
-    workTypeId: "wt-1",
+    productId: "p-1",
     hours,
     hoursMax: null,
     optional: false,
@@ -40,7 +40,7 @@ function scenario(overrides: Partial<Scenario> = {}): Scenario {
 function content(scenarios: Scenario[]): QuoteContent {
   return {
     blocks: [{ id: "b1", type: "pricing" }],
-    rates: { workTypeRates: {}, volumeTiers: [], termTiers: [] },
+    rates: { productRates: {}, volumeTiers: [], termTiers: [] },
     displayUnit: "hours",
     hoursPerDay: 8,
     scenarios,
@@ -212,13 +212,13 @@ describe("withPricing", () => {
 });
 
 describe("newLine", () => {
-  test("an item starts empty, on the work type given", () => {
-    expect(newLine("item", { newId: () => "l1", workTypeId: "wt-2" })).toEqual({
+  test("an item starts empty, on the product given", () => {
+    expect(newLine("item", { newId: () => "l1", productId: "p-2" })).toEqual({
       id: "l1",
       type: "item",
       title: "",
       description: null,
-      workTypeId: "wt-2",
+      productId: "p-2",
       hours: 0,
       hoursMax: null,
       optional: false,

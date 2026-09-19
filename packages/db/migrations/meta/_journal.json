@@ -141,6 +141,20 @@
       "when": 1789832228463,
       "tag": "0019_quotes",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789838987909,
+      "tag": "0020_customer_product_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789838988375,
+      "tag": "0021_drop_work_types",
+      "breakpoints": true
     }
   ]
 }

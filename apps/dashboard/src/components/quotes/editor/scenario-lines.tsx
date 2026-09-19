@@ -11,17 +11,18 @@ import {
 import { Button } from "@midday/ui/button";
 import { Checkbox } from "@midday/ui/checkbox";
 import { cn } from "@midday/ui/cn";
+import { ComboboxDropdown } from "@midday/ui/combobox-dropdown";
 import { Input } from "@midday/ui/input";
 import { Textarea } from "@midday/ui/textarea";
 import { Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useContext } from "react";
 import { formatQuoteAmount } from "../quote-pricing";
-import { NumberInput, OptionSelect } from "./fields";
+import { NumberInput, ReadOnlyContext } from "./fields";
 import { SortableList, SortableRow } from "./sortable";
 
-type WorkType = RouterOutputs["workTypes"]["list"][number];
+type Product = RouterOutputs["productRates"]["products"][number];
 
-/** Handle, item, work type, hours, optional, one-off, amount, remove. */
+/** Handle, item, product, hours, optional, one-off, amount, remove. */
 const COLUMNS = "grid-cols-[20px_1fr_180px_140px_repeat(2,56px)_120px_32px]";
 
 /**
@@ -33,7 +34,7 @@ export function ScenarioLines({
   scenario,
   pricing,
   recurring,
-  workTypes,
+  products,
   currency,
   locale,
   editable,
@@ -42,7 +43,7 @@ export function ScenarioLines({
   scenario: Scenario;
   pricing: ScenarioPricing | undefined;
   recurring: boolean;
-  workTypes: WorkType[];
+  products: Product[];
   currency: string;
   locale?: string;
   editable: boolean;
@@ -67,10 +68,9 @@ export function ScenarioLines({
       ...lines,
       newLine(type, {
         newId: () => crypto.randomUUID(),
-        // The work type of the item above, else the first one in the list.
-        workTypeId:
-          lines.filter((l): l is ItemLine => l.type === "item").at(-1)
-            ?.workTypeId ?? workTypes.find((w) => !w.archivedAt)?.id,
+        // The product of the item above; the first item picks its own.
+        productId: lines.filter((l): l is ItemLine => l.type === "item").at(-1)
+          ?.productId,
       }),
     ]);
 
@@ -92,7 +92,7 @@ export function ScenarioLines({
           >
             <span />
             <span>Item</span>
-            <span>Work type</span>
+            <span>Product</span>
             <span className="text-right">
               {range ? "Hours (min–max)" : "Hours"}
             </span>
@@ -150,10 +150,11 @@ export function ScenarioLines({
                           line={line}
                           range={range}
                           recurring={recurring}
-                          workTypes={workTypes}
+                          products={products}
                           amount={
-                            // Priced, but its work type has no rate anywhere.
-                            priced.get(line.id)?.rate === null
+                            // Priced, but its product has no rate anywhere;
+                            // a line with no product yet just has no amount.
+                            line.productId && priced.get(line.id)?.rate === null
                               ? null
                               : amount(
                                   priced.get(line.id)?.amount,
@@ -245,22 +246,23 @@ function ItemFields({
   line,
   range,
   recurring,
-  workTypes,
+  products,
   amount,
   onChange,
 }: {
   line: ItemLine;
   range: boolean;
   recurring: boolean;
-  workTypes: WorkType[];
-  /** Null when the work type has no rate. */
+  products: Product[];
+  /** Null when the product has no rate. */
   amount: string | null;
   onChange: (patch: Partial<ItemLine>) => void;
 }) {
-  // Archived types stay pickable only on the line that already has one.
-  const choices = workTypes.filter(
-    (w) => !w.archivedAt || w.id === line.workTypeId,
-  );
+  const readOnly = useContext(ReadOnlyContext);
+  // An inactive product stays pickable only on the line that already has it.
+  const choices = products
+    .filter((p) => p.isActive || p.id === line.productId)
+    .map((p) => ({ id: p.id, label: p.name }));
 
   return (
     <>
@@ -283,12 +285,14 @@ function ItemFields({
         />
       </div>
 
-      <OptionSelect
-        aria-label="Work type"
-        placeholder="Work type"
-        value={line.workTypeId || undefined}
-        options={Object.fromEntries(choices.map((w) => [w.id, w.name]))}
-        onChange={(workTypeId) => onChange({ workTypeId })}
+      <ComboboxDropdown
+        placeholder="Product"
+        searchPlaceholder="Search product"
+        items={choices}
+        selectedItem={choices.find((c) => c.id === line.productId)}
+        onSelect={(item) => onChange({ productId: item.id })}
+        disabled={readOnly}
+        triggerClassName="h-9 text-sm"
       />
 
       {range ? (

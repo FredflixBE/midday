@@ -11,24 +11,27 @@ import { formatHourlyRate, hourlyRateAffixes } from "../hourly-rate";
 import type { DraftChange } from "../use-quote-draft";
 import { NumberInput } from "./fields";
 
-type WorkType = RouterOutputs["workTypes"]["list"][number];
-type CustomerRate = RouterOutputs["workTypes"]["customerRates"][number];
+type Product = RouterOutputs["productRates"]["products"][number];
+type CustomerRate = RouterOutputs["productRates"]["customerRates"][number];
 
 /**
- * What this quote charges per hour (FF-1612): each work type's default, the
- * customer's own rate, and this quote's, where set. The one that applies is
- * the rightmost, and it is the one drawn in full. Tiers adjust it by volume
- * of hours and by term.
+ * What this quote charges per hour (FF-1612, FF-1620), for each product it
+ * uses: the product's price, the customer's own rate, and this quote's, where
+ * set. The one that applies is the rightmost, and it is the one drawn in
+ * full. Tiers adjust it by volume of hours and by term.
  */
 export function QuoteRates({
   content,
-  workTypes,
+  products,
   customerRates,
+  currency,
   editable,
   change,
 }: {
   content: QuoteContent;
-  workTypes: WorkType[];
+  products: Product[];
+  /** The quote's, for a product without a currency of its own. */
+  currency: string;
   customerRates: CustomerRate[] | undefined;
   editable: boolean;
   change: (next: DraftChange) => void;
@@ -39,17 +42,17 @@ export function QuoteRates({
     }));
 
   const customer = new Map(
-    (customerRates ?? []).map((r) => [r.workTypeId, r.hourlyRate]),
+    (customerRates ?? []).map((r) => [r.productId, r.hourlyRate]),
   );
-  const own = content.rates.workTypeRates;
+  const own = content.rates.productRates;
   const used = new Set(
     content.scenarios.flatMap((s) =>
-      s.lines.flatMap((l) => (l.type === "item" ? [l.workTypeId] : [])),
+      s.lines.flatMap((l) => (l.type === "item" ? [l.productId] : [])),
     ),
   );
-  // An archived type stays while a line uses it or this quote prices it.
-  const shown = workTypes.filter(
-    (w) => !w.archivedAt || used.has(w.id) || Object.hasOwn(own, w.id),
+  // Only what this quote prices: a team can have many products.
+  const shown = products.filter(
+    (p) => used.has(p.id) || Object.hasOwn(own, p.id),
   );
 
   return (
@@ -59,27 +62,28 @@ export function QuoteRates({
       {shown.length > 0 ? (
         <div className="border border-border">
           <div className="grid grid-cols-[1fr_120px_120px_160px] items-center gap-3 border-b border-border px-3 py-2 text-[12px] text-[#606060]">
-            <span>Work type</span>
+            <span>Product</span>
             <span className="text-right">Default</span>
             <span className="text-right">Customer</span>
             <span className="text-right">This quote</span>
           </div>
           <div className="divide-y divide-border">
-            {shown.map((workType) => (
+            {shown.map((product) => (
               <RateRow
-                key={`${workType.id}:${own[workType.id]}`}
-                workType={workType}
-                customerRate={customer.get(workType.id)}
-                quoteRate={own[workType.id]}
+                key={`${product.id}:${own[product.id]}`}
+                product={product}
+                customerRate={customer.get(product.id)}
+                currency={product.currency ?? currency}
+                quoteRate={own[product.id]}
                 onChange={(rate) =>
                   setRates((rates) => {
-                    const { [workType.id]: _, ...rest } = rates.workTypeRates;
+                    const { [product.id]: _, ...rest } = rates.productRates;
                     return {
                       ...rates,
-                      workTypeRates:
+                      productRates:
                         rate === undefined
                           ? rest
-                          : { ...rest, [workType.id]: rate },
+                          : { ...rest, [product.id]: rate },
                     };
                   })
                 }
@@ -138,18 +142,21 @@ export function QuoteRates({
 }
 
 function RateRow({
-  workType,
+  product,
   customerRate,
+  currency,
   quoteRate,
   onChange,
 }: {
-  workType: WorkType;
+  product: Product;
   customerRate: number | undefined;
+  currency: string;
   quoteRate: number | undefined;
   onChange: (rate: number | undefined) => void;
 }) {
   const [value, setValue] = useState(quoteRate);
-  const inherited = customerRate ?? workType.hourlyRate;
+  const price = product.price ?? undefined;
+  const inherited = customerRate ?? price;
   const applies =
     quoteRate !== undefined
       ? "quote"
@@ -165,26 +172,30 @@ function RateRow({
           (source === applies ? "text-primary" : "line-through"),
       )}
     >
-      {rate === undefined ? "–" : formatHourlyRate(rate, workType.currency)}
+      {rate === undefined ? "–" : formatHourlyRate(rate, currency)}
     </span>
   );
 
   return (
     <div className="grid grid-cols-[1fr_120px_120px_160px] items-center gap-3 px-3 py-2">
-      <span className="truncate text-sm">{workType.name}</span>
-      {cell(workType.hourlyRate, "default")}
+      <span className="truncate text-sm">{product.name}</span>
+      {cell(price, "default")}
       {cell(customerRate, "customer")}
       <CurrencyInput
-        aria-label={`${workType.name} rate for this quote`}
+        aria-label={`${product.name} rate for this quote`}
         value={value ?? ""}
-        placeholder={formatHourlyRate(inherited, workType.currency)}
+        placeholder={
+          inherited === undefined
+            ? undefined
+            : formatHourlyRate(inherited, currency)
+        }
         onValueChange={(values) => setValue(values.floatValue)}
         onBlur={() => {
           if (value !== quoteRate) onChange(value);
         }}
         decimalScale={2}
         allowNegative={false}
-        {...hourlyRateAffixes(workType.currency)}
+        {...hourlyRateAffixes(currency)}
         className="text-right"
       />
     </div>

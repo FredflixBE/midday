@@ -24,7 +24,7 @@ import {
 import { type ReactNode, useMemo, useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
-import { toWorkTypeRates } from "../quote-pricing";
+import { toProductRates } from "../quote-pricing";
 import { quoteState } from "../quote-state";
 import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
@@ -126,11 +126,11 @@ function VersionEditor({
   const { draft, change, saved } = useQuoteDraft(quote, version);
   const editable = version.status === "draft";
 
-  const { data: workTypes = [] } = useQuery(
-    trpc.workTypes.list.queryOptions({ includeArchived: true }),
+  const { data: products = [] } = useQuery(
+    trpc.productRates.products.queryOptions(),
   );
   const { data: customerRates } = useQuery({
-    ...trpc.workTypes.customerRates.queryOptions({
+    ...trpc.productRates.customerRates.queryOptions({
       customerId: draft.customerId ?? "",
     }),
     enabled: draft.customerId !== null,
@@ -140,8 +140,8 @@ function VersionEditor({
   const pricing = useMemo<PricingResult>(
     () =>
       (version.pricing as PricingResult | null) ??
-      priceVersion(draft.content, toWorkTypeRates(workTypes, customerRates)),
-    [version.pricing, draft.content, workTypes, customerRates],
+      priceVersion(draft.content, toProductRates(products, customerRates)),
+    [version.pricing, draft.content, products, customerRates],
   );
 
   return (
@@ -188,8 +188,9 @@ function VersionEditor({
 
           <QuoteRates
             content={draft.content}
-            workTypes={workTypes}
+            products={products}
             customerRates={customerRates}
+            currency={quote.currency}
             editable={editable}
             change={change}
           />
@@ -200,7 +201,7 @@ function VersionEditor({
           content={draft.content}
           kind={draft.kind}
           pricing={pricing}
-          workTypes={workTypes}
+          products={products}
           currency={quote.currency}
           locale={user?.locale ?? undefined}
           editable={editable}

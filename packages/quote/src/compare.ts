@@ -55,8 +55,8 @@ export function compareScenarios(
       const periods = scenario.recurrence
         ? PERIODS_PER_YEAR[scenario.recurrence.period]
         : 1;
-      // What recurs, per period, across the work types, then over a year.
-      const perPeriod = priced.workTypes.reduce(
+      // What recurs, per period, across the products, then over a year.
+      const perPeriod = priced.products.reduce(
         (sum, w) => ({
           amount: sum.amount + w.hours.amount,
           max: w.hours.max === null ? sum.max : (sum.max ?? 0) + w.hours.max,

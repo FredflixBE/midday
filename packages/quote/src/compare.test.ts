@@ -7,7 +7,7 @@ import { compareScenarios } from "./compare";
 import type { ItemLine, QuoteContent, Scenario } from "./content";
 import { priceVersion } from "./pricing";
 
-const WORK = "wt-work";
+const WORK = "p-work";
 const RATES = { defaults: { [WORK]: 100 }, customer: {} };
 
 function item(hours: number, hoursMax: number | null = null): ItemLine {
@@ -16,7 +16,7 @@ function item(hours: number, hoursMax: number | null = null): ItemLine {
     type: "item",
     title: "Work",
     description: null,
-    workTypeId: WORK,
+    productId: WORK,
     hours,
     hoursMax,
     optional: false,
@@ -45,7 +45,7 @@ function compare(
 ) {
   const content: QuoteContent = {
     blocks: [],
-    rates: { workTypeRates: {}, volumeTiers: [], termTiers: [], ...rates },
+    rates: { productRates: {}, volumeTiers: [], termTiers: [], ...rates },
     displayUnit: "hours",
     hoursPerDay: 8,
     scenarios,
