@@ -42,6 +42,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CopyInput } from "@/components/copy-input";
 import { OpenURL } from "@/components/open-url";
+import { CustomerRates } from "@/components/quotes/customer-rates";
 import { useCustomerParams } from "@/hooks/use-customer-params";
 import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
@@ -1047,6 +1048,15 @@ export function CustomerDetails() {
                     </div>
                   )}
                 </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="rates" className="border-b border-border">
+              <AccordionTrigger className="text-[16px] font-medium py-4">
+                Rates
+              </AccordionTrigger>
+              <AccordionContent>
+                <CustomerRates customerId={customer.id} />
               </AccordionContent>
             </AccordionItem>
           </Accordion>

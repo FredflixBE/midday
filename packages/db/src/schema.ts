@@ -1576,6 +1576,94 @@ export const commitments = pgTable(
   ],
 );
 
+/**
+ * The kinds of work a quote prices (FF-1607): a fixed team-wide list, each
+ * with a default hourly rate. A customer can have its own rate per type
+ * (`customer_work_type_rates`) and a quote can override both.
+ *
+ * Never deleted, only archived: quotes keep the id in their content, and an
+ * archived type still has to resolve for them. It only leaves the pickers.
+ */
+export const workTypes = pgTable(
+  "work_types",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    teamId: uuid("team_id").notNull(),
+    name: text().notNull(),
+    // Per hour. A day rate is only ever displayed: hours per day × this.
+    hourlyRate: numericCasted("hourly_rate", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    currency: text().notNull(),
+    position: integer().default(0).notNull(),
+    archivedAt: timestamp("archived_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+  },
+  (table) => [
+    index("work_types_team_id_idx").on(table.teamId),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "work_types_team_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Work types can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/** One customer's own hourly rate for a work type. No row: the default applies. */
+export const customerWorkTypeRates = pgTable(
+  "customer_work_type_rates",
+  {
+    customerId: uuid("customer_id").notNull(),
+    workTypeId: uuid("work_type_id").notNull(),
+    teamId: uuid("team_id").notNull(),
+    hourlyRate: numericCasted("hourly_rate", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.customerId, table.workTypeId],
+      name: "customer_work_type_rates_pkey",
+    }),
+    index("customer_work_type_rates_team_id_idx").on(table.teamId),
+    index("customer_work_type_rates_work_type_id_idx").on(table.workTypeId),
+    foreignKey({
+      columns: [table.customerId],
+      foreignColumns: [customers.id],
+      name: "customer_work_type_rates_customer_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.workTypeId],
+      foreignColumns: [workTypes.id],
+      name: "customer_work_type_rates_work_type_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "customer_work_type_rates_team_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Customer work type rates can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
 export const exchangeRates = pgTable(
   "exchange_rates",
   {

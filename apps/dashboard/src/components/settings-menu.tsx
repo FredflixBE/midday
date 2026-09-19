@@ -9,6 +9,7 @@ const ITEMS = [
   { path: "/settings/accounts", label: "Bank Connections" },
   { path: "/settings/members", label: "Members" },
   { path: "/settings/notifications", label: "Notifications" },
+  { path: "/settings/quotes", label: "Quotes" },
   { path: "/settings/developer", label: "Developer" },
 ];
 

@@ -43,6 +43,7 @@ import { transactionCategoriesRouter } from "./transaction-categories";
 import { transactionTagsRouter } from "./transaction-tags";
 import { transactionsRouter } from "./transactions";
 import { userRouter } from "./user";
+import { workTypesRouter } from "./work-types";
 
 export const appRouter = createTRPCRouter({
   accounting: accountingRouter,
@@ -88,6 +89,7 @@ export const appRouter = createTRPCRouter({
   search: searchRouter,
   shortLinks: shortLinksRouter,
   apiKeys: apiKeysRouter,
+  workTypes: workTypesRouter,
 });
 
 // export type definition of API
