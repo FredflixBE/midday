@@ -12,7 +12,7 @@ import {
 import { Editor } from "@midday/ui/editor";
 import { Input } from "@midday/ui/input";
 import { Maximize2, Trash2 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import type { DraftChange } from "../use-quote-draft";
 import { SortableList, SortableRow } from "./sortable";
 
@@ -140,6 +140,10 @@ function TextBlockEditor({
   onRemove: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const body = useRef<HTMLDivElement>(null);
+  // What the block stood at when it was expanded, so the page behind the
+  // dialog does not collapse and shift everything under it.
+  const [heldHeight, setHeldHeight] = useState<number>();
 
   /**
    * The one editor this block has (FF-1624). Expanding moves it into the
@@ -147,11 +151,12 @@ function TextBlockEditor({
    * only ever one holds the text, and each mount is seeded from the draft the
    * last one wrote.
    */
-  const editor = (className: string) => (
+  const renderEditor = (className: string, autoFocus = false) => (
     <Editor
       initialContent={block.body}
       editable={editable}
       toolbar
+      autoFocus={autoFocus}
       className={className}
       onUpdate={(editor) =>
         onChange({
@@ -183,7 +188,10 @@ function TextBlockEditor({
           variant="ghost"
           size="icon"
           aria-label="Expand block"
-          onClick={() => setExpanded(true)}
+          onClick={() => {
+            setHeldHeight(body.current?.offsetHeight);
+            setExpanded(true);
+          }}
         >
           <Maximize2 size={14} />
         </Button>
@@ -200,21 +208,31 @@ function TextBlockEditor({
         ) : null}
       </div>
 
-      {expanded ? (
-        <div className="min-h-[72px]" />
-      ) : (
-        editor(cn("min-h-[72px] px-3 py-2", TEXT_STYLES))
-      )}
+      <div ref={body}>
+        {expanded ? (
+          <div style={{ height: heldHeight }} />
+        ) : (
+          renderEditor(cn("min-h-[72px] px-3 py-2", TEXT_STYLES))
+        )}
+      </div>
 
       <Dialog open={expanded} onOpenChange={setExpanded}>
-        <DialogContent className="flex h-[90svh] w-[92vw] max-w-4xl flex-col overflow-hidden p-0">
+        <DialogContent
+          className="flex h-[90svh] max-h-none w-[92vw] max-w-4xl flex-col overflow-y-hidden p-0"
+          // The caret belongs in the text, not on the first toolbar button.
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle>{block.heading || "Text block"}</DialogTitle>
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col">
+            {/* Radix keeps the dialog mounted while it animates shut, and by
+                then the page holds the editor again: this guard is what keeps
+                it to one. */}
             {expanded
-              ? editor(
+              ? renderEditor(
                   cn("min-h-0 flex-1 overflow-y-auto px-6 py-4", TEXT_STYLES),
+                  true,
                 )
               : null}
           </div>

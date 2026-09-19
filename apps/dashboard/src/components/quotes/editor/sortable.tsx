@@ -95,6 +95,9 @@ export function SortableRow({
     <button
       type="button"
       aria-label={`Move ${label}`}
+      // dnd-kit withholds the listeners on a list that cannot be reordered,
+      // and a handle that does nothing should not look like one either.
+      disabled={!listeners}
       className="cursor-grab text-muted-foreground active:cursor-grabbing disabled:cursor-default disabled:opacity-30"
       {...attributes}
       {...listeners}
