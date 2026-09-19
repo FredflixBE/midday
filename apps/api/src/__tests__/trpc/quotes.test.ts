@@ -8,8 +8,11 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
   createQuote,
   getQuote,
+  listQuotes,
+  markQuoteVersionSent,
   QuoteInputError,
   reviseQuote,
+  setQuoteOutcome,
   updateQuoteDraft,
   updateQuoteSettings,
 } from "@midday/db/queries";
@@ -30,6 +33,8 @@ describe("tRPC: quotes", () => {
       updateQuoteDraft,
       reviseQuote,
       updateQuoteSettings,
+      markQuoteVersionSent,
+      setQuoteOutcome,
     ]) {
       asMock(fn).mockReset();
       asMock(fn).mockImplementation(() => Promise.resolve({}));
@@ -106,6 +111,62 @@ describe("tRPC: quotes", () => {
     await expect(caller.revise({ quoteId: A })).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
+  });
+
+  test("the list leaves each version's content and pricing behind", async () => {
+    asMock(listQuotes).mockImplementation(() =>
+      Promise.resolve([
+        {
+          id: A,
+          quoteNumber: "OFF-0001",
+          headline: null,
+          version: { id: A, status: "draft", content: {}, pricing: null },
+        },
+      ]),
+    );
+    const caller = createCaller(createTestContext());
+
+    const rows = await caller.list({ status: "draft" });
+
+    expect(asMock(listQuotes).mock.calls[0]?.[1]).toMatchObject({
+      teamId: "test-team-id",
+      status: "draft",
+    });
+    expect(rows[0]?.version).toEqual({ id: A, status: "draft" } as never);
+  });
+
+  test("marking sent leaves the pricing to be worked out at that moment", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.markSent({ versionId: A, sentTo: "  " });
+
+    const call = asMock(markQuoteVersionSent).mock.calls[0]?.[1];
+    expect(call).toEqual({
+      teamId: "test-team-id",
+      versionId: A,
+      sentTo: null,
+    });
+    expect(call).not.toHaveProperty("pricing");
+  });
+
+  test("sending a version that is not a draft is a bad request", async () => {
+    asMock(markQuoteVersionSent).mockImplementation(() =>
+      Promise.reject(new QuoteInputError("Only a draft can be sent")),
+    );
+    const caller = createCaller(createTestContext());
+
+    await expect(caller.markSent({ versionId: A })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+  });
+
+  test("won is not an outcome set by hand", async () => {
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.setOutcome({ quoteId: A, outcome: "won" as never, reason: null }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(asMock(setQuoteOutcome).mock.calls).toHaveLength(0);
   });
 
   test("settings are the caller's team's", async () => {

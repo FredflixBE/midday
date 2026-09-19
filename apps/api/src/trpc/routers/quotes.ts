@@ -1,7 +1,10 @@
 import {
   createQuoteSchema,
+  listQuotesSchema,
+  markQuoteSentSchema,
   quoteIdSchema,
   reviseQuoteSchema,
+  setQuoteOutcomeSchema,
   updateQuoteDraftSchema,
   updateQuoteSettingsSchema,
 } from "@api/schemas/quotes";
@@ -10,8 +13,11 @@ import {
   createQuote,
   getQuote,
   getQuoteSettings,
+  listQuotes,
+  markQuoteVersionSent,
   QuoteInputError,
   reviseQuote,
+  setQuoteOutcome,
   updateQuoteDraft,
   updateQuoteSettings,
 } from "@midday/db/queries";
@@ -74,6 +80,52 @@ export const quotesRouter = createTRPCRouter({
     .mutation(async ({ input, ctx: { db, teamId } }) => {
       return found(
         await reviseQuote(db, { ...input, teamId: teamId! }).catch(asUserError),
+      );
+    }),
+
+  /**
+   * Every quote with its latest version and the amount the list shows. The
+   * content stays behind: the list does not need it, and it is the heavy part.
+   */
+  list: protectedProcedure
+    .input(listQuotesSchema)
+    .query(async ({ input, ctx: { db, teamId } }) => {
+      const rows = await listQuotes(db, {
+        teamId: teamId!,
+        status: input?.status,
+      });
+      return rows.map(
+        ({ version: { content, pricing, ...version }, ...quote }) => ({
+          ...quote,
+          version,
+        }),
+      );
+    }),
+
+  /**
+   * Marks a draft sent, as it went out by hand: the version is frozen with
+   * its pricing at this moment, and the one sent before it is superseded.
+   */
+  markSent: protectedProcedure
+    .input(markQuoteSentSchema)
+    .mutation(async ({ input, ctx: { db, teamId } }) => {
+      return found(
+        await markQuoteVersionSent(db, {
+          teamId: teamId!,
+          versionId: input.versionId,
+          sentTo: input.sentTo || null,
+        }).catch(asUserError),
+      );
+    }),
+
+  /** Lost or no decision, with the reason; open takes it back. */
+  setOutcome: protectedProcedure
+    .input(setQuoteOutcomeSchema)
+    .mutation(async ({ input, ctx: { db, teamId } }) => {
+      return found(
+        await setQuoteOutcome(db, { ...input, teamId: teamId! }).catch(
+          asUserError,
+        ),
       );
     }),
 

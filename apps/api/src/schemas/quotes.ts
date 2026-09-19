@@ -37,6 +37,27 @@ export const updateQuoteDraftSchema = z.object({
 
 export const reviseQuoteSchema = z.object({ quoteId: z.string().uuid() });
 
+export const listQuotesSchema = z
+  .object({
+    status: z
+      .enum(["draft", "awaiting", "expiring", "expired", "won", "lost"])
+      .optional(),
+  })
+  .optional();
+
+/** Sent by hand (v1 goes through Gmail): when, and optionally to whom. */
+export const markQuoteSentSchema = z.object({
+  versionId: z.string().uuid(),
+  sentTo: z.string().trim().max(500).nullable().optional(),
+});
+
+/** Won is recorded by accepting a version (FF-1615), not here. */
+export const setQuoteOutcomeSchema = z.object({
+  quoteId: z.string().uuid(),
+  outcome: z.enum(["open", "lost", "no_decision"]),
+  reason: z.string().trim().max(2000).nullable(),
+});
+
 export const updateQuoteSettingsSchema = z.object({
   numberPrefix: z.string().trim().min(1).max(20).optional(),
   defaultValidDays: z.number().int().min(1).max(365).optional(),

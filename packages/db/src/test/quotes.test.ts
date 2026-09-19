@@ -19,12 +19,19 @@ import {
   createQuote,
   getQuote,
   getQuoteSettings,
+  listQuotes,
   markQuoteVersionSent,
   QuoteInputError,
   reviseQuote,
+  setQuoteOutcome,
   updateQuoteDraft,
   updateQuoteSettings,
 } from "../queries/quotes";
+import {
+  archiveWorkType,
+  createWorkType,
+  setCustomerWorkTypeRate,
+} from "../queries/work-types";
 import { customers, invoiceTemplates, quotes, quoteVersions } from "../schema";
 import {
   seedAll,
@@ -538,6 +545,412 @@ describe.skipIf(SKIP)("quotes", () => {
       ).toBeNull();
       const rows = await db.select().from(quotes);
       expect(rows).toHaveLength(1);
+    });
+  });
+
+  describe("sending prices the version", () => {
+    function oneScenario(workTypeId: string, hours: number): QuoteContent {
+      return {
+        blocks: [{ id: "b1", type: "pricing" }],
+        rates: { workTypeRates: {}, volumeTiers: [], termTiers: [] },
+        displayUnit: "hours",
+        hoursPerDay: 8,
+        scenarios: [
+          {
+            id: "s1",
+            name: "Fixed price",
+            recommended: true,
+            pricing: "fixed",
+            capped: false,
+            recurrence: null,
+            adjustmentOverride: null,
+            paymentSchedule: [],
+            lines: [
+              {
+                id: "l1",
+                type: "item",
+                title: "Workshop",
+                description: null,
+                workTypeId,
+                hours,
+                hoursMax: null,
+                optional: false,
+                once: false,
+              },
+            ],
+          },
+        ],
+      };
+    }
+
+    async function sendWith(workTypeId: string) {
+      const quote = await create();
+      const draft = draftOf(quote);
+      await updateQuoteDraft(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        content: oneScenario(workTypeId, 10),
+      });
+      const sent = await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+      const pricing = sent!.versions[0]!.pricing as {
+        scenarios: { totals: { total: { amount: number } } }[];
+      };
+      return pricing.scenarios[0]!.totals.total.amount;
+    }
+
+    test("with the team's default rate when it is not given one", async () => {
+      const workType = await createWorkType(db, {
+        teamId: TEAM_USD_ID,
+        name: "Development",
+        hourlyRate: 100,
+      });
+
+      expect(await sendWith(workType.id)).toBe(100000);
+    });
+
+    test("with the customer's own rate over the default", async () => {
+      const workType = await createWorkType(db, {
+        teamId: TEAM_USD_ID,
+        name: "Development",
+        hourlyRate: 100,
+      });
+      await setCustomerWorkTypeRate(db, {
+        teamId: TEAM_USD_ID,
+        customerId,
+        workTypeId: workType.id,
+        hourlyRate: 120,
+      });
+
+      expect(await sendWith(workType.id)).toBe(120000);
+    });
+
+    test("an archived work type still prices the lines that use it", async () => {
+      const workType = await createWorkType(db, {
+        teamId: TEAM_USD_ID,
+        name: "Development",
+        hourlyRate: 100,
+      });
+      await archiveWorkType(db, { teamId: TEAM_USD_ID, id: workType.id });
+
+      expect(await sendWith(workType.id)).toBe(100000);
+    });
+  });
+
+  describe("the list", () => {
+    /** A quote sent with this validity, its outcome still open. */
+    async function sent(issueDate: string, validUntil: string) {
+      const quote = await create();
+      const draft = draftOf(quote);
+      await updateQuoteDraft(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        issueDate,
+        validUntil,
+      });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        pricing: null,
+      });
+      return quote.id;
+    }
+
+    async function numbers(
+      status?: Parameters<typeof listQuotes>[1]["status"],
+    ) {
+      const rows = await listQuotes(db, {
+        teamId: TEAM_USD_ID,
+        status,
+        today: TODAY,
+      });
+      return rows.map((row) => row.quoteNumber).sort();
+    }
+
+    test("each quote once, with its latest version", async () => {
+      const id = await sent(TODAY, "2026-10-19");
+      await reviseQuote(db, { teamId: TEAM_USD_ID, quoteId: id, today: TODAY });
+
+      const rows = await listQuotes(db, { teamId: TEAM_USD_ID, today: TODAY });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        quoteNumber: "OFF-0001",
+        customerName: "Example Customer",
+        version: { version: 2, status: "draft", expired: false },
+      });
+    });
+
+    test("the filters follow the latest version, its validity and the outcome", async () => {
+      await create(); // OFF-0001, a draft
+      await sent(TODAY, "2026-10-19"); // OFF-0002, awaiting an answer
+      await sent(TODAY, "2026-09-24"); // OFF-0003, expiring within 7 days
+      await sent("2026-09-01", "2026-09-18"); // OFF-0004, expired
+      const lost = await sent(TODAY, "2026-10-19"); // OFF-0005
+      await setQuoteOutcome(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: lost,
+        outcome: "lost",
+        reason: "Went with another supplier",
+      });
+      const won = await sent(TODAY, "2026-10-19"); // OFF-0006
+      await db.update(quotes).set({ outcome: "won" }).where(eq(quotes.id, won));
+
+      expect(await numbers()).toHaveLength(6);
+      expect(await numbers("draft")).toEqual(["OFF-0001"]);
+      expect(await numbers("awaiting")).toEqual(["OFF-0002", "OFF-0003"]);
+      expect(await numbers("expiring")).toEqual(["OFF-0003"]);
+      expect(await numbers("expired")).toEqual(["OFF-0004"]);
+      expect(await numbers("won")).toEqual(["OFF-0006"]);
+      expect(await numbers("lost")).toEqual(["OFF-0005"]);
+    });
+
+    test("draft, sent, revised, sent again: the list follows each step", async () => {
+      const quote = await create();
+      const state = async (today = TODAY) => {
+        const [row] = await listQuotes(db, { teamId: TEAM_USD_ID, today });
+        const filters = [];
+        for (const status of [
+          "draft",
+          "awaiting",
+          "expiring",
+          "expired",
+        ] as const) {
+          const rows = await listQuotes(db, {
+            teamId: TEAM_USD_ID,
+            status,
+            today,
+          });
+          if (rows.length > 0) filters.push(status);
+        }
+        return {
+          version: row!.version.version,
+          status: row!.version.status,
+          held: row!.held?.version ?? null,
+          filters,
+        };
+      };
+
+      expect(await state()).toEqual({
+        version: 1,
+        status: "draft",
+        held: null,
+        filters: ["draft"],
+      });
+
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+        pricing: null,
+      });
+      expect(await state()).toEqual({
+        version: 1,
+        status: "sent",
+        held: 1,
+        filters: ["awaiting"],
+      });
+      // Its validity (30 days) lapses.
+      expect((await state("2026-10-20")).filters).toEqual(["expired"]);
+
+      const revised = await reviseQuote(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: quote.id,
+        today: TODAY,
+      });
+      // The client still holds version 1, so it is still followed up.
+      expect(await state()).toEqual({
+        version: 2,
+        status: "draft",
+        held: 1,
+        filters: ["draft", "awaiting"],
+      });
+
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(revised!).id,
+        pricing: null,
+      });
+      expect(await state()).toEqual({
+        version: 2,
+        status: "sent",
+        held: 2,
+        filters: ["awaiting"],
+      });
+    });
+
+    test("sending a new version of a lost quote opens it again", async () => {
+      const id = await sent(TODAY, "2026-10-19");
+      await setQuoteOutcome(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: id,
+        outcome: "lost",
+        reason: "Too expensive",
+      });
+      const revised = await reviseQuote(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: id,
+        today: TODAY,
+      });
+
+      const resent = await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(revised!).id,
+        pricing: null,
+      });
+
+      expect(resent).toMatchObject({
+        outcome: "open",
+        outcomeReason: null,
+        outcomeAt: null,
+      });
+      expect(await numbers("awaiting")).toEqual(["OFF-0001"]);
+    });
+
+    test("a quote valid until today is still awaiting, not expired", async () => {
+      await sent("2026-09-01", TODAY);
+
+      expect(await numbers("awaiting")).toEqual(["OFF-0001"]);
+      expect(await numbers("expiring")).toEqual(["OFF-0001"]);
+      expect(await numbers("expired")).toEqual([]);
+    });
+
+    test("each row has its amount, a draft's at today's rates", async () => {
+      const workType = await createWorkType(db, {
+        teamId: TEAM_USD_ID,
+        name: "Development",
+        hourlyRate: 100,
+      });
+      const quote = await create();
+      await updateQuoteDraft(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+        content: {
+          blocks: [],
+          rates: { workTypeRates: {}, volumeTiers: [], termTiers: [] },
+          displayUnit: "hours",
+          hoursPerDay: 8,
+          scenarios: [
+            {
+              id: "s1",
+              name: "Fixed price",
+              recommended: false,
+              pricing: "fixed",
+              capped: false,
+              recurrence: null,
+              adjustmentOverride: null,
+              paymentSchedule: [],
+              lines: [
+                {
+                  id: "l1",
+                  type: "item",
+                  title: "Workshop",
+                  description: null,
+                  workTypeId: workType.id,
+                  hours: 10,
+                  hoursMax: null,
+                  optional: false,
+                  once: false,
+                },
+              ],
+            },
+          ],
+        },
+      });
+      await setCustomerWorkTypeRate(db, {
+        teamId: TEAM_USD_ID,
+        customerId,
+        workTypeId: workType.id,
+        hourlyRate: 90,
+      });
+
+      const [row] = await listQuotes(db, { teamId: TEAM_USD_ID, today: TODAY });
+
+      expect(row?.headline).toEqual({
+        amount: { amount: 90000, max: null },
+        per: "total",
+      });
+    });
+
+    test("another team's quotes are not listed", async () => {
+      await create();
+
+      expect(
+        await listQuotes(db, { teamId: TEAM_EUR_ID, today: TODAY }),
+      ).toEqual([]);
+    });
+  });
+
+  describe("outcome", () => {
+    test("lost, with a reason and when it was decided", async () => {
+      const quote = await create();
+
+      const result = await setQuoteOutcome(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: quote.id,
+        outcome: "lost",
+        reason: "Too expensive",
+      });
+
+      expect(result).toMatchObject({
+        outcome: "lost",
+        outcomeReason: "Too expensive",
+      });
+      expect(result?.outcomeAt).not.toBeNull();
+    });
+
+    test("reopened, the reason and the date go", async () => {
+      const quote = await create();
+      await setQuoteOutcome(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: quote.id,
+        outcome: "no_decision",
+        reason: "Project postponed",
+      });
+
+      const result = await setQuoteOutcome(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: quote.id,
+        outcome: "open",
+        reason: null,
+      });
+
+      expect(result).toMatchObject({
+        outcome: "open",
+        outcomeReason: null,
+        outcomeAt: null,
+      });
+    });
+
+    test("a won quote is not changed by hand", async () => {
+      const quote = await create();
+      await db
+        .update(quotes)
+        .set({ outcome: "won" })
+        .where(eq(quotes.id, quote.id));
+
+      await expect(
+        setQuoteOutcome(db, {
+          teamId: TEAM_USD_ID,
+          quoteId: quote.id,
+          outcome: "lost",
+          reason: null,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("another team's quote is not found", async () => {
+      const quote = await create();
+
+      expect(
+        await setQuoteOutcome(db, {
+          teamId: TEAM_EUR_ID,
+          quoteId: quote.id,
+          outcome: "lost",
+          reason: null,
+        }),
+      ).toBeNull();
     });
   });
 

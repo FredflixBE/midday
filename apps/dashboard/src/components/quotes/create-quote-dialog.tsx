@@ -57,6 +57,9 @@ export function CreateQuoteDialog() {
           trpc.quotes.get.queryKey({ id: quote.id }),
           quote,
         );
+        void queryClient.invalidateQueries({
+          queryKey: trpc.quotes.list.queryKey(),
+        });
         router.push(`/quotes/${quote.id}`);
       },
       onError: errorToast("Not created"),

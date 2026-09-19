@@ -19,7 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@midday/ui/cn";
 import { GripVertical } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 
 /** A vertical list reordered by dragging a row's handle. */
 export function SortableList<T extends { id: string }>({
@@ -41,6 +41,10 @@ export function SortableList<T extends { id: string }>({
     }),
   );
 
+  // dnd-kit numbers its accessibility ids per render; a stable id keeps the
+  // server's HTML and the browser's the same.
+  const id = useId();
+
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
     const from = items.findIndex((item) => item.id === active.id);
@@ -50,6 +54,7 @@ export function SortableList<T extends { id: string }>({
 
   return (
     <DndContext
+      id={id}
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={onDragEnd}
