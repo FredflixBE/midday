@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { Database } from "../client";
 import { customerProductRates, customers, invoiceProducts } from "../schema";
 
@@ -10,6 +10,25 @@ import { customerProductRates, customers, invoiceProducts } from "../schema";
 
 /** A person's mistake, told apart from a failure so the API can say so. */
 export class ProductRateInputError extends Error {}
+
+/**
+ * Every product of the team, inactive ones included so a quote line that
+ * names one still prices, by name. What a quote needs of a product, no more.
+ */
+export async function getQuoteProducts(db: Database, teamId: string) {
+  return db
+    .select({
+      id: invoiceProducts.id,
+      name: invoiceProducts.name,
+      price: invoiceProducts.price,
+      currency: invoiceProducts.currency,
+      unit: invoiceProducts.unit,
+      isActive: invoiceProducts.isActive,
+    })
+    .from(invoiceProducts)
+    .where(eq(invoiceProducts.teamId, teamId))
+    .orderBy(asc(invoiceProducts.name));
+}
 
 /** The customer's own rates. A product without one uses its price. */
 export async function getCustomerProductRates(

@@ -11,6 +11,7 @@ import type { Database } from "../client";
 import { createInvoiceProduct } from "../queries/invoice-products";
 import {
   getCustomerProductRates,
+  getQuoteProducts,
   ProductRateInputError,
   setCustomerProductRate,
 } from "../queries/product-rates";
@@ -61,6 +62,23 @@ describe.skipIf(SKIP)("product rates", () => {
       unit: "hour",
     });
   }
+
+  test("every product of the team prices a quote, inactive ones too, by name", async () => {
+    const support = await create("Support", 90);
+    await create("Development", 110);
+    await create("Development", 110, TEAM_EUR_ID);
+    await db
+      .update(invoiceProducts)
+      .set({ isActive: false })
+      .where(eq(invoiceProducts.id, support.id));
+
+    const products = await getQuoteProducts(db, TEAM_USD_ID);
+
+    expect(products.map((p) => [p.name, p.price, p.isActive])).toEqual([
+      ["Development", 110, true],
+      ["Support", 90, false],
+    ]);
+  });
 
   test("a rate cannot be negative", async () => {
     const product = await create("Development", 110);

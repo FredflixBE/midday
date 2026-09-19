@@ -271,6 +271,7 @@ export const mocks = {
   updateCommitment: mock(() => ({})) as MockFn,
   setTransactionCommitment: mock(() => ({})) as MockFn,
   // Customer product rates (FF-1620)
+  getQuoteProducts: mock(() => []) as MockFn,
   getCustomerProductRates: mock(() => []) as MockFn,
   setCustomerProductRate: mock(() => ({})) as MockFn,
   // Quotes (FF-1609)
@@ -960,6 +961,7 @@ const dbQueriesMock = new Proxy(
     updateCommitment: mocks.updateCommitment,
     setTransactionCommitment: mocks.setTransactionCommitment,
     ProductRateInputError: class ProductRateInputError extends Error {},
+    getQuoteProducts: mocks.getQuoteProducts,
     getCustomerProductRates: mocks.getCustomerProductRates,
     setCustomerProductRate: mocks.setCustomerProductRate,
     createQuote: mocks.createQuote,

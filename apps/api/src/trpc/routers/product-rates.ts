@@ -5,6 +5,7 @@ import {
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import {
   getCustomerProductRates,
+  getQuoteProducts,
   ProductRateInputError,
   setCustomerProductRate,
 } from "@midday/db/queries";
@@ -15,6 +16,11 @@ import { TRPCError } from "@trpc/server";
  * from before the product's own price.
  */
 export const productRatesRouter = createTRPCRouter({
+  /** Every product, inactive ones too, as a quote prices from them. */
+  products: protectedProcedure.query(async ({ ctx: { db, teamId } }) => {
+    return getQuoteProducts(db, teamId!);
+  }),
+
   customerRates: protectedProcedure
     .input(customerProductRatesSchema)
     .query(async ({ input, ctx: { db, teamId } }) => {
