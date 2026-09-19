@@ -865,10 +865,16 @@ export async function applySupplierRules(
   }
 
   for (const { link, ids } of byOutcome.values()) {
+    // A payment that now has a supplier no longer needs the model's "could
+    // not say" remembered for it (FF-1600).
+    const values = link.supplierId
+      ? { ...link, supplierUnansweredAt: null }
+      : link;
+
     for (let i = 0; i < ids.length; i += 500) {
       await db
         .update(transactions)
-        .set(link)
+        .set(values)
         .where(
           and(
             undecidedSql(params.teamId),
@@ -1020,6 +1026,9 @@ export async function setTransactionSupplier(
       supplierId: params.supplierId,
       supplierRuleId: null,
       supplierLink: "person",
+      // A person's "no supplier" agrees with the model's "could not say", so
+      // that memory is kept; a supplier ends it (FF-1600).
+      ...(params.supplierId ? { supplierUnansweredAt: null } : {}),
     })
     .where(
       and(
@@ -1032,14 +1041,22 @@ export async function setTransactionSupplier(
   return row ?? null;
 }
 
-/** Give a payment back to automation: the rules decide it again from scratch. */
+/**
+ * Give a payment back to automation: the rules decide it again from scratch,
+ * and the model may be asked about it again.
+ */
 export async function resetTransactionSupplier(
   db: Database,
   params: { teamId: string; transactionId: string },
 ) {
   const [row] = await db
     .update(transactions)
-    .set({ supplierId: null, supplierRuleId: null, supplierLink: null })
+    .set({
+      supplierId: null,
+      supplierRuleId: null,
+      supplierLink: null,
+      supplierUnansweredAt: null,
+    })
     .where(
       and(
         eq(transactions.id, params.transactionId),
@@ -1074,6 +1091,7 @@ export async function linkTransactionsByGuess(
       supplierId: params.supplierId,
       supplierRuleId: null,
       supplierLink: "ai",
+      supplierUnansweredAt: null,
     })
     .where(
       and(
