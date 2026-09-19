@@ -12,12 +12,15 @@ import {
   KIND_LABELS,
   LANGUAGE_LABELS,
   MODE_LABELS,
+  NumberInput,
   OptionSelect,
+  UNIT_LABELS,
 } from "./fields";
 
 /**
  * Who the quote is for and what it is. Customer, title, kind and language
- * are the quote's and stay as sent, so a revision shows them locked.
+ * are the quote's and stay as sent, so a revision shows them locked. Hours
+ * or days, and the hours in a day, are the version's (FF-1619).
  */
 export function QuoteHeaderFields({
   draft,
@@ -119,6 +122,36 @@ export function QuoteHeaderFields({
             onChange={(validUntil) => change({ validUntil })}
           />
         </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-6">
+        <Field label="Unit">
+          <OptionSelect
+            aria-label="Unit"
+            value={draft.content.displayUnit}
+            options={UNIT_LABELS}
+            disabled={disabled}
+            onChange={(displayUnit) =>
+              change((d) => ({ content: { ...d.content, displayUnit } }))
+            }
+          />
+        </Field>
+        {draft.content.displayUnit === "days" ? (
+          <Field label="Hours per day">
+            <NumberInput
+              aria-label="Hours per day"
+              value={draft.content.hoursPerDay}
+              min={0.01}
+              max={24}
+              // Emptied, the quote keeps its hours per day.
+              onChange={(hoursPerDay) =>
+                hoursPerDay === null
+                  ? undefined
+                  : change((d) => ({ content: { ...d.content, hoursPerDay } }))
+              }
+            />
+          </Field>
+        ) : null}
       </div>
     </div>
   );

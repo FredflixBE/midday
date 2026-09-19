@@ -1,3 +1,5 @@
+import { rateInUnit, type UnitSettings } from "@midday/quote";
+
 /**
  * How an hourly rate reads: the currency's symbol before the number and
  * "/h" after it, e.g. €100/h. The symbol comes from the currency code, so a
@@ -27,4 +29,16 @@ export function hourlyRateAffixes(currency: string) {
 export function formatHourlyRate(rate: number, currency: string) {
   const amount = Number.isInteger(rate) ? String(rate) : rate.toFixed(2);
   return `${currencySymbol(currency)}${amount}/h`;
+}
+
+/** An hourly rate as the quote shows it: €100/h, or €800/day in days. */
+export function formatUnitRate(
+  rate: number,
+  currency: string,
+  unit: UnitSettings,
+) {
+  if (unit.displayUnit === "hours") return formatHourlyRate(rate, currency);
+  const day = rateInUnit(Math.round(rate * 100), unit) / 100;
+  const amount = Number.isInteger(day) ? String(day) : day.toFixed(2);
+  return `${currencySymbol(currency)}${amount}/day`;
 }

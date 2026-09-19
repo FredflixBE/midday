@@ -33,6 +33,7 @@ export const KIND_LABELS = { project: "Project", recurring: "Recurring" };
 export const MODE_LABELS = { estimate: "Estimate", firm: "Firm offer" };
 export const LANGUAGE_LABELS = { nl: "Dutch", en: "English" };
 export const PRICING_LABELS = { fixed: "Fixed", range: "Range" };
+export const UNIT_LABELS = { hours: "Hours", days: "Days" };
 
 /** A choice between a few fixed values, each with its label. */
 export function OptionSelect<T extends string>({

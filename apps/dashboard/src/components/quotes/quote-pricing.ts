@@ -1,4 +1,9 @@
-import type { Amount, ProductRates } from "@midday/quote";
+import {
+  type Amount,
+  amountInUnit,
+  type ProductRates,
+  type UnitSettings,
+} from "@midday/quote";
 import { formatAmount } from "@/utils/format";
 
 /**
@@ -43,6 +48,27 @@ export function formatHours(value: Amount, locale?: string) {
   return value.max === null || value.max === value.amount
     ? n(value.amount)
     : `${n(value.amount)} – ${n(value.max)}`;
+}
+
+/** Hours in the quote's unit, as `2` or `1.5 – 2` days on a quote in days. */
+export function formatQuantity(
+  value: Amount,
+  unit: UnitSettings,
+  locale?: string,
+) {
+  return formatHours(amountInUnit(value, unit), locale);
+}
+
+/** A quantity with its unit, as `12 h` or `1.5 days`. */
+export function formatQuantityWithUnit(
+  value: Amount,
+  unit: UnitSettings,
+  locale?: string,
+) {
+  const shown = formatQuantity(value, unit, locale);
+  if (unit.displayUnit === "hours") return `${shown} h`;
+  const one = value.max === null && amountInUnit(value, unit).amount === 1;
+  return `${shown} ${one ? "day" : "days"}`;
 }
 
 /** An adjustment with its sign, so a surcharge reads `+5%`. */
