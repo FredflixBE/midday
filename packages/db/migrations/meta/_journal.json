@@ -113,6 +113,13 @@
       "when": 1789773473157,
       "tag": "0015_supplier_unanswered",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789773818651,
+      "tag": "0016_drop_transaction_enrichments",
+      "breakpoints": true
     }
   ]
 }

@@ -82,11 +82,13 @@ export type PolicyStatements = {
  * Every policy in schema.ts, as statements safe to run against a database that
  * push has already touched.
  */
-export function policyStatements(): PolicyStatements {
+export function policyStatements(
+  tables: unknown[] = Object.values(schema),
+): PolicyStatements {
   const enableRls: string[] = [];
   const policies: PolicyStatement[] = [];
 
-  for (const value of Object.values(schema)) {
+  for (const value of tables) {
     let config: ReturnType<typeof getTableConfig>;
     try {
       config = getTableConfig(value as Parameters<typeof getTableConfig>[0]);
@@ -95,8 +97,8 @@ export function policyStatements(): PolicyStatements {
     }
 
     // A table with RLS on and no policies is closed to the API roles, which is
-    // a deliberate state (transaction_enrichments), not an omission — so
-    // enableRLS alone is enough to be worth a statement here. Getting this
+    // a deliberate state, not an omission — so enableRLS alone is enough to be
+    // worth a statement here. Getting this
     // wrong is worse than it sounds: Supabase grants those roles ALL on tables
     // in `public` through default privileges, so a table this loop skips is a
     // table any signed-in user can read and write.
