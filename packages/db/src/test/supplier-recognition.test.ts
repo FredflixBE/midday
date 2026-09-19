@@ -14,6 +14,7 @@ import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
 import {
+  type KnownSupplier,
   type RecognisableTransaction,
   recogniseSuppliers,
   type SupplierAnswer,
@@ -40,9 +41,14 @@ let sequence = 0;
 /** A model that answers from a table keyed on the transaction text's start. */
 function fakeModel(answers: Record<string, SupplierAnswer | null>) {
   const asked: SupplierQuestion[] = [];
+  const shown: KnownSupplier[][] = [];
 
-  const ask = async (questions: SupplierQuestion[]) => {
+  const ask = async (
+    questions: SupplierQuestion[],
+    known: readonly KnownSupplier[],
+  ) => {
     asked.push(...questions);
+    shown.push([...known]);
     return questions.map((question) => {
       const key = Object.keys(answers).find((start) =>
         question.name.startsWith(start),
@@ -51,7 +57,7 @@ function fakeModel(answers: Record<string, SupplierAnswer | null>) {
     });
   };
 
-  return { ask, asked };
+  return { ask, asked, shown };
 }
 
 const byText = (supplier: string, span: string): SupplierAnswer => ({
@@ -418,5 +424,66 @@ describe.skipIf(SKIP)("supplier recognition", () => {
     });
 
     expect((await linkOf(earlier.id)).supplierName).toBe("KBC Lease");
+  });
+
+  test("the model is shown the suppliers that exist, and naming one by an alias creates nothing", async () => {
+    // Merging Xerius into its legal name kept "Xerius" as an alias. The model,
+    // shown the list, answers with the short name again; that must land on the
+    // merged supplier, not bring the duplicate back.
+    const [xerius] = await db
+      .insert(suppliers)
+      .values({
+        teamId: TEAM_USD_ID,
+        name: "Xerius Sociaal Verzekeringsfonds VZW",
+        aliases: ["Xerius"],
+      })
+      .returning();
+    await db
+      .insert(suppliers)
+      .values({ teamId: TEAM_USD_ID, name: "Telenet BV" });
+
+    const model = fakeModel({ Xerius: byText("Xerius", "Xerius Be2000") });
+    const card = await payment({
+      name: "Xerius Be2000 Antwerpen Betaling Met Kbc Debetkaart",
+    });
+
+    const result = await recogniseSuppliers(db, {
+      teamId: TEAM_USD_ID,
+      transactions: [card],
+      ask: model.ask,
+    });
+
+    expect(model.shown[0]).toEqual([
+      { name: "Telenet BV", aliases: [] },
+      { name: "Xerius Sociaal Verzekeringsfonds VZW", aliases: ["Xerius"] },
+    ]);
+    expect(result.created).toBe(0);
+    expect((await linkOf(card.id)).supplierId).toBe(xerius!.id);
+    expect(await db.select().from(suppliers)).toHaveLength(2);
+  });
+
+  test("a supplier the model creates is shown to it in the next round", async () => {
+    // Same SumUp merchant, two terminals: round one creates the taxi driver,
+    // round two asks about the café and must already see him.
+    const model = fakeModel({
+      "SumUp KIMAKH": byText("Kimakh Wahib", "SumUp KIMAKH WAHIB"),
+      "SumUp Cafe": byText("Cafe Mokka", "SumUp Cafe Mokka"),
+    });
+    const taxi = await payment({
+      name: "SumUp KIMAKH WAHIB Paris FRA",
+      merchantName: "SumUp Payments Ltd",
+    });
+    const cafe = await payment({
+      name: "SumUp Cafe Mokka Luxembourg LUX",
+      merchantName: "SumUp Payments Ltd",
+    });
+
+    await recogniseSuppliers(db, {
+      teamId: TEAM_USD_ID,
+      transactions: [taxi, cafe],
+      ask: model.ask,
+    });
+
+    expect(model.shown).toEqual([[], [{ name: "Kimakh Wahib", aliases: [] }]]);
   });
 });

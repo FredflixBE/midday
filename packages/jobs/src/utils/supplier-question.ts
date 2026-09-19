@@ -1,5 +1,6 @@
 import type {
   AskSuppliers,
+  KnownSupplier,
   SupplierAnswer,
   SupplierQuestion,
 } from "@midday/db/queries";
@@ -21,7 +22,7 @@ export const supplierAnswerSchema = z.object({
     .string()
     .nullable()
     .describe(
-      "The legal entity that was paid, with its legal suffix (BV, NV, VZW, Ltd, Inc). Null when it cannot be told.",
+      "The legal entity that was paid: a known supplier's name exactly as listed, otherwise the name with its legal suffix (BV, NV, VZW, Ltd, Inc). Null when it cannot be told.",
     ),
   confidence: z
     .number()
@@ -42,7 +43,10 @@ export const supplierAnswerSchema = z.object({
     ),
 });
 
-export function generateSupplierPrompt(questions: SupplierQuestion[]): string {
+export function generateSupplierPrompt(
+  questions: SupplierQuestion[],
+  known: readonly KnownSupplier[],
+): string {
   const list = questions
     .map((question, index) => {
       const parts = [`Raw: "${question.name}"`];
@@ -58,6 +62,30 @@ export function generateSupplierPrompt(questions: SupplierQuestion[]): string {
       return `${index + 1}. ${parts.join(" | ")}`;
     })
     .join("\n");
+
+  const knownList = known
+    .map((supplier) => {
+      const line = `- "${supplier.name}"`;
+      if (supplier.aliases.length === 0) return line;
+      const also = supplier.aliases.map((alias) => `"${alias}"`).join(", ");
+      return `${line} (also written ${also})`;
+    })
+    .join("\n");
+
+  const knownSection =
+    known.length > 0
+      ? `
+Suppliers already known to this business:
+${knownList}
+
+When a transaction was paid to one of these companies, answer supplier with
+its name exactly as listed first, even when the transaction spells it
+differently. Give a new name only when none of them is the company paid — and
+do not stretch one to fit: "KBC Bank NV" is not "KBC Verzekeringen NV".
+namedBy and span still describe the transaction's own words, not the listed
+name.
+`
+      : "";
 
   return `You identify who a business paid, from its bank and card transactions.
 
@@ -88,7 +116,7 @@ For EVERY transaction, answer:
 
 4. confidence: 0 to 1. Below 0.6 means you are guessing; say so rather than
    inventing a company.
-
+${knownSection}
 Transactions:
 ${list}
 
@@ -97,12 +125,12 @@ Return exactly ${questions.length} results, in order.`;
 
 /** An `AskSuppliers` backed by a model. */
 export function askSuppliersWith(model: LanguageModel): AskSuppliers {
-  return async (questions) => {
+  return async (questions, known) => {
     if (questions.length === 0) return [];
 
     const { object } = await generateObject({
       model,
-      prompt: generateSupplierPrompt(questions),
+      prompt: generateSupplierPrompt(questions, known),
       output: "array",
       schema: supplierAnswerSchema,
       temperature: 0.1,
