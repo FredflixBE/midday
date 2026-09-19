@@ -29,6 +29,7 @@ import { notificationSettingsRouter } from "./notification-settings";
 import { notificationsRouter } from "./notifications";
 import { oauthApplicationsRouter } from "./oauth-applications";
 import { overviewRouter } from "./overview";
+import { productRatesRouter } from "./product-rates";
 import { quotesRouter } from "./quotes";
 import { reportsRouter } from "./reports";
 import { searchRouter } from "./search";
@@ -44,7 +45,6 @@ import { transactionCategoriesRouter } from "./transaction-categories";
 import { transactionTagsRouter } from "./transaction-tags";
 import { transactionsRouter } from "./transactions";
 import { userRouter } from "./user";
-import { workTypesRouter } from "./work-types";
 
 export const appRouter = createTRPCRouter({
   accounting: accountingRouter,
@@ -90,7 +90,7 @@ export const appRouter = createTRPCRouter({
   search: searchRouter,
   shortLinks: shortLinksRouter,
   apiKeys: apiKeysRouter,
-  workTypes: workTypesRouter,
+  productRates: productRatesRouter,
   quotes: quotesRouter,
 });
 
