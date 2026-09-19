@@ -3,7 +3,6 @@
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { formatQuoteVersion } from "@midday/quote";
 import { Badge } from "@midday/ui/badge";
-import { cn } from "@midday/ui/cn";
 import {
   Table,
   TableBody,
@@ -17,7 +16,7 @@ import { formatDate } from "@midday/utils/format";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
-import { useTransition } from "react";
+import { useDeferredValue } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { MODE_LABELS } from "./editor/fields";
@@ -40,15 +39,14 @@ export function QuotesList() {
   const trpc = useTRPC();
   const router = useRouter();
   const { data: user } = useUserQuery();
-  // A filter changes inside a transition, so the rows on screen stay until
-  // the new ones arrive instead of the list suspending on every click.
-  const [isPending, startTransition] = useTransition();
-  const [filter, setFilter] = useQueryState(
-    "status",
-    quoteFilterParser.withOptions({ startTransition }),
-  );
+  const [filter, setFilter] = useQueryState("status", quoteFilterParser);
+  // The tab moves at once; the rows follow a deferred copy of the filter, so
+  // the ones on screen stay until the new ones are loaded instead of the list
+  // suspending on every click. (nuqs's startTransition only covers server
+  // updates, and this one is client-side.)
+  const shownFilter = useDeferredValue(filter);
   const { data: rows } = useSuspenseQuery(
-    trpc.quotes.list.queryOptions(quotesListInput(filter)),
+    trpc.quotes.list.queryOptions(quotesListInput(shownFilter)),
   );
 
   const date = (value: string | null) =>
@@ -74,7 +72,7 @@ export function QuotesList() {
           No quotes
         </div>
       ) : (
-        <Table className={cn(isPending && "opacity-60")}>
+        <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Number</TableHead>
