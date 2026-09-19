@@ -5,6 +5,7 @@ import {
   initialQuoteContent,
   isExpired,
   nextQuoteNumber,
+  type PricingResult,
   parseQuoteContent,
   type QuoteContent,
   type QuoteKind,
@@ -495,7 +496,8 @@ export async function markQuoteVersionSent(
     versionId: string;
     sentTo?: string | null;
     sentAt?: string;
-    pricing: unknown;
+    /** `priceVersion` of this version, frozen: a sent quote is rendered from it. */
+    pricing: PricingResult | null;
   },
 ) {
   const quoteId = await db.transaction(async (tx) => {
