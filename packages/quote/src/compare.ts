@@ -6,11 +6,14 @@ import { type Amount, PERIODS_PER_YEAR, type PricingResult } from "./pricing";
  * scenario of a version side by side, and what a fixed price costs the client
  * over a range — the price of carrying the risk (RES-24 §3). It is never
  * printed.
+ *
+ * Premiums compare a project's total, and a recurring scenario's amount per
+ * year: over the contract, a longer term would outweigh the risk it measures.
  */
 
 export type ScenarioPremium = {
   rangeScenarioId: string;
-  /** The fixed price minus the range's midpoint, in cents. */
+  /** The fixed price minus the range's midpoint, in cents (per year when recurring). */
   overMidpoint: number;
   /** Of the midpoint, to one decimal; null when the range is empty. */
   overMidpointPercent: number | null;
@@ -85,9 +88,9 @@ export function compareScenarios(
   for (const row of rows) {
     if (row.pricing !== "fixed") continue;
     row.premiums = ranges.map((range) => {
-      const max = range.contractValue.max ?? range.contractValue.amount;
-      const midpoint = Math.round((range.contractValue.amount + max) / 2);
-      const fixed = row.contractValue.amount;
+      const max = range.total.max ?? range.total.amount;
+      const midpoint = Math.round((range.total.amount + max) / 2);
+      const fixed = row.total.amount;
       return {
         rangeScenarioId: range.scenarioId,
         overMidpoint: fixed - midpoint,

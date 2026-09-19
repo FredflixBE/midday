@@ -99,13 +99,15 @@ export function QuoteRates({
           }))}
           integer={false}
           editable={editable}
-          onChange={(tiers) =>
+          onChange={(next) =>
             setRates((rates) => ({
               ...rates,
-              volumeTiers: tiers.map((t) => ({
-                minHours: t.from,
-                percent: t.percent,
-              })),
+              volumeTiers: next(
+                rates.volumeTiers.map((t) => ({
+                  from: t.minHours,
+                  percent: t.percent,
+                })),
+              ).map((t) => ({ minHours: t.from, percent: t.percent })),
             }))
           }
         />
@@ -118,13 +120,15 @@ export function QuoteRates({
           }))}
           integer
           editable={editable}
-          onChange={(tiers) =>
+          onChange={(next) =>
             setRates((rates) => ({
               ...rates,
-              termTiers: tiers.map((t) => ({
-                minMonths: Math.max(1, t.from),
-                percent: t.percent,
-              })),
+              termTiers: next(
+                rates.termTiers.map((t) => ({
+                  from: t.minMonths,
+                  percent: t.percent,
+                })),
+              ).map((t) => ({ minMonths: t.from, percent: t.percent })),
             }))
           }
         />
@@ -203,10 +207,12 @@ function Tiers({
   tiers: Tier[];
   integer: boolean;
   editable: boolean;
-  onChange: (tiers: Tier[]) => void;
+  onChange: (next: (tiers: Tier[]) => Tier[]) => void;
 }) {
   const update = (index: number, patch: Partial<Tier>) =>
-    onChange(tiers.map((t, i) => (i === index ? { ...t, ...patch } : t)));
+    onChange((current) =>
+      current.map((t, i) => (i === index ? { ...t, ...patch } : t)),
+    );
 
   return (
     <div className="space-y-2">
@@ -224,7 +230,10 @@ function Tiers({
             integer={integer}
             min={integer ? 1 : 0}
             value={tier.from}
-            onChange={(from) => update(index, { from: from ?? 0 })}
+            // Emptied, it keeps its threshold until a new one is typed.
+            onChange={(from) => {
+              if (from !== null) update(index, { from });
+            }}
           />
           <NumberInput
             aria-label="Adjustment in percent"
@@ -239,7 +248,9 @@ function Tiers({
               variant="ghost"
               size="icon"
               aria-label="Remove tier"
-              onClick={() => onChange(tiers.filter((_, i) => i !== index))}
+              onClick={() =>
+                onChange((current) => current.filter((_, i) => i !== index))
+              }
             >
               <Trash2 size={14} />
             </Button>
@@ -252,7 +263,10 @@ function Tiers({
           variant="outline"
           size="sm"
           onClick={() =>
-            onChange([...tiers, { from: integer ? 12 : 100, percent: -5 }])
+            onChange((current) => [
+              ...current,
+              { from: integer ? 12 : 100, percent: -5 },
+            ])
           }
         >
           Add {title.toLowerCase()} tier

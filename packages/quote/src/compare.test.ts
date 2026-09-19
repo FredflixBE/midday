@@ -123,6 +123,30 @@ describe("compareScenarios", () => {
     });
   });
 
+  test("on a recurring quote the premium is per year, whatever the terms", () => {
+    const monthly = (termMonths: number) => ({
+      period: "month" as const,
+      termMonths,
+      billing: "in_advance" as const,
+      autoRenew: false,
+      noticeMonths: null,
+    });
+    const [fixed] = compare([
+      scenario("fixed", { recurrence: monthly(12), lines: [item(10)] }),
+      scenario("range", {
+        pricing: "range",
+        recurrence: monthly(24),
+        lines: [item(5, 15)],
+      }),
+    ]);
+
+    // €12,000 a year against €6,000–€18,000 a year.
+    expect(fixed!.premiums[0]).toMatchObject({
+      overMidpoint: 0,
+      overMax: -600000,
+    });
+  });
+
   test("without a range there is no premium to show", () => {
     const rows = compare([
       scenario("a", { lines: [item(10)] }),

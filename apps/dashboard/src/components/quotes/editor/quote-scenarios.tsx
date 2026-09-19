@@ -31,14 +31,18 @@ import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { MoreHorizontal, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { formatHourlyRate } from "../hourly-rate";
-import { formatQuoteAmount } from "../quote-pricing";
+import {
+  formatAdjustment,
+  formatHours,
+  formatQuoteAmount,
+  scenarioName,
+} from "../quote-pricing";
 import type { DraftChange } from "../use-quote-draft";
-import { Field, NumberInput, OptionSelect } from "./fields";
+import { Field, NumberInput, OptionSelect, PRICING_LABELS } from "./fields";
 import { ScenarioLines } from "./scenario-lines";
 
 type WorkType = RouterOutputs["workTypes"]["list"][number];
 
-const PRICING_LABELS = { fixed: "Fixed", range: "Range" };
 const PERIOD_LABELS = { month: "Month", quarter: "Quarter", year: "Year" };
 const BILLING_LABELS = { in_advance: "In advance", in_arrears: "In arrears" };
 const PER_PERIOD = {
@@ -118,7 +122,7 @@ export function QuoteScenarios({
                     {s.recommended ? (
                       <Star size={12} className="fill-current" />
                     ) : null}
-                    {s.name || "Untitled"}
+                    {scenarioName(s)}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -525,7 +529,7 @@ function ScenarioTotals({
   // The last money row a person reads as the price is the one in bold.
   type Row = { label: string; value: string; strong?: boolean };
   const rows: Row[] = [];
-  // Per type of work, when there is more than one (use case A).
+  // Per type of work, with the rate it is charged at (use cases A and B).
   const names = new Map(workTypes.map((w) => [w.id, w.name]));
   const rate = (workTypeId: string) => {
     const cents = pricing.rates[workTypeId]?.rate;
@@ -534,7 +538,7 @@ function ScenarioTotals({
       : ` × ${formatHourlyRate(cents / 100, currency)}`;
   };
   if (totals.kind === "project") {
-    rows.push({ label: "Hours", value: hours(totals.hours, locale) });
+    rows.push({ label: "Hours", value: formatHours(totals.hours, locale) });
     rows.push({
       label: totals.capped ? "Total (capped)" : "Total",
       value: money(totals.total),
@@ -564,12 +568,16 @@ function ScenarioTotals({
   return (
     <div className="ml-auto w-full max-w-[320px] space-y-1 text-sm">
       {pricing.adjustment !== 0 ? (
-        <Total label="Adjustment" value={`${pricing.adjustment}%`} muted />
+        <Total
+          label="Adjustment"
+          value={formatAdjustment(pricing.adjustment, locale)}
+          muted
+        />
       ) : null}
       {pricing.workTypes.map((w) => (
         <Total
           key={w.workTypeId}
-          label={`${names.get(w.workTypeId) ?? "Unknown"} · ${hours(w.hours, locale)} h${rate(w.workTypeId)}`}
+          label={`${names.get(w.workTypeId) ?? "Unknown"} · ${formatHours(w.hours, locale)} h${rate(w.workTypeId)}`}
           value={money(w.amount)}
           muted
         />
@@ -586,14 +594,6 @@ function ScenarioTotals({
       ))}
     </div>
   );
-}
-
-function hours(value: { amount: number; max: number | null }, locale?: string) {
-  const n = (h: number) =>
-    new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(h);
-  return value.max === null || value.max === value.amount
-    ? n(value.amount)
-    : `${n(value.amount)} – ${n(value.max)}`;
 }
 
 function Total({

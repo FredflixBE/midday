@@ -33,6 +33,29 @@ function money(cents: number, currency: string, locale?: string) {
   );
 }
 
+/** Hours to the hundredth, or a range of them as `8 – 12`. */
+export function formatHours(value: Amount, locale?: string) {
+  const n = (h: number) =>
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(h);
+  return value.max === null || value.max === value.amount
+    ? n(value.amount)
+    : `${n(value.amount)} – ${n(value.max)}`;
+}
+
+/** An adjustment with its sign, so a surcharge reads `+5%`. */
+export function formatAdjustment(percent: number, locale?: string) {
+  const n = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 2,
+    signDisplay: "exceptZero",
+  }).format(percent);
+  return `${n}%`;
+}
+
+/** What a scenario is called on screen, named or not. */
+export function scenarioName(scenario: { name: string }) {
+  return scenario.name || "Untitled";
+}
+
 /** An amount in cents, or a range of them as `€1,000 – €1,500`. */
 export function formatQuoteAmount(
   value: Amount,

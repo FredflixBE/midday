@@ -9,9 +9,13 @@ import {
 } from "@midday/quote";
 import { Star } from "lucide-react";
 import type { ReactNode } from "react";
-import { formatQuoteAmount } from "../quote-pricing";
-
-const PRICING_LABELS = { fixed: "Fixed", range: "Range" };
+import {
+  formatAdjustment,
+  formatHours,
+  formatQuoteAmount,
+  scenarioName,
+} from "../quote-pricing";
+import { PRICING_LABELS } from "./fields";
 
 /**
  * Every scenario side by side (FF-1612, docs/quotes.md §4.7), for the person
@@ -43,10 +47,6 @@ export function QuoteComparison({
   const money = (value: Amount) => formatQuoteAmount(value, currency, locale);
   const number = (value: number) =>
     new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
-  const hours = (value: Amount) =>
-    value.max === null || value.max === value.amount
-      ? number(value.amount)
-      : `${number(value.amount)} – ${number(value.max)}`;
   const signed = (cents: number, percent: number | null) => {
     const sign = cents > 0 ? "+" : cents < 0 ? "−" : "";
     const amount = money({ amount: Math.abs(cents), max: null });
@@ -85,7 +85,7 @@ export function QuoteComparison({
                     {s.recommended ? (
                       <Star size={12} className="fill-current" />
                     ) : null}
-                    {s.name || "Untitled"}
+                    {scenarioName(s)}
                   </span>
                 </th>
               ))}
@@ -94,11 +94,13 @@ export function QuoteComparison({
           <tbody>
             {row("Pricing", (id) => PRICING_LABELS[byId.get(id)!.pricing])}
             {row(kind === "recurring" ? "Hours per year" : "Hours", (id) =>
-              hours(byId.get(id)!.hours),
+              formatHours(byId.get(id)!.hours, locale),
             )}
             {row("Adjustment", (id) => {
               const adjustment = byId.get(id)!.adjustment;
-              return adjustment === 0 ? "–" : `${number(adjustment)}%`;
+              return adjustment === 0
+                ? "–"
+                : formatAdjustment(adjustment, locale);
             })}
             {row(kind === "recurring" ? "Per year" : "Total", (id) =>
               money(byId.get(id)!.total),
@@ -110,7 +112,7 @@ export function QuoteComparison({
               : null}
             {hasFixed
               ? ranges.flatMap((range) => {
-                  const name = range.name || "Untitled";
+                  const name = scenarioName(range);
                   const premium = (id: string) =>
                     byId
                       .get(id)!
