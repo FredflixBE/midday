@@ -1,7 +1,7 @@
 "use client";
 
 import type { RouterOutputs } from "@api/trpc/routers/_app";
-import { formatQuoteVersion } from "@midday/quote";
+import { formatQuoteVersion, quoteState } from "@midday/quote";
 import { Badge } from "@midday/ui/badge";
 import {
   Table,
@@ -28,7 +28,6 @@ import {
   quotesListInput,
 } from "./quote-filters";
 import { formatQuoteAmount } from "./quote-pricing";
-import { quoteState } from "./quote-state";
 
 type Row = RouterOutputs["quotes"]["list"][number];
 

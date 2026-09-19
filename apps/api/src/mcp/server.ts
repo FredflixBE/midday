@@ -13,6 +13,7 @@ import {
   registerInvoiceRecurringTools,
   registerInvoiceTemplateTools,
   registerInvoiceTools,
+  registerQuoteTools,
   registerReportTools,
   registerSearchTools,
   registerTagTools,
@@ -65,6 +66,7 @@ Tools are namespaced by domain — use the prefix to discover related tools:
 - invoice_template_* — Invoice template labels and settings (title, customerLabel, vatLabel, currency, etc.)
 - invoice_products_* — Reusable line item product catalog
 - invoice_recurring_* — Recurring invoice schedules
+- quotes_* — Quotes (proposals priced in hours) and which await an answer; read only
 - tags_* — Reusable labels for organizing records
 - team_* — Team metadata and member information
 - search_global — Full-text search across all data types
@@ -114,6 +116,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
   registerInvoiceProductTools(server, ctx);
   registerInvoiceRecurringTools(server, ctx);
   registerInvoiceTemplateTools(server, ctx);
+  registerQuoteTools(server, ctx);
   registerCustomerTools(server, ctx);
   registerBankAccountTools(server, ctx);
   registerDocumentTools(server, ctx);

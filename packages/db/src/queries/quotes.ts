@@ -570,6 +570,59 @@ export async function markQuoteVersionSent(
   return quoteId ? getQuote(db, { id: quoteId, teamId: params.teamId }) : null;
 }
 
+/** A version's pricing: as frozen when it was sent, else worked out now. */
+function pricingOf(
+  version: { content: unknown; pricing: unknown },
+  rates: ProductRates,
+): PricingResult {
+  return (
+    (version.pricing as PricingResult | null) ??
+    priceVersion(version.content as QuoteContent, rates)
+  );
+}
+
+/** The team's product names by id, inactive ones included. */
+async function productNamesFor(db: DatabaseOrTransaction, teamId: string) {
+  const products = await db
+    .select({ id: invoiceProducts.id, name: invoiceProducts.name })
+    .from(invoiceProducts)
+    .where(eq(invoiceProducts.teamId, teamId));
+  return Object.fromEntries(products.map((p) => [p.id, p.name]));
+}
+
+/**
+ * A quote with every version priced (FF-1618): a sent version from the
+ * pricing frozen when it was sent, a draft at today's rates. With the
+ * customer's name and the names of the team's products, which lines name.
+ * Null when the quote is not the team's.
+ */
+export async function getPricedQuote(
+  db: DatabaseOrTransaction,
+  params: { id: string; teamId: string; today?: string },
+) {
+  const quote = await getQuote(db, params);
+  if (!quote) return null;
+
+  const ratesFor = await ratesForTeam(db, params.teamId);
+  const [customer] = quote.customerId
+    ? await db
+        .select({ name: customers.name })
+        .from(customers)
+        .where(eq(customers.id, quote.customerId))
+    : [];
+
+  return {
+    ...quote,
+    customerName: customer?.name ?? null,
+    productNames: await productNamesFor(db, params.teamId),
+    versions: quote.versions.map((version) => ({
+      ...version,
+      content: version.content as QuoteContent,
+      pricing: pricingOf(version, ratesFor(quote.customerId)),
+    })),
+  };
+}
+
 /**
  * What the PDF of a version is made from (FF-1613): the version as it stands,
  * priced from the pricing frozen when it was sent, or at today's rates while
@@ -596,17 +649,11 @@ export async function getQuotePdfInput(
   const { quote, version } = row;
   const content = version.content as QuoteContent;
 
-  const pricing =
-    (version.pricing as PricingResult | null) ??
-    priceVersion(
-      content,
-      (await ratesForTeam(db, params.teamId))(quote.customerId),
-    );
+  const pricing = pricingOf(
+    version,
+    (await ratesForTeam(db, params.teamId))(quote.customerId),
+  );
 
-  const products = await db
-    .select({ id: invoiceProducts.id, name: invoiceProducts.name })
-    .from(invoiceProducts)
-    .where(eq(invoiceProducts.teamId, params.teamId));
   const [customer] = quote.customerId
     ? await db
         .select({ countryCode: customers.countryCode })
@@ -642,7 +689,7 @@ export async function getQuotePdfInput(
     customerDetails: version.customerDetails,
     content,
     pricing,
-    productNames: Object.fromEntries(products.map((p) => [p.id, p.name])),
+    productNames: await productNamesFor(db, params.teamId),
     customerCountryCode: customer?.countryCode ?? null,
     teamCountryCode: team?.countryCode ?? null,
     labels: settings.labels,
@@ -773,9 +820,7 @@ export async function listQuotes(
 
   return rows.map(({ quote, customerName, version, held }) => {
     const content = version.content as QuoteContent;
-    const pricing =
-      (version.pricing as PricingResult | null) ??
-      priceVersion(content, ratesFor(quote.customerId));
+    const pricing = pricingOf(version, ratesFor(quote.customerId));
     return {
       ...quote,
       customerName,

@@ -5,6 +5,7 @@ import {
   formatQuoteVersion,
   type PricingResult,
   priceVersion,
+  quoteState,
 } from "@midday/quote";
 import { Badge } from "@midday/ui/badge";
 import { Button } from "@midday/ui/button";
@@ -26,7 +27,6 @@ import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { DownloadQuotePdf } from "../download-quote-pdf";
 import { toProductRates } from "../quote-pricing";
-import { quoteState } from "../quote-state";
 import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
 import { ReadOnlyContext } from "./fields";
