@@ -9,6 +9,7 @@ type Props = {
   onCreate?: (name: string) => void;
   onEdit?: (id: string) => void;
   selectedId?: string;
+  disabled?: boolean;
 };
 
 export function SearchCustomers({
@@ -16,6 +17,7 @@ export function SearchCustomers({
   onSelect,
   onEdit,
   selectedId,
+  disabled,
 }: Props) {
   const trpc = useTRPC();
 
@@ -39,6 +41,7 @@ export function SearchCustomers({
       placeholder="Select customer"
       searchPlaceholder="Search customer"
       className="text-xs"
+      disabled={disabled}
       items={formattedData ?? []}
       onSelect={({ id }) => onSelect(id)}
       selectedItem={selectedItem}

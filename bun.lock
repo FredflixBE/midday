@@ -98,6 +98,7 @@
         "@midday/jobs": "workspace:*",
         "@midday/location": "workspace:*",
         "@midday/mcp-apps": "workspace:*",
+        "@midday/quote": "workspace:*",
         "@midday/supabase": "workspace:*",
         "@midday/trpc": "workspace:*",
         "@midday/ui": "workspace:*",
