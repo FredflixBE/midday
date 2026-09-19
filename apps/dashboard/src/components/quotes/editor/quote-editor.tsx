@@ -29,7 +29,9 @@ import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
 import { ReadOnlyContext } from "./fields";
 import { QuoteBlocks } from "./quote-blocks";
+import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields } from "./quote-header-fields";
+import { QuoteRates } from "./quote-rates";
 import { QuoteScenarios } from "./quote-scenarios";
 
 type Quote = RouterOutputs["quotes"]["get"];
@@ -156,6 +158,14 @@ function VersionEditor({ quote, version }: { quote: Quote; version: Version }) {
             change={change}
             editable={editable}
           />
+
+          <QuoteRates
+            content={draft.content}
+            workTypes={workTypes}
+            customerRates={customerRates}
+            editable={editable}
+            change={change}
+          />
         </fieldset>
 
         {/* Outside the fieldset: a sent version's scenarios are still browsed. */}
@@ -168,6 +178,14 @@ function VersionEditor({ quote, version }: { quote: Quote; version: Version }) {
           locale={user?.locale ?? undefined}
           editable={editable}
           change={change}
+        />
+
+        <QuoteComparison
+          content={draft.content}
+          kind={draft.kind}
+          pricing={pricing}
+          currency={quote.currency}
+          locale={user?.locale ?? undefined}
         />
       </div>
     </ReadOnlyContext.Provider>

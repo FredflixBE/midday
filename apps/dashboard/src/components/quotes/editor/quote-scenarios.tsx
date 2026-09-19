@@ -30,6 +30,7 @@ import { Switch } from "@midday/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { MoreHorizontal, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { formatHourlyRate } from "../hourly-rate";
 import { formatQuoteAmount } from "../quote-pricing";
 import type { DraftChange } from "../use-quote-draft";
 import { Field, NumberInput, OptionSelect } from "./fields";
@@ -261,6 +262,19 @@ function ScenarioEditor({
             onChange={(capped) => onChange((s) => ({ ...s, capped }))}
           />
         ) : null}
+        <Field label="Adjustment (%)" className="w-[120px]">
+          <NumberInput
+            aria-label="Adjustment in percent"
+            min={-99.99}
+            max={1000}
+            // Empty: the tiers decide, and what they decide shows here.
+            placeholder={String(pricing?.adjustment ?? 0)}
+            value={scenario.adjustmentOverride}
+            onChange={(adjustmentOverride) =>
+              onChange((s) => ({ ...s, adjustmentOverride }))
+            }
+          />
+        </Field>
 
         {scenario.recurrence ? (
           <>
@@ -513,7 +527,12 @@ function ScenarioTotals({
   const rows: Row[] = [];
   // Per type of work, when there is more than one (use case A).
   const names = new Map(workTypes.map((w) => [w.id, w.name]));
-  const split = pricing.workTypes.length > 1 ? pricing.workTypes : [];
+  const rate = (workTypeId: string) => {
+    const cents = pricing.rates[workTypeId]?.rate;
+    return cents === undefined
+      ? ""
+      : ` × ${formatHourlyRate(cents / 100, currency)}`;
+  };
   if (totals.kind === "project") {
     rows.push({ label: "Hours", value: hours(totals.hours, locale) });
     rows.push({
@@ -544,10 +563,13 @@ function ScenarioTotals({
 
   return (
     <div className="ml-auto w-full max-w-[320px] space-y-1 text-sm">
-      {split.map((w) => (
+      {pricing.adjustment !== 0 ? (
+        <Total label="Adjustment" value={`${pricing.adjustment}%`} muted />
+      ) : null}
+      {pricing.workTypes.map((w) => (
         <Total
           key={w.workTypeId}
-          label={`${names.get(w.workTypeId) ?? "Unknown"} · ${hours(w.hours, locale)} h`}
+          label={`${names.get(w.workTypeId) ?? "Unknown"} · ${hours(w.hours, locale)} h${rate(w.workTypeId)}`}
           value={money(w.amount)}
           muted
         />
