@@ -50,5 +50,6 @@ export * from "./transactions";
 export * from "./user-invites";
 export * from "./users";
 export * from "./users-on-team";
+export * from "./work-types";
 export * from "./yuki-card";
 export * from "./yuki-inbox";

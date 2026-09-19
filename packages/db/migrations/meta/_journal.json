@@ -127,6 +127,13 @@
       "when": 1789774208710,
       "tag": "0017_commitments",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789831694135,
+      "tag": "0018_work_types",
+      "breakpoints": true
     }
   ]
 }
