@@ -13,6 +13,7 @@ import {
   removeScenario,
   type Scenario,
   type ScenarioPricing,
+  type UnitSettings,
   withPricing,
 } from "@midday/quote";
 import { Button } from "@midday/ui/button";
@@ -30,15 +31,22 @@ import { Switch } from "@midday/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { MoreHorizontal, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { formatHourlyRate } from "../hourly-rate";
+import { formatUnitRate } from "../hourly-rate";
 import {
   formatAdjustment,
-  formatHours,
+  formatQuantity,
+  formatQuantityWithUnit,
   formatQuoteAmount,
   scenarioName,
 } from "../quote-pricing";
 import type { DraftChange } from "../use-quote-draft";
-import { Field, NumberInput, OptionSelect, PRICING_LABELS } from "./fields";
+import {
+  Field,
+  NumberInput,
+  OptionSelect,
+  PRICING_LABELS,
+  UNIT_LABELS,
+} from "./fields";
 import { ScenarioLines } from "./scenario-lines";
 
 type Product = RouterOutputs["productRates"]["products"][number];
@@ -147,6 +155,7 @@ export function QuoteScenarios({
               (p) => p.scenarioId === selected.id,
             )}
             recurring={kind === "recurring"}
+            unit={content}
             products={products}
             currency={currency}
             locale={locale}
@@ -175,6 +184,7 @@ function ScenarioEditor({
   scenario,
   pricing,
   recurring,
+  unit,
   products,
   currency,
   locale,
@@ -187,6 +197,7 @@ function ScenarioEditor({
   scenario: Scenario;
   pricing: ScenarioPricing | undefined;
   recurring: boolean;
+  unit: UnitSettings;
   products: Product[];
   currency: string;
   locale?: string;
@@ -333,6 +344,7 @@ function ScenarioEditor({
         scenario={scenario}
         pricing={pricing}
         recurring={recurring}
+        unit={unit}
         products={products}
         currency={currency}
         locale={locale}
@@ -359,6 +371,7 @@ function ScenarioEditor({
       {pricing ? (
         <ScenarioTotals
           pricing={pricing}
+          unit={unit}
           products={products}
           period={scenario.recurrence?.period}
           currency={currency}
@@ -510,12 +523,14 @@ function PaymentSchedule({
 
 function ScenarioTotals({
   pricing,
+  unit,
   products,
   period,
   currency,
   locale,
 }: {
   pricing: ScenarioPricing;
+  unit: UnitSettings;
   products: Product[];
   period: Recurrence["period"] | undefined;
   currency: string;
@@ -535,10 +550,13 @@ function ScenarioTotals({
     const cents = pricing.rates[productId]?.rate;
     return cents === undefined
       ? ""
-      : ` × ${formatHourlyRate(cents / 100, currency)}`;
+      : ` × ${formatUnitRate(cents / 100, currency, unit)}`;
   };
   if (totals.kind === "project") {
-    rows.push({ label: "Hours", value: formatHours(totals.hours, locale) });
+    rows.push({
+      label: UNIT_LABELS[unit.displayUnit],
+      value: formatQuantity(totals.hours, unit, locale),
+    });
     rows.push({
       label: totals.capped ? "Total (capped)" : "Total",
       value: money(totals.total),
@@ -577,7 +595,7 @@ function ScenarioTotals({
       {pricing.products.map((w) => (
         <Total
           key={w.productId}
-          label={`${names.get(w.productId) ?? "Unknown"} · ${formatHours(w.hours, locale)} h${rate(w.productId)}`}
+          label={`${names.get(w.productId) ?? "Unknown"} · ${formatQuantityWithUnit(w.hours, unit, locale)}${rate(w.productId)}`}
           value={money(w.amount)}
           muted
         />

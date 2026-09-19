@@ -11,11 +11,11 @@ import { Star } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   formatAdjustment,
-  formatHours,
+  formatQuantity,
   formatQuoteAmount,
   scenarioName,
 } from "../quote-pricing";
-import { PRICING_LABELS } from "./fields";
+import { PRICING_LABELS, UNIT_LABELS } from "./fields";
 
 /**
  * Every scenario side by side (FF-1612, docs/quotes.md §4.7), for the person
@@ -93,8 +93,11 @@ export function QuoteComparison({
           </thead>
           <tbody>
             {row("Pricing", (id) => PRICING_LABELS[byId.get(id)!.pricing])}
-            {row(kind === "recurring" ? "Hours per year" : "Hours", (id) =>
-              formatHours(byId.get(id)!.hours, locale),
+            {row(
+              kind === "recurring"
+                ? `${UNIT_LABELS[content.displayUnit]} per year`
+                : UNIT_LABELS[content.displayUnit],
+              (id) => formatQuantity(byId.get(id)!.hours, content, locale),
             )}
             {row("Adjustment", (id) => {
               const adjustment = byId.get(id)!.adjustment;

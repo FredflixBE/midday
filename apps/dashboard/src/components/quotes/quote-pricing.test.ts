@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
+import { formatUnitRate } from "./hourly-rate";
 import {
   formatAdjustment,
   formatHours,
+  formatQuantityWithUnit,
   formatQuoteAmount,
   toProductRates,
 } from "./quote-pricing";
@@ -59,6 +61,34 @@ test("a range whose ends meet reads as one amount", () => {
 test("hours read to the hundredth, a range as minimum to maximum", () => {
   expect(formatHours({ amount: 7.5, max: null }, "en")).toBe("7.5");
   expect(formatHours({ amount: 8, max: 12 }, "en")).toBe("8 – 12");
+});
+
+test("a quote in days reads its hours as days, with the unit named", () => {
+  const days = { displayUnit: "days", hoursPerDay: 8 } as const;
+  const hours = { displayUnit: "hours", hoursPerDay: 8 } as const;
+  expect(formatQuantityWithUnit({ amount: 12, max: null }, days, "en")).toBe(
+    "1.5 days",
+  );
+  expect(formatQuantityWithUnit({ amount: 8, max: null }, days, "en")).toBe(
+    "1 day",
+  );
+  expect(formatQuantityWithUnit({ amount: 8, max: 16 }, days, "en")).toBe(
+    "1 – 2 days",
+  );
+  expect(formatQuantityWithUnit({ amount: 12, max: null }, hours, "en")).toBe(
+    "12 h",
+  );
+});
+
+test("a rate reads per hour, or per day at the quote's hours per day", () => {
+  expect(
+    plain(
+      formatUnitRate(100, "EUR", { displayUnit: "days", hoursPerDay: 7.5 }),
+    ),
+  ).toBe("€750/day");
+  expect(
+    plain(formatUnitRate(100, "EUR", { displayUnit: "hours", hoursPerDay: 8 })),
+  ).toBe("€100/h");
 });
 
 test("an adjustment carries its sign, so a surcharge is told from a discount", () => {
