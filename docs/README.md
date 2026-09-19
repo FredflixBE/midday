@@ -8,6 +8,7 @@ This directory contains technical documentation for the Midday.
 - **[inbox-matching.md](./inbox-matching.md)** - Detailed documentation of the V2 deterministic inbox matching algorithm with team calibration, hard-negative memory, and read-only verification tooling.
 - **[invoice-recurring.md](./invoice-recurring.md)** - Technical documentation of the recurring invoice system including architecture, state machine, generation flow, and key design decisions.
 - **[document-processing.md](./document-processing.md)** - Technical documentation of the document processing pipeline including AI classification, graceful degradation, retry functionality, and error handling.
+- **[quotes.md](./quotes.md)** - Design of quotes and proposals: quotes, versions and scenarios, work types and rates, the pricing rules, the PDF, and the build order (FF-1606).
 
 ## About
 
