@@ -1,0 +1,162 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`formatEditorContent renders paragraph-only content exactly as before 1`] = `
+[
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              "Acme BV",
+            ],
+            "key": "text-0-0",
+            "props": {
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 9,
+                "fontWeight": 600,
+              },
+            },
+            "type": "TEXT",
+          },
+          {
+            "children": [
+              
+"
+"
+,
+            ],
+            "key": "hard-break-0-1",
+            "props": {
+              "style": {
+                "fontSize": 12,
+                "height": 12,
+              },
+            },
+            "type": "TEXT",
+          },
+          {
+            "children": [
+              "Main street 1",
+            ],
+            "key": "text-0-2",
+            "props": {
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 9,
+                "fontStyle": "italic",
+              },
+            },
+            "type": "TEXT",
+          },
+          {
+            "children": [
+              " old",
+            ],
+            "key": "text-0-3",
+            "props": {
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 9,
+                "textDecoration": "line-through",
+              },
+            },
+            "type": "TEXT",
+          },
+        ],
+        "key": null,
+        "props": {},
+        "type": "TEXT",
+      },
+    ],
+    "key": "paragraph-0",
+    "props": {
+      "style": {
+        "alignItems": "flex-start",
+      },
+    },
+    "type": "VIEW",
+  },
+  {
+    "children": [
+      {
+        "children": [],
+        "key": null,
+        "props": {},
+        "type": "TEXT",
+      },
+    ],
+    "key": "paragraph-1",
+    "props": {
+      "style": {
+        "alignItems": "flex-start",
+      },
+    },
+    "type": "VIEW",
+  },
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              "example.com",
+            ],
+            "key": "link-2-0",
+            "props": {
+              "src": "https://example.com",
+              "style": {
+                "color": "black",
+                "fontFamily": "Inter",
+                "fontSize": 9,
+                "textDecoration": "underline",
+              },
+            },
+            "type": "LINK",
+          },
+          {
+            "children": [
+              " ",
+            ],
+            "key": "text-2-1",
+            "props": {
+              "style": {
+                "fontFamily": "Inter",
+                "fontSize": 9,
+              },
+            },
+            "type": "TEXT",
+          },
+          {
+            "children": [
+              "hello@example.com",
+            ],
+            "key": "link-2-2",
+            "props": {
+              "src": "mailto:hello@example.com",
+              "style": {
+                "color": "black",
+                "fontFamily": "Inter",
+                "fontSize": 9,
+                "textDecoration": "underline",
+              },
+            },
+            "type": "LINK",
+          },
+        ],
+        "key": null,
+        "props": {},
+        "type": "TEXT",
+      },
+    ],
+    "key": "paragraph-2",
+    "props": {
+      "style": {
+        "alignItems": "flex-start",
+      },
+    },
+    "type": "VIEW",
+  },
+]
+`;
