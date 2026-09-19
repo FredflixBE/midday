@@ -1,3 +1,4 @@
+export * from "./compare";
 export * from "./content";
 export * from "./edit";
 export * from "./number";

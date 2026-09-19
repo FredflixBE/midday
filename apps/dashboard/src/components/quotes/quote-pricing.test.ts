@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { formatQuoteAmount, toWorkTypeRates } from "./quote-pricing";
+import {
+  formatAdjustment,
+  formatHours,
+  formatQuoteAmount,
+  toWorkTypeRates,
+} from "./quote-pricing";
 
 /** Intl separates symbol and number with a no-break space; compare on content. */
 const plain = (value: string) => value.replace(/\s/g, " ");
@@ -45,4 +50,15 @@ test("a range whose ends meet reads as one amount", () => {
   expect(
     plain(formatQuoteAmount({ amount: 100000, max: 100000 }, "EUR", "nl-BE")),
   ).toBe("€ 1.000");
+});
+
+test("hours read to the hundredth, a range as minimum to maximum", () => {
+  expect(formatHours({ amount: 7.5, max: null }, "en")).toBe("7.5");
+  expect(formatHours({ amount: 8, max: 12 }, "en")).toBe("8 – 12");
+});
+
+test("an adjustment carries its sign, so a surcharge is told from a discount", () => {
+  expect(formatAdjustment(5, "en")).toBe("+5%");
+  expect(formatAdjustment(-5, "en")).toBe("-5%");
+  expect(formatAdjustment(0, "en")).toBe("0%");
 });

@@ -5,6 +5,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./compare": "./src/compare.ts",
     "./content": "./src/content.ts",
     "./edit": "./src/edit.ts",
     "./number": "./src/number.ts",
