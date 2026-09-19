@@ -5,6 +5,10 @@ import { CurrencyInput } from "@midday/ui/currency-input";
 import { useToast } from "@midday/ui/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+  formatHourlyRate,
+  hourlyRateAffixes,
+} from "@/components/quotes/hourly-rate";
 import { useTRPC } from "@/trpc/client";
 
 type WorkType = RouterOutputs["workTypes"]["list"][number];
@@ -94,12 +98,12 @@ function RateField({
       <CurrencyInput
         aria-label={`${workType.name} hourly rate`}
         value={value ?? ""}
-        placeholder={`${workType.hourlyRate} ${workType.currency}/h`}
+        placeholder={formatHourlyRate(workType.hourlyRate, workType.currency)}
         onValueChange={(values) => setValue(values.floatValue)}
         onBlur={save}
         decimalScale={2}
         allowNegative={false}
-        suffix={` ${workType.currency}/h`}
+        {...hourlyRateAffixes(workType.currency)}
       />
     </div>
   );
