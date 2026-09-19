@@ -14,9 +14,10 @@ import {
 } from "@midday/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { formatDate } from "@midday/utils/format";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
+import { useTransition } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { MODE_LABELS } from "./editor/fields";
@@ -39,13 +40,16 @@ export function QuotesList() {
   const trpc = useTRPC();
   const router = useRouter();
   const { data: user } = useUserQuery();
-  const [filter, setFilter] = useQueryState("status", quoteFilterParser);
-  // A new filter keeps the rows on screen until its own arrive, instead of
-  // suspending the list for every click.
-  const { data: rows = [], isPlaceholderData } = useQuery({
-    ...trpc.quotes.list.queryOptions(quotesListInput(filter)),
-    placeholderData: keepPreviousData,
-  });
+  // A filter changes inside a transition, so the rows on screen stay until
+  // the new ones arrive instead of the list suspending on every click.
+  const [isPending, startTransition] = useTransition();
+  const [filter, setFilter] = useQueryState(
+    "status",
+    quoteFilterParser.withOptions({ startTransition }),
+  );
+  const { data: rows } = useSuspenseQuery(
+    trpc.quotes.list.queryOptions(quotesListInput(filter)),
+  );
 
   const date = (value: string | null) =>
     value ? formatDate(value, user?.dateFormat) : "–";
@@ -70,7 +74,7 @@ export function QuotesList() {
           No quotes
         </div>
       ) : (
-        <Table className={cn(isPlaceholderData && "opacity-60")}>
+        <Table className={cn(isPending && "opacity-60")}>
           <TableHeader>
             <TableRow>
               <TableHead>Number</TableHead>
