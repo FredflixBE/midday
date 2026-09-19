@@ -1,5 +1,6 @@
 "use client";
 
+import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { Button } from "@midday/ui/button";
 import {
   Dialog,
@@ -62,6 +63,7 @@ export function MarkSentButton({
       onSuccess: async () => {
         await refresh();
         setOpen(false);
+        setSentTo("");
       },
       onError: errorToast("Not marked as sent"),
     }),
@@ -124,7 +126,7 @@ export function OutcomeMenu({
   outcome,
 }: {
   quoteId: string;
-  outcome: "open" | "won" | "lost" | "no_decision";
+  outcome: RouterOutputs["quotes"]["get"]["outcome"];
 }) {
   const trpc = useTRPC();
   const errorToast = useErrorToast();

@@ -30,10 +30,6 @@ import { quoteState } from "./quote-state";
 
 type Row = RouterOutputs["quotes"]["list"][number];
 
-export function useQuoteFilter() {
-  return useQueryState("status", quoteFilterParser);
-}
-
 /**
  * Quotes (FF-1614): what was sent, what waits for an answer and what is about
  * to lapse, so the next follow-up is plain. A row opens the quote.
@@ -42,7 +38,7 @@ export function QuotesList() {
   const trpc = useTRPC();
   const router = useRouter();
   const { data: user } = useUserQuery();
-  const [filter, setFilter] = useQuoteFilter();
+  const [filter, setFilter] = useQueryState("status", quoteFilterParser);
   const { data: rows } = useSuspenseQuery(
     trpc.quotes.list.queryOptions(quotesListInput(filter)),
   );
@@ -98,17 +94,20 @@ export function QuotesList() {
                   {row.title}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="tag">{quoteState(row, row.version)}</Badge>
+                  <Badge variant="tag">
+                    {quoteState(row, row.version, row.held)}
+                  </Badge>
                 </TableCell>
                 <TableCell>{MODE_LABELS[row.version.mode]}</TableCell>
                 <TableCell className="whitespace-nowrap text-right tabular-nums">
                   <Amount row={row} locale={user?.locale ?? undefined} />
                 </TableCell>
+                {/* What the client holds, even while a revision is drafted. */}
                 <TableCell className="whitespace-nowrap">
-                  {date(row.version.sentAt)}
+                  {date(row.held?.sentAt ?? null)}
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
-                  {date(row.version.validUntil)}
+                  {date(row.held?.validUntil ?? row.version.validUntil)}
                 </TableCell>
               </TableRow>
             ))}

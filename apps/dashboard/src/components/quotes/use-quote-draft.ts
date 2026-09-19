@@ -61,11 +61,16 @@ export function useQuoteDraft(quote: Quote, version: Version) {
 
   const save = useMutation({
     ...trpc.quotes.updateDraft.mutationOptions({
-      onSuccess: (saved) =>
+      onSuccess: (saved) => {
         queryClient.setQueryData(
           trpc.quotes.get.queryKey({ id: quote.id }),
           saved,
-        ),
+        );
+        // Its title, customer or amount may read differently in the list.
+        void queryClient.invalidateQueries({
+          queryKey: trpc.quotes.list.queryKey(),
+        });
+      },
       onError: errorToast("Not saved"),
     }),
     // One save at a time, in the order the changes were made.

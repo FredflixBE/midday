@@ -12,6 +12,15 @@ test("a sent version past its validity reads as expired", () => {
   expect(quoteState(open, { status: "sent", expired: true })).toBe("Expired");
 });
 
+test("a revision drafted after the sent version lapsed says both", () => {
+  expect(
+    quoteState(open, { status: "draft", expired: false }, { expired: true }),
+  ).toBe("Draft · expired");
+  expect(
+    quoteState(open, { status: "draft", expired: false }, { expired: false }),
+  ).toBe("Draft");
+});
+
 test("an answer recorded on the quote wins over the version", () => {
   expect(
     quoteState({ outcome: "lost" }, { status: "sent", expired: true }),

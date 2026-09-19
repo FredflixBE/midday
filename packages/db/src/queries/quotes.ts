@@ -15,6 +15,7 @@ import {
   type WorkTypeRates,
 } from "@midday/quote";
 import { and, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { Database, DatabaseOrTransaction } from "../client";
 import {
@@ -521,7 +522,7 @@ export async function markQuoteVersionSent(
         ? params.pricing
         : priceVersion(
             row.version.content as QuoteContent,
-            (await teamRates(tx, params.teamId))(row.quote.customerId),
+            (await ratesForTeam(tx, params.teamId))(row.quote.customerId),
           );
 
     await tx
@@ -534,6 +535,19 @@ export async function markQuoteVersionSent(
           ne(quoteVersions.id, row.version.id),
         ),
       );
+
+    // A new version sent is a new offer: an earlier no is not its answer.
+    if (row.quote.outcome === "lost" || row.quote.outcome === "no_decision") {
+      await tx
+        .update(quotes)
+        .set({
+          outcome: "open",
+          outcomeReason: null,
+          outcomeAt: null,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(quotes.id, row.quote.id));
+    }
 
     await tx
       .update(quoteVersions)
@@ -557,7 +571,7 @@ export async function markQuoteVersionSent(
  * price, and every customer's own, in two reads. A quote's own overrides are
  * in its content.
  */
-async function teamRates(db: DatabaseOrTransaction, teamId: string) {
+async function ratesForTeam(db: DatabaseOrTransaction, teamId: string) {
   const defaults = await db
     .select({ id: workTypes.id, hourlyRate: workTypes.hourlyRate })
     .from(workTypes)
@@ -588,12 +602,14 @@ async function teamRates(db: DatabaseOrTransaction, teamId: string) {
 }
 
 /**
- * The follow-up filters of the quotes list (FF-1614), each read from a
- * quote's latest version and its outcome:
+ * The follow-up filters of the quotes list (FF-1614). Follow-up is about the
+ * version the client holds — the one sent, which a revision in progress does
+ * not take back — and about the answer recorded on the quote:
  * - draft: the latest version is a draft;
- * - awaiting: sent, still valid, and no answer recorded;
- * - expiring: awaiting, and valid for 7 days or fewer;
- * - expired: sent, past its validity (`isExpired`), and no answer recorded;
+ * - awaiting: the version held is still valid, and no answer is recorded;
+ * - expiring: awaiting, and valid until at most 7 days from today;
+ * - expired: the version held is past its validity (`isExpired`), and no
+ *   answer is recorded;
  * - won, lost: the outcome.
  */
 export type QuoteListStatus =
@@ -619,20 +635,19 @@ export async function listQuotes(
   const latest = sql`(
     SELECT max(v.version) FROM quote_versions v WHERE v.quote_id = ${quotes.id}
   )`;
-  const sentAndOpen = and(
-    eq(quoteVersions.status, "sent"),
-    eq(quotes.outcome, "open"),
-  );
+  // Sending one version supersedes the one before, so a quote holds at most one.
+  const held = alias(quoteVersions, "held");
+  const open = eq(quotes.outcome, "open");
 
   const filter = {
     draft: eq(quoteVersions.status, "draft"),
-    awaiting: and(sentAndOpen, gte(quoteVersions.validUntil, today)),
+    awaiting: and(open, gte(held.validUntil, today)),
     expiring: and(
-      sentAndOpen,
-      gte(quoteVersions.validUntil, today),
-      lte(quoteVersions.validUntil, addDays(today, EXPIRING_DAYS)),
+      open,
+      gte(held.validUntil, today),
+      lte(held.validUntil, addDays(today, EXPIRING_DAYS)),
     ),
-    expired: and(sentAndOpen, lt(quoteVersions.validUntil, today)),
+    expired: and(open, lt(held.validUntil, today)),
     won: eq(quotes.outcome, "won"),
     lost: eq(quotes.outcome, "lost"),
   };
@@ -642,6 +657,14 @@ export async function listQuotes(
       quote: quotes,
       customerName: customers.name,
       version: quoteVersions,
+      held: {
+        id: held.id,
+        version: held.version,
+        status: held.status,
+        sentAt: held.sentAt,
+        sentTo: held.sentTo,
+        validUntil: held.validUntil,
+      },
     })
     .from(quotes)
     .innerJoin(
@@ -651,6 +674,7 @@ export async function listQuotes(
         eq(quoteVersions.version, latest),
       ),
     )
+    .leftJoin(held, and(eq(held.quoteId, quotes.id), eq(held.status, "sent")))
     .leftJoin(customers, eq(customers.id, quotes.customerId))
     .where(
       and(
@@ -660,9 +684,9 @@ export async function listQuotes(
     )
     .orderBy(desc(quotes.createdAt), desc(quotes.quoteNumber));
 
-  const ratesFor = await teamRates(db, params.teamId);
+  const ratesFor = await ratesForTeam(db, params.teamId);
 
-  return rows.map(({ quote, customerName, version }) => {
+  return rows.map(({ quote, customerName, version, held }) => {
     const content = version.content as QuoteContent;
     const pricing =
       (version.pricing as PricingResult | null) ??
@@ -671,6 +695,8 @@ export async function listQuotes(
       ...quote,
       customerName,
       version: { ...version, expired: isExpired(version, today) },
+      /** The version the client holds, when one was sent; null before. */
+      held: held?.id ? { ...held, expired: isExpired(held, today) } : null,
       headline: quoteHeadline(content, pricing),
     };
   });

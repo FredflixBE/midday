@@ -707,6 +707,107 @@ describe.skipIf(SKIP)("quotes", () => {
       expect(await numbers("lost")).toEqual(["OFF-0005"]);
     });
 
+    test("draft, sent, revised, sent again: the list follows each step", async () => {
+      const quote = await create();
+      const state = async (today = TODAY) => {
+        const [row] = await listQuotes(db, { teamId: TEAM_USD_ID, today });
+        const filters = [];
+        for (const status of [
+          "draft",
+          "awaiting",
+          "expiring",
+          "expired",
+        ] as const) {
+          const rows = await listQuotes(db, {
+            teamId: TEAM_USD_ID,
+            status,
+            today,
+          });
+          if (rows.length > 0) filters.push(status);
+        }
+        return {
+          version: row!.version.version,
+          status: row!.version.status,
+          held: row!.held?.version ?? null,
+          filters,
+        };
+      };
+
+      expect(await state()).toEqual({
+        version: 1,
+        status: "draft",
+        held: null,
+        filters: ["draft"],
+      });
+
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+        pricing: null,
+      });
+      expect(await state()).toEqual({
+        version: 1,
+        status: "sent",
+        held: 1,
+        filters: ["awaiting"],
+      });
+      // Its validity (30 days) lapses.
+      expect((await state("2026-10-20")).filters).toEqual(["expired"]);
+
+      const revised = await reviseQuote(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: quote.id,
+        today: TODAY,
+      });
+      // The client still holds version 1, so it is still followed up.
+      expect(await state()).toEqual({
+        version: 2,
+        status: "draft",
+        held: 1,
+        filters: ["draft", "awaiting"],
+      });
+
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(revised!).id,
+        pricing: null,
+      });
+      expect(await state()).toEqual({
+        version: 2,
+        status: "sent",
+        held: 2,
+        filters: ["awaiting"],
+      });
+    });
+
+    test("sending a new version of a lost quote opens it again", async () => {
+      const id = await sent(TODAY, "2026-10-19");
+      await setQuoteOutcome(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: id,
+        outcome: "lost",
+        reason: "Too expensive",
+      });
+      const revised = await reviseQuote(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: id,
+        today: TODAY,
+      });
+
+      const resent = await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(revised!).id,
+        pricing: null,
+      });
+
+      expect(resent).toMatchObject({
+        outcome: "open",
+        outcomeReason: null,
+        outcomeAt: null,
+      });
+      expect(await numbers("awaiting")).toEqual(["OFF-0001"]);
+    });
+
     test("a quote valid until today is still awaiting, not expired", async () => {
       await sent("2026-09-01", TODAY);
 
