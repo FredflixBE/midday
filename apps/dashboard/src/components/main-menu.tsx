@@ -11,6 +11,7 @@ const icons = {
   "/reports": () => <Icons.Monitoring size={20} />,
   "/transactions": () => <Icons.Transactions size={20} />,
   "/invoices": () => <Icons.Invoice size={20} />,
+  "/quotes": () => <Icons.Description size={20} />,
   "/tracker": () => <Icons.Tracker size={20} />,
   "/customers": () => <Icons.Customers size={20} />,
   "/vault": () => <Icons.Vault size={20} />,
@@ -67,6 +68,11 @@ const items = [
       { path: "/invoices/products", name: "Products" },
       { path: "/invoices?invoiceType=create", name: "Create new" },
     ],
+  },
+  {
+    path: "/quotes",
+    name: "Quotes",
+    children: [{ path: "/quotes?createQuote=true", name: "Create new" }],
   },
   {
     path: "/tracker",

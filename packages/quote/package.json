@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./content": "./src/content.ts",
+    "./edit": "./src/edit.ts",
     "./number": "./src/number.ts",
     "./pricing": "./src/pricing.ts",
     "./version": "./src/version.ts"
