@@ -21,13 +21,15 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { toWorkTypeRates } from "../quote-pricing";
+import { quoteState } from "../quote-state";
 import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
 import { ReadOnlyContext } from "./fields";
+import { MarkSentButton, OutcomeMenu } from "./quote-actions";
 import { QuoteBlocks } from "./quote-blocks";
 import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields } from "./quote-header-fields";
@@ -37,17 +39,11 @@ import { QuoteScenarios } from "./quote-scenarios";
 type Quote = RouterOutputs["quotes"]["get"];
 type Version = Quote["versions"][number];
 
-const STATUS_LABELS: Record<Version["status"], string> = {
-  draft: "Draft",
-  sent: "Sent",
-  superseded: "Superseded",
-  accepted: "Accepted",
-};
-
 /**
  * One quote, full page (FF-1611). It opens on the latest version; a draft is
  * edited in place and saved as it changes, a sent version reads only, and
- * Revise is the way to change it.
+ * Revise is the way to change it. Mark as sent and the outcome are the
+ * follow-up (FF-1614).
  */
 export function QuoteEditor({ id }: { id: string }) {
   const trpc = useTRPC();
@@ -65,30 +61,29 @@ export function QuoteEditor({ id }: { id: string }) {
     trpc.quotes.revise.mutationOptions({
       onSuccess: (revised) => {
         queryClient.setQueryData(trpc.quotes.get.queryKey({ id }), revised);
+        void queryClient.invalidateQueries({
+          queryKey: trpc.quotes.list.queryKey(),
+        });
         setVersionId(null);
       },
       onError: errorToast("Not revised"),
     }),
   );
 
-  const canRevise = latest.status === "sent" || latest.status === "superseded";
+  const canRevise =
+    (latest.status === "sent" || latest.status === "superseded") &&
+    quote.outcome !== "won";
 
   return (
-    <div className="max-w-screen-xl space-y-10 pb-24 pt-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-medium">
-            {formatQuoteVersion(quote.quoteNumber, version.version)}
-          </h1>
-          <Badge variant="tag">
-            {version.expired ? "Expired" : STATUS_LABELS[version.status]}
-          </Badge>
-        </div>
-
-        <div className="flex items-center gap-2">
+    <VersionEditor
+      key={version.id}
+      quote={quote}
+      version={version}
+      controls={
+        <>
           {quote.versions.length > 1 ? (
             <Select value={version.id} onValueChange={setVersionId}>
-              <SelectTrigger aria-label="Version" className="w-[160px]">
+              <SelectTrigger aria-label="Version" className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -100,6 +95,7 @@ export function QuoteEditor({ id }: { id: string }) {
               </SelectContent>
             </Select>
           ) : null}
+          <OutcomeMenu quoteId={quote.id} outcome={quote.outcome} />
           {canRevise ? (
             <Button
               type="button"
@@ -109,18 +105,25 @@ export function QuoteEditor({ id }: { id: string }) {
               Revise
             </Button>
           ) : null}
-        </div>
-      </div>
-
-      <VersionEditor key={version.id} quote={quote} version={version} />
-    </div>
+        </>
+      }
+    />
   );
 }
 
-function VersionEditor({ quote, version }: { quote: Quote; version: Version }) {
+function VersionEditor({
+  quote,
+  version,
+  controls,
+}: {
+  quote: Quote;
+  version: Version;
+  /** The quote's own actions, beside this version's. */
+  controls: ReactNode;
+}) {
   const trpc = useTRPC();
   const { data: user } = useUserQuery();
-  const { draft, change } = useQuoteDraft(quote, version);
+  const { draft, change, saved } = useQuoteDraft(quote, version);
   const editable = version.status === "draft";
 
   const { data: workTypes = [] } = useQuery(
@@ -143,7 +146,31 @@ function VersionEditor({ quote, version }: { quote: Quote; version: Version }) {
 
   return (
     <ReadOnlyContext.Provider value={!editable}>
-      <div className="space-y-10">
+      <div className="max-w-screen-xl space-y-10 pb-24 pt-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <h1 className="text-lg font-medium">
+              {formatQuoteVersion(quote.quoteNumber, version.version)}
+            </h1>
+            <Badge variant="tag">{quoteState(quote, version)}</Badge>
+            {quote.outcomeReason ? (
+              <span className="truncate text-sm text-[#878787]">
+                {quote.outcomeReason}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+            {controls}
+            {editable ? (
+              <MarkSentButton
+                quoteId={quote.id}
+                versionId={version.id}
+                saved={saved}
+              />
+            ) : null}
+          </div>
+        </div>
+
         <fieldset disabled={!editable} className="min-w-0 space-y-10">
           <QuoteHeaderFields
             draft={draft}

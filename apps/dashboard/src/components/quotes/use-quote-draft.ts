@@ -56,6 +56,8 @@ export function useQuoteDraft(quote: Quote, version: Version) {
   const current = useRef(draft);
   const pending = useRef<Partial<QuoteDraft>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The last save sent; saves run one at a time, so it settles last.
+  const lastSave = useRef<Promise<boolean>>(Promise.resolve(true));
 
   const save = useMutation({
     ...trpc.quotes.updateDraft.mutationOptions({
@@ -76,21 +78,33 @@ export function useQuoteDraft(quote: Quote, version: Version) {
     const changes = pending.current;
     pending.current = {};
     if (Object.keys(changes).length === 0) return;
-    save.mutate(
-      {
+    lastSave.current = save
+      .mutateAsync({
         versionId: version.id,
         ...changes,
         customerId: changes.customerId ?? undefined,
-      },
-      {
-        // Refused changes wait for the next save, under anything newer, so a
-        // header field is not lost while the screen still shows it.
-        onError: () => {
+      })
+      .then(
+        () => true,
+        () => {
+          // Refused changes wait for the next save, under anything newer, so
+          // a header field is not lost while the screen still shows it.
           pending.current = { ...changes, ...pending.current };
+          return false;
         },
-      },
-    );
-  }, [save.mutate, version.id]);
+      );
+  }, [save.mutateAsync, version.id]);
+
+  /**
+   * Saves what is waiting and resolves once every save has landed: true when
+   * the server holds exactly what the screen shows. Sending waits on it, as
+   * the version is priced from what is stored.
+   */
+  const saved = useCallback(async () => {
+    flush();
+    const ok = await lastSave.current;
+    return ok && Object.keys(pending.current).length === 0;
+  }, [flush]);
 
   const change = useCallback(
     (next: DraftChange) => {
@@ -119,5 +133,5 @@ export function useQuoteDraft(quote: Quote, version: Version) {
     };
   }, [flush]);
 
-  return { draft, change, isSaving: save.isPending };
+  return { draft, change, saved };
 }
