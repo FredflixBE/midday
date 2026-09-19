@@ -29,6 +29,7 @@ import { notificationSettingsRouter } from "./notification-settings";
 import { notificationsRouter } from "./notifications";
 import { oauthApplicationsRouter } from "./oauth-applications";
 import { overviewRouter } from "./overview";
+import { quotesRouter } from "./quotes";
 import { reportsRouter } from "./reports";
 import { searchRouter } from "./search";
 import { shortLinksRouter } from "./short-links";
@@ -90,6 +91,7 @@ export const appRouter = createTRPCRouter({
   shortLinks: shortLinksRouter,
   apiKeys: apiKeysRouter,
   workTypes: workTypesRouter,
+  quotes: quotesRouter,
 });
 
 // export type definition of API

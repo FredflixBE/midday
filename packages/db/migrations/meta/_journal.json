@@ -134,6 +134,13 @@
       "when": 1789831694135,
       "tag": "0018_work_types",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789832228463,
+      "tag": "0019_quotes",
+      "breakpoints": true
     }
   ]
 }

@@ -314,6 +314,26 @@ export const commitmentStatusEnum = pgEnum("commitment_status", [
   "ended",
 ]);
 
+export const quoteKindEnum = pgEnum("quote_kind", ["project", "recurring"]);
+
+export const quoteOutcomeEnum = pgEnum("quote_outcome", [
+  "open",
+  "won",
+  "lost",
+  "no_decision",
+]);
+
+// Expired is not here on purpose: it is `sent` with `valid_until` passed,
+// computed on reading and never stored.
+export const quoteVersionStatusEnum = pgEnum("quote_version_status", [
+  "draft",
+  "sent",
+  "superseded",
+  "accepted",
+]);
+
+export const quoteModeEnum = pgEnum("quote_mode", ["estimate", "firm"]);
+
 /**
  * How a payment came to belong to a commitment (FF-1591). `detected` was
  * written by detection and may be moved by it; `person` is final, including a
@@ -1656,6 +1676,165 @@ export const customerWorkTypeRates = pgTable(
       name: "customer_work_type_rates_team_id_fkey",
     }).onDelete("cascade"),
     pgPolicy("Customer work type rates can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/**
+ * A quote (FF-1609, docs/quotes.md §3.2): one customer, one subject, one
+ * number. What gets sent is one of its versions; follow-up happens here.
+ */
+export const quotes = pgTable(
+  "quotes",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    teamId: uuid("team_id").notNull(),
+    createdBy: uuid("created_by"),
+    // Nullable so a deleted customer leaves its quotes behind; each version
+    // keeps the customer's details as they were.
+    customerId: uuid("customer_id"),
+    quoteNumber: text("quote_number").notNull(),
+    title: text().notNull(),
+    kind: quoteKindEnum().notNull(),
+    language: text().notNull(), // 'nl' | 'en'
+    currency: text().notNull(),
+    outcome: quoteOutcomeEnum().default("open").notNull(),
+    outcomeReason: text("outcome_reason"),
+    outcomeAt: timestamp("outcome_at", { withTimezone: true, mode: "string" }),
+    // Phase 2: the project an accepted quote became.
+    trackerProjectId: uuid("tracker_project_id"),
+  },
+  (table) => [
+    index("quotes_team_id_idx").on(table.teamId),
+    index("quotes_customer_id_idx").on(table.customerId),
+    unique("quotes_team_id_quote_number_key").on(
+      table.teamId,
+      table.quoteNumber,
+    ),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "quotes_team_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.customerId],
+      foreignColumns: [customers.id],
+      name: "quotes_customer_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.createdBy],
+      foreignColumns: [users.id],
+      name: "quotes_created_by_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.trackerProjectId],
+      foreignColumns: [trackerProjects.id],
+      name: "quotes_tracker_project_id_fkey",
+    }).onDelete("set null"),
+    pgPolicy("Quotes can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/**
+ * One revision of a quote, and the thing that is sent. Only a draft is
+ * edited; a sent version is frozen because the client holds that PDF, and
+ * revising copies the latest into a new draft. A quote has at most one draft,
+ * which the partial unique index holds even against two revisions at once.
+ */
+export const quoteVersions = pgTable(
+  "quote_versions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    teamId: uuid("team_id").notNull(),
+    quoteId: uuid("quote_id").notNull(),
+    version: integer().notNull(),
+    status: quoteVersionStatusEnum().default("draft").notNull(),
+    mode: quoteModeEnum().default("estimate").notNull(),
+    issueDate: date("issue_date").notNull(),
+    validUntil: date("valid_until").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "string" }),
+    sentTo: text("sent_to"),
+    // Snapshots, the same EditorDoc shape as on invoices.
+    customerDetails: jsonb("customer_details"),
+    fromDetails: jsonb("from_details"),
+    // QuoteContent from @midday/quote: blocks, rate settings, scenarios.
+    content: jsonb().notNull(),
+    // The pricing result frozen when the version is sent.
+    pricing: jsonb(),
+    internalNote: text("internal_note"),
+  },
+  (table) => [
+    index("quote_versions_team_id_idx").on(table.teamId),
+    unique("quote_versions_quote_id_version_key").on(
+      table.quoteId,
+      table.version,
+    ),
+    uniqueIndex("quote_versions_one_draft_idx")
+      .on(table.quoteId)
+      .where(sql`status = 'draft'`),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "quote_versions_team_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.quoteId],
+      foreignColumns: [quotes.id],
+      name: "quote_versions_quote_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Quote versions can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/** A team's quote settings; no row means the defaults. */
+export const quoteSettings = pgTable(
+  "quote_settings",
+  {
+    teamId: uuid("team_id").primaryKey().notNull(),
+    numberPrefix: text("number_prefix").default("OFF-").notNull(),
+    defaultValidDays: integer("default_valid_days").default(30).notNull(),
+    // Only for showing days; rates and hours stay per hour.
+    hoursPerDay: numericCasted("hours_per_day", { precision: 4, scale: 2 })
+      .default(8)
+      .notNull(),
+    // Blocks copied into every new quote (QuoteContent's `Block[]`).
+    defaultBlocks: jsonb("default_blocks").default([]).notNull(),
+    // PDF labels per language: { nl: {...}, en: {...} }.
+    labels: jsonb().default({}).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "quote_settings_team_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Quote settings can be handled by members of the team", {
       as: "permissive",
       for: "all",
       to: ["public"],

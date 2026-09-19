@@ -38,6 +38,7 @@
     "@midday/import": "workspace:*",
     "@midday/inbox": "workspace:*",
     "@midday/invoice": "workspace:*",
+    "@midday/quote": "workspace:*",
     "@midday/jobs": "workspace:*",
     "@midday/location": "workspace:*",
     "@midday/logger": "workspace:*",
