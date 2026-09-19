@@ -18,7 +18,8 @@ import type { ItemLine, QuoteContent, Recurrence, Scenario } from "./content";
  *   up (−5% and −5% is −10%); they do not compound.
  * - **Committed hours:** per year for a recurring scenario, the total for a
  *   fixed one, the minimum for a range. Optional and one-off items commit
- *   nothing.
+ *   nothing. `once` only means one-off on a recurring scenario; on a project
+ *   every item is charged once anyway.
  * - **Optional items** are priced and left out of every total.
  * - **Recurring:** per period, per year, over the term; one-off items apart.
  *   Contract value is over the term plus one-offs, with 48 months standing in
@@ -42,6 +43,7 @@ export type ResolvedRate = {
 export type PricedLine = {
   lineId: string;
   workTypeId: string;
+  /** To the hundredth. */
   hours: number;
   hoursMax: number | null;
   /** Null when the work type has no rate anywhere. */
@@ -49,6 +51,7 @@ export type PricedLine = {
   amount: number;
   amountMax: number | null;
   optional: boolean;
+  /** Charged once on a recurring scenario. Always false on a project. */
   once: boolean;
 };
 
@@ -72,6 +75,8 @@ export type RecurringTotals = {
   overTerm: Amount | null;
   oneOff: Amount;
   contractValue: Amount;
+  /** The maximum is a ceiling. */
+  capped: boolean;
 };
 
 export type ScenarioPricing = {
@@ -87,9 +92,22 @@ export type ScenarioPricing = {
    * Per section, until the next one. Items before the first section form one
    * without a title.
    */
-  sections: { lineId: string | null; title: string | null; amount: Amount }[];
-  /** Hours and amount per work type, over the items that recur or make up the project. */
-  workTypes: { workTypeId: string; hours: Amount; amount: Amount }[];
+  sections: {
+    lineId: string | null;
+    title: string | null;
+    /** What recurs, per period; or the project's items. */
+    amount: Amount;
+    /** A recurring scenario's one-off items; zero on a project. */
+    oneOff: Amount;
+  }[];
+  /** Per work type, the same split as the sections. */
+  workTypes: {
+    workTypeId: string;
+    hours: Amount;
+    amount: Amount;
+    oneOffHours: Amount;
+    oneOff: Amount;
+  }[];
   optional: PricedLine[];
   totals: ProjectTotals | RecurringTotals;
   /** Project scenarios: each row's share of the (maximum) total. */
@@ -116,20 +134,17 @@ const INDEFINITE_TERM_MONTHS = 48;
 
 const cents = (euros: number) => Math.round(euros * 100);
 
-function items(scenario: Scenario): ItemLine[] {
-  return scenario.lines.filter(
-    (line): line is ItemLine => line.type === "item",
-  );
-}
+/**
+ * Hours are counted in hundredths, as integers, so 0.2 + 0.7 + 0.1 is 1 and
+ * a half cent rounds the way it reads. Finer fractions of an hour round.
+ */
+const hundredths = (hours: number) => Math.round(hours * 100);
 
-/** Hours that count towards the volume tiers. */
-function committedHours(scenario: Scenario): number {
-  const hours = items(scenario)
-    .filter((line) => !line.optional && !line.once)
-    .reduce((sum, line) => sum + line.hours, 0);
-  return scenario.recurrence
-    ? hours * PERIODS_PER_YEAR[scenario.recurrence.period]
-    : hours;
+/** Tier percents add up; this keeps −0.1 + −0.2 from reading −0.30000000000000004. */
+const cleanPercent = (value: number) => Math.round(value * 1e6) / 1e6;
+
+function own<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
 /** The percent of the highest threshold met, or 0. */
@@ -171,7 +186,7 @@ function adjustmentOf(
     (t) => t.percent,
     scenario.recurrence?.termMonths ?? null,
   );
-  return volume + term;
+  return cleanPercent(volume + term);
 }
 
 function resolveRate(
@@ -181,15 +196,18 @@ function resolveRate(
   adjustment: number,
 ): ResolvedRate | null {
   const candidates: [RateSource, number | undefined][] = [
-    ["quote", content.rates.workTypeRates[workTypeId]],
-    ["customer", rates.customer[workTypeId]],
-    ["default", rates.defaults[workTypeId]],
+    ["quote", own(content.rates.workTypeRates, workTypeId)],
+    ["customer", own(rates.customer, workTypeId)],
+    ["default", own(rates.defaults, workTypeId)],
   ];
-  const found = candidates.find(([, value]) => value !== undefined);
+  const found = candidates.find(
+    (candidate): candidate is [RateSource, number] =>
+      candidate[1] !== undefined,
+  );
   if (!found) return null;
 
   const [source, euros] = found;
-  const base = cents(euros!);
+  const base = cents(euros);
   const rate =
     adjustment === 0
       ? base
@@ -217,75 +235,103 @@ function priceScenario(
   workTypeRates: WorkTypeRates,
 ): ScenarioPricing {
   const range = scenario.pricing === "range";
-  const committed = committedHours(scenario);
-  const adjustment = adjustmentOf(scenario, content.rates, committed);
+  const recurrence = scenario.recurrence;
   const issues: PricingIssue[] = [];
   const rates: Record<string, ResolvedRate> = {};
 
-  const lines: PricedLine[] = items(scenario).map((line) => {
+  const itemLines = scenario.lines.filter(
+    (line): line is ItemLine => line.type === "item",
+  );
+  // `once` means something only where there are periods to be once in.
+  const isOneOff = (line: { once: boolean }) =>
+    recurrence !== null && line.once;
+
+  // Committed: what recurs, per year, or the project's total; the minimum
+  // for a range. Optional and one-off items commit nothing.
+  const committedHundredths = itemLines
+    .filter((line) => !line.optional && !isOneOff(line))
+    .reduce((total, line) => total + hundredths(line.hours), 0);
+  const committed =
+    (committedHundredths *
+      (recurrence ? PERIODS_PER_YEAR[recurrence.period] : 1)) /
+    100;
+  const adjustment = adjustmentOf(scenario, content.rates, committed);
+
+  const lines: PricedLine[] = itemLines.map((line) => {
     const resolved =
-      rates[line.workTypeId] ??
+      own(rates, line.workTypeId) ??
       resolveRate(line.workTypeId, content, workTypeRates, adjustment);
     if (resolved) rates[line.workTypeId] = resolved;
     else issues.push({ code: "no_rate", lineId: line.id });
 
     const rate = resolved?.rate ?? null;
-    const hoursMax = range ? (line.hoursMax ?? line.hours) : null;
+    const hours = hundredths(line.hours);
+    const hoursMax = range ? hundredths(line.hoursMax ?? line.hours) : null;
+    // Hundredths × cents, both integers, so the only rounding is this one.
+    const price = (h: number) => Math.round((h * (rate ?? 0)) / 100);
     return {
       lineId: line.id,
       workTypeId: line.workTypeId,
-      hours: line.hours,
-      hoursMax,
+      hours: hours / 100,
+      hoursMax: hoursMax === null ? null : hoursMax / 100,
       rate,
-      amount: Math.round(line.hours * (rate ?? 0)),
-      amountMax: hoursMax === null ? null : Math.round(hoursMax * (rate ?? 0)),
+      amount: price(hours),
+      amountMax: hoursMax === null ? null : price(hoursMax),
       optional: line.optional,
-      once: line.once,
+      once: isOneOff(line),
     };
   });
 
-  const priced = new Map(lines.map((line) => [line.lineId, line]));
+  const byId = new Map(lines.map((line) => [line.lineId, line]));
   const counted = lines.filter((line) => !line.optional);
-  const amountOf = (line: PricedLine): Amount => ({
-    amount: line.amount,
-    max: line.amountMax,
-  });
-  const hoursOf = (line: PricedLine): Amount => ({
-    amount: line.hours,
-    max: line.hoursMax,
-  });
+  const main = (group: PricedLine[]) => group.filter((l) => !l.once);
+  const oneOffs = (group: PricedLine[]) => group.filter((l) => l.once);
+  const amounts = (group: PricedLine[]) =>
+    sum(
+      group.map((l) => ({ amount: l.amount, max: l.amountMax })),
+      range,
+    );
+  const hoursIn = (group: PricedLine[]) => {
+    const total = sum(
+      group.map((l) => ({
+        amount: hundredths(l.hours),
+        max: l.hoursMax === null ? null : hundredths(l.hoursMax),
+      })),
+      range,
+    );
+    return {
+      amount: total.amount / 100,
+      max: total.max === null ? null : total.max / 100,
+    };
+  };
 
-  // Sections, each until the next.
-  const sections: ScenarioPricing["sections"] = [];
-  let current: {
+  // Sections, each until the next; what recurs apart from what is once.
+  const groups: {
     lineId: string | null;
     title: string | null;
     lines: PricedLine[];
-  } | null = null;
-  const close = () => {
-    if (current) {
-      sections.push({
-        lineId: current.lineId,
-        title: current.title,
-        amount: sum(current.lines.map(amountOf), range),
-      });
-    }
-  };
+  }[] = [];
   for (const line of scenario.lines) {
     if (line.type === "section") {
-      close();
-      current = { lineId: line.id, title: line.title, lines: [] };
+      groups.push({ lineId: line.id, title: line.title, lines: [] });
     } else if (line.type === "item") {
-      current ??= { lineId: null, title: null, lines: [] };
-      const pricedLine = priced.get(line.id)!;
-      if (!pricedLine.optional) current.lines.push(pricedLine);
+      if (groups.length === 0) {
+        groups.push({ lineId: null, title: null, lines: [] });
+      }
+      const priced = byId.get(line.id);
+      if (priced && !priced.optional) groups.at(-1)?.lines.push(priced);
     }
   }
-  close();
+  const sections = groups.map((group) => ({
+    lineId: group.lineId,
+    title: group.title,
+    amount: amounts(main(group.lines)),
+    oneOff: amounts(oneOffs(group.lines)),
+  }));
 
-  // Per work type, over what recurs or makes up the project.
+  // Per work type, in the order they first appear.
   const byWorkType = new Map<string, PricedLine[]>();
-  for (const line of counted.filter((l) => !l.once)) {
+  for (const line of counted) {
     byWorkType.set(line.workTypeId, [
       ...(byWorkType.get(line.workTypeId) ?? []),
       line,
@@ -293,17 +339,18 @@ function priceScenario(
   }
   const workTypes = [...byWorkType].map(([workTypeId, group]) => ({
     workTypeId,
-    hours: sum(group.map(hoursOf), range),
-    amount: sum(group.map(amountOf), range),
+    hours: hoursIn(main(group)),
+    amount: amounts(main(group)),
+    oneOffHours: hoursIn(oneOffs(group)),
+    oneOff: amounts(oneOffs(group)),
   }));
 
   let totals: ProjectTotals | RecurringTotals;
   let paymentSchedule: ScenarioPricing["paymentSchedule"] = [];
 
-  if (scenario.recurrence) {
-    const recurrence = scenario.recurrence;
-    const perPeriod = sum(counted.filter((l) => !l.once).map(amountOf), range);
-    const oneOff = sum(counted.filter((l) => l.once).map(amountOf), range);
+  if (recurrence) {
+    const perPeriod = amounts(main(counted));
+    const oneOff = amounts(oneOffs(counted));
     const perYear = times(perPeriod, PERIODS_PER_YEAR[recurrence.period]);
     const overTerm =
       recurrence.termMonths === null
@@ -318,13 +365,14 @@ function priceScenario(
       overTerm,
       oneOff,
       contractValue: sum([contractTerm, oneOff], range),
+      capped: range && scenario.capped,
     };
   } else {
-    const total = sum(counted.map(amountOf), range);
+    const total = amounts(counted);
     totals = {
       kind: "project",
       total,
-      hours: sum(counted.map(hoursOf), range),
+      hours: hoursIn(counted),
       capped: range && scenario.capped,
     };
     paymentSchedule = schedule(scenario, total.max ?? total.amount, issues);
@@ -357,8 +405,8 @@ function schedule(
   const rows = scenario.paymentSchedule;
   if (rows.length === 0) return [];
 
-  const percent = rows.reduce((a, row) => a + row.percent, 0);
-  const complete = Math.abs(percent - 100) < 1e-9;
+  const percent = cleanPercent(rows.reduce((a, row) => a + row.percent, 0));
+  const complete = percent === 100;
   if (!complete) issues.push({ code: "payment_schedule_not_100", percent });
 
   let allotted = 0;

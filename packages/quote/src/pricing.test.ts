@@ -365,21 +365,28 @@ describe("use case A: an estimate for a public body", () => {
   test("the scenario is split by type of work, and the optional item stands apart", () => {
     const s = only(priceVersion(content([support([8, 6, 2], 0)]), RATES));
 
+    const none = { amount: 0, max: null };
     expect(s.workTypes).toEqual([
       {
         workTypeId: MAINTENANCE,
         hours: { amount: 8, max: null },
         amount: { amount: 148000, max: null },
+        oneOffHours: none,
+        oneOff: none,
       },
       {
         workTypeId: DEVELOPMENT,
         hours: { amount: 6, max: null },
         amount: { amount: 111000, max: null },
+        oneOffHours: none,
+        oneOff: none,
       },
       {
         workTypeId: FOLLOW_UP,
         hours: { amount: 2, max: null },
         amount: { amount: 30000, max: null },
+        oneOffHours: none,
+        oneOff: none,
       },
     ]);
     expect(s.optional).toEqual([
@@ -613,5 +620,137 @@ describe("recurring details", () => {
       RATES,
     );
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
+  });
+});
+
+describe("arithmetic that must not drift", () => {
+  test("hours that add up to a tier meet it, whatever floats make of them", () => {
+    const s = only(
+      priceVersion(
+        content(
+          [
+            scenario(
+              [
+                item(DEVELOPMENT, 0.2),
+                item(DEVELOPMENT, 0.7),
+                item(DEVELOPMENT, 0.1),
+              ],
+              { recurrence: { ...QUARTERLY_YEAR, period: "month" } },
+            ),
+          ],
+          { volumeTiers: [{ minHours: 12, percent: -5 }] },
+        ),
+        RATES,
+      ),
+    );
+    expect(s.committedHours).toBe(12);
+    expect(s.adjustment).toBe(-5);
+  });
+
+  test("a half cent rounds up, as it reads", () => {
+    // 2.01 h × €85.50 = €171.855
+    const s = only(
+      priceVersion(
+        content([scenario([item(DEVELOPMENT, 2.01)])], {
+          workTypeRates: { [DEVELOPMENT]: 85.5 },
+        }),
+        RATES,
+      ),
+    );
+    expect(s.lines[0]?.amount).toBe(17186);
+  });
+
+  test("tier percents add up without float noise", () => {
+    const s = only(
+      priceVersion(
+        content(
+          [
+            scenario([item(DEVELOPMENT, 10)], {
+              recurrence: { ...QUARTERLY_YEAR, termMonths: 24 },
+            }),
+          ],
+          {
+            volumeTiers: [{ minHours: 1, percent: -0.1 }],
+            termTiers: [{ minMonths: 24, percent: -0.2 }],
+          },
+        ),
+        RATES,
+      ),
+    );
+    expect(s.adjustment).toBe(-0.3);
+  });
+
+  test("a work type id that is an Object key is still just unknown", () => {
+    const line = item("constructor", 1);
+    const s = only(priceVersion(content([scenario([line])]), RATES));
+    expect(s.issues).toEqual([{ code: "no_rate", lineId: line.id }]);
+  });
+});
+
+describe("one-off items", () => {
+  test("on a project, every item is charged once: 'once' changes nothing", () => {
+    const s = only(
+      priceVersion(
+        content(
+          [
+            scenario([
+              item(DEVELOPMENT, 10),
+              item(DEVELOPMENT, 5, { once: true }),
+            ]),
+          ],
+          { volumeTiers: [{ minHours: 15, percent: -5 }] },
+        ),
+        RATES,
+      ),
+    );
+    expect(s.committedHours).toBe(15);
+    expect(s.adjustment).toBe(-5);
+    expect(s.lines.every((l) => !l.once)).toBe(true);
+    // 15 h at €176: the work-type subtotal is the whole total.
+    expect(s.workTypes[0]?.amount).toEqual({ amount: 264000, max: null });
+    expect(s.totals).toMatchObject({ total: { amount: 264000, max: null } });
+  });
+
+  test("on a recurring scenario, sections and work types keep one-offs apart", () => {
+    const s = only(
+      priceVersion(
+        content([
+          scenario(
+            [
+              section("Support"),
+              item(MAINTENANCE, 10),
+              item(MAINTENANCE, 20, { once: true }),
+            ],
+            { recurrence: { ...QUARTERLY_YEAR, period: "month" } },
+          ),
+        ]),
+        RATES,
+      ),
+    );
+    expect(s.sections[0]).toMatchObject({
+      amount: { amount: 185000 },
+      oneOff: { amount: 370000 },
+    });
+    expect(s.workTypes[0]).toMatchObject({
+      hours: { amount: 10 },
+      oneOffHours: { amount: 20 },
+      oneOff: { amount: 370000 },
+    });
+  });
+
+  test("a capped range on a recurring scenario says so", () => {
+    const s = only(
+      priceVersion(
+        content([
+          scenario([item(MAINTENANCE, 10, { hoursMax: 12 })], {
+            pricing: "range",
+            capped: true,
+            recurrence: QUARTERLY_YEAR,
+          }),
+        ]),
+        RATES,
+      ),
+    );
+    expect(s.totals).toMatchObject({ kind: "recurring", capped: true });
   });
 });
