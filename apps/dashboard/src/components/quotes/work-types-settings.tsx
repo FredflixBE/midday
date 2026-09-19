@@ -31,6 +31,7 @@ import {
 } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
 import { useEffect, useState } from "react";
+import { hourlyRateAffixes } from "@/components/quotes/hourly-rate";
 import { useTRPC } from "@/trpc/client";
 
 type WorkType = RouterOutputs["workTypes"]["list"][number];
@@ -214,7 +215,7 @@ function WorkTypeRow({ workType }: { workType: WorkType }) {
         onBlur={saveRate}
         decimalScale={2}
         allowNegative={false}
-        suffix={` ${workType.currency}/h`}
+        {...hourlyRateAffixes(workType.currency)}
         className="w-[160px] text-right"
       />
       <Button
