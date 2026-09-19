@@ -10,6 +10,7 @@ import {
 } from "@tiptap/react";
 import { BubbleMenu } from "./extentions/bubble-menu";
 import { registerExtensions } from "./extentions/register";
+import { Toolbar } from "./extentions/toolbar";
 
 type EditorProps = {
   initialContent?: JSONContent | string;
@@ -21,6 +22,11 @@ type EditorProps = {
   tabIndex?: number;
   /** False shows the content without letting it be changed. */
   editable?: boolean;
+  /**
+   * Shows a toolbar above the text: headings, lists and inline marks. Off by
+   * default, and never shown on content that cannot be changed.
+   */
+  toolbar?: boolean;
 };
 
 export function Editor({
@@ -32,6 +38,7 @@ export function Editor({
   className,
   tabIndex,
   editable = true,
+  toolbar = false,
 }: EditorProps) {
   const editor = useEditor({
     extensions: registerExtensions({ placeholder }),
@@ -49,6 +56,7 @@ export function Editor({
 
   return (
     <>
+      {toolbar && editable ? <Toolbar editor={editor} /> : null}
       <EditorContent
         editor={editor}
         className={className}

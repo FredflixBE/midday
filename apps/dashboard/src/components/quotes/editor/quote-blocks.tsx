@@ -152,6 +152,7 @@ function TextBlockEditor({
       <Editor
         initialContent={block.body}
         editable={editable}
+        toolbar
         className={cn(
           "min-h-[72px] px-3 py-2 text-sm leading-relaxed",
           // Tailwind's reset flattens these; the PDF shows them, so should this.

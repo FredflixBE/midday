@@ -249,6 +249,30 @@ describe("formatEditorContent", () => {
     );
   });
 
+  test("underlines text the toolbar underlined", () => {
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { ...text("under"), marks: [{ type: "underline" }] },
+            {
+              ...text("both"),
+              marks: [{ type: "underline" }, { type: "strike" }],
+            },
+          ],
+        },
+      ],
+    } as EditorDoc;
+    const out = elements(tree(formatEditorContent(doc)));
+    const decorationOf = (value: string) =>
+      styleOf(out.find((e) => e.children.includes(value))!).textDecoration;
+
+    expect(decorationOf("under")).toBe("underline");
+    expect(decorationOf("both")).toBe("underline line-through");
+  });
+
   test("skips nodes it does not know instead of failing", () => {
     const doc = {
       type: "doc",
