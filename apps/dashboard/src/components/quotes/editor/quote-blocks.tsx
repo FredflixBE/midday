@@ -219,6 +219,8 @@ function TextBlockEditor({
       <Dialog open={expanded} onOpenChange={setExpanded}>
         <DialogContent
           className="flex h-[90svh] max-h-none w-[92vw] max-w-4xl flex-col overflow-y-hidden p-0"
+          // The heading is the whole of it; there is nothing to describe.
+          aria-describedby={undefined}
           // The caret belongs in the text, not on the first toolbar button.
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
