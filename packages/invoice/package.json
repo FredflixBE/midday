@@ -15,6 +15,8 @@
     "./number": "./src/utils/number.ts",
     "./templates/html": "./src/templates/html/index.tsx",
     "./templates/pdf": "./src/templates/pdf/index.tsx",
+    "./templates/pdf/fonts": "./src/templates/pdf/fonts.ts",
+    "./templates/pdf/format": "./src/templates/pdf/format.tsx",
     "./templates/og": "./src/templates/og/index.tsx",
     "./editor": "./src/editor/index.tsx",
     "./calculate": "./src/utils/calculate.ts",
