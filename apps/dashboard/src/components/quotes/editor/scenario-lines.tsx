@@ -2,11 +2,14 @@
 
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import {
+  hoursToUnit,
   type ItemLine,
   type Line,
   newLine,
   type Scenario,
   type ScenarioPricing,
+  type UnitSettings,
+  unitToHours,
 } from "@midday/quote";
 import { Button } from "@midday/ui/button";
 import { Checkbox } from "@midday/ui/checkbox";
@@ -17,23 +20,24 @@ import { Textarea } from "@midday/ui/textarea";
 import { Trash2 } from "lucide-react";
 import { type ReactNode, useContext } from "react";
 import { formatQuoteAmount } from "../quote-pricing";
-import { NumberInput, ReadOnlyContext } from "./fields";
+import { NumberInput, ReadOnlyContext, UNIT_LABELS } from "./fields";
 import { SortableList, SortableRow } from "./sortable";
 
 type Product = RouterOutputs["productRates"]["products"][number];
 
-/** Handle, item, product, hours, optional, one-off, amount, remove. */
+/** Handle, item, product, hours or days, optional, one-off, amount, remove. */
 const COLUMNS = "grid-cols-[20px_1fr_180px_140px_repeat(2,56px)_120px_32px]";
 
 /**
  * A scenario's lines: section headings, notes and priced items, in the order
- * they are printed. Each item is hours of one type of work; a range scenario
- * asks for a minimum and a maximum.
+ * they are printed. Each item is hours of one type of work, typed as days on
+ * a quote in days; a range scenario asks for a minimum and a maximum.
  */
 export function ScenarioLines({
   scenario,
   pricing,
   recurring,
+  unit,
   products,
   currency,
   locale,
@@ -43,6 +47,7 @@ export function ScenarioLines({
   scenario: Scenario;
   pricing: ScenarioPricing | undefined;
   recurring: boolean;
+  unit: UnitSettings;
   products: Product[];
   currency: string;
   locale?: string;
@@ -94,7 +99,8 @@ export function ScenarioLines({
             <span>Item</span>
             <span>Product</span>
             <span className="text-right">
-              {range ? "Hours (min–max)" : "Hours"}
+              {UNIT_LABELS[unit.displayUnit]}
+              {range ? " (min–max)" : ""}
             </span>
             <span className="text-center">Optional</span>
             <span className="text-center">{recurring ? "One-off" : ""}</span>
@@ -150,6 +156,7 @@ export function ScenarioLines({
                           line={line}
                           range={range}
                           recurring={recurring}
+                          unit={unit}
                           products={products}
                           amount={
                             // Priced, but its product has no rate anywhere;
@@ -246,6 +253,7 @@ function ItemFields({
   line,
   range,
   recurring,
+  unit,
   products,
   amount,
   onChange,
@@ -253,6 +261,7 @@ function ItemFields({
   line: ItemLine;
   range: boolean;
   recurring: boolean;
+  unit: UnitSettings;
   products: Product[];
   /** Null when the product has no rate. */
   amount: string | null;
@@ -260,6 +269,11 @@ function ItemFields({
 }) {
   const readOnly = useContext(ReadOnlyContext);
   // An inactive product stays pickable only on the line that already has it.
+  // Typed in the quote's unit, stored in hours.
+  const shown = (hours: number) => hoursToUnit(hours, unit);
+  const stored = (value: number | null) => unitToHours(value ?? 0, unit);
+  const noun = unit.displayUnit;
+
   const choices = products
     .filter((p) => p.isActive || p.id === line.productId)
     .map((p) => ({ id: p.id, label: p.name }));
@@ -298,37 +312,40 @@ function ItemFields({
       {range ? (
         <div className="flex items-center gap-1">
           <NumberInput
-            aria-label="Minimum hours"
-            value={line.hours}
-            onChange={(hours) =>
+            aria-label={`Minimum ${noun}`}
+            value={shown(line.hours)}
+            onChange={(value) => {
+              const hours = stored(value);
               onChange({
-                hours: hours ?? 0,
+                hours,
                 // The maximum is never below the minimum.
                 hoursMax:
-                  line.hoursMax !== null && (hours ?? 0) > line.hoursMax
-                    ? (hours ?? 0)
+                  line.hoursMax !== null && hours > line.hoursMax
+                    ? hours
                     : line.hoursMax,
-              })
-            }
-            max={1_000_000}
+              });
+            }}
+            max={shown(1_000_000)}
           />
           <span className="text-[#878787]">–</span>
           <NumberInput
-            aria-label="Maximum hours"
+            aria-label={`Maximum ${noun}`}
             commitOnBlur
-            min={line.hours}
-            value={line.hoursMax}
-            placeholder={String(line.hours)}
-            onChange={(hoursMax) => onChange({ hoursMax })}
-            max={1_000_000}
+            min={shown(line.hours)}
+            value={line.hoursMax === null ? null : shown(line.hoursMax)}
+            placeholder={String(shown(line.hours))}
+            onChange={(value) =>
+              onChange({ hoursMax: value === null ? null : stored(value) })
+            }
+            max={shown(1_000_000)}
           />
         </div>
       ) : (
         <NumberInput
-          aria-label="Hours"
-          value={line.hours}
-          onChange={(hours) => onChange({ hours: hours ?? 0 })}
-          max={1_000_000}
+          aria-label={UNIT_LABELS[unit.displayUnit]}
+          value={shown(line.hours)}
+          onChange={(value) => onChange({ hours: stored(value) })}
+          max={shown(1_000_000)}
         />
       )}
 

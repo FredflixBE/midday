@@ -11,6 +11,7 @@
     "./headline": "./src/headline.ts",
     "./number": "./src/number.ts",
     "./pricing": "./src/pricing.ts",
+    "./unit": "./src/unit.ts",
     "./version": "./src/version.ts"
   },
   "scripts": {

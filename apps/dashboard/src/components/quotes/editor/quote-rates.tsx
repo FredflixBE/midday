@@ -1,7 +1,12 @@
 "use client";
 
 import type { RouterOutputs } from "@api/trpc/routers/_app";
-import type { QuoteContent, RateSettings } from "@midday/quote";
+import {
+  hoursToUnit,
+  type QuoteContent,
+  type RateSettings,
+  unitToHours,
+} from "@midday/quote";
 import { Button } from "@midday/ui/button";
 import { cn } from "@midday/ui/cn";
 import { CurrencyInput } from "@midday/ui/currency-input";
@@ -96,9 +101,10 @@ export function QuoteRates({
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Tiers
           title="Volume"
-          threshold="From hours"
+          threshold={`From ${content.displayUnit}`}
+          // Thresholds are hours, typed in the quote's unit like its lines.
           tiers={content.rates.volumeTiers.map((t) => ({
-            from: t.minHours,
+            from: hoursToUnit(t.minHours, content),
             percent: t.percent,
           }))}
           integer={false}
@@ -108,10 +114,13 @@ export function QuoteRates({
               ...rates,
               volumeTiers: next(
                 rates.volumeTiers.map((t) => ({
-                  from: t.minHours,
+                  from: hoursToUnit(t.minHours, content),
                   percent: t.percent,
                 })),
-              ).map((t) => ({ minHours: t.from, percent: t.percent })),
+              ).map((t) => ({
+                minHours: unitToHours(t.from, content),
+                percent: t.percent,
+              })),
             }))
           }
         />
