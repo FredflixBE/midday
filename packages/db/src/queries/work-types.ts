@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, isNull, max, sql } from "drizzle-orm";
-import type { Database } from "../client";
+import type { Database, DatabaseOrTransaction } from "../client";
 import { customers, customerWorkTypeRates, teams, workTypes } from "../schema";
 
 /**
@@ -30,6 +30,15 @@ function checkRate(rate: number) {
   return rate;
 }
 
+/** After the last one, archived included, so a restored type lands at the end too. */
+async function nextPosition(db: DatabaseOrTransaction, teamId: string) {
+  const [last] = await db
+    .select({ position: max(workTypes.position) })
+    .from(workTypes)
+    .where(eq(workTypes.teamId, teamId));
+  return last?.position == null ? 0 : last.position + 1;
+}
+
 export async function getWorkTypes(
   db: Database,
   params: { teamId: string; includeArchived?: boolean },
@@ -54,26 +63,24 @@ export async function createWorkType(
   const name = cleanName(params.name);
   const hourlyRate = checkRate(params.hourlyRate);
 
-  const [team] = await db
-    .select({ baseCurrency: teams.baseCurrency })
-    .from(teams)
-    .where(eq(teams.id, params.teamId));
-  const [last] = await db
-    .select({ position: max(workTypes.position) })
-    .from(workTypes)
-    .where(eq(workTypes.teamId, params.teamId));
+  return db.transaction(async (tx) => {
+    const [team] = await tx
+      .select({ baseCurrency: teams.baseCurrency })
+      .from(teams)
+      .where(eq(teams.id, params.teamId));
 
-  const [row] = await db
-    .insert(workTypes)
-    .values({
-      teamId: params.teamId,
-      name,
-      hourlyRate,
-      currency: team?.baseCurrency ?? "EUR",
-      position: last?.position == null ? 0 : last.position + 1,
-    })
-    .returning();
-  return row!;
+    const [row] = await tx
+      .insert(workTypes)
+      .values({
+        teamId: params.teamId,
+        name,
+        hourlyRate,
+        currency: team?.baseCurrency ?? "EUR",
+        position: await nextPosition(tx, params.teamId),
+      })
+      .returning();
+    return row!;
+  });
 }
 
 /** Rename or reprice. Null when the type is not the team's. */
@@ -141,14 +148,25 @@ async function setArchived(
   params: { id: string; teamId: string },
   archived: boolean,
 ): Promise<WorkType | null> {
-  const [row] = await db
-    .update(workTypes)
-    .set({ archivedAt: archived ? sql`now()` : null })
-    .where(
-      and(eq(workTypes.id, params.id), eq(workTypes.teamId, params.teamId)),
-    )
-    .returning();
-  return row ?? null;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(workTypes)
+      .set(
+        archived
+          ? { archivedAt: sql`now()` }
+          : // Back at the end of the list, rather than wherever its old
+            // position now falls among the types reordered since.
+            {
+              archivedAt: null,
+              position: await nextPosition(tx, params.teamId),
+            },
+      )
+      .where(
+        and(eq(workTypes.id, params.id), eq(workTypes.teamId, params.teamId)),
+      )
+      .returning();
+    return row ?? null;
+  });
 }
 
 /** Out of the pickers; still resolves for the quotes that use it. */
@@ -198,51 +216,53 @@ export async function setCustomerWorkTypeRate(
     hourlyRate: number | null;
   },
 ): Promise<{ workTypeId: string; hourlyRate: number | null } | null> {
-  const [customer] = await db
-    .select({ id: customers.id })
-    .from(customers)
-    .where(
-      and(
-        eq(customers.id, params.customerId),
-        eq(customers.teamId, params.teamId),
-      ),
+  return db.transaction(async (tx) => {
+    const [customer] = await tx
+      .select({ id: customers.id })
+      .from(customers)
+      .where(
+        and(
+          eq(customers.id, params.customerId),
+          eq(customers.teamId, params.teamId),
+        ),
+      );
+    const [workType] = await tx
+      .select({ id: workTypes.id })
+      .from(workTypes)
+      .where(
+        and(
+          eq(workTypes.id, params.workTypeId),
+          eq(workTypes.teamId, params.teamId),
+        ),
+      );
+    if (!customer || !workType) return null;
+
+    const key = and(
+      eq(customerWorkTypeRates.customerId, params.customerId),
+      eq(customerWorkTypeRates.workTypeId, params.workTypeId),
     );
-  const [workType] = await db
-    .select({ id: workTypes.id })
-    .from(workTypes)
-    .where(
-      and(
-        eq(workTypes.id, params.workTypeId),
-        eq(workTypes.teamId, params.teamId),
-      ),
-    );
-  if (!customer || !workType) return null;
 
-  const key = and(
-    eq(customerWorkTypeRates.customerId, params.customerId),
-    eq(customerWorkTypeRates.workTypeId, params.workTypeId),
-  );
+    if (params.hourlyRate === null) {
+      await tx.delete(customerWorkTypeRates).where(key);
+      return { workTypeId: params.workTypeId, hourlyRate: null };
+    }
 
-  if (params.hourlyRate === null) {
-    await db.delete(customerWorkTypeRates).where(key);
-    return { workTypeId: params.workTypeId, hourlyRate: null };
-  }
-
-  const hourlyRate = checkRate(params.hourlyRate);
-  await db
-    .insert(customerWorkTypeRates)
-    .values({
-      customerId: params.customerId,
-      workTypeId: params.workTypeId,
-      teamId: params.teamId,
-      hourlyRate,
-    })
-    .onConflictDoUpdate({
-      target: [
-        customerWorkTypeRates.customerId,
-        customerWorkTypeRates.workTypeId,
-      ],
-      set: { hourlyRate },
-    });
-  return { workTypeId: params.workTypeId, hourlyRate };
+    const hourlyRate = checkRate(params.hourlyRate);
+    await tx
+      .insert(customerWorkTypeRates)
+      .values({
+        customerId: params.customerId,
+        workTypeId: params.workTypeId,
+        teamId: params.teamId,
+        hourlyRate,
+      })
+      .onConflictDoUpdate({
+        target: [
+          customerWorkTypeRates.customerId,
+          customerWorkTypeRates.workTypeId,
+        ],
+        set: { hourlyRate },
+      });
+    return { workTypeId: params.workTypeId, hourlyRate };
+  });
 }

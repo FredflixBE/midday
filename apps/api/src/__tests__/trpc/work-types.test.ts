@@ -8,8 +8,10 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
   archiveWorkType,
   createWorkType,
+  getCustomerWorkTypeRates,
   getWorkTypes,
   reorderWorkTypes,
+  restoreWorkType,
   setCustomerWorkTypeRate,
   updateWorkType,
   WorkTypeInputError,
@@ -32,6 +34,8 @@ describe("tRPC: workTypes", () => {
       updateWorkType,
       reorderWorkTypes,
       archiveWorkType,
+      restoreWorkType,
+      getCustomerWorkTypeRates,
       setCustomerWorkTypeRate,
     ]) {
       asMock(fn).mockReset();

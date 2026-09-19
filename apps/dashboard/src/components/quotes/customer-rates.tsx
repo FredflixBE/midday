@@ -15,24 +15,29 @@ type WorkType = RouterOutputs["workTypes"]["list"][number];
  */
 export function CustomerRates({ customerId }: { customerId: string }) {
   const trpc = useTRPC();
-  const { data: workTypes } = useQuery(trpc.workTypes.list.queryOptions());
+  const { data: workTypes } = useQuery(
+    trpc.workTypes.list.queryOptions({ includeArchived: true }),
+  );
   const { data: rates } = useQuery(
     trpc.workTypes.customerRates.queryOptions({ customerId }),
   );
 
   if (!workTypes || !rates) return null;
 
-  if (workTypes.length === 0) {
+  const own = new Map(rates.map((r) => [r.workTypeId, r.hourlyRate]));
+  // An archived type stays while this customer has a rate for it, so that
+  // rate can still be seen and cleared.
+  const shown = workTypes.filter((w) => !w.archivedAt || own.has(w.id));
+
+  if (shown.length === 0) {
     return <div className="text-[14px] text-[#606060]">-</div>;
   }
 
-  const own = new Map(rates.map((r) => [r.workTypeId, r.hourlyRate]));
-
   return (
     <div className="grid grid-cols-2 gap-4">
-      {workTypes.map((workType) => (
+      {shown.map((workType) => (
         <RateField
-          key={workType.id}
+          key={`${workType.id}:${own.get(workType.id)}`}
           customerId={customerId}
           workType={workType}
           rate={own.get(workType.id)}

@@ -179,6 +179,19 @@ describe.skipIf(SKIP)("work types", () => {
     expect(list.map((w) => w.id)).toEqual([a.id]);
   });
 
+  test("a restored type comes back at the end, after a reorder of the rest", async () => {
+    const a = await create("A");
+    const b = await create("B");
+    const c = await create("C");
+    await archiveWorkType(db, { id: a.id, teamId: TEAM_USD_ID });
+    await reorderWorkTypes(db, { teamId: TEAM_USD_ID, ids: [c.id, b.id] });
+
+    await restoreWorkType(db, { id: a.id, teamId: TEAM_USD_ID });
+
+    const list = await getWorkTypes(db, { teamId: TEAM_USD_ID });
+    expect(list.map((w) => w.name)).toEqual(["C", "B", "A"]);
+  });
+
   describe("a customer's own rates", () => {
     test("a customer can have its own rate, and clearing it brings back the default", async () => {
       const wt = await create("Development", 110);

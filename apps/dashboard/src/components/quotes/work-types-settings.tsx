@@ -30,7 +30,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTRPC } from "@/trpc/client";
 
 type WorkType = RouterOutputs["workTypes"]["list"][number];
@@ -72,7 +72,11 @@ export function WorkTypesSettings() {
   const active = data.filter((w) => !w.archivedAt);
   const archived = data.filter((w) => w.archivedAt);
 
-  const reorder = useMutation(trpc.workTypes.reorder.mutationOptions(options));
+  // One scope, so two quick drags are saved in the order they were made.
+  const reorder = useMutation({
+    ...trpc.workTypes.reorder.mutationOptions(options),
+    scope: { id: "work-types-reorder" },
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -88,6 +92,7 @@ export function WorkTypesSettings() {
     const moved = arrayMove(active, from, to);
 
     // Shown moved at once; the invalidation afterwards brings back the truth.
+    void queryClient.cancelQueries({ queryKey: listKey });
     queryClient.setQueryData(listKey, [...moved, ...archived]);
     reorder.mutate({ ids: moved.map((w) => w.id) });
   };
@@ -143,6 +148,10 @@ function WorkTypeRow({ workType }: { workType: WorkType }) {
 
   const [name, setName] = useState(workType.name);
   const [rate, setRate] = useState<number | undefined>(workType.hourlyRate);
+
+  // Follow the server when it changes, e.g. an edit made in another tab.
+  useEffect(() => setName(workType.name), [workType.name]);
+  useEffect(() => setRate(workType.hourlyRate), [workType.hourlyRate]);
 
   const {
     attributes,
