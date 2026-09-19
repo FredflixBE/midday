@@ -3,6 +3,7 @@
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { formatQuoteVersion } from "@midday/quote";
 import { Badge } from "@midday/ui/badge";
+import { cn } from "@midday/ui/cn";
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import {
 } from "@midday/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { formatDate } from "@midday/utils/format";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { useUserQuery } from "@/hooks/use-user";
@@ -39,9 +40,12 @@ export function QuotesList() {
   const router = useRouter();
   const { data: user } = useUserQuery();
   const [filter, setFilter] = useQueryState("status", quoteFilterParser);
-  const { data: rows } = useSuspenseQuery(
-    trpc.quotes.list.queryOptions(quotesListInput(filter)),
-  );
+  // A new filter keeps the rows on screen until its own arrive, instead of
+  // suspending the list for every click.
+  const { data: rows = [], isPlaceholderData } = useQuery({
+    ...trpc.quotes.list.queryOptions(quotesListInput(filter)),
+    placeholderData: keepPreviousData,
+  });
 
   const date = (value: string | null) =>
     value ? formatDate(value, user?.dateFormat) : "–";
@@ -66,7 +70,7 @@ export function QuotesList() {
           No quotes
         </div>
       ) : (
-        <Table>
+        <Table className={cn(isPlaceholderData && "opacity-60")}>
           <TableHeader>
             <TableRow>
               <TableHead>Number</TableHead>
