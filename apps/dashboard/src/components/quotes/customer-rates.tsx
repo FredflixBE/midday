@@ -2,36 +2,40 @@
 
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { CurrencyInput } from "@midday/ui/currency-input";
-import { useToast } from "@midday/ui/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   formatHourlyRate,
   hourlyRateAffixes,
 } from "@/components/quotes/hourly-rate";
+import { useTeamQuery } from "@/hooks/use-team";
 import { useTRPC } from "@/trpc/client";
+import { useErrorToast } from "./use-error-toast";
 
-type WorkType = RouterOutputs["workTypes"]["list"][number];
+type Product = RouterOutputs["productRates"]["products"][number];
 
 /**
- * A customer's own hourly rate per work type (FF-1607). Empty means the work
- * type's default applies; the default is the placeholder.
+ * A customer's own hourly rate per product (FF-1620). Empty means the
+ * product's price applies; the price is the placeholder.
  */
 export function CustomerRates({ customerId }: { customerId: string }) {
   const trpc = useTRPC();
-  const { data: workTypes } = useQuery(
-    trpc.workTypes.list.queryOptions({ includeArchived: true }),
+  const { data: team } = useTeamQuery();
+  // The team's, for a product without a currency of its own.
+  const currency = team?.baseCurrency ?? "EUR";
+  const { data: products } = useQuery(
+    trpc.productRates.products.queryOptions(),
   );
   const { data: rates } = useQuery(
-    trpc.workTypes.customerRates.queryOptions({ customerId }),
+    trpc.productRates.customerRates.queryOptions({ customerId }),
   );
 
-  if (!workTypes || !rates) return null;
+  if (!products || !rates) return null;
 
-  const own = new Map(rates.map((r) => [r.workTypeId, r.hourlyRate]));
-  // An archived type stays while this customer has a rate for it, so that
-  // rate can still be seen and cleared.
-  const shown = workTypes.filter((w) => !w.archivedAt || own.has(w.id));
+  const own = new Map(rates.map((r) => [r.productId, r.hourlyRate]));
+  // An inactive product stays while this customer has a rate for it, so
+  // that rate can still be seen and cleared.
+  const shown = products.filter((p) => p.isActive || own.has(p.id));
 
   if (shown.length === 0) {
     return <div className="text-[14px] text-[#606060]">-</div>;
@@ -39,12 +43,13 @@ export function CustomerRates({ customerId }: { customerId: string }) {
 
   return (
     <div className="grid grid-cols-2 gap-4">
-      {shown.map((workType) => (
+      {shown.map((product) => (
         <RateField
-          key={`${workType.id}:${own.get(workType.id)}`}
+          key={`${product.id}:${own.get(product.id)}`}
           customerId={customerId}
-          workType={workType}
-          rate={own.get(workType.id)}
+          product={product}
+          currency={product.currency ?? currency}
+          rate={own.get(product.id)}
         />
       ))}
     </div>
@@ -53,32 +58,29 @@ export function CustomerRates({ customerId }: { customerId: string }) {
 
 function RateField({
   customerId,
-  workType,
+  product,
+  currency,
   rate,
 }: {
   customerId: string;
-  workType: WorkType;
+  product: Product;
+  currency: string;
   rate: number | undefined;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const errorToast = useErrorToast();
   const [value, setValue] = useState<number | undefined>(rate);
 
   const set = useMutation(
-    trpc.workTypes.setCustomerRate.mutationOptions({
+    trpc.productRates.setCustomerRate.mutationOptions({
       onSettled: () =>
         queryClient.invalidateQueries({
-          queryKey: trpc.workTypes.customerRates.queryKey({ customerId }),
+          queryKey: trpc.productRates.customerRates.queryKey({ customerId }),
         }),
       onError: (error) => {
         setValue(rate);
-        toast({
-          duration: 6000,
-          variant: "error",
-          title: "That did not work",
-          description: error.message,
-        });
+        errorToast("That did not work")(error);
       },
     }),
   );
@@ -87,23 +89,27 @@ function RateField({
     if (value === rate) return;
     set.mutate({
       customerId,
-      workTypeId: workType.id,
+      productId: product.id,
       hourlyRate: value ?? null,
     });
   };
 
   return (
     <div>
-      <div className="text-[12px] mb-2 text-[#606060]">{workType.name}</div>
+      <div className="text-[12px] mb-2 text-[#606060]">{product.name}</div>
       <CurrencyInput
-        aria-label={`${workType.name} hourly rate`}
+        aria-label={`${product.name} hourly rate`}
         value={value ?? ""}
-        placeholder={formatHourlyRate(workType.hourlyRate, workType.currency)}
+        placeholder={
+          product.price === null
+            ? undefined
+            : formatHourlyRate(product.price, currency)
+        }
         onValueChange={(values) => setValue(values.floatValue)}
         onBlur={save}
         decimalScale={2}
         allowNegative={false}
-        {...hourlyRateAffixes(workType.currency)}
+        {...hourlyRateAffixes(currency)}
       />
     </div>
   );

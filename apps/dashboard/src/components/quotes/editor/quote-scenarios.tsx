@@ -41,7 +41,7 @@ import type { DraftChange } from "../use-quote-draft";
 import { Field, NumberInput, OptionSelect, PRICING_LABELS } from "./fields";
 import { ScenarioLines } from "./scenario-lines";
 
-type WorkType = RouterOutputs["workTypes"]["list"][number];
+type Product = RouterOutputs["productRates"]["products"][number];
 
 const PERIOD_LABELS = { month: "Month", quarter: "Quarter", year: "Year" };
 const BILLING_LABELS = { in_advance: "In advance", in_arrears: "In arrears" };
@@ -62,7 +62,7 @@ export function QuoteScenarios({
   content,
   kind,
   pricing,
-  workTypes,
+  products,
   currency,
   locale,
   editable,
@@ -71,7 +71,7 @@ export function QuoteScenarios({
   content: QuoteContent;
   kind: QuoteKind;
   pricing: PricingResult;
-  workTypes: WorkType[];
+  products: Product[];
   currency: string;
   locale?: string;
   editable: boolean;
@@ -147,7 +147,7 @@ export function QuoteScenarios({
               (p) => p.scenarioId === selected.id,
             )}
             recurring={kind === "recurring"}
-            workTypes={workTypes}
+            products={products}
             currency={currency}
             locale={locale}
             editable={editable}
@@ -175,7 +175,7 @@ function ScenarioEditor({
   scenario,
   pricing,
   recurring,
-  workTypes,
+  products,
   currency,
   locale,
   editable,
@@ -187,7 +187,7 @@ function ScenarioEditor({
   scenario: Scenario;
   pricing: ScenarioPricing | undefined;
   recurring: boolean;
-  workTypes: WorkType[];
+  products: Product[];
   currency: string;
   locale?: string;
   editable: boolean;
@@ -333,7 +333,7 @@ function ScenarioEditor({
         scenario={scenario}
         pricing={pricing}
         recurring={recurring}
-        workTypes={workTypes}
+        products={products}
         currency={currency}
         locale={locale}
         editable={editable}
@@ -359,7 +359,7 @@ function ScenarioEditor({
       {pricing ? (
         <ScenarioTotals
           pricing={pricing}
-          workTypes={workTypes}
+          products={products}
           period={scenario.recurrence?.period}
           currency={currency}
           locale={locale}
@@ -510,13 +510,13 @@ function PaymentSchedule({
 
 function ScenarioTotals({
   pricing,
-  workTypes,
+  products,
   period,
   currency,
   locale,
 }: {
   pricing: ScenarioPricing;
-  workTypes: WorkType[];
+  products: Product[];
   period: Recurrence["period"] | undefined;
   currency: string;
   locale?: string;
@@ -530,9 +530,9 @@ function ScenarioTotals({
   type Row = { label: string; value: string; strong?: boolean };
   const rows: Row[] = [];
   // Per type of work, with the rate it is charged at (use cases A and B).
-  const names = new Map(workTypes.map((w) => [w.id, w.name]));
-  const rate = (workTypeId: string) => {
-    const cents = pricing.rates[workTypeId]?.rate;
+  const names = new Map(products.map((w) => [w.id, w.name]));
+  const rate = (productId: string) => {
+    const cents = pricing.rates[productId]?.rate;
     return cents === undefined
       ? ""
       : ` × ${formatHourlyRate(cents / 100, currency)}`;
@@ -574,10 +574,10 @@ function ScenarioTotals({
           muted
         />
       ) : null}
-      {pricing.workTypes.map((w) => (
+      {pricing.products.map((w) => (
         <Total
-          key={w.workTypeId}
-          label={`${names.get(w.workTypeId) ?? "Unknown"} · ${formatHours(w.hours, locale)} h${rate(w.workTypeId)}`}
+          key={w.productId}
+          label={`${names.get(w.productId) ?? "Unknown"} · ${formatHours(w.hours, locale)} h${rate(w.productId)}`}
           value={money(w.amount)}
           muted
         />
