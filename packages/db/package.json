@@ -51,6 +51,7 @@
     "@midday/encryption": "workspace:*",
     "@midday/invoice": "workspace:*",
     "@midday/logger": "workspace:*",
+    "@midday/quote": "workspace:*",
     "@midday/utils": "workspace:*",
     "@sindresorhus/slugify": "catalog:",
     "@types/pg": "^8.20.0",

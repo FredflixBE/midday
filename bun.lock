@@ -45,6 +45,7 @@
         "@midday/logger": "workspace:*",
         "@midday/mcp-apps": "workspace:*",
         "@midday/notifications": "workspace:*",
+        "@midday/quote": "workspace:*",
         "@midday/supabase": "workspace:*",
         "@midday/utils": "workspace:*",
         "@midday/yuki": "workspace:*",
@@ -331,6 +332,7 @@
         "@midday/encryption": "workspace:*",
         "@midday/invoice": "workspace:*",
         "@midday/logger": "workspace:*",
+        "@midday/quote": "workspace:*",
         "@midday/utils": "workspace:*",
         "@sindresorhus/slugify": "catalog:",
         "@types/pg": "^8.20.0",
@@ -577,6 +579,16 @@
       },
       "devDependencies": {
         "@midday/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/quote": {
+      "name": "@midday/quote",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "1.4.2",
         "typescript": "catalog:",
       },
     },
@@ -1156,6 +1168,8 @@
     "@midday/mcp-apps": ["@midday/mcp-apps@workspace:packages/mcp-apps"],
 
     "@midday/notifications": ["@midday/notifications@workspace:packages/notifications"],
+
+    "@midday/quote": ["@midday/quote@workspace:packages/quote"],
 
     "@midday/supabase": ["@midday/supabase@workspace:packages/supabase"],
 

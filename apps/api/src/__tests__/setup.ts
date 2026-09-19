@@ -279,6 +279,13 @@ export const mocks = {
   restoreWorkType: mock(() => ({})) as MockFn,
   getCustomerWorkTypeRates: mock(() => []) as MockFn,
   setCustomerWorkTypeRate: mock(() => ({})) as MockFn,
+  // Quotes (FF-1609)
+  createQuote: mock(() => ({})) as MockFn,
+  getQuote: mock(() => ({})) as MockFn,
+  updateQuoteDraft: mock(() => ({})) as MockFn,
+  reviseQuote: mock(() => ({})) as MockFn,
+  getQuoteSettings: mock(() => ({})) as MockFn,
+  updateQuoteSettings: mock(() => ({})) as MockFn,
   getInvoicesForBooks: mock(() => []) as MockFn,
   getBooksInvoiceNumbers: mock(() => []) as MockFn,
   getBooksFiles: mock(() => []) as MockFn,
@@ -963,6 +970,13 @@ const dbQueriesMock = new Proxy(
     getCustomerWorkTypeRates: mocks.getCustomerWorkTypeRates,
     setCustomerWorkTypeRate: mocks.setCustomerWorkTypeRate,
     WorkTypeInputError: class WorkTypeInputError extends Error {},
+    createQuote: mocks.createQuote,
+    getQuote: mocks.getQuote,
+    updateQuoteDraft: mocks.updateQuoteDraft,
+    reviseQuote: mocks.reviseQuote,
+    getQuoteSettings: mocks.getQuoteSettings,
+    updateQuoteSettings: mocks.updateQuoteSettings,
+    QuoteInputError: class QuoteInputError extends Error {},
     CommitmentInputError: class CommitmentInputError extends Error {},
     // Real classes, not mocks: the router tells a person's mistake from a
     // failure by `instanceof`.

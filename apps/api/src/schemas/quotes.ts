@@ -1,0 +1,46 @@
+import { z } from "@hono/zod-openapi";
+import { blockSchema, quoteContentSchema } from "@midday/quote";
+
+export const quoteKindSchema = z.enum(["project", "recurring"]);
+export const quoteLanguageSchema = z.enum(["nl", "en"]);
+export const quoteModeSchema = z.enum(["estimate", "firm"]);
+
+const titleSchema = z.string().trim().min(1).max(300);
+
+export const createQuoteSchema = z.object({
+  customerId: z.string().uuid(),
+  title: titleSchema,
+  kind: quoteKindSchema,
+  language: quoteLanguageSchema,
+  currency: z.string().length(3).optional(),
+  mode: quoteModeSchema.optional(),
+});
+
+export const quoteIdSchema = z.object({ id: z.string().uuid() });
+
+/**
+ * A draft's changes. The content is checked here for its shape, and again
+ * against the quote's kind where it is written.
+ */
+export const updateQuoteDraftSchema = z.object({
+  versionId: z.string().uuid(),
+  title: titleSchema.optional(),
+  kind: quoteKindSchema.optional(),
+  language: quoteLanguageSchema.optional(),
+  customerId: z.string().uuid().optional(),
+  mode: quoteModeSchema.optional(),
+  issueDate: z.string().date().optional(),
+  validUntil: z.string().date().optional(),
+  content: quoteContentSchema.optional(),
+  internalNote: z.string().max(10_000).nullable().optional(),
+});
+
+export const reviseQuoteSchema = z.object({ quoteId: z.string().uuid() });
+
+export const updateQuoteSettingsSchema = z.object({
+  numberPrefix: z.string().trim().max(20).optional(),
+  defaultValidDays: z.number().int().min(1).max(365).optional(),
+  hoursPerDay: z.number().gt(0).max(24).multipleOf(0.25).optional(),
+  defaultBlocks: z.array(blockSchema).optional(),
+  labels: z.record(z.string(), z.record(z.string(), z.string())).optional(),
+});
