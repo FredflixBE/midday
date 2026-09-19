@@ -6,27 +6,27 @@ import {
   isExpired,
   nextQuoteNumber,
   type PricingResult,
+  type ProductRates,
   parseQuoteContent,
   priceVersion,
   type QuoteContent,
   type QuoteKind,
   quoteHeadline,
   quoteNumberSequence,
-  type WorkTypeRates,
 } from "@midday/quote";
 import { and, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { Database, DatabaseOrTransaction } from "../client";
 import {
+  customerProductRates,
   customers,
-  customerWorkTypeRates,
+  invoiceProducts,
   invoiceTemplates,
   quoteSettings,
   quotes,
   quoteVersions,
   teams,
-  workTypes,
 } from "../schema";
 
 /**
@@ -567,35 +567,35 @@ export async function markQuoteVersionSent(
 }
 
 /**
- * Every work type's default rate, archived ones included so older lines still
- * price, and every customer's own, in two reads. A quote's own overrides are
- * in its content.
+ * Every product's price as its hourly rate, inactive ones included so older
+ * lines still price, and every customer's own rate, in two reads. A product
+ * without a price has no rate. A quote's own overrides are in its content.
  */
 async function ratesForTeam(db: DatabaseOrTransaction, teamId: string) {
-  const defaults = await db
-    .select({ id: workTypes.id, hourlyRate: workTypes.hourlyRate })
-    .from(workTypes)
-    .where(eq(workTypes.teamId, teamId));
+  const products = await db
+    .select({ id: invoiceProducts.id, price: invoiceProducts.price })
+    .from(invoiceProducts)
+    .where(eq(invoiceProducts.teamId, teamId));
   const own = await db
     .select({
-      customerId: customerWorkTypeRates.customerId,
-      workTypeId: customerWorkTypeRates.workTypeId,
-      hourlyRate: customerWorkTypeRates.hourlyRate,
+      customerId: customerProductRates.customerId,
+      productId: customerProductRates.productId,
+      hourlyRate: customerProductRates.hourlyRate,
     })
-    .from(customerWorkTypeRates)
-    .where(eq(customerWorkTypeRates.teamId, teamId));
+    .from(customerProductRates)
+    .where(eq(customerProductRates.teamId, teamId));
 
   const defaultRates = Object.fromEntries(
-    defaults.map((r) => [r.id, r.hourlyRate]),
+    products.flatMap((p) => (p.price === null ? [] : [[p.id, p.price]])),
   );
   const byCustomer: Record<string, Record<string, number>> = {};
   for (const rate of own) {
     byCustomer[rate.customerId] ??= {};
-    byCustomer[rate.customerId]![rate.workTypeId] = rate.hourlyRate;
+    byCustomer[rate.customerId]![rate.productId] = rate.hourlyRate;
   }
 
   /** What `priceVersion` takes for a quote to this customer. */
-  return (customerId: string | null): WorkTypeRates => ({
+  return (customerId: string | null): ProductRates => ({
     defaults: defaultRates,
     customer: (customerId && byCustomer[customerId]) || {},
   });
