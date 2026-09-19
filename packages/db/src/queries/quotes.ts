@@ -167,29 +167,34 @@ async function senderSnapshot(db: DatabaseOrTransaction, teamId: string) {
 }
 
 /**
- * The next number under the team's prefix, after the highest sequence any of
- * its quotes has — the approach `getNextInvoiceNumber` takes. Call it inside
- * the transaction holding the team's numbering lock.
+ * The next number under the team's prefix, after the highest one in use under
+ * that prefix — the approach `getNextInvoiceNumber` takes, except that the
+ * sequence is read only past the prefix, so a prefix may end in digits and a
+ * new prefix starts at 0001. Call it inside the transaction holding the
+ * team's numbering lock.
  */
 async function getNextQuoteNumber(
   tx: DatabaseOrTransaction,
   teamId: string,
   prefix: string,
 ) {
+  const rest = sql`SUBSTRING(${quotes.quoteNumber} FROM ${prefix.length + 1}::int)`;
   const [highest] = await tx
     .select({ quoteNumber: quotes.quoteNumber })
     .from(quotes)
     .where(
-      and(eq(quotes.teamId, teamId), sql`${quotes.quoteNumber} ~ '[0-9]+$'`),
+      and(
+        eq(quotes.teamId, teamId),
+        sql`starts_with(${quotes.quoteNumber}, ${prefix})`,
+        sql`${rest} ~ '^[0-9]+$'`,
+      ),
     )
-    .orderBy(
-      sql`CAST(SUBSTRING(${quotes.quoteNumber} FROM '[0-9]+$') AS BIGINT) DESC`,
-    )
+    .orderBy(sql`CAST(${rest} AS NUMERIC) DESC`)
     .limit(1);
 
   return nextQuoteNumber(
     prefix,
-    highest ? quoteNumberSequence(highest.quoteNumber) : null,
+    highest ? quoteNumberSequence(highest.quoteNumber, prefix) : null,
   );
 }
 
@@ -349,6 +354,19 @@ export async function updateQuoteDraft(
 
     if (version.status !== "draft") {
       throw new QuoteInputError("Only a draft can be edited");
+    }
+
+    // The header lives on the quote, which every version shares. Once one
+    // has been sent it is what the client holds, so it stays as sent.
+    const headerChange =
+      params.title !== undefined ||
+      params.kind !== undefined ||
+      params.language !== undefined ||
+      params.customerId !== undefined;
+    if (headerChange && version.version > 1) {
+      throw new QuoteInputError(
+        "A quote that has been sent keeps its customer, title, kind and language",
+      );
     }
 
     const kind = params.kind ?? quote.kind;

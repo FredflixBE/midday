@@ -163,6 +163,24 @@ describe.skipIf(SKIP)("quotes", () => {
       expect(content.blocks.map((b) => b.type)).toEqual(["text", "pricing"]);
     });
 
+    test("a prefix may end in digits, and a new prefix starts again at 0001", async () => {
+      await updateQuoteSettings(db, {
+        teamId: TEAM_USD_ID,
+        numberPrefix: "Q2026",
+      });
+      const first = await create();
+      const second = await create();
+      await updateQuoteSettings(db, {
+        teamId: TEAM_USD_ID,
+        numberPrefix: "Q2027",
+      });
+      const next = await create();
+
+      expect([first.quoteNumber, second.quoteNumber, next.quoteNumber]).toEqual(
+        ["Q20260001", "Q20260002", "Q20270001"],
+      );
+    });
+
     test("the customer and the sender are snapshotted", async () => {
       await db.insert(invoiceTemplates).values({
         teamId: TEAM_USD_ID,
@@ -411,6 +429,38 @@ describe.skipIf(SKIP)("quotes", () => {
       expect(quote?.versions.filter((v) => v.status === "draft")).toHaveLength(
         1,
       );
+    });
+
+    test("a revision keeps the header the client already has", async () => {
+      const id = await sentQuote();
+      const revised = await reviseQuote(db, {
+        teamId: TEAM_USD_ID,
+        quoteId: id,
+      });
+      const draft = draftOf(revised!);
+
+      for (const change of [
+        { title: "Renamed" },
+        { language: "nl" as const },
+        { kind: "recurring" as const },
+        { customerId },
+      ]) {
+        await expect(
+          updateQuoteDraft(db, {
+            teamId: TEAM_USD_ID,
+            versionId: draft.id,
+            ...change,
+          }),
+        ).rejects.toBeInstanceOf(QuoteInputError);
+      }
+
+      // The rest of the draft is still editable.
+      const updated = await updateQuoteDraft(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        mode: "firm",
+      });
+      expect(draftOf(updated!).mode).toBe("firm");
     });
 
     test("sending the new version supersedes the previous sent one", async () => {

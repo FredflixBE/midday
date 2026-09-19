@@ -38,9 +38,9 @@ export const updateQuoteDraftSchema = z.object({
 export const reviseQuoteSchema = z.object({ quoteId: z.string().uuid() });
 
 export const updateQuoteSettingsSchema = z.object({
-  numberPrefix: z.string().trim().max(20).optional(),
+  numberPrefix: z.string().trim().min(1).max(20).optional(),
   defaultValidDays: z.number().int().min(1).max(365).optional(),
-  hoursPerDay: z.number().gt(0).max(24).multipleOf(0.25).optional(),
+  hoursPerDay: z.number().gt(0).max(24).multipleOf(0.01).optional(),
   defaultBlocks: z.array(blockSchema).optional(),
   labels: z.record(z.string(), z.record(z.string(), z.string())).optional(),
 });

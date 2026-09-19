@@ -15,10 +15,15 @@ describe("quote numbers", () => {
     expect(nextQuoteNumber("OFF-", 9999)).toBe("OFF-10000");
   });
 
-  test("the sequence is read from the trailing digits", () => {
-    expect(quoteNumberSequence("OFF-0042")).toBe(42);
-    expect(quoteNumberSequence("Q2026-007")).toBe(7);
-    expect(quoteNumberSequence("DRAFT")).toBeNull();
+  test("the sequence is what follows the prefix", () => {
+    expect(quoteNumberSequence("OFF-0042", "OFF-")).toBe(42);
+    expect(quoteNumberSequence("Q20260007", "Q2026")).toBe(7);
+  });
+
+  test("a number under another prefix, or not all digits after it, has none", () => {
+    expect(quoteNumberSequence("Q-0042", "OFF-")).toBeNull();
+    expect(quoteNumberSequence("OFF-0042a", "OFF-")).toBeNull();
+    expect(quoteNumberSequence("OFF-", "OFF-")).toBeNull();
   });
 
   test("the first version shows the number alone, later ones their version", () => {
