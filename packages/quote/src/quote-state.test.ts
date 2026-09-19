@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { quoteState } from "./quote-state";
+import { quoteState } from "./version";
 
 const open = { outcome: "open" as const };
 

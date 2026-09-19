@@ -571,6 +571,48 @@ export async function markQuoteVersionSent(
 }
 
 /**
+ * A quote with every version priced (FF-1618): a sent version from the
+ * pricing frozen when it was sent, a draft at today's rates. With the
+ * customer's name and the names of the team's products, which lines name.
+ * Null when the quote is not the team's.
+ */
+export async function getPricedQuote(
+  db: DatabaseOrTransaction,
+  params: { id: string; teamId: string; today?: string },
+) {
+  const quote = await getQuote(db, params);
+  if (!quote) return null;
+
+  const ratesFor = await ratesForTeam(db, params.teamId);
+  const products = await db
+    .select({ id: invoiceProducts.id, name: invoiceProducts.name })
+    .from(invoiceProducts)
+    .where(eq(invoiceProducts.teamId, params.teamId));
+  const [customer] = quote.customerId
+    ? await db
+        .select({ name: customers.name })
+        .from(customers)
+        .where(eq(customers.id, quote.customerId))
+    : [];
+
+  return {
+    ...quote,
+    customerName: customer?.name ?? null,
+    productNames: Object.fromEntries(products.map((p) => [p.id, p.name])),
+    versions: quote.versions.map((version) => {
+      const content = version.content as QuoteContent;
+      return {
+        ...version,
+        content,
+        pricing:
+          (version.pricing as PricingResult | null) ??
+          priceVersion(content, ratesFor(quote.customerId)),
+      };
+    }),
+  };
+}
+
+/**
  * What the PDF of a version is made from (FF-1613): the version as it stands,
  * priced from the pricing frozen when it was sent, or at today's rates while
  * a draft (and for a version sent before pricing was frozen). Around it: the
