@@ -28,16 +28,32 @@ export function LinkItem({ editor, open, setOpen }: LinkItemProps) {
   const handleSubmit = () => {
     const url = formatUrlWithProtocol(value);
 
-    if (url) {
+    if (!url) {
+      return;
+    }
+
+    if (editor.state.selection.empty) {
+      // The toolbar is clicked with the cursor standing still, where there is
+      // no text to mark: write the address out and link that.
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "text",
+          text: url,
+          marks: [{ type: "link", attrs: { href: url } }],
+        })
+        .run();
+    } else {
       editor
         .chain()
         .focus()
         .extendMarkRange("link")
         .setLink({ href: url })
         .run();
-
-      setOpen(false);
     }
+
+    setOpen(false);
   };
 
   return (
@@ -50,6 +66,7 @@ export function LinkItem({ editor, open, setOpen }: LinkItemProps) {
             ) : (
               <MdOutlineAddLink className="size-4" />
             )}
+            <span className="sr-only">Link</span>
           </BubbleMenuButton>
         </div>
       </PopoverTrigger>
