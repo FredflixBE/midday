@@ -123,7 +123,7 @@ export type WorkTypeRates = {
   customer: Record<string, number>;
 };
 
-const PERIODS_PER_YEAR: Record<Recurrence["period"], number> = {
+export const PERIODS_PER_YEAR: Record<Recurrence["period"], number> = {
   month: 12,
   quarter: 4,
   year: 1,
