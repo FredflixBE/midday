@@ -10,7 +10,6 @@ import {
   DialogTitle,
 } from "@midday/ui/dialog";
 import { Input } from "@midday/ui/input";
-import { useToast } from "@midday/ui/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { parseAsBoolean, useQueryState } from "nuqs";
@@ -18,12 +17,13 @@ import { useState } from "react";
 import { SearchCustomers } from "@/components/search-customers";
 import { useCustomerParams } from "@/hooks/use-customer-params";
 import { useTRPC } from "@/trpc/client";
-import { Field } from "./editor/fields";
 import {
+  Field,
   KIND_LABELS,
   LANGUAGE_LABELS,
   OptionSelect,
-} from "./editor/quote-header-fields";
+} from "./editor/fields";
+import { useErrorToast } from "./use-error-toast";
 
 /** `?create=true` on the quotes page opens it, as the sidebar's Create new does. */
 export function useCreateQuoteParam() {
@@ -38,7 +38,7 @@ export function CreateQuoteDialog() {
   const trpc = useTRPC();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const errorToast = useErrorToast();
   const { setParams: setCustomerParams } = useCustomerParams();
   const [open, setOpen] = useCreateQuoteParam();
 
@@ -56,13 +56,7 @@ export function CreateQuoteDialog() {
         );
         router.push(`/quotes/${quote.id}`);
       },
-      onError: (error) =>
-        toast({
-          duration: 6000,
-          variant: "error",
-          title: "Not created",
-          description: error.message,
-        }),
+      onError: errorToast("Not created"),
     }),
   );
 

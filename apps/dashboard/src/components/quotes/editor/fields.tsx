@@ -5,9 +5,71 @@ import { cn } from "@midday/ui/cn";
 import { Input } from "@midday/ui/input";
 import { Label } from "@midday/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@midday/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@midday/ui/select";
 import { formatDate } from "@midday/utils/format";
-import { type ReactNode, useEffect, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { useUserQuery } from "@/hooks/use-user";
+
+/**
+ * True on a version that has been sent. A disabled fieldset already stops
+ * inputs and buttons; a Radix select opens on pointerdown, which a disabled
+ * button can still receive, so selects read this as well.
+ */
+export const ReadOnlyContext = createContext(false);
+
+export const KIND_LABELS = { project: "Project", recurring: "Recurring" };
+export const MODE_LABELS = { estimate: "Estimate", firm: "Firm offer" };
+export const LANGUAGE_LABELS = { nl: "Dutch", en: "English" };
+
+/** A choice between a few fixed values, each with its label. */
+export function OptionSelect<T extends string>({
+  value,
+  options,
+  onChange,
+  disabled,
+  placeholder,
+  "aria-label": ariaLabel,
+}: {
+  value: T | undefined;
+  options: Record<T, string>;
+  onChange: (value: T) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  "aria-label"?: string;
+}) {
+  const readOnly = useContext(ReadOnlyContext);
+
+  return (
+    <Select
+      value={value}
+      onValueChange={(next) => onChange(next as T)}
+      disabled={disabled || readOnly}
+    >
+      <SelectTrigger aria-label={ariaLabel}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {(Object.keys(options) as T[]).map((key) => (
+          <SelectItem key={key} value={key}>
+            {options[key]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function Field({
   label,
@@ -58,9 +120,13 @@ export function NumberInput({
 }) {
   const [text, setText] = useState(value === null ? "" : String(value));
 
-  // Follow a change made elsewhere, not the one being typed.
+  // Follow a change made elsewhere, not the one being typed; an emptied
+  // field that reported 0 stays empty until it is left.
   useEffect(() => {
-    if (parse(text) !== value) setText(value === null ? "" : String(value));
+    const shown = parse(text);
+    if (shown !== value && !(shown === null && value === 0)) {
+      setText(value === null ? "" : String(value));
+    }
   }, [value]);
 
   const accept = (next: number | null) =>

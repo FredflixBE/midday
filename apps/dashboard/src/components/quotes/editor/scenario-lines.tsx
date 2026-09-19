@@ -12,21 +12,17 @@ import { Button } from "@midday/ui/button";
 import { Checkbox } from "@midday/ui/checkbox";
 import { cn } from "@midday/ui/cn";
 import { Input } from "@midday/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@midday/ui/select";
 import { Textarea } from "@midday/ui/textarea";
 import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { formatQuoteAmount } from "../quote-pricing";
-import { NumberInput } from "./fields";
+import { NumberInput, OptionSelect } from "./fields";
 import { SortableList, SortableRow } from "./sortable";
 
 type WorkType = RouterOutputs["workTypes"]["list"][number];
+
+/** Handle, item, work type, hours, optional, one-off, amount, remove. */
+const COLUMNS = "grid-cols-[20px_1fr_180px_140px_repeat(2,56px)_120px_32px]";
 
 /**
  * A scenario's lines: section headings, notes and priced items, in the order
@@ -91,7 +87,9 @@ export function ScenarioLines({
     <div className="space-y-3">
       {scenario.lines.length > 0 ? (
         <div className="border border-border">
-          <div className="grid grid-cols-[20px_1fr_180px_140px_repeat(2,56px)_120px_32px] items-center gap-3 border-b border-border px-3 py-2 text-[12px] text-[#606060]">
+          <div
+            className={`grid ${COLUMNS} items-center gap-3 border-b border-border px-3 py-2 text-[12px] text-[#606060]`}
+          >
             <span />
             <span>Item</span>
             <span>Work type</span>
@@ -111,7 +109,7 @@ export function ScenarioLines({
           >
             <div className="divide-y divide-border">
               {scenario.lines.map((line) => (
-                <SortableRow key={line.id} id={line.id} label={label(line)}>
+                <SortableRow key={line.id} id={line.id} label={rowLabel(line)}>
                   {(handle) => (
                     <Row
                       handle={handle}
@@ -153,12 +151,15 @@ export function ScenarioLines({
                           range={range}
                           recurring={recurring}
                           workTypes={workTypes}
-                          amount={amount(
+                          amount={
+                            // Priced, but its work type has no rate anywhere.
                             priced.get(line.id)?.rate === null
                               ? null
-                              : priced.get(line.id)?.amount,
-                            priced.get(line.id)?.amountMax,
-                          )}
+                              : amount(
+                                  priced.get(line.id)?.amount,
+                                  priced.get(line.id)?.amountMax,
+                                )
+                          }
                           onChange={(patch) => update(line.id, patch)}
                         />
                       )}
@@ -203,7 +204,8 @@ export function ScenarioLines({
   );
 }
 
-function label(line: Line) {
+/** How a row is named to a screen reader, e.g. "Move Workshop". */
+function rowLabel(line: Line) {
   if (line.type === "section") return line.title || "section";
   if (line.type === "note") return "note";
   return line.title || "item";
@@ -219,7 +221,7 @@ function Row({
   children: ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[20px_1fr_180px_140px_repeat(2,56px)_120px_32px] items-start gap-3 px-3 py-2">
+    <div className={`grid ${COLUMNS} items-start gap-3 px-3 py-2`}>
       <div className="flex h-9 items-center">{handle}</div>
       {children}
       <div className="flex h-9 items-center">
@@ -251,7 +253,8 @@ function ItemFields({
   range: boolean;
   recurring: boolean;
   workTypes: WorkType[];
-  amount: string;
+  /** Null when the work type has no rate. */
+  amount: string | null;
   onChange: (patch: Partial<ItemLine>) => void;
 }) {
   // Archived types stay pickable only on the line that already has one.
@@ -280,21 +283,13 @@ function ItemFields({
         />
       </div>
 
-      <Select
+      <OptionSelect
+        aria-label="Work type"
+        placeholder="Work type"
         value={line.workTypeId || undefined}
-        onValueChange={(workTypeId) => onChange({ workTypeId })}
-      >
-        <SelectTrigger aria-label="Work type">
-          <SelectValue placeholder="Work type" />
-        </SelectTrigger>
-        <SelectContent>
-          {choices.map((w) => (
-            <SelectItem key={w.id} value={w.id}>
-              {w.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        options={Object.fromEntries(choices.map((w) => [w.id, w.name]))}
+        onChange={(workTypeId) => onChange({ workTypeId })}
+      />
 
       {range ? (
         <div className="flex items-center gap-1">
@@ -317,14 +312,10 @@ function ItemFields({
           <NumberInput
             aria-label="Maximum hours"
             commitOnBlur
+            min={line.hours}
             value={line.hoursMax}
             placeholder={String(line.hours)}
-            onChange={(hoursMax) =>
-              onChange({
-                hoursMax:
-                  hoursMax === null || hoursMax < line.hours ? null : hoursMax,
-              })
-            }
+            onChange={(hoursMax) => onChange({ hoursMax })}
             max={1_000_000}
           />
         </div>
@@ -362,7 +353,7 @@ function ItemFields({
           line.optional && "text-[#878787]",
         )}
       >
-        {amount}
+        {amount ?? <span className="text-destructive">No rate</span>}
       </div>
     </>
   );

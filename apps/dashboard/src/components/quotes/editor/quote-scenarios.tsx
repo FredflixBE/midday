@@ -5,6 +5,7 @@ import {
   duplicateScenario,
   markRecommended,
   newScenario,
+  type PricingIssue,
   type PricingResult,
   type QuoteContent,
   type QuoteKind,
@@ -31,8 +32,7 @@ import { MoreHorizontal, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { formatQuoteAmount } from "../quote-pricing";
 import type { DraftChange } from "../use-quote-draft";
-import { Field, NumberInput } from "./fields";
-import { OptionSelect } from "./quote-header-fields";
+import { Field, NumberInput, OptionSelect } from "./fields";
 import { ScenarioLines } from "./scenario-lines";
 
 type WorkType = RouterOutputs["workTypes"]["list"][number];
@@ -96,17 +96,16 @@ export function QuoteScenarios({
   };
 
   const duplicate = (id: string) => {
-    const next = duplicateScenario(content, id, newId);
-    const index = next.scenarios.findIndex((s) => s.id === id);
-    setContent(() => next);
-    setSelectedId(next.scenarios[index + 1]?.id ?? null);
+    // The copy takes the first id asked for, so it can be selected.
+    const copyId = newId();
+    const ids = [copyId];
+    setContent((c) => duplicateScenario(c, id, () => ids.shift() ?? newId()));
+    setSelectedId(copyId);
   };
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-medium">Scenarios</h2>
-      </div>
+      <h2 className="text-sm font-medium">Scenarios</h2>
 
       {selected ? (
         <>
@@ -198,7 +197,10 @@ function ScenarioEditor({
     );
 
   return (
-    <div className="space-y-6 border border-border p-4">
+    <fieldset
+      disabled={!editable}
+      className="min-w-0 space-y-6 border border-border p-4"
+    >
       <div className="flex items-end gap-4">
         <Field label="Name" className="flex-1">
           <Input
@@ -339,12 +341,13 @@ function ScenarioEditor({
       {pricing ? (
         <ScenarioTotals
           pricing={pricing}
+          workTypes={workTypes}
           period={scenario.recurrence?.period}
           currency={currency}
           locale={locale}
         />
       ) : null}
-    </div>
+    </fieldset>
   );
 }
 
@@ -398,6 +401,13 @@ function PaymentSchedule({
 
   if (rows.length === 0 && !editable) return null;
 
+  const incomplete = pricing?.issues.find(
+    (
+      issue,
+    ): issue is Extract<PricingIssue, { code: "payment_schedule_not_100" }> =>
+      issue.code === "payment_schedule_not_100",
+  );
+
   return (
     <div className="space-y-2">
       <div className="text-[12px] text-[#606060]">Payment schedule</div>
@@ -445,6 +455,16 @@ function PaymentSchedule({
           ) : null}
         </div>
       ))}
+      {incomplete ? (
+        <div className="flex items-center gap-3">
+          <span className="flex-1" />
+          <span className="w-[100px] pr-5 text-right text-sm text-destructive tabular-nums">
+            {incomplete.percent}%
+          </span>
+          <span className="w-[120px]" />
+          {editable ? <span className="w-9" /> : null}
+        </div>
+      ) : null}
       {editable ? (
         <Button
           type="button"
@@ -472,11 +492,13 @@ function PaymentSchedule({
 
 function ScenarioTotals({
   pricing,
+  workTypes,
   period,
   currency,
   locale,
 }: {
   pricing: ScenarioPricing;
+  workTypes: WorkType[];
   period: Recurrence["period"] | undefined;
   currency: string;
   locale?: string;
@@ -489,6 +511,9 @@ function ScenarioTotals({
   // The last money row a person reads as the price is the one in bold.
   type Row = { label: string; value: string; strong?: boolean };
   const rows: Row[] = [];
+  // Per type of work, when there is more than one (use case A).
+  const names = new Map(workTypes.map((w) => [w.id, w.name]));
+  const split = pricing.workTypes.length > 1 ? pricing.workTypes : [];
   if (totals.kind === "project") {
     rows.push({ label: "Hours", value: hours(totals.hours, locale) });
     rows.push({
@@ -519,6 +544,14 @@ function ScenarioTotals({
 
   return (
     <div className="ml-auto w-full max-w-[320px] space-y-1 text-sm">
+      {split.map((w) => (
+        <Total
+          key={w.workTypeId}
+          label={`${names.get(w.workTypeId) ?? "Unknown"} · ${hours(w.hours, locale)} h`}
+          value={money(w.amount)}
+          muted
+        />
+      ))}
       {optional > 0 ? (
         <Total
           label="Optional"

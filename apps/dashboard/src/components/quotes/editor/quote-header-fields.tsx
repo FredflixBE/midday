@@ -2,55 +2,18 @@
 
 import { withKind } from "@midday/quote";
 import { Input } from "@midday/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@midday/ui/select";
 import { useEffect, useState } from "react";
 import { SearchCustomers } from "@/components/search-customers";
 import { useCustomerParams } from "@/hooks/use-customer-params";
 import type { DraftChange, QuoteDraft } from "../use-quote-draft";
-import { DateField, Field } from "./fields";
-
-export const KIND_LABELS = { project: "Project", recurring: "Recurring" };
-export const MODE_LABELS = { estimate: "Estimate", firm: "Firm offer" };
-export const LANGUAGE_LABELS = { nl: "Dutch", en: "English" };
-
-export function OptionSelect<T extends string>({
-  value,
-  options,
-  onChange,
-  disabled,
-  "aria-label": ariaLabel,
-}: {
-  value: T;
-  options: Record<T, string>;
-  onChange: (value: T) => void;
-  disabled?: boolean;
-  "aria-label"?: string;
-}) {
-  return (
-    <Select
-      value={value}
-      onValueChange={(next) => onChange(next as T)}
-      disabled={disabled}
-    >
-      <SelectTrigger aria-label={ariaLabel}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(options) as T[]).map((key) => (
-          <SelectItem key={key} value={key}>
-            {options[key]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
+import {
+  DateField,
+  Field,
+  KIND_LABELS,
+  LANGUAGE_LABELS,
+  MODE_LABELS,
+  OptionSelect,
+} from "./fields";
 
 /**
  * Who the quote is for and what it is. Customer, title, kind and language

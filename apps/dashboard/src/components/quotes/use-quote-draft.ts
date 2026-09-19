@@ -2,10 +2,10 @@
 
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import type { QuoteContent, QuoteKind } from "@midday/quote";
-import { useToast } from "@midday/ui/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTRPC } from "@/trpc/client";
+import { useErrorToast } from "./use-error-toast";
 
 type Quote = RouterOutputs["quotes"]["get"];
 type Version = Quote["versions"][number];
@@ -39,7 +39,7 @@ const SAVE_DELAY_MS = 600;
 export function useQuoteDraft(quote: Quote, version: Version) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const errorToast = useErrorToast();
 
   const initial = (): QuoteDraft => ({
     title: quote.title,
@@ -64,13 +64,7 @@ export function useQuoteDraft(quote: Quote, version: Version) {
           trpc.quotes.get.queryKey({ id: quote.id }),
           saved,
         ),
-      onError: (error) =>
-        toast({
-          duration: 6000,
-          variant: "error",
-          title: "Not saved",
-          description: error.message,
-        }),
+      onError: errorToast("Not saved"),
     }),
     // One save at a time, in the order the changes were made.
     scope: { id: `quote-draft-${version.id}` },
@@ -82,11 +76,20 @@ export function useQuoteDraft(quote: Quote, version: Version) {
     const changes = pending.current;
     pending.current = {};
     if (Object.keys(changes).length === 0) return;
-    save.mutate({
-      versionId: version.id,
-      ...changes,
-      customerId: changes.customerId ?? undefined,
-    });
+    save.mutate(
+      {
+        versionId: version.id,
+        ...changes,
+        customerId: changes.customerId ?? undefined,
+      },
+      {
+        // Refused changes wait for the next save, under anything newer, so a
+        // header field is not lost while the screen still shows it.
+        onError: () => {
+          pending.current = { ...changes, ...pending.current };
+        },
+      },
+    );
   }, [save.mutate, version.id]);
 
   const change = useCallback(

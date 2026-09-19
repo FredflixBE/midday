@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@midday/ui/select";
-import { useToast } from "@midday/ui/use-toast";
 import {
   useMutation,
   useQuery,
@@ -26,7 +25,9 @@ import { useMemo, useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { toWorkTypeRates } from "../quote-pricing";
+import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
+import { ReadOnlyContext } from "./fields";
 import { QuoteBlocks } from "./quote-blocks";
 import { QuoteHeaderFields } from "./quote-header-fields";
 import { QuoteScenarios } from "./quote-scenarios";
@@ -49,7 +50,7 @@ const STATUS_LABELS: Record<Version["status"], string> = {
 export function QuoteEditor({ id }: { id: string }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const errorToast = useErrorToast();
   const { data: quote } = useSuspenseQuery(
     trpc.quotes.get.queryOptions({ id }),
   );
@@ -64,13 +65,7 @@ export function QuoteEditor({ id }: { id: string }) {
         queryClient.setQueryData(trpc.quotes.get.queryKey({ id }), revised);
         setVersionId(null);
       },
-      onError: (error) =>
-        toast({
-          duration: 6000,
-          variant: "error",
-          title: "Not revised",
-          description: error.message,
-        }),
+      onError: errorToast("Not revised"),
     }),
   );
 
@@ -145,31 +140,36 @@ function VersionEditor({ quote, version }: { quote: Quote; version: Version }) {
   );
 
   return (
-    <fieldset disabled={!editable} className="min-w-0 space-y-10">
-      <QuoteHeaderFields
-        draft={draft}
-        change={change}
-        // What the client holds names the customer, title, kind and language.
-        headerLocked={version.version > 1}
-        disabled={!editable}
-      />
+    <ReadOnlyContext.Provider value={!editable}>
+      <div className="space-y-10">
+        <fieldset disabled={!editable} className="min-w-0 space-y-10">
+          <QuoteHeaderFields
+            draft={draft}
+            change={change}
+            // What the client holds names the customer, title, kind and language.
+            headerLocked={version.version > 1}
+            disabled={!editable}
+          />
 
-      <QuoteBlocks
-        content={draft.content}
-        change={change}
-        editable={editable}
-      />
+          <QuoteBlocks
+            content={draft.content}
+            change={change}
+            editable={editable}
+          />
+        </fieldset>
 
-      <QuoteScenarios
-        content={draft.content}
-        kind={draft.kind}
-        pricing={pricing}
-        workTypes={workTypes}
-        currency={quote.currency}
-        locale={user?.locale ?? undefined}
-        editable={editable}
-        change={change}
-      />
-    </fieldset>
+        {/* Outside the fieldset: a sent version's scenarios are still browsed. */}
+        <QuoteScenarios
+          content={draft.content}
+          kind={draft.kind}
+          pricing={pricing}
+          workTypes={workTypes}
+          currency={quote.currency}
+          locale={user?.locale ?? undefined}
+          editable={editable}
+          change={change}
+        />
+      </div>
+    </ReadOnlyContext.Provider>
   );
 }
