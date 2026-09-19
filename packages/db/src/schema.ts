@@ -268,6 +268,64 @@ export const supplierLinkEnum = pgEnum("supplier_link", [
 ]);
 
 /**
+ * What a commitment is, so the interface can group them (FF-1591, ADR-48).
+ * One mechanism underneath: a VAT payment is not a subscription, but it is a
+ * payee, a rhythm and an amount all the same.
+ */
+export const commitmentKindEnum = pgEnum("commitment_kind", [
+  "subscription",
+  "direct_debit",
+  "leasing",
+  "tax",
+]);
+
+export const commitmentCadenceEnum = pgEnum("commitment_cadence", [
+  "monthly",
+  "quarterly",
+  "yearly",
+]);
+
+/**
+ * How a commitment's amount behaves (FF-1591):
+ *
+ * - `fixed`: the same amount every time — Cursor, €17.38.
+ * - `fixed_foreign`: a stable price in another currency whose euro amount
+ *   moves with the rate — Lemon Squeezy, $29.00.
+ * - `usage`: an amount that moves with use — Google Cloud, a VAT bill.
+ */
+export const commitmentPriceKindEnum = pgEnum("commitment_price_kind", [
+  "fixed",
+  "fixed_foreign",
+  "usage",
+]);
+
+/**
+ * - `proposed`: detection found the series and asks whether it is one.
+ * - `active`: a person confirmed it; it is predicted.
+ * - `rejected`: a person said it is not one. Kept, with its payments, so the
+ *   same series is not proposed again.
+ * - `ended`: it stopped on `ends_on`. Its history stays; nothing after that
+ *   date is predicted.
+ */
+export const commitmentStatusEnum = pgEnum("commitment_status", [
+  "proposed",
+  "active",
+  "rejected",
+  "ended",
+]);
+
+/**
+ * How a payment came to belong to a commitment (FF-1591). `detected` was
+ * written by detection and may be moved by it; `person` is final, including a
+ * person's "this payment is part of no commitment", which is `person` with no
+ * `commitment_id`.
+ */
+export const commitmentLinkEnum = pgEnum("commitment_link", [
+  "detected",
+  "person",
+]);
+
+/**
  * Which part of a transaction a supplier rule reads (FF-1555), in precedence
  * order: a machine-issued account number before the name the bank printed,
  * and that before the free text.
@@ -543,6 +601,10 @@ export const transactions = pgTable(
       withTimezone: true,
       mode: "string",
     }),
+    // The commitment this payment is one occurrence of (FF-1591), and what put
+    // it there — see `commitmentLinkEnum`.
+    commitmentId: uuid("commitment_id"),
+    commitmentLink: commitmentLinkEnum("commitment_link"),
     ftsVector: tsvector("fts_vector")
       .notNull()
       .generatedAlwaysAs(
@@ -662,7 +724,13 @@ export const transactions = pgTable(
       foreignColumns: [supplierRules.id],
       name: "transactions_supplier_rule_id_fkey",
     }).onDelete("set null"),
+    foreignKey({
+      columns: [table.commitmentId],
+      foreignColumns: [commitments.id],
+      name: "transactions_commitment_id_fkey",
+    }).onDelete("set null"),
     index("transactions_supplier_id_idx").on(table.supplierId),
+    index("transactions_commitment_id_idx").on(table.commitmentId),
     unique("transactions_internal_id_key").on(table.internalId),
     pgPolicy("Transactions can be created by a member of the team", {
       as: "permissive",
@@ -1438,6 +1506,68 @@ export const supplierRules = pgTable(
       name: "supplier_rules_supplier_id_fkey",
     }).onDelete("cascade"),
     pgPolicy("Supplier rules can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/**
+ * A commitment: a payee, a rhythm and an amount that is known or estimated
+ * (FF-1591, ADR-48). The engine behind what is coming (FF-1587).
+ *
+ * Detection proposes one from a supplier's history; a person confirms,
+ * corrects or rejects it; later payments attach by themselves. Detection never
+ * edits a commitment after proposing it, so what a person set stays set.
+ *
+ * It owns the rhythm and the amount, not the name: who is paid is the
+ * supplier, and what for is a service (FF-1589). No Belgian tax rule is in
+ * code — a VAT commitment's day comes from its history and is editable.
+ */
+export const commitments = pgTable(
+  "commitments",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    teamId: uuid("team_id").notNull(),
+    supplierId: uuid("supplier_id").notNull(),
+    kind: commitmentKindEnum().notNull(),
+    cadence: commitmentCadenceEnum().notNull(),
+    // The day of the month it lands on. Date and amount are separate facts:
+    // VAT's date is solid long before its amount exists.
+    day: smallint().notNull(),
+    priceKind: commitmentPriceKindEnum("price_kind").notNull(),
+    // What the next one is expected to cost, signed like the payments. Exact
+    // for a `fixed` price; otherwise an estimate inside `amount_low` and
+    // `amount_high`, the range of recent occurrences.
+    amount: numericCasted({ precision: 10, scale: 2 }).notNull(),
+    currency: text().notNull(),
+    amountLow: numericCasted("amount_low", { precision: 10, scale: 2 }),
+    amountHigh: numericCasted("amount_high", { precision: 10, scale: 2 }),
+    // The stable price in the currency it is billed in, for `fixed_foreign`.
+    billedAmount: numericCasted("billed_amount", { precision: 10, scale: 2 }),
+    billedCurrency: text("billed_currency"),
+    status: commitmentStatusEnum().default("proposed").notNull(),
+    endsOn: date("ends_on"),
+  },
+  (table) => [
+    index("commitments_team_id_idx").on(table.teamId),
+    index("commitments_supplier_id_idx").on(table.supplierId),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "commitments_team_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.supplierId],
+      foreignColumns: [suppliers.id],
+      name: "commitments_supplier_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Commitments can be handled by members of the team", {
       as: "permissive",
       for: "all",
       to: ["public"],

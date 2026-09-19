@@ -266,6 +266,10 @@ export const mocks = {
   deleteSupplierRule: mock(() => ({})) as MockFn,
   setTransactionSupplier: mock(() => ({})) as MockFn,
   resetTransactionSupplier: mock(() => ({})) as MockFn,
+  // Commitments (FF-1591)
+  getCommitments: mock(() => []) as MockFn,
+  updateCommitment: mock(() => ({})) as MockFn,
+  setTransactionCommitment: mock(() => ({})) as MockFn,
   getInvoicesForBooks: mock(() => []) as MockFn,
   getBooksInvoiceNumbers: mock(() => []) as MockFn,
   getBooksFiles: mock(() => []) as MockFn,
@@ -938,6 +942,10 @@ const dbQueriesMock = new Proxy(
     deleteSupplierRule: mocks.deleteSupplierRule,
     setTransactionSupplier: mocks.setTransactionSupplier,
     resetTransactionSupplier: mocks.resetTransactionSupplier,
+    getCommitments: mocks.getCommitments,
+    updateCommitment: mocks.updateCommitment,
+    setTransactionCommitment: mocks.setTransactionCommitment,
+    CommitmentInputError: class CommitmentInputError extends Error {},
     // Real classes, not mocks: the router tells a person's mistake from a
     // failure by `instanceof`.
     SupplierNameTakenError: class SupplierNameTakenError extends Error {},
