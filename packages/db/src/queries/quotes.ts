@@ -7,20 +7,25 @@ import {
   nextQuoteNumber,
   type PricingResult,
   parseQuoteContent,
+  priceVersion,
   type QuoteContent,
   type QuoteKind,
+  quoteHeadline,
   quoteNumberSequence,
+  type WorkTypeRates,
 } from "@midday/quote";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, DatabaseOrTransaction } from "../client";
 import {
   customers,
+  customerWorkTypeRates,
   invoiceTemplates,
   quoteSettings,
   quotes,
   quoteVersions,
   teams,
+  workTypes,
 } from "../schema";
 
 /**
@@ -496,8 +501,12 @@ export async function markQuoteVersionSent(
     versionId: string;
     sentTo?: string | null;
     sentAt?: string;
-    /** `priceVersion` of this version, frozen: a sent quote is rendered from it. */
-    pricing: PricingResult | null;
+    /**
+     * `priceVersion` of this version, frozen: a sent quote is rendered from
+     * it. Left out, it is worked out here, from the version as it is locked
+     * and the rates that apply to it now.
+     */
+    pricing?: PricingResult | null;
   },
 ) {
   const quoteId = await db.transaction(async (tx) => {
@@ -506,6 +515,14 @@ export async function markQuoteVersionSent(
     if (row.version.status !== "draft") {
       throw new QuoteInputError("Only a draft can be sent");
     }
+
+    const pricing =
+      params.pricing !== undefined
+        ? params.pricing
+        : priceVersion(
+            row.version.content as QuoteContent,
+            (await teamRates(tx, params.teamId))(row.quote.customerId),
+          );
 
     await tx
       .update(quoteVersions)
@@ -524,7 +541,7 @@ export async function markQuoteVersionSent(
         status: "sent",
         sentAt: params.sentAt ?? sql`now()`,
         sentTo: params.sentTo ?? null,
-        pricing: params.pricing ?? null,
+        pricing,
         updatedAt: sql`now()`,
       })
       .where(eq(quoteVersions.id, row.version.id));
@@ -533,4 +550,170 @@ export async function markQuoteVersionSent(
   });
 
   return quoteId ? getQuote(db, { id: quoteId, teamId: params.teamId }) : null;
+}
+
+/**
+ * Every work type's default rate, archived ones included so older lines still
+ * price, and every customer's own, in two reads. A quote's own overrides are
+ * in its content.
+ */
+async function teamRates(db: DatabaseOrTransaction, teamId: string) {
+  const defaults = await db
+    .select({ id: workTypes.id, hourlyRate: workTypes.hourlyRate })
+    .from(workTypes)
+    .where(eq(workTypes.teamId, teamId));
+  const own = await db
+    .select({
+      customerId: customerWorkTypeRates.customerId,
+      workTypeId: customerWorkTypeRates.workTypeId,
+      hourlyRate: customerWorkTypeRates.hourlyRate,
+    })
+    .from(customerWorkTypeRates)
+    .where(eq(customerWorkTypeRates.teamId, teamId));
+
+  const defaultRates = Object.fromEntries(
+    defaults.map((r) => [r.id, r.hourlyRate]),
+  );
+  const byCustomer: Record<string, Record<string, number>> = {};
+  for (const rate of own) {
+    byCustomer[rate.customerId] ??= {};
+    byCustomer[rate.customerId]![rate.workTypeId] = rate.hourlyRate;
+  }
+
+  /** What `priceVersion` takes for a quote to this customer. */
+  return (customerId: string | null): WorkTypeRates => ({
+    defaults: defaultRates,
+    customer: (customerId && byCustomer[customerId]) || {},
+  });
+}
+
+/**
+ * The follow-up filters of the quotes list (FF-1614), each read from a
+ * quote's latest version and its outcome:
+ * - draft: the latest version is a draft;
+ * - awaiting: sent, still valid, and no answer recorded;
+ * - expiring: awaiting, and valid for 7 days or fewer;
+ * - expired: sent, past its validity (`isExpired`), and no answer recorded;
+ * - won, lost: the outcome.
+ */
+export type QuoteListStatus =
+  | "draft"
+  | "awaiting"
+  | "expiring"
+  | "expired"
+  | "won"
+  | "lost";
+
+const EXPIRING_DAYS = 7;
+
+/**
+ * Every quote of the team with its latest version, newest quote first, and
+ * the one amount the list shows (`quoteHeadline`): from the frozen pricing
+ * once sent, worked out with today's rates while a draft.
+ */
+export async function listQuotes(
+  db: DatabaseOrTransaction,
+  params: { teamId: string; status?: QuoteListStatus; today?: string },
+) {
+  const today = params.today ?? todayUtc();
+  const latest = sql`(
+    SELECT max(v.version) FROM quote_versions v WHERE v.quote_id = ${quotes.id}
+  )`;
+  const sentAndOpen = and(
+    eq(quoteVersions.status, "sent"),
+    eq(quotes.outcome, "open"),
+  );
+
+  const filter = {
+    draft: eq(quoteVersions.status, "draft"),
+    awaiting: and(sentAndOpen, gte(quoteVersions.validUntil, today)),
+    expiring: and(
+      sentAndOpen,
+      gte(quoteVersions.validUntil, today),
+      lte(quoteVersions.validUntil, addDays(today, EXPIRING_DAYS)),
+    ),
+    expired: and(sentAndOpen, lt(quoteVersions.validUntil, today)),
+    won: eq(quotes.outcome, "won"),
+    lost: eq(quotes.outcome, "lost"),
+  };
+
+  const rows = await db
+    .select({
+      quote: quotes,
+      customerName: customers.name,
+      version: quoteVersions,
+    })
+    .from(quotes)
+    .innerJoin(
+      quoteVersions,
+      and(
+        eq(quoteVersions.quoteId, quotes.id),
+        eq(quoteVersions.version, latest),
+      ),
+    )
+    .leftJoin(customers, eq(customers.id, quotes.customerId))
+    .where(
+      and(
+        eq(quotes.teamId, params.teamId),
+        params.status ? filter[params.status] : undefined,
+      ),
+    )
+    .orderBy(desc(quotes.createdAt), desc(quotes.quoteNumber));
+
+  const ratesFor = await teamRates(db, params.teamId);
+
+  return rows.map(({ quote, customerName, version }) => {
+    const content = version.content as QuoteContent;
+    const pricing =
+      (version.pricing as PricingResult | null) ??
+      priceVersion(content, ratesFor(quote.customerId));
+    return {
+      ...quote,
+      customerName,
+      version: { ...version, expired: isExpired(version, today) },
+      headline: quoteHeadline(content, pricing),
+    };
+  });
+}
+
+/**
+ * Records that a quote was lost or left without a decision, with the reason;
+ * `open` takes that back. Won is recorded by accepting a version (FF-1615),
+ * so a won quote is not changed here. Null when the quote is not the team's.
+ */
+export async function setQuoteOutcome(
+  db: Database,
+  params: {
+    teamId: string;
+    quoteId: string;
+    outcome: "open" | "lost" | "no_decision";
+    reason: string | null;
+  },
+) {
+  return db.transaction(async (tx) => {
+    const [quote] = await tx
+      .select({ outcome: quotes.outcome })
+      .from(quotes)
+      .where(
+        and(eq(quotes.id, params.quoteId), eq(quotes.teamId, params.teamId)),
+      )
+      .for("update");
+    if (!quote) return null;
+    if (quote.outcome === "won") {
+      throw new QuoteInputError("A won quote keeps its outcome");
+    }
+
+    const open = params.outcome === "open";
+    const [updated] = await tx
+      .update(quotes)
+      .set({
+        outcome: params.outcome,
+        outcomeReason: open ? null : params.reason?.trim() || null,
+        outcomeAt: open ? null : sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(quotes.id, params.quoteId))
+      .returning();
+    return updated ?? null;
+  });
 }
