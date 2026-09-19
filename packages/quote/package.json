@@ -12,7 +12,8 @@
     "./number": "./src/number.ts",
     "./pricing": "./src/pricing.ts",
     "./unit": "./src/unit.ts",
-    "./version": "./src/version.ts"
+    "./version": "./src/version.ts",
+    "./pdf": "./src/pdf/index.ts"
   },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",
@@ -22,6 +23,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@midday/invoice": "workspace:*",
+    "@react-pdf/renderer": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

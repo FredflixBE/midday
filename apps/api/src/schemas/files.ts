@@ -137,3 +137,35 @@ export const downloadInvoiceSchema = z.object({
       },
     }),
 });
+
+export const downloadQuoteSchema = z.object({
+  id: z
+    .string()
+    .uuid()
+    .openapi({
+      description: "Quote version ID (UUID).",
+      example: "b3b7c1e2-4c2a-4e7a-9c1a-2b7c1e24c2a4",
+      param: { in: "query", name: "id", required: true },
+    }),
+  fk: z
+    .string()
+    .min(1)
+    .openapi({
+      description:
+        "Team file key, returned in the user data response (GET /users/me) as the `fileKey` field.",
+      example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      param: { in: "query", name: "fk", required: true },
+    }),
+  preview: z
+    .preprocess(
+      (val) => val === "true" || val === true,
+      z.boolean().default(false),
+    )
+    .optional()
+    .openapi({
+      description:
+        "If true, the PDF will be displayed inline. If false, it will be downloaded.",
+      example: false,
+      param: { in: "query", name: "preview" },
+    }),
+});
