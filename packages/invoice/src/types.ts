@@ -125,13 +125,17 @@ export interface EditorDoc {
   content: EditorNode[];
 }
 
+// One node of a Tiptap document: a block (paragraph, heading, list, list
+// item) holding further nodes, or an inline piece of text.
 export interface EditorNode {
   type: string;
-  content?: InlineContent[];
-}
-
-interface InlineContent {
-  type: string;
+  attrs?: {
+    /** A heading's level, 1 to 6. */
+    level?: number;
+    /** The number an ordered list starts at. */
+    start?: number;
+  };
+  content?: EditorNode[];
   text?: string;
   marks?: Mark[];
 }
