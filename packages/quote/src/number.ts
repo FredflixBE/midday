@@ -29,3 +29,8 @@ export function quoteNumberSequence(
 export function formatQuoteVersion(quoteNumber: string, version: number) {
   return version > 1 ? `${quoteNumber} v${version}` : quoteNumber;
 }
+
+/** The file a version's PDF is saved as, e.g. `OFF-0001-v2.pdf`. */
+export function quotePdfFilename(quoteNumber: string, version: number) {
+  return `${formatQuoteVersion(quoteNumber, version).replace(/\s+/g, "-")}.pdf`;
+}

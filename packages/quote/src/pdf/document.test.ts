@@ -15,6 +15,7 @@ import {
   type QuotePdfInput,
   quoteDocument,
   type ScenarioRow,
+  scenarioParts,
 } from "./document";
 
 const DEVELOPMENT = "p-development";
@@ -424,5 +425,96 @@ describe("labels", () => {
     expect(
       quoteDocument(input(c, { labels: { en: { estimate: " " } } })).statement,
     ).toBe("Indicative estimate, not a binding offer.");
+  });
+});
+
+describe("page breaks", () => {
+  const itemRow = (title: string): ScenarioRow => ({
+    type: "item",
+    title,
+    description: null,
+    quantity: "1",
+    rate: "€1.00/h",
+    amount: "€1.00",
+    oneOff: false,
+  });
+  const sub: ScenarioRow = {
+    type: "subtotal",
+    label: "Subtotal",
+    amount: "€1",
+  };
+  const note: ScenarioRow = { type: "note", text: "After" };
+
+  test("the heading keeps the first line; the totals keep the last line and all after it", () => {
+    const rows: ScenarioRow[] = [
+      { type: "section", title: "One" },
+      itemRow("a"),
+      itemRow("b"),
+      sub,
+      { type: "section", title: "Two" },
+      itemRow("c"),
+      note,
+      sub,
+    ];
+    const parts = scenarioParts(rows);
+    expect(parts.together).toBe(false);
+    expect(parts.head).toEqual(rows.slice(0, 2));
+    expect(parts.middle).toEqual(rows.slice(2, 5));
+    expect(parts.tail).toEqual([itemRow("c"), note, sub]);
+  });
+
+  test("a scenario with one line stays together, heading to totals", () => {
+    const rows: ScenarioRow[] = [
+      { type: "section", title: "One" },
+      itemRow("a"),
+      note,
+    ];
+    expect(scenarioParts(rows)).toEqual({
+      head: rows,
+      middle: [],
+      tail: [],
+      together: true,
+    });
+  });
+});
+
+describe("subtotals", () => {
+  test("need two sections with lines; an empty or only-optional one does not count", () => {
+    const c = content([
+      scenario([
+        section("Work"),
+        item(DEVELOPMENT, 8),
+        section("Extras"),
+        item(DEVELOPMENT, 4, { optional: true }),
+        section("Empty"),
+      ]),
+    ]);
+    const rows = pricingBlock(quoteDocument(input(c))).scenarios[0]!.rows;
+    expect(rows.some((r) => r.type === "subtotal")).toBe(false);
+  });
+});
+
+describe("a recurring comparison with a one-off", () => {
+  test("has a one-off row, never added to what recurs", () => {
+    const recurrence: Recurrence = {
+      period: "year",
+      termMonths: 12,
+      billing: "in_advance",
+      autoRenew: false,
+      noticeMonths: null,
+    };
+    const c = content([
+      scenario([item(DEVELOPMENT, 8), item(DEVELOPMENT, 4, { once: true })], {
+        recurrence,
+      }),
+      scenario([item(DEVELOPMENT, 16)], { recurrence }),
+    ]);
+    const doc = plain(quoteDocument(input(c))) as ReturnType<
+      typeof quoteDocument
+    >;
+    expect(pricingBlock(doc).comparison?.rows.at(-1)).toEqual({
+      label: "One-off",
+      values: ["€740.00", "–"],
+    });
   });
 });

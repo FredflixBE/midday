@@ -3,7 +3,7 @@ import { downloadQuoteSchema } from "@api/schemas/files";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getQuotePdfInput } from "@midday/db/queries";
 import { verifyFileKey } from "@midday/encryption";
-import { formatQuoteVersion } from "@midday/quote";
+import { quotePdfFilename } from "@midday/quote";
 import { renderQuotePdf } from "@midday/quote/pdf";
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -88,9 +88,8 @@ app.openapi(
       "Cache-Control": "no-store, max-age=0",
     };
     if (!preview) {
-      const name = formatQuoteVersion(input.quoteNumber, input.version);
       headers["Content-Disposition"] =
-        `attachment; filename="${name.replace(/\s+/g, "-")}.pdf"`;
+        `attachment; filename="${quotePdfFilename(input.quoteNumber, input.version)}"`;
     }
 
     return new Response(new Uint8Array(pdf), { headers });
