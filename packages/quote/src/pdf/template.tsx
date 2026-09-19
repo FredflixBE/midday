@@ -452,7 +452,8 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
               {block.heading ? (
                 <Text
                   minPresenceAhead={40}
-                  style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}
+                  // A block's own heading reads above an h2 in its text.
+                  style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}
                 >
                   {block.heading}
                 </Text>
