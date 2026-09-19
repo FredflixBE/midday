@@ -46,7 +46,7 @@ export const lineSchema = z.discriminatedUnion("type", [
       type: z.literal("item"),
       title: z.string().max(500),
       description: z.string().max(5000).nullable(),
-      workTypeId: z.string(),
+      productId: z.string(),
       /** A fixed scenario's hours; a range scenario's minimum. */
       hours,
       /** A range scenario's maximum. */
@@ -93,8 +93,8 @@ export const scenarioSchema = z.object({
 });
 
 export const rateSettingsSchema = z.object({
-  /** This quote's own hourly rate per work type, over the customer's and the default. */
-  workTypeRates: z.record(z.string(), z.number().min(0)),
+  /** This quote's own hourly rate per product, over the customer's and the default. */
+  productRates: z.record(z.string(), z.number().min(0)),
   volumeTiers: z.array(z.object({ minHours: hours, percent })),
   termTiers: z.array(z.object({ minMonths: z.number().int().min(1), percent })),
 });
@@ -192,7 +192,7 @@ export function initialQuoteContent(params: {
 
   return {
     blocks,
-    rates: { workTypeRates: {}, volumeTiers: [], termTiers: [] },
+    rates: { productRates: {}, volumeTiers: [], termTiers: [] },
     displayUnit: "hours",
     hoursPerDay: params.hoursPerDay,
     scenarios: [],

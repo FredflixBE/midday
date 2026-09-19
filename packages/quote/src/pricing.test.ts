@@ -14,9 +14,9 @@ import type {
 } from "./content";
 import { priceVersion, type ScenarioPricing } from "./pricing";
 
-const MAINTENANCE = "wt-maintenance";
-const DEVELOPMENT = "wt-development";
-const FOLLOW_UP = "wt-follow-up";
+const MAINTENANCE = "p-maintenance";
+const DEVELOPMENT = "p-development";
+const FOLLOW_UP = "p-follow-up";
 
 /** Team defaults: €185, €185 and €150 an hour. */
 const RATES = {
@@ -28,7 +28,7 @@ let ids = 0;
 const id = () => `id-${++ids}`;
 
 function item(
-  workTypeId: string,
+  productId: string,
   hours: number,
   extra: Partial<ItemLine> = {},
 ): ItemLine {
@@ -37,7 +37,7 @@ function item(
     type: "item",
     title: "Work",
     description: null,
-    workTypeId,
+    productId,
     hours,
     hoursMax: null,
     optional: false,
@@ -79,7 +79,7 @@ function content(
 ): QuoteContent {
   return {
     blocks: [{ id: id(), type: "pricing" }],
-    rates: { workTypeRates: {}, volumeTiers: [], termTiers: [], ...rates },
+    rates: { productRates: {}, volumeTiers: [], termTiers: [], ...rates },
     displayUnit: "days",
     hoursPerDay: 8,
     scenarios,
@@ -92,7 +92,7 @@ function only(result: ReturnType<typeof priceVersion>): ScenarioPricing {
 }
 
 describe("the rate of a line", () => {
-  test("the work type's default applies when nothing overrides it", () => {
+  test("the product's default applies when nothing overrides it", () => {
     const s = only(
       priceVersion(content([scenario([item(DEVELOPMENT, 10)])]), RATES),
     );
@@ -112,7 +112,7 @@ describe("the rate of a line", () => {
     const s = only(
       priceVersion(
         content([scenario([item(DEVELOPMENT, 1), item(FOLLOW_UP, 1)])], {
-          workTypeRates: { [DEVELOPMENT]: 160.5 },
+          productRates: { [DEVELOPMENT]: 160.5 },
         }),
         rates,
       ),
@@ -147,7 +147,7 @@ describe("the rate of a line", () => {
     const s = only(
       priceVersion(
         content([scenario([item(DEVELOPMENT, 2)])], {
-          workTypeRates: { [DEVELOPMENT]: 160.5 },
+          productRates: { [DEVELOPMENT]: 160.5 },
         }),
         RATES,
       ),
@@ -156,8 +156,8 @@ describe("the rate of a line", () => {
     expect(s.lines[0]?.amount).toBe(32100);
   });
 
-  test("a work type with no rate anywhere is reported, and priced at nothing", () => {
-    const line = item("wt-unknown", 4);
+  test("a product with no rate anywhere is reported, and priced at nothing", () => {
+    const line = item("p-unknown", 4);
     const s = only(priceVersion(content([scenario([line])]), RATES));
     expect(s.lines[0]).toMatchObject({ rate: null, amount: 0 });
     expect(s.issues).toEqual([{ code: "no_rate", lineId: line.id }]);
@@ -366,23 +366,23 @@ describe("use case A: an estimate for a public body", () => {
     const s = only(priceVersion(content([support([8, 6, 2], 0)]), RATES));
 
     const none = { amount: 0, max: null };
-    expect(s.workTypes).toEqual([
+    expect(s.products).toEqual([
       {
-        workTypeId: MAINTENANCE,
+        productId: MAINTENANCE,
         hours: { amount: 8, max: null },
         amount: { amount: 148000, max: null },
         oneOffHours: none,
         oneOff: none,
       },
       {
-        workTypeId: DEVELOPMENT,
+        productId: DEVELOPMENT,
         hours: { amount: 6, max: null },
         amount: { amount: 111000, max: null },
         oneOffHours: none,
         oneOff: none,
       },
       {
-        workTypeId: FOLLOW_UP,
+        productId: FOLLOW_UP,
         hours: { amount: 2, max: null },
         amount: { amount: 30000, max: null },
         oneOffHours: none,
@@ -652,7 +652,7 @@ describe("arithmetic that must not drift", () => {
     const s = only(
       priceVersion(
         content([scenario([item(DEVELOPMENT, 2.01)])], {
-          workTypeRates: { [DEVELOPMENT]: 85.5 },
+          productRates: { [DEVELOPMENT]: 85.5 },
         }),
         RATES,
       ),
@@ -680,7 +680,7 @@ describe("arithmetic that must not drift", () => {
     expect(s.adjustment).toBe(-0.3);
   });
 
-  test("a work type id that is an Object key is still just unknown", () => {
+  test("a product id that is an Object key is still just unknown", () => {
     const line = item("constructor", 1);
     const s = only(priceVersion(content([scenario([line])]), RATES));
     expect(s.issues).toEqual([{ code: "no_rate", lineId: line.id }]);
@@ -707,11 +707,11 @@ describe("one-off items", () => {
     expect(s.adjustment).toBe(-5);
     expect(s.lines.every((l) => !l.once)).toBe(true);
     // 15 h at €176: the work-type subtotal is the whole total.
-    expect(s.workTypes[0]?.amount).toEqual({ amount: 264000, max: null });
+    expect(s.products[0]?.amount).toEqual({ amount: 264000, max: null });
     expect(s.totals).toMatchObject({ total: { amount: 264000, max: null } });
   });
 
-  test("on a recurring scenario, sections and work types keep one-offs apart", () => {
+  test("on a recurring scenario, sections and products keep one-offs apart", () => {
     const s = only(
       priceVersion(
         content([
@@ -731,7 +731,7 @@ describe("one-off items", () => {
       amount: { amount: 185000 },
       oneOff: { amount: 370000 },
     });
-    expect(s.workTypes[0]).toMatchObject({
+    expect(s.products[0]).toMatchObject({
       hours: { amount: 10 },
       oneOffHours: { amount: 20 },
       oneOff: { amount: 370000 },

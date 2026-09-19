@@ -9,8 +9,8 @@ import type { ItemLine, QuoteContent, Recurrence, Scenario } from "./content";
  * Money is in cents throughout, as integers. Rates come in as euros.
  *
  * The rules, and the decisions taken on them:
- * - **Rate of a line:** the quote's own rate for the work type, else the
- *   customer's, else the work type's default; then the scenario's adjustment.
+ * - **Rate of a line:** the quote's own rate for the product, else the
+ *   customer's, else the product's default; then the scenario's adjustment.
  *   An adjusted rate is rounded to whole euros; an exact figure is set with
  *   `adjustmentOverride` or a quote rate instead.
  * - **Adjustment:** `adjustmentOverride`, else the highest volume tier met by
@@ -42,11 +42,11 @@ export type ResolvedRate = {
 
 export type PricedLine = {
   lineId: string;
-  workTypeId: string;
+  productId: string;
   /** To the hundredth. */
   hours: number;
   hoursMax: number | null;
-  /** Null when the work type has no rate anywhere. */
+  /** Null when the product has no rate anywhere. */
   rate: number | null;
   amount: number;
   amountMax: number | null;
@@ -84,7 +84,7 @@ export type ScenarioPricing = {
   /** In percent, e.g. −10. */
   adjustment: number;
   committedHours: number;
-  /** Per work type used in the scenario. */
+  /** Per product used in the scenario. */
   rates: Record<string, ResolvedRate>;
   /** Every item, optional ones included. */
   lines: PricedLine[];
@@ -100,9 +100,9 @@ export type ScenarioPricing = {
     /** A recurring scenario's one-off items; zero on a project. */
     oneOff: Amount;
   }[];
-  /** Per work type, the same split as the sections. */
-  workTypes: {
-    workTypeId: string;
+  /** Per product, the same split as the sections. */
+  products: {
+    productId: string;
     hours: Amount;
     amount: Amount;
     oneOffHours: Amount;
@@ -117,8 +117,8 @@ export type ScenarioPricing = {
 
 export type PricingResult = { scenarios: ScenarioPricing[] };
 
-/** Hourly rates in euros, per work type id. */
-export type WorkTypeRates = {
+/** Hourly rates in euros, per product id. */
+export type ProductRates = {
   defaults: Record<string, number>;
   customer: Record<string, number>;
 };
@@ -190,15 +190,15 @@ function adjustmentOf(
 }
 
 function resolveRate(
-  workTypeId: string,
+  productId: string,
   content: QuoteContent,
-  rates: WorkTypeRates,
+  rates: ProductRates,
   adjustment: number,
 ): ResolvedRate | null {
   const candidates: [RateSource, number | undefined][] = [
-    ["quote", own(content.rates.workTypeRates, workTypeId)],
-    ["customer", own(rates.customer, workTypeId)],
-    ["default", own(rates.defaults, workTypeId)],
+    ["quote", own(content.rates.productRates, productId)],
+    ["customer", own(rates.customer, productId)],
+    ["default", own(rates.defaults, productId)],
   ];
   const found = candidates.find(
     (candidate): candidate is [RateSource, number] =>
@@ -232,7 +232,7 @@ function times(value: Amount, factor: number): Amount {
 function priceScenario(
   scenario: Scenario,
   content: QuoteContent,
-  workTypeRates: WorkTypeRates,
+  productRates: ProductRates,
 ): ScenarioPricing {
   const range = scenario.pricing === "range";
   const recurrence = scenario.recurrence;
@@ -259,9 +259,9 @@ function priceScenario(
 
   const lines: PricedLine[] = itemLines.map((line) => {
     const resolved =
-      own(rates, line.workTypeId) ??
-      resolveRate(line.workTypeId, content, workTypeRates, adjustment);
-    if (resolved) rates[line.workTypeId] = resolved;
+      own(rates, line.productId) ??
+      resolveRate(line.productId, content, productRates, adjustment);
+    if (resolved) rates[line.productId] = resolved;
     else issues.push({ code: "no_rate", lineId: line.id });
 
     const rate = resolved?.rate ?? null;
@@ -271,7 +271,7 @@ function priceScenario(
     const price = (h: number) => Math.round((h * (rate ?? 0)) / 100);
     return {
       lineId: line.id,
-      workTypeId: line.workTypeId,
+      productId: line.productId,
       hours: hours / 100,
       hoursMax: hoursMax === null ? null : hoursMax / 100,
       rate,
@@ -329,16 +329,16 @@ function priceScenario(
     oneOff: amounts(oneOffs(group.lines)),
   }));
 
-  // Per work type, in the order they first appear.
-  const byWorkType = new Map<string, PricedLine[]>();
+  // Per product, in the order they first appear.
+  const byProduct = new Map<string, PricedLine[]>();
   for (const line of counted) {
-    byWorkType.set(line.workTypeId, [
-      ...(byWorkType.get(line.workTypeId) ?? []),
+    byProduct.set(line.productId, [
+      ...(byProduct.get(line.productId) ?? []),
       line,
     ]);
   }
-  const workTypes = [...byWorkType].map(([workTypeId, group]) => ({
-    workTypeId,
+  const products = [...byProduct].map(([productId, group]) => ({
+    productId,
     hours: hoursIn(main(group)),
     amount: amounts(main(group)),
     oneOffHours: hoursIn(oneOffs(group)),
@@ -385,7 +385,7 @@ function priceScenario(
     rates,
     lines,
     sections,
-    workTypes,
+    products,
     optional: lines.filter((line) => line.optional),
     totals,
     paymentSchedule,
@@ -422,7 +422,7 @@ function schedule(
 
 export function priceVersion(
   content: QuoteContent,
-  rates: WorkTypeRates,
+  rates: ProductRates,
 ): PricingResult {
   return {
     scenarios: content.scenarios.map((scenario) =>

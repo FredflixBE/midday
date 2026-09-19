@@ -12,15 +12,15 @@ const plain = (value: string) => value.replace(/\s/g, " ");
 test("rates are every work type's default, archived ones included, and the customer's own", () => {
   const rates = toWorkTypeRates(
     [
-      { id: "wt-1", hourlyRate: 100 },
-      { id: "wt-2", hourlyRate: 85.5 },
+      { id: "p-1", hourlyRate: 100 },
+      { id: "p-2", hourlyRate: 85.5 },
     ],
-    [{ workTypeId: "wt-2", hourlyRate: 90 }],
+    [{ workTypeId: "p-2", hourlyRate: 90 }],
   );
 
   expect(rates).toEqual({
-    defaults: { "wt-1": 100, "wt-2": 85.5 },
-    customer: { "wt-2": 90 },
+    defaults: { "p-1": 100, "p-2": 85.5 },
+    customer: { "p-2": 90 },
   });
 });
 

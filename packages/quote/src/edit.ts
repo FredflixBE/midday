@@ -138,7 +138,7 @@ export function withPricing(
 
 export function newLine(
   type: Line["type"],
-  params: { newId: NewId; workTypeId?: string },
+  params: { newId: NewId; productId?: string },
 ): Line {
   const id = params.newId();
   switch (type) {
@@ -152,7 +152,7 @@ export function newLine(
         type,
         title: "",
         description: null,
-        workTypeId: params.workTypeId ?? "",
+        productId: params.productId ?? "",
         hours: 0,
         hoursMax: null,
         optional: false,
