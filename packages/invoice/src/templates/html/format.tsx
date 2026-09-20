@@ -140,7 +140,10 @@ function renderBlock(node: EditorNode, path: string): ReactNode {
       );
     }
 
-    // A picture (FF-1625) is quotes-only, and a quote has no web view.
+    // A picture (FF-1625) is quotes-only, and a quote has no web view — it
+    // reaches its client as a PDF. A diagram (FF-1643) is a picture by the
+    // time it gets here, so it is drawn on exactly the same terms: nothing,
+    // for now, and whatever gives this view pictures gives it diagrams.
     default:
       return null;
   }

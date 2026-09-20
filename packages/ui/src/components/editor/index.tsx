@@ -52,6 +52,12 @@ type EditorProps = {
    * always knows the node, so no surface can strip one out.
    */
   tables?: boolean;
+  /**
+   * True lets a mermaid diagram be written here (FF-1643): `/diagram` adds
+   * one, and it is drawn to a picture that is stored beside its source. A
+   * diagram already in the text is shown either way.
+   */
+  diagrams?: boolean;
 };
 
 export function Editor({
@@ -68,17 +74,20 @@ export function Editor({
   autoFocus = false,
   images,
   tables = false,
+  diagrams = false,
 }: EditorProps) {
   const slash = useSlashCommand({
     enabled: slashMenu && editable,
     images,
     tables: tables && editable,
+    diagrams: diagrams && editable,
   });
 
   const editor = useEditor({
     extensions: registerExtensions({
       placeholder,
       images,
+      diagrams: diagrams && editable,
       extra: slash.extension ? [slash.extension] : undefined,
     }),
     content: initialContent,

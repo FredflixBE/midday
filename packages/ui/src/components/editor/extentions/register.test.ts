@@ -36,6 +36,10 @@ const withTable = {
         },
       ],
     },
+    {
+      type: "diagram",
+      attrs: { source: "flowchart LR\n A --> B", path: "team/quotes/d.png" },
+    },
     { type: "paragraph", content: [{ type: "text", text: "After" }] },
   ],
 };
@@ -79,5 +83,14 @@ describe("the shared schema", () => {
   test("keeps a column span, which every renderer draws", () => {
     const row = roundTrip({}).content[1].content[0];
     expect(row.content[1].attrs.colspan).toBe(2);
+  });
+
+  // A diagram's source is what makes it editable again and its path is what
+  // every renderer draws, so losing either loses the diagram (FF-1643).
+  test("keeps a diagram's source and picture where none may be written", () => {
+    const drawn = roundTrip({}).content[2];
+    expect(drawn.type).toBe("diagram");
+    expect(drawn.attrs.source).toBe("flowchart LR\n A --> B");
+    expect(drawn.attrs.path).toBe("team/quotes/d.png");
   });
 });

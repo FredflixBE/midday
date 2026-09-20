@@ -9,6 +9,7 @@ import {
   ListOrdered,
   Table,
   Text,
+  Workflow,
 } from "lucide-react";
 import type { SlashCommandItem } from "./types";
 
@@ -22,12 +23,13 @@ const HEADING_ICONS = {
  * What `/` offers (FF-1638). Only what every renderer draws — the editor, the
  * PDF through `formatEditorContent`, and the web view — so nothing can be
  * written here that the client would never see. A picture is offered only
- * where there is somewhere to store one, and a table only where one may be
- * written (FF-1642).
+ * where there is somewhere to store one, a table only where one may be
+ * written (FF-1642), and a diagram likewise (FF-1643).
  */
 export function slashCommandItems(options?: {
   pickImage?: () => void;
   tables?: boolean;
+  diagrams?: boolean;
 }): SlashCommandItem[] {
   const items: SlashCommandItem[] = [
     {
@@ -68,7 +70,24 @@ export function slashCommandItems(options?: {
     },
   ];
 
-  const { pickImage, tables } = options ?? {};
+  const { pickImage, tables, diagrams } = options ?? {};
+  if (diagrams) {
+    items.push({
+      id: "diagram",
+      label: "Diagram",
+      icon: <Workflow className="size-3.5" />,
+      // Empty, and opened straight away: a diagram is written in mermaid in
+      // its own dialog, not in the line the "/" was typed on.
+      command: ({ editor, range }) =>
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .insertContent({ type: "diagram", attrs: { source: "", path: null } })
+          .run(),
+    });
+  }
+
   if (tables) {
     items.push({
       id: "table",
