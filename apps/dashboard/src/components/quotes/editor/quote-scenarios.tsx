@@ -6,7 +6,6 @@ import {
   markRecommended,
   newScenario,
   type PricingIssue,
-  type PricingResult,
   type QuoteContent,
   type QuoteKind,
   type Recurrence,
@@ -30,7 +29,6 @@ import { Label } from "@midday/ui/label";
 import { Switch } from "@midday/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { MoreHorizontal, Plus, Star, Trash2 } from "lucide-react";
-import { useState } from "react";
 import { formatUnitRate } from "../hourly-rate";
 import {
   formatAdjustment,
@@ -69,26 +67,28 @@ const newId = () => crypto.randomUUID();
 export function QuoteScenarios({
   content,
   kind,
-  pricing,
   products,
   currency,
   locale,
   editable,
   change,
+  selected,
+  pricing,
+  onSelect,
 }: {
   content: QuoteContent;
   kind: QuoteKind;
-  pricing: PricingResult;
   products: Product[];
   currency: string;
   locale?: string;
   editable: boolean;
   change: (next: DraftChange) => void;
+  /** The scenario on show, chosen by the page so the rail can price it. */
+  selected: Scenario | undefined;
+  /** What `selected` comes to, worked out once by the page. */
+  pricing: ScenarioPricing | undefined;
+  onSelect: (id: string | null) => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected =
-    content.scenarios.find((s) => s.id === selectedId) ?? content.scenarios[0];
-
   const setContent = (next: (content: QuoteContent) => QuoteContent) =>
     change((d) => ({ content: next(d.content) }));
 
@@ -105,7 +105,7 @@ export function QuoteScenarios({
       newId,
     });
     setContent((c) => ({ ...c, scenarios: [...c.scenarios, scenario] }));
-    setSelectedId(scenario.id);
+    onSelect(scenario.id);
   };
 
   const duplicate = (id: string) => {
@@ -113,7 +113,7 @@ export function QuoteScenarios({
     const copyId = newId();
     const ids = [copyId];
     setContent((c) => duplicateScenario(c, id, () => ids.shift() ?? newId()));
-    setSelectedId(copyId);
+    onSelect(copyId);
   };
 
   return (
@@ -123,7 +123,7 @@ export function QuoteScenarios({
       {selected ? (
         <>
           <div className="flex items-center gap-2">
-            <Tabs value={selected.id} onValueChange={setSelectedId}>
+            <Tabs value={selected.id} onValueChange={onSelect}>
               <TabsList className="h-auto flex-wrap justify-start">
                 {content.scenarios.map((s) => (
                   <TabsTrigger key={s.id} value={s.id} className="gap-1.5">
@@ -151,9 +151,7 @@ export function QuoteScenarios({
           <ScenarioEditor
             key={selected.id}
             scenario={selected}
-            pricing={pricing.scenarios.find(
-              (p) => p.scenarioId === selected.id,
-            )}
+            pricing={pricing}
             recurring={kind === "recurring"}
             unit={content}
             products={products}
@@ -167,7 +165,7 @@ export function QuoteScenarios({
             onDuplicate={() => duplicate(selected.id)}
             onRemove={() => {
               setContent((c) => removeScenario(c, selected.id));
-              setSelectedId(null);
+              onSelect(null);
             }}
           />
         </>
@@ -368,15 +366,19 @@ function ScenarioEditor({
         />
       )}
 
+      {/* Under xl the rail sits below the whole document, too far from the
+          lines to be any use, so the totals stay here instead (FF-1632). */}
       {pricing ? (
-        <ScenarioTotals
-          pricing={pricing}
-          unit={unit}
-          products={products}
-          period={scenario.recurrence?.period}
-          currency={currency}
-          locale={locale}
-        />
+        <div className="xl:hidden">
+          <ScenarioTotals
+            pricing={pricing}
+            unit={unit}
+            products={products}
+            period={scenario.recurrence?.period}
+            currency={currency}
+            locale={locale}
+          />
+        </div>
       ) : null}
     </fieldset>
   );
@@ -521,7 +523,14 @@ function PaymentSchedule({
   );
 }
 
-function ScenarioTotals({
+/**
+ * What the scenario on show comes to (FF-1632). It lives in the settings
+ * rail, where it stays on screen while the lines that move it are changed —
+ * a draft's are worked out live by `priceVersion`, a sent version's read from
+ * the pricing frozen when it went. The contract value is not here: it is
+ * internal, and belongs to the comparison panel.
+ */
+export function ScenarioTotals({
   pricing,
   unit,
   products,
@@ -584,7 +593,7 @@ function ScenarioTotals({
   }
 
   return (
-    <div className="ml-auto w-full max-w-[320px] space-y-1 text-sm">
+    <div className="space-y-1 text-sm">
       {pricing.adjustment !== 0 ? (
         <Total
           label="Adjustment"
