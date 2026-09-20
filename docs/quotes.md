@@ -289,5 +289,5 @@ this was built).
 4. **Show the discount on the PDF** ("€185 − 5% = €176") or only the resulting rate? Proposed: only the rate.
 5. **VAT.** Proposed: amounts excluding VAT with a statement to that effect, and a reverse-charge note for customers outside Belgium. No VAT calculation in v1.
 6. **Number format.** Proposed: `OFF-0001`, versions shown as `OFF-0001 v2` from the second version on.
-7. **Tracker conversion (phase 2).** A tracker project has one rate and an estimate in whole hours. Proposed: one project per accepted quote, rate = total ÷ hours (blended), estimate = hours rounded up (the max for range, per year for recurring). Comparing hours per product needs tracker entries tagged with a product. That comes later.
+7. **Tracker conversion (phase 2). Settled and built (FF-1617):** one project per accepted quote, held in `quotes.tracker_project_id`; rate = total ÷ hours (blended), estimate = hours rounded up (the max for a range, a year of it for recurring, one-off items counted once), with the optional items taken counted along. The rate is worked out from the unrounded hours. Accepting again moves that same project. Comparing hours per product needs tracker entries tagged with a product. That comes later.
 8. **Hours per day.** Proposed: 8, set per team, overridable per quote.
