@@ -33,7 +33,8 @@ import { ReadOnlyContext } from "./fields";
 import { MarkSentButton, OutcomeMenu } from "./quote-actions";
 import { QuoteBlocks } from "./quote-blocks";
 import { QuoteComparison } from "./quote-comparison";
-import { QuoteHeaderFields } from "./quote-header-fields";
+import { QuoteHeaderFields, QuoteTitleField } from "./quote-header-fields";
+import { QuoteRail } from "./quote-rail";
 import { QuoteRates } from "./quote-rates";
 import { QuoteScenarios } from "./quote-scenarios";
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
@@ -157,7 +158,7 @@ function VersionEditor({
 
   return (
     <ReadOnlyContext.Provider value={!editable}>
-      <div className="max-w-screen-xl space-y-10 pb-24 pt-6">
+      <div className="mx-auto max-w-[1600px] pb-24 pt-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <h1 className="text-lg font-medium">
@@ -192,55 +193,70 @@ function VersionEditor({
           </div>
         </div>
 
-        <fieldset disabled={!editable} className="min-w-0 space-y-10">
-          <QuoteHeaderFields
-            draft={draft}
-            change={change}
-            // What the client holds names the customer, title, kind and language.
-            headerLocked={version.version > 1}
-            disabled={!editable}
-          />
-        </fieldset>
+        {/* The document in the middle, what configures it in the rail
+            (FF-1630). A narrow window stacks them. */}
+        <div className="mt-8 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
+          <main className="min-w-0 flex-1 space-y-10">
+            <div className="max-w-2xl">
+              <QuoteTitleField
+                draft={draft}
+                change={change}
+                headerLocked={version.version > 1}
+                disabled={!editable}
+              />
+            </div>
 
-        {/* Outside the fieldset: a sent version's text is still read, and a
-            block still expands to be read full screen (FF-1624). The blocks
-            turn every control of their own off on a sent version. */}
-        <QuoteBlocks
-          content={draft.content}
-          change={change}
-          editable={editable}
-        />
+            {/* Outside the fieldset: a sent version's text is still read, and
+                a block still expands to be read full screen (FF-1624). The
+                blocks turn every control of their own off on a sent version. */}
+            <QuoteBlocks
+              content={draft.content}
+              change={change}
+              editable={editable}
+            />
 
-        <fieldset disabled={!editable} className="min-w-0 space-y-10">
-          <QuoteRates
-            content={draft.content}
-            products={products}
-            customerRates={customerRates}
-            currency={quote.currency}
-            editable={editable}
-            change={change}
-          />
-        </fieldset>
+            {/* Outside the fieldset: a sent version's scenarios are still
+                browsed. */}
+            <QuoteScenarios
+              content={draft.content}
+              kind={draft.kind}
+              pricing={pricing}
+              products={products}
+              currency={quote.currency}
+              locale={user?.locale ?? undefined}
+              editable={editable}
+              change={change}
+            />
 
-        {/* Outside the fieldset: a sent version's scenarios are still browsed. */}
-        <QuoteScenarios
-          content={draft.content}
-          kind={draft.kind}
-          pricing={pricing}
-          products={products}
-          currency={quote.currency}
-          locale={user?.locale ?? undefined}
-          editable={editable}
-          change={change}
-        />
+            <QuoteComparison
+              content={draft.content}
+              kind={draft.kind}
+              pricing={pricing}
+              currency={quote.currency}
+              locale={user?.locale ?? undefined}
+            />
+          </main>
 
-        <QuoteComparison
-          content={draft.content}
-          kind={draft.kind}
-          pricing={pricing}
-          currency={quote.currency}
-          locale={user?.locale ?? undefined}
-        />
+          <QuoteRail>
+            {/* What the client holds names the customer, title, kind and
+                language, so a revision shows those locked. */}
+            <QuoteHeaderFields
+              draft={draft}
+              change={change}
+              headerLocked={version.version > 1}
+              disabled={!editable}
+            />
+
+            <QuoteRates
+              content={draft.content}
+              products={products}
+              customerRates={customerRates}
+              currency={quote.currency}
+              editable={editable}
+              change={change}
+            />
+          </QuoteRail>
+        </div>
       </div>
     </ReadOnlyContext.Provider>
   );
