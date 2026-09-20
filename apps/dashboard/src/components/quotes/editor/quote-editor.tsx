@@ -233,7 +233,7 @@ function VersionEditor({
             (FF-1630). A narrow window stacks them. */}
         <div className="mt-8 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
           <main className="min-w-0 flex-1 space-y-10">
-            <div className="max-w-2xl">
+            <div className="max-w-[800px]">
               <QuoteTitleField
                 draft={draft}
                 change={change}

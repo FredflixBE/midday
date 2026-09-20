@@ -1,6 +1,7 @@
 "use client";
 
 import { withKind } from "@midday/quote";
+import { cn } from "@midday/ui/cn";
 import { Input } from "@midday/ui/input";
 import { useEffect, useState } from "react";
 import { SearchCustomers } from "@/components/search-customers";
@@ -20,7 +21,8 @@ import { RailSection } from "./quote-rail";
 
 /**
  * The quote's title, which is part of the document and so stays in the main
- * column (FF-1630). It is the quote's and stays as sent, so a revision shows
+ * column (FF-1630), set the way the PDF sets it rather than as a labelled
+ * field (FF-1633). It is the quote's and stays as sent, so a revision shows
  * it locked.
  */
 export function QuoteTitleField({
@@ -41,20 +43,26 @@ export function QuoteTitleField({
   const locked = headerLocked || disabled;
 
   return (
-    <Field label="Title">
-      <Input
-        aria-label="Title"
-        value={title}
-        maxLength={300}
-        disabled={locked}
-        onChange={(event) => {
-          setTitle(event.target.value);
-          // An empty title is refused; the last one stands until typed over.
-          if (event.target.value.trim()) change({ title: event.target.value });
-        }}
-        onBlur={() => setTitle(draft.title)}
-      />
-    </Field>
+    <Input
+      aria-label="Title"
+      placeholder="Title"
+      value={title}
+      maxLength={300}
+      disabled={locked}
+      className={cn(
+        "h-auto border-0 bg-transparent p-0 text-lg font-medium focus-visible:ring-0",
+        // A version that cannot be edited reads as the document throughout,
+        // so its title is not dimmed. A title locked on a draft still is:
+        // there, it is the one field of many that refuses to be typed in.
+        disabled && "disabled:opacity-100",
+      )}
+      onChange={(event) => {
+        setTitle(event.target.value);
+        // An empty title is refused; the last one stands until typed over.
+        if (event.target.value.trim()) change({ title: event.target.value });
+      }}
+      onBlur={() => setTitle(draft.title)}
+    />
   );
 }
 
