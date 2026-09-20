@@ -6,21 +6,37 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@midday/ui/accordion";
-import { type ReactNode, useState } from "react";
+import { type CSSProperties, type ReactNode, useState } from "react";
+
+/**
+ * How tall the strip that stays on screen stands (FF-1631), set on the page
+ * by the editor and read here: the rail sticks below the strip, and the strip
+ * is a line taller on a quote that has been accepted or answered.
+ */
+export const STRIP_HEIGHT = "--quote-strip-height";
+
+/**
+ * Where the rail comes to rest: under the strip, a gap below it. The fallback
+ * is the strip at its shorter height, for the frame before it is measured.
+ */
+const RAIL_TOP = `calc(var(${STRIP_HEIGHT}, 73px) + 1.5rem)`;
 
 /**
  * The settings rail (FF-1630): everything that configures a quote rather than
  * composes it, beside the document instead of running down the same column.
  * It follows the page on a wide window and sits under the document on a
- * narrow one.
+ * narrow one — where it is not sticky, so neither the offset nor the height
+ * it implies applies.
  */
 export function QuoteRail({ children }: { children: ReactNode }) {
   return (
-    // Nothing scrolls sideways here: a section opening a pixel wider than the
-    // rail would otherwise flash a horizontal scrollbar across the whole
-    // column, because `overflow-y: auto` alone makes the other axis `auto`
-    // too.
-    <aside className="min-w-0 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:w-[380px] xl:shrink-0 xl:overflow-y-auto xl:overflow-x-hidden">
+    // Nothing scrolls sideways: a section opening a pixel wider than the rail
+    // would otherwise flash a horizontal scrollbar across the whole column,
+    // because `overflow-y: auto` alone makes the other axis `auto` too.
+    <aside
+      className="min-w-0 xl:sticky xl:top-[var(--rail-top)] xl:max-h-[calc(100vh_-_var(--rail-top)_-_1.5rem)] xl:w-[380px] xl:shrink-0 xl:overflow-y-auto xl:overflow-x-hidden"
+      style={{ "--rail-top": RAIL_TOP } as CSSProperties}
+    >
       <div className="border-t border-border">{children}</div>
     </aside>
   );
