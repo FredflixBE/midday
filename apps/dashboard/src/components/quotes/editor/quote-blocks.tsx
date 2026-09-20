@@ -1,6 +1,7 @@
 "use client";
 
 import type { Block, QuoteContent } from "@midday/quote";
+import type { ComparisonView, ScenarioView } from "@midday/quote/view";
 import { Button } from "@midday/ui/button";
 import { cn } from "@midday/ui/cn";
 import {
@@ -11,10 +12,11 @@ import {
 } from "@midday/ui/dialog";
 import { Editor } from "@midday/ui/editor";
 import { Input } from "@midday/ui/input";
-import { Maximize2, Trash2 } from "lucide-react";
+import { ChevronDown, Maximize2, Trash2 } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import type { DraftChange } from "../use-quote-draft";
 import { useQuoteImages } from "../use-quote-images";
+import { PricingPreview } from "./pricing-preview";
 import { SortableList, SortableRow } from "./sortable";
 
 type TextBlock = Extract<Block, { type: "text" }>;
@@ -47,12 +49,16 @@ export function QuoteBlocks({
   content,
   change,
   editable,
+  pricing,
   onShowPricing,
 }: {
   content: QuoteContent;
   change: (next: DraftChange) => void;
   editable: boolean;
-  /** Where the priced scenarios are, for the marker that stands in for them. */
+  /** The priced scenarios as they print, for the block that stands where
+      they go. */
+  pricing: { comparison: ComparisonView | null; scenarios: ScenarioView[] };
+  /** Where they are edited. */
   onShowPricing: () => void;
 }) {
   const setBlocks = (blocks: (current: Block[]) => Block[]) =>
@@ -80,21 +86,13 @@ export function QuoteBlocks({
           {content.blocks.map((block) =>
             block.type === "pricing" ? (
               <SortableRow key={block.id} id={block.id} label="Pricing">
-                {(handle) => (
-                  <div className="flex items-center gap-3 border border-dashed border-border px-3 py-2 text-sm text-[#878787]">
-                    {/* A grip is chrome that says the block can be moved. */}
-                    {editable ? handle : null}
-                    {/* It stands where the scenarios print, so it is also
-                        the way to them (FF-1639). */}
-                    <button
-                      type="button"
-                      aria-label="Show the pricing"
-                      className="flex-1 text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
-                      onClick={onShowPricing}
-                    >
-                      Pricing
-                    </button>
-                  </div>
+                {(handle, dragging) => (
+                  <PricingBlock
+                    handle={editable ? handle : null}
+                    pricing={pricing}
+                    dragging={dragging}
+                    onShowPricing={onShowPricing}
+                  />
                 )}
               </SortableRow>
             ) : (
@@ -143,6 +141,67 @@ export function QuoteBlocks({
         </Button>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Where the priced scenarios print, showing what they say (FF-1640). Open,
+ * it is the comparison table and the scenarios as the PDF lays them out;
+ * shut, it is the line it used to be. Either way it drags, because its place
+ * among the text is what decides where the tables go, and it is the only
+ * thing that decides it.
+ *
+ * Nothing is edited here. The label is the way to the Pricing tab, which is.
+ */
+function PricingBlock({
+  handle,
+  pricing,
+  dragging,
+  onShowPricing,
+}: {
+  handle: ReactNode;
+  pricing: { comparison: ComparisonView | null; scenarios: ScenarioView[] };
+  /** True while it is being moved: a block the height of a page is not one
+      you can drop where you meant to. */
+  dragging: boolean;
+  onShowPricing: () => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const empty = pricing.scenarios.length === 0;
+
+  return (
+    <div className="border border-dashed border-border">
+      <div className="flex items-center gap-3 px-3 py-2 text-sm text-[#878787]">
+        {handle}
+        <button
+          type="button"
+          aria-label={open ? "Collapse the pricing" : "Expand the pricing"}
+          className="shrink-0 hover:text-primary focus-visible:text-primary focus-visible:outline-none"
+          onClick={() => setOpen(!open)}
+        >
+          <ChevronDown
+            size={14}
+            className={cn("transition-transform", open && "rotate-180")}
+          />
+        </button>
+        <button
+          type="button"
+          aria-label="Show the pricing"
+          className="flex-1 text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
+          onClick={onShowPricing}
+        >
+          Pricing
+        </button>
+      </div>
+      {open && !empty && !dragging ? (
+        <div className="border-t border-dashed border-border px-3 py-4">
+          <PricingPreview
+            comparison={pricing.comparison}
+            scenarios={pricing.scenarios}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 

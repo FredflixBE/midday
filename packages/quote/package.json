@@ -13,7 +13,8 @@
     "./pricing": "./src/pricing.ts",
     "./unit": "./src/unit.ts",
     "./version": "./src/version.ts",
-    "./pdf": "./src/pdf/index.ts"
+    "./pdf": "./src/pdf/index.ts",
+    "./view": "./src/pdf/document.ts"
   },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",
