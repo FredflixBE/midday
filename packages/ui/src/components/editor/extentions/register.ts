@@ -3,6 +3,7 @@
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
+import type { Extensions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { type StoredImages, storedImage } from "./stored-image";
 
@@ -21,11 +22,14 @@ export function registerExtensions(options?: {
   placeholder?: string;
   /** Where the editor's pictures are stored and shown from. */
   images?: StoredImages;
+  /** Anything the caller adds, such as the slash menu (FF-1638). */
+  extra?: Extensions;
 }) {
-  const { placeholder, images } = options ?? {};
+  const { placeholder, images, extra } = options ?? {};
   return [
     ...extensions,
     storedImage(images),
     Placeholder.configure({ placeholder }),
+    ...(extra ?? []),
   ];
 }

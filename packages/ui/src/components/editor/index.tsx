@@ -10,6 +10,7 @@ import {
 } from "@tiptap/react";
 import { BubbleMenu } from "./extentions/bubble-menu";
 import { registerExtensions } from "./extentions/register";
+import { useSlashCommand } from "./extentions/slash-command/use-slash-command";
 import type { StoredImages } from "./extentions/stored-image";
 
 export type { StoredImages };
@@ -31,8 +32,11 @@ type EditorProps = {
    * default, and never shown on content that cannot be changed.
    */
   toolbar?: boolean;
-  /** Where the toolbar sits, for a caller that does not want it in flow. */
-  toolbarClassName?: string;
+  /**
+   * Typing "/" offers what a block can hold — headings, lists, a picture
+   * (FF-1638). Off by default, and never on content that cannot be changed.
+   */
+  slashMenu?: boolean;
   /** True puts the caret at the end of the text as soon as it is mounted. */
   autoFocus?: boolean;
   /**
@@ -52,12 +56,18 @@ export function Editor({
   tabIndex,
   editable = true,
   toolbar = false,
-  toolbarClassName,
+  slashMenu = false,
   autoFocus = false,
   images,
 }: EditorProps) {
+  const slash = useSlashCommand({ enabled: slashMenu && editable, images });
+
   const editor = useEditor({
-    extensions: registerExtensions({ placeholder, images }),
+    extensions: registerExtensions({
+      placeholder,
+      images,
+      extra: slash.extension ? [slash.extension] : undefined,
+    }),
     content: initialContent,
     immediatelyRender: false,
     editable,
@@ -73,15 +83,14 @@ export function Editor({
 
   return (
     <>
-      {toolbar && editable ? (
-        <Toolbar editor={editor} images={images} className={toolbarClassName} />
-      ) : null}
+      {toolbar && editable ? <Toolbar editor={editor} images={images} /> : null}
       <EditorContent
         editor={editor}
         className={className}
         tabIndex={tabIndex}
       />
       <BubbleMenu editor={editor} />
+      {slash.overlay}
     </>
   );
 }
