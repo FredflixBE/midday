@@ -11,6 +11,7 @@ import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { withDatabase } from "../../middleware/db";
 import { withClientIp } from "../../middleware/ip";
+import { isTeamPath } from "./utils";
 
 /**
  * A quote version as a PDF (FF-1613), served the way the invoice download
@@ -108,8 +109,15 @@ app.openapi(
  * must not cost the whole quote its PDF.
  *
  * Every path is checked to live under this team, so a doctored one cannot
- * pull a file out of another team's vault.
+ * pull a file out of another team's vault, and only what react-pdf can draw
+ * is handed to it.
  */
+/** What react-pdf can draw, and so what a picture may be. */
+const PDF_FORMATS: Record<string, ImageSource["format"] | undefined> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+};
+
 async function readImages(
   teamId: string,
   paths: string[],
@@ -121,15 +129,13 @@ async function readImages(
 
   await Promise.all(
     paths.map(async (path) => {
-      if (!path.startsWith(`${teamId}/`)) return;
+      if (!isTeamPath(teamId, path)) return;
 
       const { data } = await supabase.storage.from("vault").download(path);
-      if (!data) return;
+      const format = PDF_FORMATS[data?.type ?? ""];
+      if (!data || !format) return;
 
-      images[path] = {
-        data: Buffer.from(await data.arrayBuffer()),
-        format: data.type === "image/png" ? "png" : "jpg",
-      };
+      images[path] = { data: Buffer.from(await data.arrayBuffer()), format };
     }),
   );
 

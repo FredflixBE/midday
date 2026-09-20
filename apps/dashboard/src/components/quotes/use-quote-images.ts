@@ -2,7 +2,6 @@
 
 import { createClient } from "@midday/supabase/client";
 import type { StoredImages } from "@midday/ui/editor";
-import { useToast } from "@midday/ui/use-toast";
 import { useCallback, useMemo, useRef } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { resumableUpload } from "@/utils/upload";
@@ -28,13 +27,9 @@ const MAX_BYTES = 10 * 1024 * 1024;
  */
 export function useQuoteImages(): StoredImages & { ready: boolean } {
   const { data: user } = useUserQuery();
-  const { toast } = useToast();
 
   const team = useRef<{ teamId?: string | null; fileKey?: string | null }>({});
   team.current = { teamId: user?.teamId, fileKey: user?.fileKey };
-
-  const toastRef = useRef(toast);
-  toastRef.current = toast;
 
   const srcOf = useCallback((path: string) => {
     const { fileKey } = team.current;
@@ -47,18 +42,15 @@ export function useQuoteImages(): StoredImages & { ready: boolean } {
   }, []);
 
   const upload = useCallback(async (file: File) => {
+    // What is thrown here is read out to whoever picked the file, so it is
+    // written for them and said once, where the picture was asked for.
     const { teamId } = team.current;
     if (!teamId) {
-      throw new Error("No team to store the picture under");
+      throw new Error("Your team is still loading. Please try again.");
     }
 
     if (file.size > MAX_BYTES) {
-      toastRef.current({
-        title: "That picture is too big",
-        description: "Pictures in a quote are up to 10 MB.",
-        variant: "error",
-      });
-      throw new Error("Image too large");
+      throw new Error("Pictures in a quote are up to 10 MB.");
     }
 
     const extension = file.name.split(".").pop()?.toLowerCase() || "png";
@@ -78,5 +70,5 @@ export function useQuoteImages(): StoredImages & { ready: boolean } {
 
   // False only while the team is still being read; the addresses a picture is
   // shown from are made once, so the editor is mounted again when it lands.
-  return { ...images, ready: Boolean(user?.fileKey) };
+  return { ...images, ready: Boolean(user?.fileKey && user?.teamId) };
 }

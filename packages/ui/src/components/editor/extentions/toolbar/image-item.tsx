@@ -3,6 +3,7 @@
 import type { Editor } from "@tiptap/react";
 import { useRef, useState } from "react";
 import { MdOutlineImage } from "react-icons/md";
+import { useToast } from "../../../use-toast";
 import { BubbleMenuButton } from "../bubble-menu/bubble-menu-button";
 
 /**
@@ -19,6 +20,7 @@ export function ImageItem({
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
 
   const add = async (file: File) => {
     setBusy(true);
@@ -29,6 +31,16 @@ export function ImageItem({
         .focus()
         .insertContent({ type: "image", attrs: { path, alt: file.name } })
         .run();
+    } catch (error) {
+      // Whatever went wrong, the picture is not in the text and the button
+      // has stopped looking busy: saying nothing would read as nothing
+      // happening.
+      toast({
+        title: "The picture was not added",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "error",
+      });
     } finally {
       setBusy(false);
     }
@@ -47,7 +59,8 @@ export function ImageItem({
       <input
         ref={input}
         type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp"
+        // Only what the PDF can draw, so nothing is offered that it loses.
+        accept="image/png,image/jpeg"
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];

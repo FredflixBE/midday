@@ -13,7 +13,13 @@ export type StoredImages = {
   upload?: (file: File) => Promise<string>;
 };
 
-export function storedImage(images: StoredImages) {
+/**
+ * Always registered, whether or not anything can add a picture here. Tiptap
+ * throws away nodes its schema does not know, so an editor built without this
+ * would quietly strip the pictures out of text it was only meant to show —
+ * and the next keystroke would save the text without them.
+ */
+export function storedImage(images?: StoredImages) {
   return Image.extend({
     name: "image",
     // Alone on its line, and whole: a picture is not part of a sentence.
@@ -40,7 +46,7 @@ export function storedImage(images: StoredImages) {
         "img",
         {
           "data-path": path ?? null,
-          src: path ? images.srcOf(path) : null,
+          src: path ? (images?.srcOf(path) ?? null) : null,
           alt: alt ?? "",
         },
       ];

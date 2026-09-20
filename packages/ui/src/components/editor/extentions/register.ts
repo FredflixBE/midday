@@ -19,13 +19,13 @@ const extensions = [
 
 export function registerExtensions(options?: {
   placeholder?: string;
-  /** Given, the editor also holds pictures. */
+  /** Where the editor's pictures are stored and shown from. */
   images?: StoredImages;
 }) {
   const { placeholder, images } = options ?? {};
   return [
     ...extensions,
-    ...(images ? [storedImage(images)] : []),
+    storedImage(images),
     Placeholder.configure({ placeholder }),
   ];
 }
