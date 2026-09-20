@@ -494,6 +494,51 @@ describe.skipIf(SKIP)("quotes", () => {
         expect(dropped).toEqual([]);
       });
 
+      /**
+       * A version's text is a Tiptap document nothing validates the inside of,
+       * so a crafted save can put any path in a picture node. Dropping it
+       * again must not reach the files the other quote tickets exist to keep.
+       */
+      test("never takes a file that is not a picture", async () => {
+        const quote = await create();
+        const first = draftOf(quote);
+        await markQuoteVersionSent(db, {
+          teamId: TEAM_USD_ID,
+          versionId: first.id,
+          pricing: null,
+          storePdf: (async () => [
+            TEAM_USD_ID,
+            "quotes",
+            `${first.id}.pdf`,
+          ]) as StoreQuotePdf,
+        });
+        const terms = await addQuoteTerms(db, {
+          teamId: TEAM_USD_ID,
+          label: "2026-01",
+          language: "en",
+          filePath: [TEAM_USD_ID, "quotes", "terms.pdf"],
+          fileName: "terms.pdf",
+        });
+        const revised = await reviseQuote(db, {
+          teamId: TEAM_USD_ID,
+          quoteId: first.quoteId,
+          today: TODAY,
+        });
+        const draft = draftOf(revised!);
+        const content = draft.content as QuoteContent;
+
+        const storedPdf = `${TEAM_USD_ID}/quotes/${first.id}.pdf`;
+        const termsFile = `${TEAM_USD_ID}/quotes/terms.pdf`;
+        await updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          content: withPictures(content, storedPdf, termsFile, A),
+        });
+
+        expect(await editing(draft.id, withPictures(content))).toEqual([A]);
+        expect(terms).not.toBeNull();
+      });
+
       test("is let go of even when letting go fails", async () => {
         const { draft, content } = await draftHolding(A);
 

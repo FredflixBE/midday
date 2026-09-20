@@ -278,7 +278,7 @@ describe("tRPC: quotes", () => {
       asMock(mocks.supabaseStorageRemove).mockClear();
     });
 
-    function dropImagesOf(): (paths: string[]) => Promise<void> {
+    function capturedDropImages(): (paths: string[]) => Promise<void> {
       const call = asMock(updateQuoteDraft).mock.calls[0]?.[1] as {
         dropImages?: (paths: string[]) => Promise<void>;
       };
@@ -290,7 +290,7 @@ describe("tRPC: quotes", () => {
       const caller = createCaller(createTestContext());
       await caller.updateDraft({ versionId: A, title: "Changed" });
 
-      await dropImagesOf()(["test-team-id/quotes/a.png"]);
+      await capturedDropImages()(["test-team-id/quotes/a.png"]);
 
       expect(asMock(mocks.supabaseStorageRemove).mock.calls[0]?.[0]).toEqual([
         "test-team-id/quotes/a.png",
@@ -301,7 +301,7 @@ describe("tRPC: quotes", () => {
       const caller = createCaller(createTestContext());
       await caller.updateDraft({ versionId: A, title: "Changed" });
 
-      await dropImagesOf()([
+      await capturedDropImages()([
         "other-team/quotes/a.png",
         "test-team-id/../other-team/quotes/b.png",
       ]);
