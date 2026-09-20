@@ -1,0 +1,67 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`formatEditorContent renders an address exactly as before 1`] = `
+[
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              "Acme BV",
+            ],
+            "key": "text-0-0",
+            "props": {
+              "style": {
+                "fontFamily": "hedvig-sans",
+              },
+              "tw": "text-[22px] font-medium",
+            },
+            "type": "span",
+          },
+        ],
+        "key": "block-0",
+        "props": {
+          "tw": "flex flex-col mb-0",
+        },
+        "type": "p",
+      },
+      {
+        "children": [],
+        "key": "block-1",
+        "props": {
+          "tw": "flex flex-col mb-0",
+        },
+        "type": "p",
+      },
+      {
+        "children": [
+          {
+            "children": [
+              "Main street 1",
+            ],
+            "key": "text-2-0",
+            "props": {
+              "style": {
+                "fontFamily": "hedvig-sans",
+              },
+              "tw": "text-[22px]",
+            },
+            "type": "span",
+          },
+        ],
+        "key": "block-2",
+        "props": {
+          "tw": "flex flex-col mb-0",
+        },
+        "type": "p",
+      },
+    ],
+    "key": null,
+    "props": {
+      "tw": "flex flex-col text-white",
+    },
+    "type": "div",
+  },
+]
+`;
