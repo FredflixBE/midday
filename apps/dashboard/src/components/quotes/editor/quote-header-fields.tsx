@@ -50,11 +50,14 @@ export function QuoteTitleField({
       maxLength={300}
       disabled={locked}
       className={cn(
-        "h-auto border-0 bg-transparent p-0 text-lg font-medium focus-visible:ring-0",
+        "h-auto border-0 bg-transparent p-0 text-lg font-medium",
+        // Nothing bounds the field any more, so focus has to show.
+        "focus-visible:ring-1 focus-visible:ring-ring",
         // A version that cannot be edited reads as the document throughout,
-        // so its title is not dimmed. A title locked on a draft still is:
-        // there, it is the one field of many that refuses to be typed in.
-        disabled && "disabled:opacity-100",
+        // so its title is neither dimmed nor refused under the pointer. A
+        // title locked on a draft still is: there, it is the one field of
+        // many that will not be typed in.
+        disabled && "disabled:cursor-default disabled:opacity-100",
       )}
       onChange={(event) => {
         setTitle(event.target.value);

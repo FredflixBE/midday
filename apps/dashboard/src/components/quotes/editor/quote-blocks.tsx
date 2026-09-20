@@ -22,6 +22,13 @@ type TextBlock = Extract<Block, { type: "text" }>;
 const EMPTY_DOC: TextBlock["body"] = { type: "doc", content: [] };
 
 /**
+ * The measure of the PDF's text column at the size this draws it: A4 less its
+ * margins is 515pt of 9pt text, which is 800px of 14px text. The page is the
+ * preview, so a line here breaks roughly where a line there does.
+ */
+export const DOCUMENT_WIDTH = "max-w-[800px]";
+
+/**
  * The proposal text: blocks in the order they are printed, each with an
  * optional heading, and the pricing block marking where the scenarios go.
  */
@@ -49,9 +56,7 @@ export function QuoteBlocks({
     );
 
   return (
-    // The measure of the PDF's text column, at the size this draws it: the
-    // page is the preview, so a line here breaks where a line there does.
-    <section className="max-w-[800px] space-y-10">
+    <section className={cn(DOCUMENT_WIDTH, "space-y-10")}>
       <SortableList
         items={content.blocks}
         disabled={!editable}
@@ -141,7 +146,7 @@ const TEXT_STYLES = cn(
   "[&_.tiptap]:text-sm [&_.tiptap]:leading-[1.55]",
 );
 
-/** The heading of a block, which prints above an h1 in its own text. */
+/** A block's own heading, which the PDF sets at the size of an h1. */
 const HEADING_STYLES = "text-[22px] font-medium leading-snug";
 
 /**
@@ -153,10 +158,11 @@ const HEADING_STYLES = "text-[22px] font-medium leading-snug";
  * hover with shows them always rather than hiding them for good. They float
  * above the block, so revealing them shifts no line of text.
  */
-// They float above the block, so showing one shifts no line of text, and the
-// toolbar can carry them because the shared editor takes a class for it.
 const CONTROLS = cn(
-  "quote-block-control absolute bottom-full z-10 mb-1 border border-border bg-background",
+  // No gap under the bar: a few pixels of nothing between it and the block
+  // is a trap, because crossing them slowly ends the hover and the bar stops
+  // taking the pointer before the pointer arrives.
+  "quote-block-control absolute bottom-full z-10 border border-border bg-background",
   "pointer-events-none opacity-0 transition-opacity",
   "group-hover:pointer-events-auto group-hover:opacity-100",
   "group-focus-within:pointer-events-auto group-focus-within:opacity-100",
@@ -221,6 +227,8 @@ function TextBlockEditor({
     // it, and only while it is under the pointer or holds focus. A device
     // with no pointer to hover with shows them always, and keyboard focus
     // brings them back for anyone not using one.
+    // `quote-block` and `quote-block-control` style nothing: they are there
+    // to be reached for from a browser test.
     <div className="group quote-block relative">
       <div
         className={cn(CONTROLS, "right-0 flex items-center gap-1 px-1 py-0.5")}
@@ -263,7 +271,9 @@ function TextBlockEditor({
           maxLength={500}
           className={cn(
             HEADING_STYLES,
-            "h-auto border-0 bg-transparent p-0 focus-visible:ring-0",
+            "h-auto border-0 bg-transparent p-0",
+            // Nothing bounds the field any more, so focus has to show.
+            "focus-visible:ring-1 focus-visible:ring-ring",
           )}
           onChange={(event) =>
             onChange({ heading: event.target.value || null })
@@ -280,8 +290,10 @@ function TextBlockEditor({
           renderEditor(
             cn(editable && "min-h-[1.5rem]", TEXT_STYLES),
             false,
-            // Above the block, beside its other controls.
-            cn(CONTROLS, "left-0"),
+            // Above the block, beside its other controls and never into
+            // them: a column too narrow for one row wraps the toolbar
+            // upwards rather than over them.
+            cn(CONTROLS, "left-0 max-w-[calc(100%-108px)]"),
           )
         )}
       </div>

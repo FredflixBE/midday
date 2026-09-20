@@ -38,7 +38,7 @@ import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
 import { ReadOnlyContext } from "./fields";
 import { MarkSentButton, OutcomeMenu } from "./quote-actions";
-import { QuoteBlocks } from "./quote-blocks";
+import { DOCUMENT_WIDTH, QuoteBlocks } from "./quote-blocks";
 import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields, QuoteTitleField } from "./quote-header-fields";
 import { QuoteRail, RailCard, RailSections, STRIP_HEIGHT } from "./quote-rail";
@@ -233,7 +233,7 @@ function VersionEditor({
             (FF-1630). A narrow window stacks them. */}
         <div className="mt-8 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
           <main className="min-w-0 flex-1 space-y-10">
-            <div className="max-w-[800px]">
+            <div className={DOCUMENT_WIDTH}>
               <QuoteTitleField
                 draft={draft}
                 change={change}
