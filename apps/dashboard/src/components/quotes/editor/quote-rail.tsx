@@ -37,8 +37,38 @@ export function QuoteRail({ children }: { children: ReactNode }) {
       className="min-w-0 xl:sticky xl:top-[var(--rail-top)] xl:max-h-[calc(100vh_-_var(--rail-top)_-_1.5rem)] xl:w-[380px] xl:shrink-0 xl:overflow-y-auto xl:overflow-x-hidden"
       style={{ "--rail-top": RAIL_TOP } as CSSProperties}
     >
-      <div className="border-t border-border">{children}</div>
+      {children}
     </aside>
+  );
+}
+
+/** The rail's collapsible settings, under everything it keeps in view. */
+export function RailSections({ children }: { children: ReactNode }) {
+  return <div className="border-t border-border">{children}</div>;
+}
+
+/**
+ * What the rail keeps in view rather than tucks into a section: the totals of
+ * the scenario on show (FF-1632). It stays put while the rail is scrolled,
+ * so a figure never leaves the screen while the line that moves it is being
+ * changed.
+ */
+export function RailCard({
+  title,
+  children,
+}: {
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    // Sticky only where the rail is itself a scrolling column; stacked under
+    // the document it is just the first thing in the rail.
+    <div className="bg-background pb-5 xl:sticky xl:top-0 xl:z-10">
+      {title ? (
+        <div className="truncate pb-2 text-[12px] text-[#606060]">{title}</div>
+      ) : null}
+      {children}
+    </div>
   );
 }
 

@@ -33,7 +33,7 @@ import {
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { DownloadQuotePdf } from "../download-quote-pdf";
-import { toProductRates } from "../quote-pricing";
+import { scenarioName, toProductRates } from "../quote-pricing";
 import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
 import { ReadOnlyContext } from "./fields";
@@ -41,9 +41,9 @@ import { MarkSentButton, OutcomeMenu } from "./quote-actions";
 import { QuoteBlocks } from "./quote-blocks";
 import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields, QuoteTitleField } from "./quote-header-fields";
-import { QuoteRail, STRIP_HEIGHT } from "./quote-rail";
+import { QuoteRail, RailCard, RailSections, STRIP_HEIGHT } from "./quote-rail";
 import { QuoteRates } from "./quote-rates";
-import { QuoteScenarios } from "./quote-scenarios";
+import { QuoteScenarios, ScenarioTotals } from "./quote-scenarios";
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
 
 type Quote = RouterOutputs["quotes"]["get"];
@@ -165,6 +165,16 @@ function VersionEditor({
 
   const [strip, stripHeight] = useStripHeight();
 
+  // The scenario on show is the page's, so the rail can keep its totals in
+  // view while the lines that move them are changed (FF-1632).
+  const [scenarioId, setScenarioId] = useState<string | null>(null);
+  const scenario =
+    draft.content.scenarios.find((s) => s.id === scenarioId) ??
+    draft.content.scenarios[0];
+  const scenarioPricing = pricing.scenarios.find(
+    (p) => p.scenarioId === scenario?.id,
+  );
+
   return (
     <ReadOnlyContext.Provider value={!editable}>
       <div
@@ -252,6 +262,8 @@ function VersionEditor({
               locale={user?.locale ?? undefined}
               editable={editable}
               change={change}
+              selected={scenario}
+              onSelect={setScenarioId}
             />
 
             <QuoteComparison
@@ -264,23 +276,45 @@ function VersionEditor({
           </main>
 
           <QuoteRail>
-            {/* What the client holds names the customer, title, kind and
-                language, so a revision shows those locked. */}
-            <QuoteHeaderFields
-              draft={draft}
-              change={change}
-              headerLocked={version.version > 1}
-              disabled={!editable}
-            />
+            {scenario && scenarioPricing ? (
+              <RailCard
+                // Named only when there is more than one to tell apart.
+                title={
+                  draft.content.scenarios.length > 1
+                    ? scenarioName(scenario)
+                    : undefined
+                }
+              >
+                <ScenarioTotals
+                  pricing={scenarioPricing}
+                  unit={draft.content}
+                  products={products}
+                  period={scenario.recurrence?.period}
+                  currency={quote.currency}
+                  locale={user?.locale ?? undefined}
+                />
+              </RailCard>
+            ) : null}
 
-            <QuoteRates
-              content={draft.content}
-              products={products}
-              customerRates={customerRates}
-              currency={quote.currency}
-              editable={editable}
-              change={change}
-            />
+            <RailSections>
+              {/* What the client holds names the customer, title, kind and
+                  language, so a revision shows those locked. */}
+              <QuoteHeaderFields
+                draft={draft}
+                change={change}
+                headerLocked={version.version > 1}
+                disabled={!editable}
+              />
+
+              <QuoteRates
+                content={draft.content}
+                products={products}
+                customerRates={customerRates}
+                currency={quote.currency}
+                editable={editable}
+                change={change}
+              />
+            </RailSections>
           </QuoteRail>
         </div>
       </div>
