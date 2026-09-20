@@ -1511,6 +1511,29 @@ describe.skipIf(SKIP)("quotes", () => {
       ).toBeNull();
     });
 
+    test("a draft left open beside the accepted version is not sent", async () => {
+      const { quoteId, versionId } = await sent();
+      // The revision is drafted before the answer comes in.
+      const revised = await reviseQuote(db, {
+        teamId: TEAM_USD_ID,
+        quoteId,
+      });
+      const draft = draftOf(revised!);
+      await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+        scenarioId: "s1",
+        today: TODAY,
+      });
+
+      await expect(
+        markQuoteVersionSent(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
     test("an accepted version is still the one the list shows as held", async () => {
       const { versionId } = await sent();
       await acceptQuoteVersion(db, {

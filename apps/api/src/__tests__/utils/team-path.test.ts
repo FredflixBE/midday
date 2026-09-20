@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isTeamPath } from "@api/rest/routers/files/utils";
+import { isTeamPath } from "@api/utils/team-path";
 
 const team = "daafae20-5d4c-48da-8490-798156eff1ef";
 const other = "11111111-2222-3333-4444-555555555555";

@@ -6,6 +6,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Database } from "@midday/db/client";
 import { getQuotePdfInput, getQuoteVersionFile } from "@midday/db/queries";
 import { verifyFileKey } from "@midday/encryption";
+import { logger } from "@midday/logger";
 import { quotePdfFilename } from "@midday/quote";
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -99,14 +100,21 @@ app.openapi(
 /**
  * The file kept when the version was sent. A path that reads back nothing
  * falls through to drawing the quote again: a vault someone tidied should
- * cost the exact file, not the download.
+ * cost the exact file, not the download. It is said out loud, because a
+ * quote drawn again is no longer provably what the client holds.
  */
 async function stored(path: string[]): Promise<Buffer | null> {
   const supabase = await createAdminClient();
   const { data } = await supabase.storage
     .from("vault")
     .download(path.join("/"));
-  return data ? Buffer.from(await data.arrayBuffer()) : null;
+  if (!data) {
+    logger.warn("The stored PDF of a sent quote is gone; drawing it again", {
+      path: path.join("/"),
+    });
+    return null;
+  }
+  return Buffer.from(await data.arrayBuffer());
 }
 
 /** The quote drawn as it stands now. */
