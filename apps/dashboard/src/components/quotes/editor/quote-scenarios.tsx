@@ -6,7 +6,6 @@ import {
   markRecommended,
   newScenario,
   type PricingIssue,
-  type PricingResult,
   type QuoteContent,
   type QuoteKind,
   type Recurrence,
@@ -68,18 +67,17 @@ const newId = () => crypto.randomUUID();
 export function QuoteScenarios({
   content,
   kind,
-  pricing,
   products,
   currency,
   locale,
   editable,
   change,
   selected,
+  pricing,
   onSelect,
 }: {
   content: QuoteContent;
   kind: QuoteKind;
-  pricing: PricingResult;
   products: Product[];
   currency: string;
   locale?: string;
@@ -87,6 +85,8 @@ export function QuoteScenarios({
   change: (next: DraftChange) => void;
   /** The scenario on show, chosen by the page so the rail can price it. */
   selected: Scenario | undefined;
+  /** What `selected` comes to, worked out once by the page. */
+  pricing: ScenarioPricing | undefined;
   onSelect: (id: string | null) => void;
 }) {
   const setContent = (next: (content: QuoteContent) => QuoteContent) =>
@@ -151,9 +151,7 @@ export function QuoteScenarios({
           <ScenarioEditor
             key={selected.id}
             scenario={selected}
-            pricing={pricing.scenarios.find(
-              (p) => p.scenarioId === selected.id,
-            )}
+            pricing={pricing}
             recurring={kind === "recurring"}
             unit={content}
             products={products}
@@ -367,6 +365,21 @@ function ScenarioEditor({
           }
         />
       )}
+
+      {/* Under xl the rail sits below the whole document, too far from the
+          lines to be any use, so the totals stay here instead (FF-1632). */}
+      {pricing ? (
+        <div className="xl:hidden">
+          <ScenarioTotals
+            pricing={pricing}
+            unit={unit}
+            products={products}
+            period={scenario.recurrence?.period}
+            currency={currency}
+            locale={locale}
+          />
+        </div>
+      ) : null}
     </fieldset>
   );
 }

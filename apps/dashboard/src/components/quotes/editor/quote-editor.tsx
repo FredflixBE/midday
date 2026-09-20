@@ -256,13 +256,13 @@ function VersionEditor({
             <QuoteScenarios
               content={draft.content}
               kind={draft.kind}
-              pricing={pricing}
               products={products}
               currency={quote.currency}
               locale={user?.locale ?? undefined}
               editable={editable}
               change={change}
               selected={scenario}
+              pricing={scenarioPricing}
               onSelect={setScenarioId}
             />
 

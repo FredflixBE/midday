@@ -51,7 +51,11 @@ export function RailSections({ children }: { children: ReactNode }) {
  * What the rail keeps in view rather than tucks into a section: the totals of
  * the scenario on show (FF-1632). It stays put while the rail is scrolled,
  * so a figure never leaves the screen while the line that moves it is being
- * changed.
+ * changed — and it is capped, because a card taller than the column it is
+ * pinned to would hide both its own last row and every section beneath it.
+ *
+ * Only where there is a rail beside the document: stacked under it, the
+ * totals belong with the lines instead.
  */
 export function RailCard({
   title,
@@ -63,7 +67,7 @@ export function RailCard({
   return (
     // Sticky only where the rail is itself a scrolling column; stacked under
     // the document it is just the first thing in the rail.
-    <div className="bg-background pb-5 xl:sticky xl:top-0 xl:z-10">
+    <div className="hidden bg-background pb-5 xl:sticky xl:top-0 xl:z-10 xl:block xl:max-h-[40vh] xl:overflow-y-auto">
       {title ? (
         <div className="truncate pb-2 text-[12px] text-[#606060]">{title}</div>
       ) : null}
