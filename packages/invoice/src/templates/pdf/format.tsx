@@ -117,6 +117,9 @@ function renderInline(node: EditorNode, path: string, base: PDFTextStyle) {
             href = mark.attrs?.href;
             hasUnderline = true;
           }
+          if (mark.type === "underline") {
+            hasUnderline = true;
+          }
           if (mark.type === "strike") {
             hasStrike = true;
           }
