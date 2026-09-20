@@ -6,6 +6,7 @@
  */
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
+  acceptQuoteVersion,
   createQuote,
   getQuote,
   listQuotes,
@@ -34,6 +35,7 @@ describe("tRPC: quotes", () => {
       reviseQuote,
       updateQuoteSettings,
       markQuoteVersionSent,
+      acceptQuoteVersion,
       setQuoteOutcome,
     ]) {
       asMock(fn).mockReset();
@@ -141,12 +143,66 @@ describe("tRPC: quotes", () => {
     await caller.markSent({ versionId: A, sentTo: "  " });
 
     const call = asMock(markQuoteVersionSent).mock.calls[0]?.[1];
-    expect(call).toEqual({
+    expect(call).toMatchObject({
       teamId: "test-team-id",
       versionId: A,
       sentTo: null,
     });
     expect(call).not.toHaveProperty("pricing");
+  });
+
+  test("marking sent hands in a way to keep the PDF (FF-1615)", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.markSent({ versionId: A });
+
+    const call = asMock(markQuoteVersionSent).mock.calls[0]?.[1] as {
+      storePdf: unknown;
+    };
+    expect(typeof call.storePdf).toBe("function");
+  });
+
+  test("an answer is recorded on the caller's team", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.accept({
+      versionId: A,
+      scenarioId: "s1",
+      optionalLineIds: ["extra"],
+      poNumber: " PO-1 ",
+      acceptedByName: "A. Buyer",
+    });
+
+    expect(asMock(acceptQuoteVersion).mock.calls[0]?.[1]).toMatchObject({
+      teamId: "test-team-id",
+      versionId: A,
+      scenarioId: "s1",
+      optionalLineIds: ["extra"],
+      poNumber: "PO-1",
+      acceptedByName: "A. Buyer",
+    });
+  });
+
+  test("an answer that does not fit the version is a bad request", async () => {
+    asMock(acceptQuoteVersion).mockImplementation(() =>
+      Promise.reject(
+        new QuoteInputError("That scenario is not one this version offers"),
+      ),
+    );
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.accept({ versionId: A, scenarioId: "s9" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  test("another team's version is not accepted", async () => {
+    asMock(acceptQuoteVersion).mockImplementation(() => Promise.resolve(null));
+    const caller = createCaller(createTestContext());
+
+    await expect(
+      caller.accept({ versionId: A, scenarioId: "s1" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   test("sending a version that is not a draft is a bad request", async () => {
