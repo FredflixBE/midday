@@ -1,5 +1,6 @@
 import { transformCustomerToContent } from "@midday/invoice/utils";
 import {
+  acceptanceProblem,
   type Block,
   blockSchema,
   initialQuoteContent,
@@ -52,6 +53,21 @@ import {
 
 /** A person's mistake, told apart from a failure so the API can say so. */
 export class QuoteInputError extends Error {}
+
+/**
+ * Renders a version's PDF and stores it, giving back the path tokens it was
+ * stored under (FF-1615). Rendering needs react-pdf and the bucket, neither
+ * of which belongs here, so the caller passes it in and this module decides
+ * when it runs: inside the transaction that marks a version sent, so that a
+ * PDF which cannot be stored refuses the send rather than leaving a sent
+ * version nobody can prove.
+ *
+ * It is what makes a sent version final. The content, the pricing, the
+ * sender and the customer are frozen on the row, but the logo, the payment
+ * details, the team's labels and the pictures in the text are all read as
+ * they are at render time — so only a stored file is what the client holds.
+ */
+export type StoreQuotePdf = (input: QuotePdfInput) => Promise<string[]>;
 
 export type QuoteLanguage = "nl" | "en";
 export type QuoteMode = "estimate" | "firm";
@@ -498,6 +514,10 @@ export async function reviseQuote(
  * Marks a draft sent and freezes it with its pricing; the version sent before
  * it, if any, becomes superseded. The action a person takes is FF-1614's; the
  * rule is here. Null when the version is not the team's.
+ *
+ * With `storePdf`, the PDF is rendered and kept as part of the same
+ * transaction (FF-1615): either the version is sent and its file is stored,
+ * or neither happened.
  */
 export async function markQuoteVersionSent(
   db: Database,
@@ -512,6 +532,8 @@ export async function markQuoteVersionSent(
      * and the rates that apply to it now.
      */
     pricing?: PricingResult | null;
+    /** Keeps the PDF as it went out. Left out, nothing is stored. */
+    storePdf?: StoreQuotePdf;
   },
 ) {
   const quoteId = await db.transaction(async (tx) => {
@@ -519,6 +541,12 @@ export async function markQuoteVersionSent(
     if (!row) return null;
     if (row.version.status !== "draft") {
       throw new QuoteInputError("Only a draft can be sent");
+    }
+    // A won quote has been answered. Sending a draft left open beside the
+    // accepted version would leave the quote holding two: the accepted one,
+    // which is not superseded because it is the answer, and a new sent one.
+    if (row.quote.outcome === "won") {
+      throw new QuoteInputError("This quote has already been accepted");
     }
 
     const pricing =
@@ -564,10 +592,170 @@ export async function markQuoteVersionSent(
       })
       .where(eq(quoteVersions.id, row.version.id));
 
+    // Read back through the same transaction, so the PDF is rendered from
+    // the pricing just frozen rather than from today's rates.
+    await keepPdf(tx, params.teamId, row.version.id, params.storePdf);
+
     return row.quote.id;
   });
 
   return quoteId ? getQuote(db, { id: quoteId, teamId: params.teamId }) : null;
+}
+
+/**
+ * Renders a version as it now stands and records where the file was kept.
+ * Called inside the transaction that froze the version, so what is rendered
+ * is what was frozen, and a failure takes the whole thing back.
+ */
+async function keepPdf(
+  tx: DatabaseOrTransaction,
+  teamId: string,
+  versionId: string,
+  storePdf: StoreQuotePdf | undefined,
+) {
+  if (!storePdf) return;
+
+  const input = await getQuotePdfInput(tx, { teamId, versionId });
+  if (!input) {
+    throw new Error(`Quote version ${versionId} vanished while being stored`);
+  }
+
+  await tx
+    .update(quoteVersions)
+    .set({ pdfPath: await storePdf(input), updatedAt: sql`now()` })
+    .where(eq(quoteVersions.id, versionId));
+}
+
+/**
+ * Records that a client accepted the version they hold (FF-1615): which
+ * scenario, which of its optional items, who said so and when, the PO
+ * number, and the document that says it. The version becomes `accepted` and
+ * the quote is won.
+ *
+ * Recording it again on the same version replaces what was recorded — a
+ * mistyped PO or the wrong scenario is otherwise stuck, because a won quote
+ * keeps its outcome. Null when the version is not the team's.
+ */
+export async function acceptQuoteVersion(
+  db: Database,
+  params: {
+    teamId: string;
+    versionId: string;
+    scenarioId: string;
+    optionalLineIds?: string[];
+    /** When the client accepted, not when this was typed in. */
+    acceptedAt?: string;
+    acceptedByName?: string | null;
+    poNumber?: string | null;
+    /** Path tokens of the order form in the `vault` bucket. */
+    acceptanceFilePath?: string[] | null;
+    today?: string;
+    /** For a version sent before its PDF was kept; see `StoreQuotePdf`. */
+    storePdf?: StoreQuotePdf;
+  },
+) {
+  const today = params.today ?? todayUtc();
+  const optionalLineIds = params.optionalLineIds ?? [];
+
+  const quoteId = await db.transaction(async (tx) => {
+    const row = await lockVersion(tx, params.teamId, params.versionId);
+    if (!row) return null;
+    const { version, quote } = row;
+
+    // Sending supersedes the version before it, so the one the client holds
+    // is the sent one — a revision drafted beside it is not what was
+    // answered. An accepted one is here again to correct what was recorded.
+    if (version.status !== "sent" && version.status !== "accepted") {
+      throw new QuoteInputError(
+        "Only the version the client holds can be accepted",
+      );
+    }
+    if (isExpired(version, today)) {
+      throw new QuoteInputError(
+        "This version has expired; revise it and send it again",
+      );
+    }
+
+    const problem = acceptanceProblem(version.content as QuoteContent, {
+      scenarioId: params.scenarioId,
+      optionalLineIds,
+    });
+    if (problem) throw new QuoteInputError(problem);
+
+    const filePath = params.acceptanceFilePath?.length
+      ? params.acceptanceFilePath
+      : null;
+    if (filePath && (filePath.length < 2 || filePath[0] !== params.teamId)) {
+      throw new QuoteInputError(
+        "The accepted document is stored outside this team",
+      );
+    }
+
+    await tx
+      .update(quoteVersions)
+      .set({
+        status: "accepted",
+        acceptedScenarioId: params.scenarioId,
+        acceptedOptionalLineIds: optionalLineIds,
+        acceptedAt: params.acceptedAt ?? sql`now()`,
+        acceptedByName: params.acceptedByName?.trim() || null,
+        poNumber: params.poNumber?.trim() || null,
+        acceptanceFilePath: filePath,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(quoteVersions.id, version.id));
+
+    // Since FF-1615 the PDF is kept when a version is sent. One sent before
+    // that has none, so it is rendered here instead — from the pricing
+    // frozen at the time, which is what the client was quoted.
+    if (!version.pdfPath?.length) {
+      await keepPdf(tx, params.teamId, version.id, params.storePdf);
+    }
+
+    await tx
+      .update(quotes)
+      .set({
+        outcome: "won",
+        outcomeReason: null,
+        outcomeAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(quotes.id, quote.id));
+
+    return quote.id;
+  });
+
+  return quoteId
+    ? getQuote(db, { id: quoteId, teamId: params.teamId, today })
+    : null;
+}
+
+/**
+ * A version's name and the PDF kept for it, when one was (FF-1615). The
+ * download serves that file rather than drawing the quote again, which is
+ * the whole point of keeping it. Null when the version is not the team's.
+ */
+export async function getQuoteVersionFile(
+  db: DatabaseOrTransaction,
+  params: { teamId: string; versionId: string },
+) {
+  const [row] = await db
+    .select({
+      pdfPath: quoteVersions.pdfPath,
+      version: quoteVersions.version,
+      quoteNumber: quotes.quoteNumber,
+    })
+    .from(quoteVersions)
+    .innerJoin(quotes, eq(quotes.id, quoteVersions.quoteId))
+    .where(
+      and(
+        eq(quoteVersions.id, params.versionId),
+        eq(quoteVersions.teamId, params.teamId),
+      ),
+    );
+  if (!row) return null;
+
+  return { ...row, pdfPath: row.pdfPath?.length ? row.pdfPath : null };
 }
 
 /** A version's pricing: as frozen when it was sent, else worked out now. */
@@ -767,8 +955,14 @@ export async function listQuotes(
   const latest = sql`(
     SELECT max(v.version) FROM quote_versions v WHERE v.quote_id = ${quotes.id}
   )`;
-  // Sending one version supersedes the one before, so a quote holds at most one.
+  // The version the client holds: the one that was sent, or the one they
+  // accepted. Read as the newest of those rather than by status alone, so a
+  // quote can never match twice and appear twice in the list.
   const held = alias(quoteVersions, "held");
+  const heldVersion = sql`(
+    SELECT max(v.version) FROM quote_versions v
+    WHERE v.quote_id = ${quotes.id} AND v.status IN ('sent', 'accepted')
+  )`;
   const open = eq(quotes.outcome, "open");
 
   const filter = {
@@ -806,7 +1000,10 @@ export async function listQuotes(
         eq(quoteVersions.version, latest),
       ),
     )
-    .leftJoin(held, and(eq(held.quoteId, quotes.id), eq(held.status, "sent")))
+    .leftJoin(
+      held,
+      and(eq(held.quoteId, quotes.id), eq(held.version, heldVersion)),
+    )
     .leftJoin(customers, eq(customers.id, quotes.customerId))
     .where(
       and(

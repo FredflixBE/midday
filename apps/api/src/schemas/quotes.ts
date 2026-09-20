@@ -51,6 +51,26 @@ export const markQuoteSentSchema = z.object({
   sentTo: z.string().trim().max(500).nullable().optional(),
 });
 
+/**
+ * What a client answered (FF-1615), recorded by hand: the scenario they
+ * took, the optional items that came along, who said so and when, the PO
+ * number, and where the order form was stored in the vault.
+ */
+export const acceptQuoteSchema = z.object({
+  versionId: z.string().uuid(),
+  scenarioId: z.string().min(1).max(200),
+  optionalLineIds: z.array(z.string().min(1).max(200)).max(500).optional(),
+  acceptedAt: z.string().date().optional(),
+  acceptedByName: z.string().trim().max(300).nullable().optional(),
+  poNumber: z.string().trim().max(100).nullable().optional(),
+  acceptanceFilePath: z
+    .array(z.string().min(1).max(300))
+    .min(2)
+    .max(10)
+    .nullable()
+    .optional(),
+});
+
 /** Won is recorded by accepting a version (FF-1615), not here. */
 export const setQuoteOutcomeSchema = z.object({
   quoteId: z.string().uuid(),

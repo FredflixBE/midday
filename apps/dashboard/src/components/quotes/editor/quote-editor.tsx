@@ -36,6 +36,7 @@ import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields } from "./quote-header-fields";
 import { QuoteRates } from "./quote-rates";
 import { QuoteScenarios } from "./quote-scenarios";
+import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
 
 type Quote = RouterOutputs["quotes"]["get"];
 type Version = Quote["versions"][number];
@@ -75,6 +76,12 @@ export function QuoteEditor({ id }: { id: string }) {
     (latest.status === "sent" || latest.status === "superseded") &&
     quote.outcome !== "won";
 
+  // Acceptance answers the version the client holds. An accepted one opens
+  // again so what was recorded can be put right.
+  const canAccept =
+    version.status === "accepted" ||
+    (version.status === "sent" && !version.expired);
+
   return (
     <VersionEditor
       key={version.id}
@@ -97,6 +104,9 @@ export function QuoteEditor({ id }: { id: string }) {
             </Select>
           ) : null}
           <OutcomeMenu quoteId={quote.id} outcome={quote.outcome} />
+          {canAccept ? (
+            <RecordAcceptance quoteId={quote.id} version={version} />
+          ) : null}
           {canRevise ? (
             <Button
               type="button"
@@ -159,6 +169,7 @@ function VersionEditor({
                 {quote.outcomeReason}
               </span>
             ) : null}
+            <AcceptanceNote version={version} />
           </div>
           <div className="flex items-center gap-2">
             {controls}

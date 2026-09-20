@@ -1695,6 +1695,22 @@ export const quoteVersions = pgTable(
     // The pricing result frozen when the version is sent.
     pricing: jsonb(),
     internalNote: text("internal_note"),
+    // The PDF as it went out, stored when the version is sent (FF-1615):
+    // path tokens in the `vault` bucket. What the logo, the payment details,
+    // the labels and the pictures said then is in the file, not read again.
+    pdfPath: text("pdf_path").array(),
+    // Acceptance, recorded by hand (FF-1615). It arrives outside Midday — an
+    // email, an order form, a PO — so this is what was answered, by whom,
+    // and the document that says so.
+    acceptedScenarioId: text("accepted_scenario_id"),
+    acceptedOptionalLineIds: text("accepted_optional_line_ids").array(),
+    acceptedAt: timestamp("accepted_at", {
+      withTimezone: true,
+      mode: "string",
+    }),
+    acceptedByName: text("accepted_by_name"),
+    poNumber: text("po_number"),
+    acceptanceFilePath: text("acceptance_file_path").array(),
   },
   (table) => [
     index("quote_versions_team_id_idx").on(table.teamId),

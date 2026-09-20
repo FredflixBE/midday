@@ -24,7 +24,7 @@ import { useErrorToast } from "../use-error-toast";
 import { Field } from "./fields";
 
 /** After a follow-up action, the quote and the list read again. */
-function useRefreshQuote(quoteId: string) {
+export function useRefreshQuote(quoteId: string) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   return () =>

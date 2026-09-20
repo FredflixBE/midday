@@ -1,10 +1,9 @@
 "use client";
 
-import { createClient } from "@midday/supabase/client";
 import type { StoredImages } from "@midday/ui/editor";
 import { useCallback, useMemo, useRef } from "react";
 import { useUserQuery } from "@/hooks/use-user";
-import { resumableUpload } from "@/utils/upload";
+import { uploadToQuotes } from "./upload-to-quotes";
 
 /** Big enough for a screenshot or a mock-up, small enough to send. */
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -25,10 +24,8 @@ const TYPES: Record<string, string | undefined> = {
  * they were stored under — never a public address, so a picture is only
  * reachable with the team's own file key.
  *
- * Each upload gets a name of its own rather than the file's, because storage
- * writes are upserts: two screenshots called the same thing would otherwise
- * overwrite each other, and the second would silently replace the picture in
- * a version that had already been sent.
+ * `uploadToQuotes` gives each upload a name of its own, which is what keeps
+ * two screenshots of the same name from replacing one another.
  *
  * What this returns never changes and is never absent, which matters more
  * than it looks: the editor builds its schema from it once, and a schema
@@ -63,21 +60,11 @@ export function useQuoteImages(): StoredImages & { ready: boolean } {
       throw new Error("Pictures in a quote are up to 10 MB.");
     }
 
-    const extension = TYPES[file.type];
-    if (!extension) {
+    if (!TYPES[file.type]) {
       throw new Error("A quote holds PNG and JPEG pictures.");
     }
 
-    const named = new File([file], `${crypto.randomUUID()}.${extension}`, {
-      type: file.type,
-    });
-    const folder = [teamId, "quotes"];
-    await resumableUpload(createClient(), {
-      bucket: "vault",
-      path: folder,
-      file: named,
-    });
-    return [...folder, named.name].join("/");
+    return (await uploadToQuotes(teamId, file)).join("/");
   }, []);
 
   const images = useMemo(() => ({ srcOf, upload }), [srcOf, upload]);

@@ -1,4 +1,5 @@
 import {
+  acceptQuoteSchema,
   createQuoteSchema,
   listQuotesSchema,
   markQuoteSentSchema,
@@ -8,8 +9,10 @@ import {
   updateQuoteDraftSchema,
   updateQuoteSettingsSchema,
 } from "@api/schemas/quotes";
+import { storeQuotePdf } from "@api/services/quote-pdf";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import {
+  acceptQuoteVersion,
   createQuote,
   getQuote,
   getQuoteSettings,
@@ -104,7 +107,9 @@ export const quotesRouter = createTRPCRouter({
 
   /**
    * Marks a draft sent, as it went out by hand: the version is frozen with
-   * its pricing at this moment, and the one sent before it is superseded.
+   * its pricing at this moment, the one sent before it is superseded, and
+   * its PDF is kept (FF-1615). A PDF that cannot be stored refuses the send:
+   * a sent version nobody can produce the file for is worse.
    */
   markSent: protectedProcedure
     .input(markQuoteSentSchema)
@@ -114,6 +119,23 @@ export const quotesRouter = createTRPCRouter({
           teamId: teamId!,
           versionId: input.versionId,
           sentTo: input.sentTo || null,
+          storePdf: storeQuotePdf(teamId!, input.versionId),
+        }).catch(asUserError),
+      );
+    }),
+
+  /**
+   * The client said yes (FF-1615): the version is accepted and the quote is
+   * won. Recording it again on the same version corrects what was recorded.
+   */
+  accept: protectedProcedure
+    .input(acceptQuoteSchema)
+    .mutation(async ({ input, ctx: { db, teamId } }) => {
+      return found(
+        await acceptQuoteVersion(db, {
+          ...input,
+          teamId: teamId!,
+          storePdf: storeQuotePdf(teamId!, input.versionId),
         }).catch(asUserError),
       );
     }),

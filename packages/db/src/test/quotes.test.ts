@@ -18,15 +18,18 @@ import type { Database } from "../client";
 import { createInvoiceProduct } from "../queries/invoice-products";
 import { setCustomerProductRate } from "../queries/product-rates";
 import {
+  acceptQuoteVersion,
   createQuote,
   getPricedQuote,
   getQuote,
   getQuotePdfInput,
   getQuoteSettings,
+  getQuoteVersionFile,
   listQuotes,
   markQuoteVersionSent,
   QuoteInputError,
   reviseQuote,
+  type StoreQuotePdf,
   setQuoteOutcome,
   updateQuoteDraft,
   updateQuoteSettings,
@@ -1207,6 +1210,358 @@ describe.skipIf(SKIP)("quotes", () => {
           outcome: "lost",
           reason: null,
         }),
+      ).toBeNull();
+    });
+  });
+
+  /**
+   * FF-1615. Acceptance arrives outside Midday, so it is recorded by hand on
+   * the version the client holds — and the PDF that went out is kept, since
+   * the logo, the payment details, the labels and the pictures in the text
+   * are all read live when a quote is drawn.
+   */
+  describe("acceptance", () => {
+    /** Two scenarios; the first offers an optional item. */
+    function twoScenarios(productId: string): QuoteContent {
+      const item = (id: string, optional: boolean) => ({
+        id,
+        type: "item" as const,
+        title: `Work ${id}`,
+        description: null,
+        productId,
+        hours: 10,
+        hoursMax: null,
+        optional,
+        once: false,
+      });
+      const scenario = (id: string, lines: ReturnType<typeof item>[]) => ({
+        id,
+        name: `Scenario ${id}`,
+        recommended: false,
+        pricing: "fixed" as const,
+        capped: false,
+        recurrence: null,
+        adjustmentOverride: null,
+        paymentSchedule: [],
+        lines,
+      });
+      return {
+        blocks: [{ id: "b1", type: "pricing" }],
+        rates: { productRates: {}, volumeTiers: [], termTiers: [] },
+        displayUnit: "hours",
+        hoursPerDay: 8,
+        scenarios: [
+          scenario("s1", [item("base", false), item("extra", true)]),
+          scenario("s2", [item("other", false)]),
+        ],
+      };
+    }
+
+    /** A quote whose version 1 has been sent, with a PDF kept for it. */
+    async function sent(store: StoreQuotePdf | null = keeper()) {
+      const product = await createInvoiceProduct(db, {
+        teamId: TEAM_USD_ID,
+        createdBy: TEST_USER_ID,
+        name: "Development",
+        price: 100,
+        currency: "USD",
+        unit: "hour",
+      });
+      const quote = await create();
+      const draft = draftOf(quote);
+      await updateQuoteDraft(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        content: twoScenarios(product.id),
+      });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        storePdf: store ?? undefined,
+      });
+      return { quoteId: quote.id, versionId: draft.id };
+    }
+
+    /** Stands in for rendering and storing: remembers what it was handed. */
+    function keeper() {
+      const seen: unknown[] = [];
+      const store: StoreQuotePdf & { seen: unknown[] } = Object.assign(
+        async (input: unknown) => {
+          seen.push(input);
+          return [TEAM_USD_ID, "quotes", "kept.pdf"];
+        },
+        { seen },
+      );
+      return store;
+    }
+
+    async function versionRow(versionId: string) {
+      const [row] = await db
+        .select()
+        .from(quoteVersions)
+        .where(eq(quoteVersions.id, versionId));
+      return row!;
+    }
+
+    test("sending keeps the PDF, drawn from the pricing just frozen", async () => {
+      const store = keeper();
+      const { versionId } = await sent(store);
+
+      const row = await versionRow(versionId);
+      expect(row.pdfPath).toEqual([TEAM_USD_ID, "quotes", "kept.pdf"]);
+      expect(store.seen).toHaveLength(1);
+      const input = store.seen[0] as {
+        pricing: { scenarios: { totals: { total: { amount: number } } }[] };
+      };
+      expect(input.pricing.scenarios[0]!.totals.total.amount).toBe(100000);
+    });
+
+    test("a PDF that cannot be kept refuses the send", async () => {
+      const quote = await create();
+      const draft = draftOf(quote);
+
+      await expect(
+        markQuoteVersionSent(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          storePdf: async () => {
+            throw new Error("the vault said no");
+          },
+        }),
+      ).rejects.toThrow("the vault said no");
+
+      const row = await versionRow(draft.id);
+      expect(row.status).toBe("draft");
+      expect(row.sentAt).toBeNull();
+      expect(row.pricing).toBeNull();
+    });
+
+    test("accepting records the answer and wins the quote", async () => {
+      const { quoteId, versionId } = await sent();
+
+      const quote = await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+        scenarioId: "s1",
+        optionalLineIds: ["extra"],
+        acceptedAt: "2026-09-18",
+        acceptedByName: "  A. Buyer  ",
+        poNumber: " PO-42 ",
+        acceptanceFilePath: [TEAM_USD_ID, "quotes", "order-form.pdf"],
+        today: TODAY,
+      });
+
+      expect(quote!.id).toBe(quoteId);
+      expect(quote!.outcome).toBe("won");
+      expect(quote!.outcomeAt).not.toBeNull();
+      expect(quote!.versions[0]).toMatchObject({
+        status: "accepted",
+        acceptedScenarioId: "s1",
+        acceptedOptionalLineIds: ["extra"],
+        acceptedByName: "A. Buyer",
+        poNumber: "PO-42",
+        acceptanceFilePath: [TEAM_USD_ID, "quotes", "order-form.pdf"],
+      });
+      expect(quote!.versions[0]!.acceptedAt).toContain("2026-09-18");
+    });
+
+    test("the PDF kept when it was sent is not drawn again", async () => {
+      const { versionId } = await sent();
+      const store = keeper();
+
+      await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+        scenarioId: "s1",
+        storePdf: store,
+        today: TODAY,
+      });
+
+      expect(store.seen).toHaveLength(0);
+      expect((await versionRow(versionId)).pdfPath).toEqual([
+        TEAM_USD_ID,
+        "quotes",
+        "kept.pdf",
+      ]);
+    });
+
+    test("a version sent before its PDF was kept gets one now", async () => {
+      const { versionId } = await sent(null);
+      expect((await versionRow(versionId)).pdfPath).toBeNull();
+      const store = keeper();
+
+      await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+        scenarioId: "s1",
+        storePdf: store,
+        today: TODAY,
+      });
+
+      expect(store.seen).toHaveLength(1);
+      expect((await versionRow(versionId)).pdfPath).toEqual([
+        TEAM_USD_ID,
+        "quotes",
+        "kept.pdf",
+      ]);
+    });
+
+    test("recording it again replaces what was recorded", async () => {
+      const { versionId } = await sent();
+      const accept = (scenarioId: string, poNumber: string) =>
+        acceptQuoteVersion(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          scenarioId,
+          poNumber,
+          today: TODAY,
+        });
+
+      await accept("s1", "PO-1");
+      const quote = await accept("s2", "PO-2");
+
+      expect(quote!.versions[0]).toMatchObject({
+        status: "accepted",
+        acceptedScenarioId: "s2",
+        poNumber: "PO-2",
+      });
+    });
+
+    test("a draft is not what the client holds, so it is not accepted", async () => {
+      const quote = await create();
+
+      await expect(
+        acceptQuoteVersion(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draftOf(quote).id,
+          scenarioId: "s1",
+          today: TODAY,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("an expired version is not accepted", async () => {
+      const { versionId } = await sent();
+      await db
+        .update(quoteVersions)
+        .set({ validUntil: "2026-09-01" })
+        .where(eq(quoteVersions.id, versionId));
+
+      await expect(
+        acceptQuoteVersion(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          scenarioId: "s1",
+          today: TODAY,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("a scenario the version does not offer is refused", async () => {
+      const { versionId } = await sent();
+
+      await expect(
+        acceptQuoteVersion(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          scenarioId: "s9",
+          today: TODAY,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("an optional item of another scenario is refused", async () => {
+      const { versionId } = await sent();
+
+      await expect(
+        acceptQuoteVersion(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          scenarioId: "s1",
+          optionalLineIds: ["other"],
+          today: TODAY,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("a document stored outside the team is refused", async () => {
+      const { versionId } = await sent();
+
+      await expect(
+        acceptQuoteVersion(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          scenarioId: "s1",
+          acceptanceFilePath: [TEAM_EUR_ID, "quotes", "order-form.pdf"],
+          today: TODAY,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("another team's version is not accepted", async () => {
+      const { versionId } = await sent();
+
+      expect(
+        await acceptQuoteVersion(db, {
+          teamId: TEAM_EUR_ID,
+          versionId,
+          scenarioId: "s1",
+          today: TODAY,
+        }),
+      ).toBeNull();
+    });
+
+    test("a draft left open beside the accepted version is not sent", async () => {
+      const { quoteId, versionId } = await sent();
+      // The revision is drafted before the answer comes in.
+      const revised = await reviseQuote(db, {
+        teamId: TEAM_USD_ID,
+        quoteId,
+      });
+      const draft = draftOf(revised!);
+      await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+        scenarioId: "s1",
+        today: TODAY,
+      });
+
+      await expect(
+        markQuoteVersionSent(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("an accepted version is still the one the list shows as held", async () => {
+      const { versionId } = await sent();
+      await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+        scenarioId: "s1",
+        today: TODAY,
+      });
+
+      const [row] = await listQuotes(db, {
+        teamId: TEAM_USD_ID,
+        today: TODAY,
+      });
+      expect(row!.held).toMatchObject({ id: versionId, status: "accepted" });
+    });
+
+    test("the file kept for a version is read back with its name", async () => {
+      const { versionId } = await sent();
+
+      expect(
+        await getQuoteVersionFile(db, { teamId: TEAM_USD_ID, versionId }),
+      ).toEqual({
+        pdfPath: [TEAM_USD_ID, "quotes", "kept.pdf"],
+        quoteNumber: "OFF-0001",
+        version: 1,
+      });
+      expect(
+        await getQuoteVersionFile(db, { teamId: TEAM_EUR_ID, versionId }),
       ).toBeNull();
     });
   });

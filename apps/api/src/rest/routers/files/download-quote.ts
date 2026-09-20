@@ -1,22 +1,27 @@
 import type { Context } from "@api/rest/types";
 import { downloadQuoteSchema } from "@api/schemas/files";
+import { quotePdf } from "@api/services/quote-pdf";
 import { createAdminClient } from "@api/services/supabase";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { getQuotePdfInput } from "@midday/db/queries";
+import type { Database } from "@midday/db/client";
+import { getQuotePdfInput, getQuoteVersionFile } from "@midday/db/queries";
 import { verifyFileKey } from "@midday/encryption";
-import type { ImageSource } from "@midday/invoice/templates/pdf/format";
-import { imagePathsIn, quotePdfFilename } from "@midday/quote";
-import { renderQuotePdf } from "@midday/quote/pdf";
+import { logger } from "@midday/logger";
+import { quotePdfFilename } from "@midday/quote";
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { withDatabase } from "../../middleware/db";
 import { withClientIp } from "../../middleware/ip";
-import { isTeamPath } from "./utils";
 
 /**
  * A quote version as a PDF (FF-1613), served the way the invoice download
- * is: the team's file key in `fk` says whose it is. A sent version renders
- * from the pricing frozen when it was sent, a draft at today's rates.
+ * is: the team's file key in `fk` says whose it is.
+ *
+ * A version that was sent has its PDF kept (FF-1615), and that file is what
+ * is served: the logo, the payment details, the labels and the pictures in
+ * the text are all read live when a quote is drawn, so redrawing a sent
+ * version would not reproduce what the client holds. A draft — and a version
+ * sent before its PDF was kept — is drawn now, at today's rates.
  */
 const app = new OpenAPIHono<Context>();
 
@@ -70,24 +75,14 @@ app.openapi(
     const teamId = c.get("teamId");
     const { id, preview } = c.req.valid("query");
 
-    const input = await getQuotePdfInput(db, { teamId, versionId: id });
-    if (!input) {
+    const kept = await getQuoteVersionFile(db, { teamId, versionId: id });
+    if (!kept) {
       throw new HTTPException(404, { message: "Quote not found" });
     }
 
-    let pdf: Buffer;
-    try {
-      pdf = await renderQuotePdf({
-        ...input,
-        images: await readImages(teamId, imagePathsIn(input.content)),
-      });
-    } catch (error: unknown) {
-      throw new HTTPException(500, {
-        message: `Failed to generate quote PDF: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      });
-    }
+    const pdf =
+      (kept.pdfPath && (await stored(kept.pdfPath))) ??
+      (await drawn(db, teamId, id));
 
     const headers: Record<string, string> = {
       "Content-Type": "application/pdf",
@@ -95,7 +90,7 @@ app.openapi(
     };
     if (!preview) {
       headers["Content-Disposition"] =
-        `attachment; filename="${quotePdfFilename(input.quoteNumber, input.version)}"`;
+        `attachment; filename="${quotePdfFilename(kept.quoteNumber, kept.version)}"`;
     }
 
     return new Response(new Uint8Array(pdf), { headers });
@@ -103,43 +98,45 @@ app.openapi(
 );
 
 /**
- * The bytes behind each picture a quote's text holds (FF-1625). The text
- * keeps a path, not an address, so the PDF cannot be drawn until they are
- * read. A path that reads back nothing is simply left out: a missing picture
- * must not cost the whole quote its PDF.
- *
- * Every path is checked to live under this team, so a doctored one cannot
- * pull a file out of another team's vault, and only what react-pdf can draw
- * is handed to it.
+ * The file kept when the version was sent. A path that reads back nothing
+ * falls through to drawing the quote again: a vault someone tidied should
+ * cost the exact file, not the download. It is said out loud, because a
+ * quote drawn again is no longer provably what the client holds.
  */
-/** What react-pdf can draw, and so what a picture may be. */
-const PDF_FORMATS: Record<string, ImageSource["format"] | undefined> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-};
-
-async function readImages(
-  teamId: string,
-  paths: string[],
-): Promise<Record<string, ImageSource>> {
-  if (paths.length === 0) return {};
-
+async function stored(path: string[]): Promise<Buffer | null> {
   const supabase = await createAdminClient();
-  const images: Record<string, ImageSource> = {};
+  const { data } = await supabase.storage
+    .from("vault")
+    .download(path.join("/"));
+  if (!data) {
+    logger.warn("The stored PDF of a sent quote is gone; drawing it again", {
+      path: path.join("/"),
+    });
+    return null;
+  }
+  return Buffer.from(await data.arrayBuffer());
+}
 
-  await Promise.all(
-    paths.map(async (path) => {
-      if (!isTeamPath(teamId, path)) return;
+/** The quote drawn as it stands now. */
+async function drawn(
+  db: Database,
+  teamId: string,
+  versionId: string,
+): Promise<Buffer> {
+  const input = await getQuotePdfInput(db, { teamId, versionId });
+  if (!input) {
+    throw new HTTPException(404, { message: "Quote not found" });
+  }
 
-      const { data } = await supabase.storage.from("vault").download(path);
-      const format = PDF_FORMATS[data?.type ?? ""];
-      if (!data || !format) return;
-
-      images[path] = { data: Buffer.from(await data.arrayBuffer()), format };
-    }),
-  );
-
-  return images;
+  try {
+    return await quotePdf(teamId, input);
+  } catch (error: unknown) {
+    throw new HTTPException(500, {
+      message: `Failed to generate quote PDF: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    });
+  }
 }
 
 export { app as downloadQuoteRouter };

@@ -1,6 +1,6 @@
 # Quotes — design
 
-Status: draft for discussion, 2026-09-19. Nothing here is built yet.
+Status: phases 1 and 2 are built, 2026-09-20; this is the design they were built to, kept in step with them. Items in §8 still marked **Open** are the ones left undecided.
 
 Business input: RES-24 (requirements R1–R13, use cases A–E) and RES-23 (evidence). This document turns those into a data model, pricing rules and a build order. Items marked **Open** still need a decision.
 
@@ -250,6 +250,8 @@ A new react-pdf template in `packages/quote`, downloaded from the dashboard. It'
    - a comparison table when there are several scenarios (one column per scenario, recommended one marked)
    - then each scenario: lines grouped by section, section subtotals, work-type subtotals, optional items, totals (per period, per year, over the term for recurring; fixed, or min–max with the cap, for project), payment schedule.
 4. Amounts are excluding VAT (Open 5).
+
+**The PDF of a sent version is stored** (FF-1615). A version freezes its content, its pricing and the sender and customer snapshots, but the logo, the payment details, the team's labels and the pictures in the text are all read live when the quote is drawn — so only a file can be what the client holds. Marking a version sent renders it once and keeps it in the `vault` bucket under `<team>/quotes/<version id>.pdf`, inside the same transaction: a PDF that cannot be stored refuses the send, and the send holds its lock across a render and an upload, which is the price of that guarantee. The download serves that file when there is one, and draws the quote only for a draft (or a version sent before this was built).
 
 ## 7. Build order
 
