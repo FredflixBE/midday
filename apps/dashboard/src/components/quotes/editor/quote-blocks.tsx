@@ -269,11 +269,11 @@ function TextBlockEditor({
           placeholder="Heading"
           value={block.heading ?? ""}
           maxLength={500}
+          // No ring, no box, nothing that says "field": a heading being
+          // typed shows the caret, the way the text under it does.
           className={cn(
             HEADING_STYLES,
-            "h-auto border-0 bg-transparent p-0",
-            // Nothing bounds the field any more, so focus has to show.
-            "focus-visible:ring-1 focus-visible:ring-ring",
+            "h-auto border-0 bg-transparent p-0 focus-visible:ring-0",
           )}
           onChange={(event) =>
             onChange({ heading: event.target.value || null })

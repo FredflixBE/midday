@@ -50,9 +50,9 @@ export function QuoteTitleField({
       maxLength={300}
       disabled={locked}
       className={cn(
-        "h-auto border-0 bg-transparent p-0 text-lg font-medium",
-        // Nothing bounds the field any more, so focus has to show.
-        "focus-visible:ring-1 focus-visible:ring-ring",
+        // No ring and no box: the caret is what says the title is being
+        // typed, the way it does everywhere else in the document.
+        "h-auto border-0 bg-transparent p-0 text-lg font-medium focus-visible:ring-0",
         // A version that cannot be edited reads as the document throughout,
         // so its title is neither dimmed nor refused under the pointer. A
         // title locked on a draft still is: there, it is the one field of
