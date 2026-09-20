@@ -1,3 +1,4 @@
+import type { ImageSource } from "@midday/invoice/templates/pdf/format";
 import { compareScenarios } from "../compare";
 import type {
   EditorDoc,
@@ -54,6 +55,11 @@ export type QuotePdfInput = {
   labels?: Record<string, Record<string, string>> | null;
   logoUrl?: string | null;
   paymentDetails?: unknown;
+  /**
+   * The bytes behind each picture the text holds, by its stored path. What
+   * is missing is left out of the PDF rather than failing it.
+   */
+  images?: Record<string, ImageSource>;
 };
 
 export type ScenarioRow =
@@ -111,6 +117,7 @@ export type DocumentBlock =
 
 export type QuoteDocument = {
   labels: QuoteLabels;
+  images: Record<string, ImageSource>;
   logoUrl: string | null;
   fromDetails: EditorDoc | null;
   customerDetails: EditorDoc | null;
@@ -219,6 +226,7 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   return {
     labels,
     logoUrl: input.logoUrl ?? null,
+    images: input.images ?? {},
     fromDetails: asDoc(input.fromDetails),
     customerDetails: asDoc(input.customerDetails),
     paymentDetails: asDoc(input.paymentDetails),

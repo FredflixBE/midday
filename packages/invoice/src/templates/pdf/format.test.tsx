@@ -273,6 +273,71 @@ describe("formatEditorContent", () => {
     expect(decorationOf("both")).toBe("underline line-through");
   });
 
+  describe("a picture", () => {
+    const withImage = {
+      type: "doc",
+      content: [
+        paragraph("Before"),
+        { type: "image", attrs: { path: "team/quotes/a.png", alt: "Chart" } },
+        paragraph("After"),
+      ],
+    } as EditorDoc;
+    const bytes = Buffer.from([1, 2, 3]);
+    const imageOf = () => ({ data: bytes, format: "png" as const });
+
+    test("is drawn at the width of the text column, whole", () => {
+      const out = elements(tree(formatEditorContent(withImage, { imageOf })));
+      const image = out.find((e) => e.type === "IMAGE")!;
+
+      expect((image.props as { src: unknown }).src).toEqual({
+        data: bytes,
+        format: "png",
+      });
+      expect(styleOf(image).width).toBe("100%");
+      // Its own proportions: nothing fixes the height, and a tall one is
+      // fitted inside the room a page has rather than running off it.
+      expect(styleOf(image).height).toBeUndefined();
+      expect(Number(styleOf(image).maxHeight)).toBeGreaterThan(0);
+      expect(Number(styleOf(image).maxHeight)).toBeLessThan(700);
+      expect(styleOf(image).objectFit).toBe("contain");
+
+      const holder = out.find((e) => e.children.includes(image))!;
+      expect((holder.props as { wrap?: boolean }).wrap).toBe(false);
+    });
+
+    test("is passed over when its bytes cannot be had", () => {
+      const out = tree(formatEditorContent(withImage, { imageOf: () => null }));
+      expect(elements(out).some((e) => e.type === "IMAGE")).toBe(false);
+      expect(textOf({ type: "x", key: null, props: {}, children: out })).toBe(
+        "BeforeAfter",
+      );
+    });
+
+    test("is passed over when nothing knows how to read a path", () => {
+      const out = elements(tree(formatEditorContent(withImage)));
+      expect(out.some((e) => e.type === "IMAGE")).toBe(false);
+    });
+
+    test("is found inside a list item too", () => {
+      const doc = {
+        type: "doc",
+        content: [
+          {
+            type: "bulletList",
+            content: [
+              item(paragraph("With"), {
+                type: "image",
+                attrs: { path: "team/quotes/b.png" },
+              }),
+            ],
+          },
+        ],
+      } as EditorDoc;
+      const out = elements(tree(formatEditorContent(doc, { imageOf })));
+      expect(out.filter((e) => e.type === "IMAGE")).toHaveLength(1);
+    });
+  });
+
   test("skips nodes it does not know instead of failing", () => {
     const doc = {
       type: "doc",

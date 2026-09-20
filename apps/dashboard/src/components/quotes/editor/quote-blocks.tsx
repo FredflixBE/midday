@@ -14,6 +14,7 @@ import { Input } from "@midday/ui/input";
 import { Maximize2, Trash2 } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import type { DraftChange } from "../use-quote-draft";
+import { useQuoteImages } from "../use-quote-images";
 import { SortableList, SortableRow } from "./sortable";
 
 type TextBlock = Extract<Block, { type: "text" }>;
@@ -140,6 +141,7 @@ function TextBlockEditor({
   onRemove: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const images = useQuoteImages();
   const body = useRef<HTMLDivElement>(null);
   // What the block stood at when it was expanded, so the page behind the
   // dialog does not collapse and shift everything under it.
@@ -153,9 +155,13 @@ function TextBlockEditor({
    */
   const renderEditor = (className: string, autoFocus = false) => (
     <Editor
+      // A picture is shown from an address made when the editor is built, so
+      // one built before the team was read shows none: build it again.
+      key={images.ready ? "ready" : "waiting"}
       initialContent={block.body}
       editable={editable}
       toolbar
+      images={images}
       autoFocus={autoFocus}
       className={className}
       onUpdate={(editor) =>

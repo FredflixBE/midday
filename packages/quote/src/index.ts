@@ -2,6 +2,7 @@ export * from "./compare";
 export * from "./content";
 export * from "./edit";
 export * from "./headline";
+export * from "./images";
 export * from "./number";
 export * from "./pricing";
 export * from "./unit";

@@ -1,14 +1,17 @@
 import type { Context } from "@api/rest/types";
 import { downloadQuoteSchema } from "@api/schemas/files";
+import { createAdminClient } from "@api/services/supabase";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getQuotePdfInput } from "@midday/db/queries";
 import { verifyFileKey } from "@midday/encryption";
-import { quotePdfFilename } from "@midday/quote";
+import type { ImageSource } from "@midday/invoice/templates/pdf/format";
+import { imagePathsIn, quotePdfFilename } from "@midday/quote";
 import { renderQuotePdf } from "@midday/quote/pdf";
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { withDatabase } from "../../middleware/db";
 import { withClientIp } from "../../middleware/ip";
+import { isTeamPath } from "./utils";
 
 /**
  * A quote version as a PDF (FF-1613), served the way the invoice download
@@ -74,7 +77,10 @@ app.openapi(
 
     let pdf: Buffer;
     try {
-      pdf = await renderQuotePdf(input);
+      pdf = await renderQuotePdf({
+        ...input,
+        images: await readImages(teamId, imagePathsIn(input.content)),
+      });
     } catch (error: unknown) {
       throw new HTTPException(500, {
         message: `Failed to generate quote PDF: ${
@@ -95,5 +101,45 @@ app.openapi(
     return new Response(new Uint8Array(pdf), { headers });
   },
 );
+
+/**
+ * The bytes behind each picture a quote's text holds (FF-1625). The text
+ * keeps a path, not an address, so the PDF cannot be drawn until they are
+ * read. A path that reads back nothing is simply left out: a missing picture
+ * must not cost the whole quote its PDF.
+ *
+ * Every path is checked to live under this team, so a doctored one cannot
+ * pull a file out of another team's vault, and only what react-pdf can draw
+ * is handed to it.
+ */
+/** What react-pdf can draw, and so what a picture may be. */
+const PDF_FORMATS: Record<string, ImageSource["format"] | undefined> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+};
+
+async function readImages(
+  teamId: string,
+  paths: string[],
+): Promise<Record<string, ImageSource>> {
+  if (paths.length === 0) return {};
+
+  const supabase = await createAdminClient();
+  const images: Record<string, ImageSource> = {};
+
+  await Promise.all(
+    paths.map(async (path) => {
+      if (!isTeamPath(teamId, path)) return;
+
+      const { data } = await supabase.storage.from("vault").download(path);
+      const format = PDF_FORMATS[data?.type ?? ""];
+      if (!data || !format) return;
+
+      images[path] = { data: Buffer.from(await data.arrayBuffer()), format };
+    }),
+  );
+
+  return images;
+}
 
 export { app as downloadQuoteRouter };

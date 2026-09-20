@@ -1,4 +1,4 @@
-import { Link, Text, View } from "@react-pdf/renderer";
+import { Image, Link, Text, View } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/types";
 import type { ReactNode } from "react";
 import type { EditorDoc, EditorNode } from "../../types";
@@ -19,20 +19,47 @@ const bodyText: PDFTextStyle = { fontSize: 9, fontFamily: "Inter" };
 const headingSizes: Record<number, number> = { 1: 14, 2: 12 };
 const smallestHeadingSize = 10;
 
+// A picture is drawn the width of the text column, but a tall one drawn to
+// that width would run off the foot of the page — a phone screenshot is
+// twice as tall as it is wide. This leaves it room to stand whole on a page
+// of its own, and a taller one is fitted inside rather than cut.
+const maxImageHeight = 560;
+
 // The cell that holds a list item's bullet or number: a bullet's width, or
 // room for the list's longest number, so every item's text lines up.
 const bulletWidth = 12;
 const digitWidth = 5;
 
-export function formatEditorContent(doc?: EditorDoc) {
+/**
+ * What a picture stored under a path looks like to react-pdf: the bytes,
+ * because the PDF is drawn on the server and a stored path is not an address
+ * anything can fetch. A path with nothing behind it is left out rather than
+ * failing the whole document.
+ */
+export type ImageSource = { data: Buffer; format: "png" | "jpg" };
+
+export type FormatOptions = {
+  /** The bytes behind a stored path, or null when there are none. */
+  imageOf?: (storedPath: string) => ImageSource | null;
+};
+
+export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
   if (!doc?.content) {
     return null;
   }
 
-  return <>{doc.content.map((node, index) => renderBlock(node, `${index}`))}</>;
+  return (
+    <>
+      {doc.content.map((node, index) => renderBlock(node, `${index}`, options))}
+    </>
+  );
 }
 
-function renderBlock(node: EditorNode, path: string): ReactNode {
+function renderBlock(
+  node: EditorNode,
+  path: string,
+  options?: FormatOptions,
+): ReactNode {
   switch (node.type) {
     case "paragraph":
       return (
@@ -83,11 +110,34 @@ function renderBlock(node: EditorNode, path: string): ReactNode {
               </Text>
               <View style={{ flex: 1 }}>
                 {item.content?.map((child, childIndex) =>
-                  renderBlock(child, `${path}-${index}-${childIndex}`),
+                  renderBlock(child, `${path}-${index}-${childIndex}`, options),
                 )}
               </View>
             </View>
           ))}
+        </View>
+      );
+    }
+
+    case "image": {
+      const stored = node.attrs?.path;
+      const source = stored ? options?.imageOf?.(stored) : null;
+      if (!source) {
+        return null;
+      }
+
+      return (
+        // The text column's full width, its own proportions, and never
+        // divided over two pages.
+        <View key={`image-${path}`} style={{ marginVertical: 6 }} wrap={false}>
+          <Image
+            src={source}
+            style={{
+              width: "100%",
+              maxHeight: maxImageHeight,
+              objectFit: "contain",
+            }}
+          />
         </View>
       );
     }

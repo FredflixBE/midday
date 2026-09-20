@@ -1,5 +1,8 @@
 import "@midday/invoice/templates/pdf/fonts";
-import { formatEditorContent } from "@midday/invoice/templates/pdf/format";
+import {
+  formatEditorContent,
+  type ImageSource,
+} from "@midday/invoice/templates/pdf/format";
 import type { EditorDoc as InvoiceEditorDoc } from "@midday/invoice/types";
 import { Document, Image, Page, Text, View } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/types";
@@ -32,13 +35,22 @@ const QUANTITY_WIDTH = 64;
 const RATE_WIDTH = 84;
 const AMOUNT_WIDTH = 124;
 
-function Rich({ doc }: { doc: EditorDoc | null }) {
+function Rich({
+  doc,
+  images,
+}: {
+  doc: EditorDoc | null;
+  /** Given, the text's pictures are drawn from these bytes. */
+  images?: Record<string, ImageSource>;
+}) {
   if (!doc) return null;
   return (
     // Sized here: react-pdf's default of 18 would set the line height.
     <View style={{ fontSize: 9, lineHeight: 1.4 }}>
       {/* The same Tiptap shape, typed loosely on this side. */}
-      {formatEditorContent(doc as unknown as InvoiceEditorDoc)}
+      {formatEditorContent(doc as unknown as InvoiceEditorDoc, {
+        imageOf: (path) => images?.[path] ?? null,
+      })}
     </View>
   );
 }
@@ -457,7 +469,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
                   {block.heading}
                 </Text>
               ) : null}
-              <Rich doc={block.body} />
+              <Rich doc={block.body} images={doc.images} />
             </View>
           ) : (
             <View key={block.id}>
