@@ -62,18 +62,25 @@ function renderInline(node: EditorNode, path: string) {
       }
 
       // Written out rather than left to a class, because what draws this
-      // card reads a narrow slice of Tailwind.
-      const textDecoration =
-        [hasUnderline ? "underline" : null, hasStrike ? "line-through" : null]
-          .filter(Boolean)
-          .join(" ") || undefined;
+      // card reads a narrow slice of Tailwind. The property is left off
+      // entirely when there is no decoration: the renderer trims whatever
+      // value it is handed, and an explicit undefined throws.
+      const decoration = [
+        hasUnderline ? "underline" : null,
+        hasStrike ? "line-through" : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
 
       if (inlineContent.text) {
         return (
           <span
             key={`text-${path}-${inlineIndex.toString()}`}
             tw={style}
-            style={{ fontFamily: "hedvig-sans", textDecoration }}
+            style={{
+              fontFamily: "hedvig-sans",
+              ...(decoration ? { textDecoration: decoration } : {}),
+            }}
           >
             {inlineContent.text}
           </span>
