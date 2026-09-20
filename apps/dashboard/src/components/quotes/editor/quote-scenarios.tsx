@@ -118,8 +118,7 @@ export function QuoteScenarios({
 
   return (
     <section className="space-y-4">
-      <h2 className="text-sm font-medium">Scenarios</h2>
-
+      {/* No heading: the tab it is on is called Pricing (FF-1639). */}
       {selected ? (
         <>
           <div className="flex items-center gap-2">

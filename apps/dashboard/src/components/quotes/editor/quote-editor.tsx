@@ -9,6 +9,7 @@ import {
 } from "@midday/quote";
 import { Badge } from "@midday/ui/badge";
 import { Button } from "@midday/ui/button";
+import { cn } from "@midday/ui/cn";
 import {
   Select,
   SelectContent,
@@ -16,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@midday/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import {
   useMutation,
   useQuery,
@@ -47,6 +49,8 @@ import { QuoteScenarios, ScenarioTotals } from "./quote-scenarios";
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
 
 type Quote = RouterOutputs["quotes"]["get"];
+/** What the main column is showing (FF-1639). */
+type Pane = "document" | "pricing";
 type Version = Quote["versions"][number];
 
 /**
@@ -165,6 +169,10 @@ function VersionEditor({
 
   const [strip, stripHeight] = useStripHeight();
 
+  // Writing a quote and pricing it are two jobs, and the second is a form
+  // (FF-1639). They share the rail, so the figures never leave the screen.
+  const [pane, setPane] = useState<Pane>("document");
+
   // The scenario on show is the page's, so the rail can keep its totals in
   // view while the lines that move them are changed (FF-1632).
   const [scenarioId, setScenarioId] = useState<string | null>(null);
@@ -178,10 +186,14 @@ function VersionEditor({
   return (
     <ReadOnlyContext.Provider value={!editable}>
       <div
-        // The document and the rail, and nothing between them: 800 + 48 + 380.
-        // A wider page only puts empty space between the text and the rail,
-        // because the text is set to the width the PDF prints it at.
-        className="mx-auto max-w-[1228px] pb-24"
+        className={cn(
+          "mx-auto pb-24",
+          // The document and the rail, and nothing between them: 800 + 48 +
+          // 380. A wider page only puts empty space beside text that is set
+          // to the width the PDF prints it at. The priced tables are not,
+          // and want every pixel there is.
+          pane === "document" ? "max-w-[1228px]" : "max-w-[1600px]",
+        )}
         style={{ [STRIP_HEIGHT]: `${stripHeight}px` } as CSSProperties}
       >
         {/* Which quote this is, and whether it can be typed into, stay on
@@ -234,48 +246,63 @@ function VersionEditor({
 
         {/* The document in the middle, what configures it in the rail
             (FF-1630). A narrow window stacks them. */}
-        <div className="mt-8 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
-          <main className="min-w-0 flex-1 space-y-10">
-            <div className={DOCUMENT_WIDTH}>
-              <QuoteTitleField
-                draft={draft}
-                change={change}
-                headerLocked={version.version > 1}
-                disabled={!editable}
-              />
-            </div>
+        <div className="mt-6 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
+          <main className="min-w-0 flex-1 space-y-8">
+            <Tabs value={pane} onValueChange={(next) => setPane(next as Pane)}>
+              <TabsList>
+                <TabsTrigger value="document">Document</TabsTrigger>
+                <TabsTrigger value="pricing">Pricing</TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-            {/* Outside the fieldset: a sent version's text is still read, and
-                a block still expands to be read full screen (FF-1624). The
-                blocks turn every control of their own off on a sent version. */}
-            <QuoteBlocks
-              content={draft.content}
-              change={change}
-              editable={editable}
-            />
+            {pane === "document" ? (
+              <div className="space-y-10">
+                <div className={DOCUMENT_WIDTH}>
+                  <QuoteTitleField
+                    draft={draft}
+                    change={change}
+                    headerLocked={version.version > 1}
+                    disabled={!editable}
+                  />
+                </div>
 
-            {/* Outside the fieldset: a sent version's scenarios are still
-                browsed. */}
-            <QuoteScenarios
-              content={draft.content}
-              kind={draft.kind}
-              products={products}
-              currency={quote.currency}
-              locale={user?.locale ?? undefined}
-              editable={editable}
-              change={change}
-              selected={scenario}
-              pricing={scenarioPricing}
-              onSelect={setScenarioId}
-            />
+                {/* Outside the fieldset: a sent version's text is still read,
+                    and a block still expands to be read full screen
+                    (FF-1624). The blocks turn every control of their own off
+                    on a sent version. */}
+                <QuoteBlocks
+                  content={draft.content}
+                  change={change}
+                  editable={editable}
+                  onShowPricing={() => setPane("pricing")}
+                />
+              </div>
+            ) : (
+              <div className="space-y-10">
+                {/* Outside the fieldset: a sent version's scenarios are still
+                    browsed. */}
+                <QuoteScenarios
+                  content={draft.content}
+                  kind={draft.kind}
+                  products={products}
+                  currency={quote.currency}
+                  locale={user?.locale ?? undefined}
+                  editable={editable}
+                  change={change}
+                  selected={scenario}
+                  pricing={scenarioPricing}
+                  onSelect={setScenarioId}
+                />
 
-            <QuoteComparison
-              content={draft.content}
-              kind={draft.kind}
-              pricing={pricing}
-              currency={quote.currency}
-              locale={user?.locale ?? undefined}
-            />
+                <QuoteComparison
+                  content={draft.content}
+                  kind={draft.kind}
+                  pricing={pricing}
+                  currency={quote.currency}
+                  locale={user?.locale ?? undefined}
+                />
+              </div>
+            )}
           </main>
 
           <QuoteRail>
