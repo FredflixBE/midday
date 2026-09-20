@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@midday/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import {
   useMutation,
   useQuery,
@@ -47,6 +48,8 @@ import { QuoteScenarios, ScenarioTotals } from "./quote-scenarios";
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
 
 type Quote = RouterOutputs["quotes"]["get"];
+/** What the main column is showing (FF-1639). */
+type Pane = "document" | "pricing";
 type Version = Quote["versions"][number];
 
 /**
@@ -165,6 +168,10 @@ function VersionEditor({
 
   const [strip, stripHeight] = useStripHeight();
 
+  // Writing a quote and pricing it are two jobs, and the second is a form
+  // (FF-1639). They share the rail, so the figures never leave the screen.
+  const [pane, setPane] = useState<Pane>("document");
+
   // The scenario on show is the page's, so the rail can keep its totals in
   // view while the lines that move them are changed (FF-1632).
   const [scenarioId, setScenarioId] = useState<string | null>(null);
@@ -178,9 +185,10 @@ function VersionEditor({
   return (
     <ReadOnlyContext.Provider value={!editable}>
       <div
-        // The document and the rail, and nothing between them: 800 + 48 + 380.
-        // A wider page only puts empty space between the text and the rail,
-        // because the text is set to the width the PDF prints it at.
+        // The document and the rail, and nothing between them: 800 + 48 +
+        // 380. One width for both tabs, because anything else moves the tab
+        // you just clicked out from under the pointer — the priced tables
+        // would like more room, and not at that price (FF-1639).
         className="mx-auto max-w-[1228px] pb-24"
         style={{ [STRIP_HEIGHT]: `${stripHeight}px` } as CSSProperties}
       >
@@ -234,48 +242,84 @@ function VersionEditor({
 
         {/* The document in the middle, what configures it in the rail
             (FF-1630). A narrow window stacks them. */}
-        <div className="mt-8 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
-          <main className="min-w-0 flex-1 space-y-10">
-            <div className={DOCUMENT_WIDTH}>
-              <QuoteTitleField
-                draft={draft}
-                change={change}
-                headerLocked={version.version > 1}
-                disabled={!editable}
-              />
-            </div>
+        <div className="mt-6 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
+          <main className="min-w-0 flex-1">
+            <Tabs
+              value={pane}
+              // The panes are different lengths, so keeping the scroll
+              // would land you in the middle of the shorter one.
+              onValueChange={(next) => {
+                setPane(next as Pane);
+                window.scrollTo({ top: 0 });
+              }}
+              className="space-y-8"
+            >
+              <TabsList>
+                <TabsTrigger value="document">Document</TabsTrigger>
+                <TabsTrigger value="pricing">Pricing</TabsTrigger>
+              </TabsList>
 
-            {/* Outside the fieldset: a sent version's text is still read, and
-                a block still expands to be read full screen (FF-1624). The
-                blocks turn every control of their own off on a sent version. */}
-            <QuoteBlocks
-              content={draft.content}
-              change={change}
-              editable={editable}
-            />
+              {/* Both panes stay mounted: unmounting an editor throws away
+                  its undo history and a half-typed number, neither of which
+                  is worth a tab switch. */}
+              <TabsContent
+                value="document"
+                forceMount
+                className="space-y-10 data-[state=inactive]:hidden"
+              >
+                <div className={DOCUMENT_WIDTH}>
+                  <QuoteTitleField
+                    draft={draft}
+                    change={change}
+                    headerLocked={version.version > 1}
+                    disabled={!editable}
+                  />
+                </div>
 
-            {/* Outside the fieldset: a sent version's scenarios are still
-                browsed. */}
-            <QuoteScenarios
-              content={draft.content}
-              kind={draft.kind}
-              products={products}
-              currency={quote.currency}
-              locale={user?.locale ?? undefined}
-              editable={editable}
-              change={change}
-              selected={scenario}
-              pricing={scenarioPricing}
-              onSelect={setScenarioId}
-            />
+                {/* Outside the fieldset: a sent version's text is still read,
+                    and a block still expands to be read full screen
+                    (FF-1624). The blocks turn every control of their own off
+                    on a sent version. */}
+                <QuoteBlocks
+                  content={draft.content}
+                  change={change}
+                  editable={editable}
+                  onShowPricing={() => {
+                    setPane("pricing");
+                    window.scrollTo({ top: 0 });
+                  }}
+                />
+              </TabsContent>
 
-            <QuoteComparison
-              content={draft.content}
-              kind={draft.kind}
-              pricing={pricing}
-              currency={quote.currency}
-              locale={user?.locale ?? undefined}
-            />
+              <TabsContent
+                value="pricing"
+                forceMount
+                className="space-y-10 data-[state=inactive]:hidden"
+              >
+                {/* Outside the fieldset: a sent version's scenarios are still
+                    browsed. */}
+                <QuoteScenarios
+                  content={draft.content}
+                  kind={draft.kind}
+                  products={products}
+                  currency={quote.currency}
+                  locale={user?.locale ?? undefined}
+                  editable={editable}
+                  change={change}
+                  selected={scenario}
+                  pricing={scenarioPricing}
+                  onSelect={setScenarioId}
+                />
+
+                <QuoteComparison
+                  content={draft.content}
+                  kind={draft.kind}
+                  pricing={pricing}
+                  currency={quote.currency}
+                  locale={user?.locale ?? undefined}
+                />
+              </TabsContent>
+            </Tabs>
           </main>
 
           <QuoteRail>

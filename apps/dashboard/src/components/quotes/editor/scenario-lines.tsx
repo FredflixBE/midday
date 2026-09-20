@@ -28,11 +28,27 @@ type Product = RouterOutputs["productRates"]["products"][number];
 /**
  * Handle, item, product, hours or days, optional, one-off, amount, remove.
  * Sized to fit the document's own column (800px, FF-1633) rather than
- * whatever width the page happened to have: the item is what gives, and it
- * is given a floor so it can never collapse to three letters.
+ * whatever width the page happened to have, so the item is what gives — and
+ * it is given nothing to give away for nothing: a fixed scenario asks for
+ * one quantity rather than two, and only a recurring one has a one-off
+ * column. Spelled out because Tailwind reads the source for class names and
+ * cannot follow one that is pieced together.
  */
-const COLUMNS =
-  "grid-cols-[20px_minmax(140px,1fr)_140px_120px_repeat(2,48px)_100px_32px]";
+const COLUMNS = {
+  "fixed project":
+    "grid-cols-[20px_minmax(140px,1fr)_140px_64px_48px_0px_100px_32px]",
+  "fixed recurring":
+    "grid-cols-[20px_minmax(140px,1fr)_140px_64px_48px_48px_100px_32px]",
+  "range project":
+    "grid-cols-[20px_minmax(140px,1fr)_140px_120px_48px_0px_100px_32px]",
+  "range recurring":
+    "grid-cols-[20px_minmax(140px,1fr)_140px_120px_48px_48px_100px_32px]",
+} as const;
+
+const columns = (range: boolean, recurring: boolean) =>
+  COLUMNS[
+    `${range ? "range" : "fixed"} ${recurring ? "recurring" : "project"}`
+  ];
 
 /**
  * A scenario's lines: section headings, notes and priced items, in the order
@@ -101,7 +117,7 @@ export function ScenarioLines({
         // squeezing the item out of existence.
         <div className="overflow-x-auto border border-border">
           <div
-            className={`grid ${COLUMNS} min-w-[680px] items-center gap-2 border-b border-border px-3 py-2 text-[12px] text-[#606060]`}
+            className={`grid ${columns(range, recurring)} min-w-[680px] items-center gap-2 border-b border-border px-3 py-2 text-[12px] text-[#606060]`}
           >
             <span />
             <span>Item</span>
@@ -127,6 +143,7 @@ export function ScenarioLines({
                   {(handle) => (
                     <Row
                       handle={handle}
+                      columns={columns(range, recurring)}
                       onRemove={editable ? () => remove(line.id) : undefined}
                     >
                       {line.type === "section" ? (
@@ -229,17 +246,18 @@ function rowLabel(line: Line) {
 
 function Row({
   handle,
+  columns: grid,
   onRemove,
   children,
 }: {
   handle: ReactNode;
+  /** The same columns the header is drawn on. */
+  columns: string;
   onRemove?: () => void;
   children: ReactNode;
 }) {
   return (
-    <div
-      className={`grid ${COLUMNS} min-w-[680px] items-start gap-2 px-3 py-2`}
-    >
+    <div className={`grid ${grid} min-w-[680px] items-start gap-2 px-3 py-2`}>
       <div className="flex h-9 items-center">{handle}</div>
       {children}
       <div className="flex h-9 items-center">

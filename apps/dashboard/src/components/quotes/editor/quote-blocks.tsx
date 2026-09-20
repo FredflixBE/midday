@@ -47,10 +47,13 @@ export function QuoteBlocks({
   content,
   change,
   editable,
+  onShowPricing,
 }: {
   content: QuoteContent;
   change: (next: DraftChange) => void;
   editable: boolean;
+  /** Where the priced scenarios are, for the marker that stands in for them. */
+  onShowPricing: () => void;
 }) {
   const setBlocks = (blocks: (current: Block[]) => Block[]) =>
     change((d) => ({
@@ -81,7 +84,16 @@ export function QuoteBlocks({
                   <div className="flex items-center gap-3 border border-dashed border-border px-3 py-2 text-sm text-[#878787]">
                     {/* A grip is chrome that says the block can be moved. */}
                     {editable ? handle : null}
-                    Pricing
+                    {/* It stands where the scenarios print, so it is also
+                        the way to them (FF-1639). */}
+                    <button
+                      type="button"
+                      aria-label="Show the pricing"
+                      className="flex-1 text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
+                      onClick={onShowPricing}
+                    >
+                      Pricing
+                    </button>
                   </div>
                 )}
               </SortableRow>
