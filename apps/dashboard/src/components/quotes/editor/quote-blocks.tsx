@@ -175,6 +175,16 @@ function PricingBlock({
         {handle}
         <button
           type="button"
+          aria-label="Show the pricing"
+          className="flex-1 text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
+          onClick={onShowPricing}
+        >
+          Pricing
+        </button>
+        {/* On the right, where every other thing that opens and shuts on
+            this page has its chevron. */}
+        <button
+          type="button"
           aria-label={open ? "Collapse the pricing" : "Expand the pricing"}
           className="shrink-0 hover:text-primary focus-visible:text-primary focus-visible:outline-none"
           onClick={() => setOpen(!open)}
@@ -183,14 +193,6 @@ function PricingBlock({
             size={14}
             className={cn("transition-transform", open && "rotate-180")}
           />
-        </button>
-        <button
-          type="button"
-          aria-label="Show the pricing"
-          className="flex-1 text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
-          onClick={onShowPricing}
-        >
-          Pricing
         </button>
       </div>
       {open && !empty && !dragging ? (
