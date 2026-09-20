@@ -27,6 +27,8 @@ type EditorProps = {
    * default, and never shown on content that cannot be changed.
    */
   toolbar?: boolean;
+  /** True puts the caret at the end of the text as soon as it is mounted. */
+  autoFocus?: boolean;
 };
 
 export function Editor({
@@ -39,12 +41,14 @@ export function Editor({
   tabIndex,
   editable = true,
   toolbar = false,
+  autoFocus = false,
 }: EditorProps) {
   const editor = useEditor({
     extensions: registerExtensions({ placeholder }),
     content: initialContent,
     immediatelyRender: false,
     editable,
+    autofocus: autoFocus && editable ? "end" : false,
     onBlur,
     onFocus,
     onUpdate: ({ editor }) => {
