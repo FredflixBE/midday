@@ -2,7 +2,6 @@
 
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { optionalLinesOf, type QuoteContent } from "@midday/quote";
-import { createClient } from "@midday/supabase/client";
 import { Button } from "@midday/ui/button";
 import { Checkbox } from "@midday/ui/checkbox";
 import {
@@ -27,9 +26,9 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
-import { resumableUpload } from "@/utils/upload";
+import { uploadToQuotes } from "../upload-to-quotes";
 import { useErrorToast } from "../use-error-toast";
-import { DateField, Field, ReadOnlyContext } from "./fields";
+import { DateField, Field, isoDate, ReadOnlyContext } from "./fields";
 import { useRefreshQuote } from "./quote-actions";
 
 type Quote = RouterOutputs["quotes"]["get"];
@@ -82,12 +81,6 @@ export function RecordAcceptance({
   );
 }
 
-function today() {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
 function AcceptanceForm({
   quoteId,
   version,
@@ -114,7 +107,7 @@ function AcceptanceForm({
     version.acceptedOptionalLineIds ?? [],
   );
   const [acceptedAt, setAcceptedAt] = useState(
-    version.acceptedAt?.slice(0, 10) ?? today(),
+    version.acceptedAt?.slice(0, 10) ?? isoDate(new Date()),
   );
   const [name, setName] = useState(version.acceptedByName ?? "");
   const [poNumber, setPoNumber] = useState(version.poNumber ?? "");
@@ -146,21 +139,7 @@ function AcceptanceForm({
 
     setUploading(true);
     try {
-      // A name of its own: storage writes are upserts, and two order forms
-      // called scan.pdf would otherwise replace one another.
-      const extension = file.name.split(".").pop();
-      const named = new File(
-        [file],
-        extension ? `${crypto.randomUUID()}.${extension}` : crypto.randomUUID(),
-        { type: file.type },
-      );
-      const folder = [user.teamId, "quotes"];
-      await resumableUpload(createClient(), {
-        bucket: "vault",
-        path: folder,
-        file: named,
-      });
-      setFilePath([...folder, named.name]);
+      setFilePath(await uploadToQuotes(user.teamId, file));
     } catch {
       toast({ variant: "error", title: "That document was not stored." });
     } finally {

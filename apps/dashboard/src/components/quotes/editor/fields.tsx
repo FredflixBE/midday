@@ -157,6 +157,12 @@ export function NumberInput({
   );
 }
 
+/** A date as `YYYY-MM-DD`, read where the person is rather than in UTC. */
+export function isoDate(date: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 /** A `YYYY-MM-DD` date, picked from a calendar. */
 export function DateField({
   value,
@@ -194,10 +200,7 @@ export function DateField({
           }
           onSelect={(date) => {
             if (!date) return;
-            const pad = (n: number) => String(n).padStart(2, "0");
-            onChange(
-              `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
-            );
+            onChange(isoDate(date));
             setOpen(false);
           }}
           initialFocus
