@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@midday/supabase/client";
 import { Button } from "@midday/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@midday/ui/card";
 import { Input } from "@midday/ui/input";
@@ -29,7 +28,7 @@ import {
 import { useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
-import { resumableUpload } from "@/utils/upload";
+import { uploadToQuotes } from "./upload-to-quotes";
 import { useErrorToast } from "./use-error-toast";
 
 const LANGUAGES = { nl: "Dutch", en: "English" };
@@ -81,21 +80,10 @@ export function QuoteTerms() {
 
     setUploading(true);
     try {
-      // A name of its own: storage writes are upserts, and two files called
-      // terms.pdf would otherwise replace one another.
-      const extension = chosen.name.split(".").pop();
-      const named = new File(
-        [chosen],
-        extension ? `${crypto.randomUUID()}.${extension}` : crypto.randomUUID(),
-        { type: chosen.type },
-      );
-      const folder = [user.teamId, "quotes"];
-      await resumableUpload(createClient(), {
-        bucket: "vault",
-        path: folder,
-        file: named,
+      setFile({
+        path: await uploadToQuotes(user.teamId, chosen),
+        name: chosen.name,
       });
-      setFile({ path: [...folder, named.name], name: chosen.name });
     } catch {
       toast({ variant: "error", title: "That file was not stored." });
     } finally {

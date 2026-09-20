@@ -1,5 +1,5 @@
-import { isTeamPath } from "@api/rest/routers/files/utils";
 import { createAdminClient } from "@api/services/supabase";
+import { isTeamPath } from "@api/utils/team-path";
 import type { StoreQuotePdf } from "@midday/db/queries";
 import type { ImageSource } from "@midday/invoice/templates/pdf/format";
 import { imagePathsIn } from "@midday/quote";

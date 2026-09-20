@@ -22,7 +22,7 @@ import type {
   QuoteLanguage as PdfLanguage,
   QuotePdfInput,
 } from "@midday/quote/pdf";
-import { and, desc, eq, gte, inArray, lt, lte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { Database, DatabaseOrTransaction } from "../client";
@@ -523,17 +523,12 @@ export async function reviseQuote(
  */
 export async function listQuoteTerms(
   db: DatabaseOrTransaction,
-  params: { teamId: string; language?: QuoteLanguage },
+  params: { teamId: string },
 ) {
   return db
     .select()
     .from(quoteTerms)
-    .where(
-      and(
-        eq(quoteTerms.teamId, params.teamId),
-        params.language ? eq(quoteTerms.language, params.language) : undefined,
-      ),
-    )
+    .where(eq(quoteTerms.teamId, params.teamId))
     .orderBy(desc(quoteTerms.createdAt));
 }
 
@@ -647,6 +642,12 @@ export async function markQuoteVersionSent(
     if (!row) return null;
     if (row.version.status !== "draft") {
       throw new QuoteInputError("Only a draft can be sent");
+    }
+    // A won quote has been answered. Sending a draft left open beside the
+    // accepted version would leave the quote holding two: the accepted one,
+    // which is not superseded because it is the answer, and a new sent one.
+    if (row.quote.outcome === "won") {
+      throw new QuoteInputError("This quote has already been accepted");
     }
 
     const pricing =
@@ -1035,11 +1036,21 @@ export async function getQuotePdfInput(
     .orderBy(desc(invoiceTemplates.isDefault), invoiceTemplates.createdAt)
     .limit(1);
   const settings = await getQuoteSettings(db, params.teamId);
-  const [terms] = version.termsVersionId
+
+  // The terms this version went out with (FF-1616). A draft has none
+  // recorded yet, so it is drawn with the ones it would be sent with —
+  // otherwise the PDF a person downloads and emails would say nothing about
+  // terms while the copy kept at send says they apply.
+  const termsId =
+    version.termsVersionId ??
+    (version.status === "draft"
+      ? await latestQuoteTerms(db, params.teamId, quote.language)
+      : null);
+  const [terms] = termsId
     ? await db
         .select({ label: quoteTerms.label })
         .from(quoteTerms)
-        .where(eq(quoteTerms.id, version.termsVersionId))
+        .where(eq(quoteTerms.id, termsId))
     : [];
 
   return {
@@ -1135,9 +1146,14 @@ export async function listQuotes(
   const latest = sql`(
     SELECT max(v.version) FROM quote_versions v WHERE v.quote_id = ${quotes.id}
   )`;
-  // Sending one version supersedes the one before, so a quote holds at most
-  // one — and once it is answered it is `accepted`, still the one held.
+  // The version the client holds: the one that was sent, or the one they
+  // accepted. Read as the newest of those rather than by status alone, so a
+  // quote can never match twice and appear twice in the list.
   const held = alias(quoteVersions, "held");
+  const heldVersion = sql`(
+    SELECT max(v.version) FROM quote_versions v
+    WHERE v.quote_id = ${quotes.id} AND v.status IN ('sent', 'accepted')
+  )`;
   const open = eq(quotes.outcome, "open");
 
   const filter = {
@@ -1177,10 +1193,7 @@ export async function listQuotes(
     )
     .leftJoin(
       held,
-      and(
-        eq(held.quoteId, quotes.id),
-        inArray(held.status, ["sent", "accepted"]),
-      ),
+      and(eq(held.quoteId, quotes.id), eq(held.version, heldVersion)),
     )
     .leftJoin(customers, eq(customers.id, quotes.customerId))
     .where(
