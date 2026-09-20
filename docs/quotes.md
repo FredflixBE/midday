@@ -225,13 +225,12 @@ The editor shows all scenarios of the version side by side: total (or min–max)
 ## 5. Screens
 
 - **Quotes** page in the sidebar, next to Invoices. The list shows number, customer, title, latest version and status, mode, total, sent date and valid-until, with filters: draft, awaiting answer, expiring within 7 days, expired, won, lost.
-- **Quote editor** as a full page (a quote is too big for the invoice sheet):
-  - header: customer, title, kind, mode, language, validity
-  - the text blocks, reorderable, with the pricing block among them
-  - scenarios as tabs; each tab has a line table (drag to reorder; product picker; hours or min–max; optional toggle; one-off toggle for recurring) plus the recurrence and payment settings
-  - rate settings for the quote: overrides and tiers
-  - the internal comparison panel
-  - actions: Duplicate scenario, Download PDF, Mark as sent, Revise, Set outcome
+- **Quote editor** as a full page (a quote is too big for the invoice sheet), laid out so the page reads as the quote rather than as a form (FF-1629): a document pane in the middle, a settings rail beside it, and a strip of identity and actions across the top.
+  - the **document pane**, the main column: the title, the text blocks (reorderable, with the pricing block among them), the scenarios as tabs — each tab a line table (drag to reorder; product picker; hours or min–max; optional toggle; one-off toggle for recurring) with its recurrence and payment settings — and the internal comparison panel at the foot, which is for the person writing the quote and not for the client but belongs with the priced content.
+  - the **settings rail** on the right, which follows the page down as it scrolls: Details (customer, kind, language, mode, issued, valid until, unit, hours per day), Rates, Volume tiers and Term tiers. Every section collapses on its own, and a section with nothing in it opens as a single line rather than an empty table — volume and term tiers are empty on most quotes. Under `xl` the rail goes under the document instead of beside it.
+  - the **strip**: quote number and version, the version picker, the state, the acceptance note, and the actions — Download PDF, Mark as sent, Revise, Record acceptance, Set outcome. Duplicate scenario is on the scenario itself.
+
+  A version that cannot be edited (anything but a draft) disables the rail's fields through a `<fieldset>`. The text blocks and the scenarios sit **outside** that fieldset deliberately: a disabled fieldset also disables the buttons inside it, and a sent version's text is still read and expanded full screen (FF-1624). Each of those turns its own controls off instead. A rail section's collapse trigger sits outside the fieldset for the same reason.
 - **Products**: its own page in the sidebar; a product's price is its default hourly rate on quotes.
 - **Settings → Quotes**: number prefix, default validity, default blocks, labels.
 - **Customer details**: rate overrides per product.
