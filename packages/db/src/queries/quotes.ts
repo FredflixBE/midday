@@ -5,6 +5,7 @@ import {
   type Block,
   blockSchema,
   formatQuoteVersion,
+  imagePathsIn,
   initialQuoteContent,
   isExpired,
   nextQuoteNumber,
@@ -22,7 +23,7 @@ import type {
   QuoteLanguage as PdfLanguage,
   QuotePdfInput,
 } from "@midday/quote/pdf";
-import { and, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { Database, DatabaseOrTransaction } from "../client";
@@ -73,6 +74,22 @@ export class QuoteInputError extends Error {}
  * they are at render time — so only a stored file is what the client holds.
  */
 export type StoreQuotePdf = (input: QuotePdfInput) => Promise<string[]>;
+
+/**
+ * Lets go of pictures a draft edit took out of a quote's text (FF-1626).
+ * Storage does not belong here either, so the caller passes this in, and
+ * this module decides when it runs: after the edit is committed, never
+ * inside it, because an edit that was rolled back must leave every file
+ * where it was.
+ *
+ * What it is handed is never anything but a picture. The candidates are the
+ * paths this edit took *out of a version's text*, so the other three kinds
+ * of file under `<team>/quotes/` — the PDF kept when a version was sent, the
+ * order form attached at acceptance, the team's general terms — are out of
+ * reach by construction: none of them was ever written into a version's
+ * content, so none can be a candidate.
+ */
+export type DropQuoteImages = (paths: string[]) => Promise<void>;
 
 export type QuoteLanguage = "nl" | "en";
 export type QuoteMode = "estimate" | "firm";
@@ -363,6 +380,48 @@ async function lockVersion(
  * (title, kind, language, customer), which the draft is what gets sent with.
  * Null when the version is not the team's.
  */
+/**
+ * Of the pictures an edit took out, the ones no version of any of the team's
+ * quotes names any more — the only ones it is safe to let go of.
+ *
+ * A picture a sent or superseded version holds is kept even though that
+ * version's PDF was stored whole (FF-1615) and no longer depends on the
+ * file: the editor still draws a sent version's text from the path, so
+ * deleting it would leave a hole on screen.
+ *
+ * The `like` is a narrowing filter, not the answer — the answer is
+ * `imagePathsIn` on the rows it lets through, so a path that merely appears
+ * somewhere in the text cannot keep a picture alive by accident.
+ */
+async function orphanedImages(
+  tx: DatabaseOrTransaction,
+  teamId: string,
+  paths: string[],
+): Promise<string[]> {
+  if (paths.length === 0) return [];
+
+  const rows = await tx
+    .select({ content: quoteVersions.content })
+    .from(quoteVersions)
+    .innerJoin(quotes, eq(quotes.id, quoteVersions.quoteId))
+    .where(
+      and(
+        eq(quotes.teamId, teamId),
+        or(
+          ...paths.map(
+            (path) => sql`${quoteVersions.content}::text like ${`%${path}%`}`,
+          ),
+        ),
+      ),
+    );
+
+  const named = new Set(
+    rows.flatMap((row) => imagePathsIn(row.content as QuoteContent)),
+  );
+
+  return paths.filter((path) => !named.has(path));
+}
+
 export async function updateQuoteDraft(
   db: Database,
   params: {
@@ -377,8 +436,15 @@ export async function updateQuoteDraft(
     validUntil?: string;
     content?: QuoteContent;
     internalNote?: string | null;
+    /**
+     * Lets go of the pictures this edit took out of the text and nothing
+     * else names. Left out, nothing is deleted and the files simply stay.
+     */
+    dropImages?: DropQuoteImages;
   },
 ) {
+  let orphans: string[] = [];
+
   const quoteId = await db.transaction(async (tx) => {
     const row = await lockVersion(tx, params.teamId, params.versionId);
     if (!row) return null;
@@ -450,8 +516,23 @@ export async function updateQuoteDraft(
       })
       .where(eq(quoteVersions.id, version.id));
 
+    // Read after the write, so the version being edited is counted as it
+    // now stands rather than as it was.
+    if (content !== undefined) {
+      const dropped = imagePathsIn(version.content as QuoteContent).filter(
+        (path) => !imagePathsIn(content).includes(path),
+      );
+      orphans = await orphanedImages(tx, params.teamId, dropped);
+    }
+
     return quote.id;
   });
+
+  // After the commit, and never at the cost of the edit: a file nobody can
+  // see costs storage, where a failed edit costs the work that went into it.
+  if (quoteId && orphans.length > 0 && params.dropImages) {
+    await params.dropImages(orphans).catch(() => {});
+  }
 
   return quoteId ? getQuote(db, { id: quoteId, teamId: params.teamId }) : null;
 }

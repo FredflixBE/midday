@@ -22,7 +22,7 @@ import {
 import { createCallerFactory } from "../../trpc/init";
 import { quotesRouter } from "../../trpc/routers/quotes";
 import { createTestContext } from "../helpers/test-context";
-import { asMock } from "../setup";
+import { asMock, mocks } from "../setup";
 
 const createCaller = createCallerFactory(quotesRouter);
 
@@ -265,6 +265,48 @@ describe("tRPC: quotes", () => {
     expect(asMock(updateQuoteSettings).mock.calls[0]?.[1]).toEqual({
       defaultValidDays: 45,
       teamId: "test-team-id",
+    });
+  });
+
+  /**
+   * FF-1626. Which pictures may go is the queries' decision; what the router
+   * hands over is the means of letting go of them, bound to the caller's
+   * team.
+   */
+  describe("letting go of a picture the text no longer holds", () => {
+    beforeEach(() => {
+      asMock(mocks.supabaseStorageRemove).mockClear();
+    });
+
+    function dropImagesOf(): (paths: string[]) => Promise<void> {
+      const call = asMock(updateQuoteDraft).mock.calls[0]?.[1] as {
+        dropImages?: (paths: string[]) => Promise<void>;
+      };
+      if (!call?.dropImages) throw new Error("no dropImages was handed over");
+      return call.dropImages;
+    }
+
+    test("removes a picture from the team's own folder", async () => {
+      const caller = createCaller(createTestContext());
+      await caller.updateDraft({ versionId: A, title: "Changed" });
+
+      await dropImagesOf()(["test-team-id/quotes/a.png"]);
+
+      expect(asMock(mocks.supabaseStorageRemove).mock.calls[0]?.[0]).toEqual([
+        "test-team-id/quotes/a.png",
+      ]);
+    });
+
+    test("passes over a path that leaves the team's folder", async () => {
+      const caller = createCaller(createTestContext());
+      await caller.updateDraft({ versionId: A, title: "Changed" });
+
+      await dropImagesOf()([
+        "other-team/quotes/a.png",
+        "test-team-id/../other-team/quotes/b.png",
+      ]);
+
+      expect(asMock(mocks.supabaseStorageRemove).mock.calls).toHaveLength(0);
     });
   });
 });

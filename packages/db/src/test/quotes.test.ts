@@ -12,7 +12,7 @@
  * suppliers.test.ts for how to run it.
  */
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-import type { QuoteContent } from "@midday/quote";
+import { imagePathsIn, type QuoteContent } from "@midday/quote";
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
 import { createInvoiceProduct } from "../queries/invoice-products";
@@ -364,6 +364,154 @@ describe.skipIf(SKIP)("quotes", () => {
           title: "x",
         }),
       ).toBeNull();
+    });
+
+    /**
+     * FF-1626. A picture is stored the moment it is put in a quote's text and
+     * nothing took it out again, so the vault only ever grew. The rule: a
+     * picture is let go when a draft edit takes it out of the text and no
+     * version of any quote still names it.
+     */
+    describe("a picture a draft no longer holds", () => {
+      const picture = (path: string) => ({ type: "image", attrs: { path } });
+      const textBlock = (id: string, nodes: unknown[]) => ({
+        id,
+        type: "text",
+        heading: null,
+        body: { type: "doc", content: nodes },
+      });
+      const withPictures = (
+        content: QuoteContent,
+        ...paths: string[]
+      ): QuoteContent =>
+        ({
+          ...content,
+          blocks: [textBlock("t1", paths.map(picture))],
+        }) as unknown as QuoteContent;
+
+      const A = `${TEAM_USD_ID}/quotes/a.png`;
+      const B = `${TEAM_USD_ID}/quotes/b.png`;
+
+      /** What the draft was asked to let go of. */
+      async function editing(
+        versionId: string,
+        content: QuoteContent,
+      ): Promise<string[]> {
+        const dropped: string[] = [];
+        await updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          content,
+          dropImages: async (paths) => {
+            dropped.push(...paths);
+          },
+        });
+        return dropped;
+      }
+
+      async function draftHolding(...paths: string[]) {
+        const quote = await create();
+        const draft = draftOf(quote);
+        const content = draft.content as QuoteContent;
+        await updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          content: withPictures(content, ...paths),
+        });
+        return { draft, content };
+      }
+
+      test("is let go of when nothing else names it", async () => {
+        const { draft, content } = await draftHolding(A, B);
+
+        expect(await editing(draft.id, withPictures(content, B))).toEqual([A]);
+      });
+
+      test("is kept while a version that was sent still shows it", async () => {
+        const { draft, content } = await draftHolding(A);
+        await markQuoteVersionSent(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          pricing: null,
+        });
+        const revised = await reviseQuote(db, {
+          teamId: TEAM_USD_ID,
+          quoteId: draft.quoteId,
+          today: TODAY,
+        });
+
+        // The new draft drops it; the version the client was sent still
+        // reads from it, and the editor draws that version from the path.
+        expect(
+          await editing(draftOf(revised!).id, withPictures(content)),
+        ).toEqual([]);
+      });
+
+      test("is kept while another quote holds the same picture", async () => {
+        const { draft, content } = await draftHolding(A);
+        const other = await create({ title: "Second proposal" });
+        await updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draftOf(other).id,
+          content: withPictures(other.versions[0]!.content as QuoteContent, A),
+        });
+
+        expect(await editing(draft.id, withPictures(content))).toEqual([]);
+      });
+
+      test("is not looked for when the text did not change", async () => {
+        const { draft } = await draftHolding(A);
+        const dropped: string[] = [];
+
+        await updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          internalNote: "Nothing to do with pictures",
+          dropImages: async (paths) => {
+            dropped.push(...paths);
+          },
+        });
+
+        expect(dropped).toEqual([]);
+      });
+
+      test("stays in the vault when the edit is refused", async () => {
+        const { draft, content } = await draftHolding(A);
+        const dropped: string[] = [];
+
+        await expect(
+          updateQuoteDraft(db, {
+            teamId: TEAM_USD_ID,
+            versionId: draft.id,
+            content: withPictures(content),
+            validUntil: "2020-01-01",
+            dropImages: async (paths) => {
+              dropped.push(...paths);
+            },
+          }),
+        ).rejects.toBeInstanceOf(QuoteInputError);
+
+        expect(dropped).toEqual([]);
+      });
+
+      test("is let go of even when letting go fails", async () => {
+        const { draft, content } = await draftHolding(A);
+
+        const updated = await updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          content: withPictures(content),
+          dropImages: async () => {
+            throw new Error("storage is down");
+          },
+        });
+
+        // The edit stands: a file nobody can see is cheaper than an edit lost.
+        expect(updated).not.toBeNull();
+        expect(imagePathsIn(draftOf(updated!).content as QuoteContent)).toEqual(
+          [],
+        );
+      });
     });
   });
 
