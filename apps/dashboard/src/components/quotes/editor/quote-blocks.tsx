@@ -155,6 +155,14 @@ const TEXT_STYLES = cn(
   "[&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:mt-2 [&_.tiptap_h3]:text-base [&_.tiptap_h3]:font-medium",
   // The editor sets its own size and a loose leading for invoice text.
   "[&_.tiptap]:text-sm [&_.tiptap]:leading-[1.55]",
+  // An empty block says how to start, whether or not it holds the caret
+  // (FF-1638). Only the first line of an empty one: a blank line left for
+  // air in the middle of a written block has nothing to say.
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:pointer-events-none",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:float-left",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:h-0",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:text-[#878787]",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
 );
 
 /** A block's own heading, which the PDF sets at the size of an h1. */

@@ -22,6 +22,10 @@ import { ImageItem } from "./image-item";
  * (FF-1623). Off by default on the shared editor: the invoice blocks are a
  * few lines of address text and want no chrome above them, and a quote's
  * blocks offer the same through "/" instead (FF-1638).
+ *
+ * Nothing turns it on today. It is kept rather than deleted because "/" is a
+ * decision that can be taken back in one prop, and because the invoice
+ * editor may want it (FF-1635).
  */
 export function Toolbar({
   editor,
