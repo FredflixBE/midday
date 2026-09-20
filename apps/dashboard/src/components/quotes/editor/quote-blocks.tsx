@@ -22,6 +22,17 @@ type TextBlock = Extract<Block, { type: "text" }>;
 const EMPTY_DOC: TextBlock["body"] = { type: "doc", content: [] };
 
 /**
+ * What an empty block is opened on. A document with no content at all gives
+ * Tiptap no paragraph to put the caret in — you get a gap cursor and no
+ * placeholder — so the editor is seeded with one. Nothing is stored until
+ * something is typed: an emptied block is saved as `EMPTY_DOC` again.
+ */
+const ONE_EMPTY_PARAGRAPH: TextBlock["body"] = {
+  type: "doc",
+  content: [{ type: "paragraph" }],
+};
+
+/**
  * The measure of the PDF's text column at the size this draws it: A4 less its
  * margins is 515pt of 9pt text, which is 800px of 14px text. The page is the
  * preview, so a line here breaks roughly where a line there does.
@@ -144,14 +155,22 @@ const TEXT_STYLES = cn(
   "[&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:mt-2 [&_.tiptap_h3]:text-base [&_.tiptap_h3]:font-medium",
   // The editor sets its own size and a loose leading for invoice text.
   "[&_.tiptap]:text-sm [&_.tiptap]:leading-[1.55]",
+  // An empty block says how to start, whether or not it holds the caret
+  // (FF-1638). Only the first line of an empty one: a blank line left for
+  // air in the middle of a written block has nothing to say.
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:pointer-events-none",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:float-left",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:h-0",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:text-[#878787]",
+  "[&_.tiptap_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
 );
 
 /** A block's own heading, which the PDF sets at the size of an h1. */
 const HEADING_STYLES = "text-[22px] font-medium leading-snug";
 
 /**
- * A block's controls — its grip, its toolbar, expand and remove — out of
- * sight until they are wanted, so a quote at rest reads as a quote (FF-1633).
+ * A block's controls — its grip, expand and remove — out of sight until they
+ * are wanted, so a quote at rest reads as a quote (FF-1633).
  *
  * They take no pointer events while hidden, so an invisible button can never
  * swallow a click or a drag through the text, and a device with no pointer to
@@ -162,7 +181,7 @@ const CONTROLS = cn(
   // No gap under the bar: a few pixels of nothing between it and the block
   // is a trap, because crossing them slowly ends the hover and the bar stops
   // taking the pointer before the pointer arrives.
-  "quote-block-control absolute bottom-full z-10 border border-border bg-background",
+  "quote-block-control absolute bottom-full right-0 z-10 border border-border bg-background",
   "pointer-events-none opacity-0 transition-opacity",
   "group-hover:pointer-events-auto group-hover:opacity-100",
   "group-focus-within:pointer-events-auto group-focus-within:opacity-100",
@@ -195,19 +214,19 @@ function TextBlockEditor({
    * only ever one holds the text, and each mount is seeded from the draft the
    * last one wrote.
    */
-  const renderEditor = (
-    className: string,
-    autoFocus = false,
-    toolbarClassName?: string,
-  ) => (
+  const renderEditor = (className: string, autoFocus = false) => (
     <Editor
       // A picture is shown from an address made when the editor is built, so
       // one built before the team was read shows none: build it again.
       key={images.ready ? "ready" : "waiting"}
-      initialContent={block.body}
+      initialContent={
+        block.body.content?.length ? block.body : ONE_EMPTY_PARAGRAPH
+      }
       editable={editable}
-      toolbar
-      toolbarClassName={toolbarClassName}
+      // Nothing to reach for: "/" offers what a block can hold, and the
+      // bubble menu marks up what is already selected (FF-1638).
+      slashMenu
+      placeholder="Type '/' for commands"
       images={images}
       autoFocus={autoFocus}
       className={className}
@@ -222,17 +241,15 @@ function TextBlockEditor({
   );
 
   return (
-    // A block at rest is the document and nothing else (FF-1633). Every
-    // control it has — the grip, the toolbar, expand, remove — floats above
-    // it, and only while it is under the pointer or holds focus. A device
-    // with no pointer to hover with shows them always, and keyboard focus
-    // brings them back for anyone not using one.
+    // A block at rest is the document and nothing else (FF-1633). The
+    // controls it has — the grip, expand, remove — float above it, and only
+    // while it is under the pointer or holds focus. A device with no pointer
+    // to hover with shows them always, and keyboard focus brings them back
+    // for anyone not using one.
     // `quote-block` and `quote-block-control` style nothing: they are there
     // to be reached for from a browser test.
     <div className="group quote-block relative">
-      <div
-        className={cn(CONTROLS, "right-0 flex items-center gap-1 px-1 py-0.5")}
-      >
+      <div className={cn(CONTROLS, "flex items-center gap-1 px-1 py-0.5")}>
         {editable ? handle : null}
         <Button
           type="button"
@@ -287,14 +304,7 @@ function TextBlockEditor({
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (
-          renderEditor(
-            cn(editable && "min-h-[1.5rem]", TEXT_STYLES),
-            false,
-            // Above the block, beside its other controls and never into
-            // them: a column too narrow for one row wraps the toolbar
-            // upwards rather than over them.
-            cn(CONTROLS, "left-0 max-w-[calc(100%-108px)]"),
-          )
+          renderEditor(cn(editable && "min-h-[1.5rem]", TEXT_STYLES))
         )}
       </div>
 

@@ -11,7 +11,6 @@ import {
   MdOutlineFormatStrikethrough,
   MdOutlineFormatUnderlined,
 } from "react-icons/md";
-import { cn } from "../../../../utils";
 import { Separator } from "../../../separator";
 import { BubbleMenuItem } from "../bubble-menu/bubble-item";
 import { LinkItem } from "../bubble-menu/link-item";
@@ -21,27 +20,24 @@ import { ImageItem } from "./image-item";
 /**
  * The formatting a text block offers without knowing a markdown shortcut
  * (FF-1623). Off by default on the shared editor: the invoice blocks are a
- * few lines of address text and want no chrome above them.
+ * few lines of address text and want no chrome above them, and a quote's
+ * blocks offer the same through "/" instead (FF-1638).
+ *
+ * Nothing turns it on today. It is kept rather than deleted because "/" is a
+ * decision that can be taken back in one prop, and because the invoice
+ * editor may want it (FF-1635).
  */
 export function Toolbar({
   editor,
   images,
-  className,
 }: {
   editor: Editor;
   images?: StoredImages;
-  /** Where the toolbar sits, for a caller that does not want it in flow. */
-  className?: string;
 }) {
   const [openLink, setOpenLink] = useState(false);
 
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center border-b border-border px-1 py-0.5",
-        className,
-      )}
-    >
+    <div className="flex flex-wrap items-center border-b border-border px-1 py-0.5">
       {([1, 2, 3] as const).map((level) => {
         const Icon = { 1: Heading1, 2: Heading2, 3: Heading3 }[level];
         return (
