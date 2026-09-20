@@ -2,12 +2,11 @@
 
 import { createClient } from "@midday/supabase/client";
 import { useToast } from "@midday/ui/use-toast";
-import { stripSpecialCharacters } from "@midday/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
-import { resumableUpload } from "@/utils/upload";
+import { resumableUpload, withInboxFileName } from "@/utils/upload";
 
 export function useInboxUpload() {
   const trpc = useTRPC();
@@ -46,13 +45,16 @@ export function useInboxUpload() {
 
       toastIdRef.current = id;
 
+      // Each file goes up under a name of its own, so two receipts called
+      // `invoice.pdf` do not overwrite one another (FF-1508).
+      const uploads = files.map(withInboxFileName);
+
       try {
         await Promise.all(
-          files.map(async (file) => {
-            const processedFilename = stripSpecialCharacters(file.name);
-            const filePath = [...path, processedFilename];
+          uploads.map(async (file) => {
+            const filePath = [...path, file.name];
             return createInboxItem({
-              filename: processedFilename,
+              filename: file.name,
               mimetype: file.type,
               size: file.size,
               filePath,
@@ -68,7 +70,7 @@ export function useInboxUpload() {
         });
 
         const results = await Promise.all(
-          files.map(async (file, idx) =>
+          uploads.map(async (file, idx) =>
             resumableUpload(supabase, {
               bucket: "vault",
               path,

@@ -21,7 +21,7 @@ import {
 } from "@midday/db/queries";
 import { DocumentClient, resolveInboxType } from "@midday/documents";
 import { createClient } from "@midday/supabase/job";
-import { getExtensionFromMimeType } from "@midday/utils";
+import { inboxFileName } from "@midday/utils";
 import { getAppUrl } from "@midday/utils/envs";
 import { schemaTask } from "@trigger.dev/sdk";
 import { generateText } from "ai";
@@ -137,11 +137,15 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
         );
       }
 
-      // Ensure file has proper extension based on mimetype
-      const hasExtension = /\.[^.]+$/.test(file.name);
-      const fileName = hasExtension
-        ? file.name
-        : `${file.name}${getExtensionFromMimeType(file.mimetype)}`;
+      // A name of this file's own, so a second `receipt.pdf` does not replace
+      // the first one the team sent. Keyed on the Slack file id rather than
+      // random, so a retry of this run writes the same file and lands on the
+      // same inbox item through its reference id.
+      const fileName = inboxFileName({
+        filename: file.name,
+        mimeType: file.mimetype,
+        suffix: file.id,
+      });
 
       const filePath = [teamId, "inbox", fileName];
       const filePathStr = filePath.join("/");

@@ -3,13 +3,12 @@
 import { createClient } from "@midday/supabase/client";
 import { cn } from "@midday/ui/cn";
 import { useToast } from "@midday/ui/use-toast";
-import { stripSpecialCharacters } from "@midday/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
-import { resumableUpload } from "@/utils/upload";
+import { resumableUpload, withInboxFileName } from "@/utils/upload";
 
 type UploadResult = {
   filename: string;
@@ -79,15 +78,17 @@ export function UploadZone({ children, onUploadComplete }: Props) {
 
     const path = [user?.teamId, "inbox"] as string[];
 
+    // Each file goes up under a name of its own, so two receipts called
+    // `invoice.pdf` do not overwrite one another (FF-1508).
+    const uploads = files.map(withInboxFileName);
+
     try {
       // First, create inbox items immediately for instant feedback
       const inboxItems = await Promise.all(
-        files.map(async (file: File) => {
-          // Use the same filename processing as resumableUpload
-          const processedFilename = stripSpecialCharacters(file.name);
-          const filePath = [...path, processedFilename];
+        uploads.map(async (file: File) => {
+          const filePath = [...path, file.name];
           return createInboxItemMutation.mutateAsync({
-            filename: processedFilename,
+            filename: file.name,
             mimetype: file.type,
             size: file.size,
             filePath,
@@ -105,7 +106,7 @@ export function UploadZone({ children, onUploadComplete }: Props) {
       });
 
       const results = (await Promise.all(
-        files.map(async (file: File, idx: number) =>
+        uploads.map(async (file: File, idx: number) =>
           resumableUpload(supabase, {
             bucket: "vault",
             path,
