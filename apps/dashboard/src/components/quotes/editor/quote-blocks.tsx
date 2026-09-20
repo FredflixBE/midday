@@ -174,34 +174,37 @@ function TextBlockEditor({
     />
   );
 
+  const expand = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label="Expand block"
+      onClick={() => {
+        setHeldHeight(body.current?.offsetHeight);
+        setExpanded(true);
+      }}
+    >
+      <Maximize2 size={14} />
+    </Button>
+  );
+
   return (
-    <div className="border border-border">
-      <div className="flex items-center gap-3 border-b border-border px-3 py-1">
-        {handle}
-        <Input
-          aria-label="Heading"
-          placeholder="Heading"
-          value={block.heading ?? ""}
-          maxLength={500}
-          disabled={!editable}
-          className="h-8 flex-1 border-0 px-0 font-medium focus-visible:ring-0"
-          onChange={(event) =>
-            onChange({ heading: event.target.value || null })
-          }
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Expand block"
-          onClick={() => {
-            setHeldHeight(body.current?.offsetHeight);
-            setExpanded(true);
-          }}
-        >
-          <Maximize2 size={14} />
-        </Button>
-        {editable ? (
+    <div className={cn("group relative", editable && "border border-border")}>
+      {editable ? (
+        <div className="flex items-center gap-3 border-b border-border px-3 py-1">
+          {handle}
+          <Input
+            aria-label="Heading"
+            placeholder="Heading"
+            value={block.heading ?? ""}
+            maxLength={500}
+            className="h-8 flex-1 border-0 px-0 font-medium focus-visible:ring-0"
+            onChange={(event) =>
+              onChange({ heading: event.target.value || null })
+            }
+          />
+          {expand}
           <Button
             type="button"
             variant="ghost"
@@ -211,14 +214,30 @@ function TextBlockEditor({
           >
             <Trash2 size={14} />
           </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : (
+        // A version that cannot be edited keeps none of the chrome that says
+        // it can (FF-1631, closing FF-1628): no box, no field for the
+        // heading, nothing to type into. Expanding is still how it is read
+        // full screen (FF-1624), so that one control stays — out of the
+        // text's way until the block is under the pointer or holds focus.
+        <>
+          {block.heading ? (
+            <h3 className="pr-10 text-base font-medium">{block.heading}</h3>
+          ) : null}
+          <div className="absolute right-0 top-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+            {expand}
+          </div>
+        </>
+      )}
 
       <div ref={body}>
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (
-          renderEditor(cn("min-h-[72px] px-3 py-2", TEXT_STYLES))
+          renderEditor(
+            cn(editable ? "min-h-[72px] px-3 py-2" : "py-1", TEXT_STYLES),
+          )
         )}
       </div>
 

@@ -158,39 +158,50 @@ function VersionEditor({
 
   return (
     <ReadOnlyContext.Provider value={!editable}>
-      <div className="mx-auto max-w-[1600px] pb-24 pt-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <h1 className="text-lg font-medium">
-              {formatQuoteVersion(quote.quoteNumber, version.version)}
-            </h1>
-            <Badge variant="tag">{quoteState(quote, version)}</Badge>
-            {quote.outcomeReason ? (
-              <span className="truncate text-sm text-[#878787]">
-                {quote.outcomeReason}
-              </span>
-            ) : null}
-            <AcceptanceNote
-              version={version}
-              trackerProjectId={quote.trackerProjectId}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            {controls}
-            <DownloadQuotePdf
-              versionId={version.id}
-              quoteNumber={quote.quoteNumber}
-              version={version.version}
-              saved={editable ? saved : undefined}
-            />
-            {editable ? (
-              <MarkSentButton
-                quoteId={quote.id}
+      <div className="mx-auto max-w-[1600px] pb-24">
+        {/* Which quote this is, and whether it can be typed into, stay on
+            screen the whole way down (FF-1631). The note has a line of its
+            own so it can never push the actions off a narrow window. */}
+        <div className="sticky top-0 z-30 border-b border-border bg-background pb-3 pt-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <h1 className="truncate text-lg font-medium">
+                {formatQuoteVersion(quote.quoteNumber, version.version)}
+              </h1>
+              <Badge variant="tag-rounded" className="shrink-0">
+                {quoteState(quote, version)}
+              </Badge>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {controls}
+              <DownloadQuotePdf
                 versionId={version.id}
-                saved={saved}
+                quoteNumber={quote.quoteNumber}
+                version={version.version}
+                saved={editable ? saved : undefined}
               />
-            ) : null}
+              {editable ? (
+                <MarkSentButton
+                  quoteId={quote.id}
+                  versionId={version.id}
+                  saved={saved}
+                />
+              ) : null}
+            </div>
           </div>
+          {quote.outcomeReason || version.acceptedAt ? (
+            <div className="mt-1 flex min-w-0 items-center gap-3">
+              {quote.outcomeReason ? (
+                <span className="truncate text-sm text-[#878787]">
+                  {quote.outcomeReason}
+                </span>
+              ) : null}
+              <AcceptanceNote
+                version={version}
+                trackerProjectId={quote.trackerProjectId}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* The document in the middle, what configures it in the rail

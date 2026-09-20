@@ -16,11 +16,12 @@ import { type ReactNode, useState } from "react";
  */
 export function QuoteRail({ children }: { children: ReactNode }) {
   return (
-    // Nothing scrolls sideways here: a section opening a pixel wider than the
-    // rail would otherwise flash a horizontal scrollbar across the whole
-    // column, because `overflow-y: auto` alone makes the other axis `auto`
-    // too.
-    <aside className="min-w-0 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:w-[380px] xl:shrink-0 xl:overflow-y-auto xl:overflow-x-hidden">
+    // The offset clears the strip that stays on screen above it (FF-1631),
+    // at both its heights — with and without the acceptance line. Nothing
+    // scrolls sideways: a section opening a pixel wider than the rail would
+    // otherwise flash a horizontal scrollbar across the whole column, because
+    // `overflow-y: auto` alone makes the other axis `auto` too.
+    <aside className="min-w-0 xl:sticky xl:top-[100px] xl:max-h-[calc(100vh-8rem)] xl:w-[380px] xl:shrink-0 xl:overflow-y-auto xl:overflow-x-hidden">
       <div className="border-t border-border">{children}</div>
     </aside>
   );
