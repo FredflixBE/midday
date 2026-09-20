@@ -1,0 +1,3 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`formatEditorContent renders paragraph-only content exactly as before 1`] = `"<p><span class="text-[11px] font-semibold">Acme BV</span><br/><span class="text-[11px] italic">Main street 1</span><span class="text-[11px] line-through"> old</span></p><p></p><p><a href="https://example.com" class="text-[11px] underline">example.com</a><span class="text-[11px]"> </span><a href="mailto:hello@example.com" class="text-[11px] underline">hello@example.com</a></p>"`;

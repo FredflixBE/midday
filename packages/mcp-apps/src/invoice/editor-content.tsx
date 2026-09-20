@@ -3,21 +3,27 @@ type Mark = {
   attrs?: Record<string, any>;
 };
 
-type InlineContent = {
-  type: string;
-  text?: string;
-  marks?: Mark[];
-};
-
+// One node of a Tiptap document: a block (paragraph, heading, list, list
+// item) holding further nodes, or an inline piece of text.
 type DocNode = {
   type: string;
-  content?: InlineContent[];
+  attrs?: { level?: number; start?: number };
+  content?: DocNode[];
+  text?: string;
+  marks?: Mark[];
 };
 
 type EditorDoc = {
   type?: string;
   content?: DocNode[];
 };
+
+const bodySize = 11;
+
+// Headings by level; the editor allows 1 to 6, and 3 and below read alike.
+// The sizes are the web invoice view's, so a preview reads like the page.
+const headingSizes: Record<number, number> = { 1: 17, 2: 15 };
+const smallestHeadingSize = 12;
 
 function nodeKey(node: DocNode, index: number): string {
   const text =
@@ -28,64 +34,123 @@ function nodeKey(node: DocNode, index: number): string {
   return `${node.type}-${text || index}`;
 }
 
-function inlineKey(
-  inline: InlineContent,
-  parentKey: string,
-  index: number,
-): string {
+function inlineKey(inline: DocNode, parentKey: string, index: number): string {
   if (inline.type === "hardBreak") return `${parentKey}-br-${index}`;
   return `${parentKey}-${inline.text?.slice(0, 24) ?? inline.type}-${index}`;
+}
+
+function renderBlock(node: DocNode, index: number): React.ReactNode {
+  const key = nodeKey(node, index);
+
+  switch (node.type) {
+    case "paragraph":
+      return (
+        <p key={key} className="m-0 min-h-[1em]">
+          {renderInline(node, key, { fontSize: bodySize })}
+        </p>
+      );
+
+    case "heading": {
+      const level = Math.min(Math.max(node.attrs?.level ?? 1, 1), 6);
+      const style: React.CSSProperties = {
+        fontSize: headingSizes[level] ?? smallestHeadingSize,
+        fontWeight: 600,
+      };
+      const Heading = `h${level}` as "h1";
+
+      return (
+        <Heading key={key} className="mt-1.5 mb-0.5" style={style}>
+          {renderInline(node, key, style)}
+        </Heading>
+      );
+    }
+
+    case "bulletList":
+    case "orderedList": {
+      const items = (node.content ?? []).map((item, itemIndex) => (
+        <li
+          key={`${key}-item-${itemIndex.toString()}`}
+          style={{ fontSize: bodySize }}
+        >
+          {item.content?.map((child, childIndex) =>
+            renderBlock(child, childIndex),
+          )}
+        </li>
+      ));
+
+      if (node.type === "orderedList") {
+        const start = node.attrs?.start ?? 1;
+        return (
+          <ol
+            key={key}
+            className="list-decimal pl-4 my-0.5"
+            // A list continuing an earlier one starts where it left off.
+            start={start === 1 ? undefined : start}
+          >
+            {items}
+          </ol>
+        );
+      }
+
+      return (
+        <ul key={key} className="list-disc pl-4 my-0.5">
+          {items}
+        </ul>
+      );
+    }
+
+    // A picture (FF-1625) is quotes-only, and this previews an invoice.
+    default:
+      return null;
+  }
+}
+
+function renderInline(
+  node: DocNode,
+  parentKey: string,
+  base: React.CSSProperties,
+): React.ReactNode {
+  return node.content?.map((inline, index) => {
+    const key = inlineKey(inline, parentKey, index);
+
+    if (inline.type === "text") {
+      const style: React.CSSProperties = { ...base };
+      let hasUnderline = false;
+      let hasStrike = false;
+
+      for (const mark of inline.marks ?? []) {
+        if (mark.type === "bold") style.fontWeight = 600;
+        else if (mark.type === "italic") style.fontStyle = "italic";
+        else if (mark.type === "link" || mark.type === "underline")
+          hasUnderline = true;
+        else if (mark.type === "strike") hasStrike = true;
+      }
+
+      // Both marks at once are one declaration, not two that overwrite.
+      if (hasUnderline && hasStrike)
+        style.textDecoration = "underline line-through";
+      else if (hasUnderline) style.textDecoration = "underline";
+      else if (hasStrike) style.textDecoration = "line-through";
+
+      return (
+        <span key={key} style={style}>
+          {inline.text || ""}
+        </span>
+      );
+    }
+
+    if (inline.type === "hardBreak") {
+      return <br key={key} />;
+    }
+
+    return null;
+  });
 }
 
 function formatEditorContent(doc?: EditorDoc): React.ReactNode | null {
   if (!doc?.content) return null;
 
-  return (
-    <>
-      {doc.content.map((node, ni) => {
-        const nk = nodeKey(node, ni);
-        if (node.type === "paragraph") {
-          return (
-            <p key={nk} className="m-0 min-h-[1em]">
-              {node.content?.map((inline, ii) => {
-                const ik = inlineKey(inline, nk, ii);
-
-                if (inline.type === "text") {
-                  const style: React.CSSProperties = { fontSize: 11 };
-
-                  if (inline.marks) {
-                    for (const mark of inline.marks) {
-                      if (mark.type === "bold") style.fontWeight = 600;
-                      else if (mark.type === "italic")
-                        style.fontStyle = "italic";
-                      else if (mark.type === "link")
-                        style.textDecoration = "underline";
-                      else if (mark.type === "strike")
-                        style.textDecoration = "line-through";
-                    }
-                  }
-
-                  const content = inline.text || "";
-
-                  return (
-                    <span key={ik} style={style}>
-                      {content}
-                    </span>
-                  );
-                }
-
-                if (inline.type === "hardBreak") {
-                  return <br key={ik} />;
-                }
-                return null;
-              })}
-            </p>
-          );
-        }
-        return null;
-      })}
-    </>
-  );
+  return <>{doc.content.map((node, index) => renderBlock(node, index))}</>;
 }
 
 type Props = {
