@@ -8,7 +8,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
-import { resumableUpload, withInboxFileName } from "@/utils/upload";
+import { prepareInboxUpload, resumableUpload } from "@/utils/upload";
 
 type UploadResult = {
   filename: string;
@@ -78,15 +78,15 @@ export function UploadZone({ children, onUploadComplete }: Props) {
 
     const path = [user?.teamId, "inbox"] as string[];
 
-    const uploads = files.map(withInboxFileName);
+    const uploads = files.map(prepareInboxUpload);
 
     try {
       // First, create inbox items immediately for instant feedback
       const inboxItems = await Promise.all(
-        uploads.map(async (file: File) => {
+        uploads.map(async ({ file, originalName }) => {
           const filePath = [...path, file.name];
           return createInboxItemMutation.mutateAsync({
-            filename: file.name,
+            filename: originalName,
             mimetype: file.type,
             size: file.size,
             filePath,
@@ -104,7 +104,7 @@ export function UploadZone({ children, onUploadComplete }: Props) {
       });
 
       const results = (await Promise.all(
-        uploads.map(async (file: File, idx: number) =>
+        uploads.map(async ({ file }, idx: number) =>
           resumableUpload(supabase, {
             bucket: "vault",
             path,

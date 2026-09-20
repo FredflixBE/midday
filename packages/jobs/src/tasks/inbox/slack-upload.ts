@@ -137,10 +137,10 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
         );
       }
 
-      // A name of this file's own, so a second `receipt.pdf` does not replace
-      // the first one the team sent. Keyed on the Slack file id rather than
-      // random, so a retry of this run writes the same file and lands on the
-      // same inbox item through its reference id.
+      // The name this file is stored under: its own, so a second `receipt.pdf`
+      // does not replace the first one the team sent. Keyed on the Slack file
+      // id rather than random, so a retry of this run writes the same file
+      // instead of a second copy of it.
       const fileName = inboxFileName({
         filename: file.name,
         mimeType: file.mimetype,
@@ -185,13 +185,17 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
 
       // Create inbox entry with source metadata
       inboxData = await createInbox(db, {
-        displayName: fileName,
+        // What the person in Slack called it: the generated name belongs in
+        // the path, not in front of them. The reference id is built from the
+        // same name it always was, so an upload from before this change is
+        // still recognised as the one it is.
+        displayName: file.name,
         teamId,
         filePath,
-        fileName,
+        fileName: file.name,
         contentType: file.mimetype,
         size: file.size,
-        referenceId: `slack_${file.id}_${fileName}`,
+        referenceId: `slack_${file.id}_${file.name}`,
         meta: {
           source: "slack",
           sourceMetadata: {
@@ -269,7 +273,7 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
       if (result.document_type === "other") {
         await updateInboxWithProcessedData(db, {
           id: inboxData.id,
-          displayName: result.name ?? (fileName || "Untitled"),
+          displayName: result.name ?? (file.name || "Untitled"),
           type: "other",
           status: "other",
         });
@@ -334,7 +338,7 @@ export class SlackUploadProcessor extends BaseProcessor<SlackUploadPayload> {
         // type, and the mimetype is only the fallback (FF-1533).
         type: resolveInboxType({
           documentType: result.document_type,
-          fileName,
+          fileName: file.name,
           fallback: result.type,
         }),
         invoiceNumber: result.invoice_number ?? undefined,

@@ -9,7 +9,7 @@ import { useDropzone } from "react-dropzone";
 import { useUserQuery } from "@/hooks/use-user";
 import { usePendingUploadsStore } from "@/store/pending-uploads";
 import { useTRPC } from "@/trpc/client";
-import { resumableUpload, withInboxFileName } from "@/utils/upload";
+import { prepareInboxUpload, resumableUpload } from "@/utils/upload";
 
 // Shared toast ID for coordinating between upload zone and data table
 export const PROCESSING_TOAST_ID = "transactions-processing";
@@ -92,15 +92,15 @@ export function TransactionsUploadZone({ children }: Props) {
 
     const path = [user.teamId, "inbox"];
 
-    const uploads = files.map(withInboxFileName);
+    const uploads = files.map(prepareInboxUpload);
 
     try {
       // First, create inbox items immediately for instant feedback
       const inboxItems = await Promise.all(
-        uploads.map(async (file: File) => {
+        uploads.map(async ({ file, originalName }) => {
           const filePath = [...path, file.name];
           return createInboxItemMutation.mutateAsync({
-            filename: file.name,
+            filename: originalName,
             mimetype: file.type,
             size: file.size,
             filePath,
@@ -124,7 +124,7 @@ export function TransactionsUploadZone({ children }: Props) {
       });
 
       const results = (await Promise.all(
-        uploads.map(async (file: File, idx: number) =>
+        uploads.map(async ({ file }, idx: number) =>
           resumableUpload(supabase, {
             bucket: "vault",
             path,

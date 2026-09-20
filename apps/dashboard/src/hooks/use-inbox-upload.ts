@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
-import { resumableUpload, withInboxFileName } from "@/utils/upload";
+import { prepareInboxUpload, resumableUpload } from "@/utils/upload";
 
 export function useInboxUpload() {
   const trpc = useTRPC();
@@ -45,14 +45,14 @@ export function useInboxUpload() {
 
       toastIdRef.current = id;
 
-      const uploads = files.map(withInboxFileName);
+      const uploads = files.map(prepareInboxUpload);
 
       try {
         await Promise.all(
-          uploads.map(async (file) => {
+          uploads.map(async ({ file, originalName }) => {
             const filePath = [...path, file.name];
             return createInboxItem({
-              filename: file.name,
+              filename: originalName,
               mimetype: file.type,
               size: file.size,
               filePath,
@@ -68,7 +68,7 @@ export function useInboxUpload() {
         });
 
         const results = await Promise.all(
-          uploads.map(async (file, idx) =>
+          uploads.map(async ({ file }, idx) =>
             resumableUpload(supabase, {
               bucket: "vault",
               path,
