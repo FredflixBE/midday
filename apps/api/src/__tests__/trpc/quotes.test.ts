@@ -7,7 +7,9 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
   acceptQuoteVersion,
+  addQuoteTerms,
   createQuote,
+  deleteQuoteTerms,
   getQuote,
   listQuotes,
   markQuoteVersionSent,
@@ -36,6 +38,8 @@ describe("tRPC: quotes", () => {
       updateQuoteSettings,
       markQuoteVersionSent,
       acceptQuoteVersion,
+      addQuoteTerms,
+      deleteQuoteTerms,
       setQuoteOutcome,
     ]) {
       asMock(fn).mockReset();
@@ -223,6 +227,34 @@ describe("tRPC: quotes", () => {
       caller.setOutcome({ quoteId: A, outcome: "won" as never, reason: null }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     expect(asMock(setQuoteOutcome).mock.calls).toHaveLength(0);
+  });
+
+  test("a version of the terms is added on the caller's team", async () => {
+    const caller = createCaller(createTestContext());
+
+    await caller.addTerms({
+      label: " 2026-01 ",
+      language: "nl",
+      filePath: ["team", "quotes", "terms.pdf"],
+      fileName: "terms.pdf",
+    });
+
+    expect(asMock(addQuoteTerms).mock.calls[0]?.[1]).toMatchObject({
+      teamId: "test-team-id",
+      label: "2026-01",
+      language: "nl",
+    });
+  });
+
+  test("terms a quote was sent with are not removed", async () => {
+    asMock(deleteQuoteTerms).mockImplementation(() =>
+      Promise.reject(new QuoteInputError("A quote was sent with these terms")),
+    );
+    const caller = createCaller(createTestContext());
+
+    await expect(caller.deleteTerms({ id: A })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
   });
 
   test("settings are the caller's team's", async () => {
