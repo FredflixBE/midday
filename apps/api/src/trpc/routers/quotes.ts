@@ -1,9 +1,11 @@
 import {
   acceptQuoteSchema,
+  addQuoteTermsSchema,
   createQuoteSchema,
   listQuotesSchema,
   markQuoteSentSchema,
   quoteIdSchema,
+  quoteTermsIdSchema,
   reviseQuoteSchema,
   setQuoteOutcomeSchema,
   updateQuoteDraftSchema,
@@ -13,10 +15,13 @@ import { storeQuotePdf } from "@api/services/quote-pdf";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import {
   acceptQuoteVersion,
+  addQuoteTerms,
   createQuote,
+  deleteQuoteTerms,
   getQuote,
   getQuoteSettings,
   listQuotes,
+  listQuoteTerms,
   markQuoteVersionSent,
   QuoteInputError,
   reviseQuote,
@@ -146,6 +151,31 @@ export const quotesRouter = createTRPCRouter({
     .mutation(async ({ input, ctx: { db, teamId } }) => {
       return found(
         await setQuoteOutcome(db, { ...input, teamId: teamId! }).catch(
+          asUserError,
+        ),
+      );
+    }),
+
+  /** The team's general terms versions, newest first (FF-1616). */
+  terms: protectedProcedure.query(async ({ ctx: { db, teamId } }) => {
+    return listQuoteTerms(db, { teamId: teamId! });
+  }),
+
+  /** A new version of the terms; the newest is what a quote is sent with. */
+  addTerms: protectedProcedure
+    .input(addQuoteTermsSchema)
+    .mutation(async ({ input, ctx: { db, teamId } }) => {
+      return addQuoteTerms(db, { ...input, teamId: teamId! }).catch(
+        asUserError,
+      );
+    }),
+
+  /** A wrong upload, before a quote was sent with it. */
+  deleteTerms: protectedProcedure
+    .input(quoteTermsIdSchema)
+    .mutation(async ({ input, ctx: { db, teamId } }) => {
+      return found(
+        await deleteQuoteTerms(db, { ...input, teamId: teamId! }).catch(
           asUserError,
         ),
       );

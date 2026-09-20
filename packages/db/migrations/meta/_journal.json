@@ -162,6 +162,13 @@
       "when": 1789892899780,
       "tag": "0022_quote_acceptance",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789893670065,
+      "tag": "0023_quote_terms",
+      "breakpoints": true
     }
   ]
 }
