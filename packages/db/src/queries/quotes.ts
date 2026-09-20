@@ -1,8 +1,10 @@
 import { transformCustomerToContent } from "@midday/invoice/utils";
 import {
+  type Acceptance,
   acceptanceProblem,
   type Block,
   blockSchema,
+  formatQuoteVersion,
   initialQuoteContent,
   isExpired,
   nextQuoteNumber,
@@ -12,6 +14,7 @@ import {
   priceVersion,
   type QuoteContent,
   type QuoteKind,
+  quoteBudget,
   quoteHeadline,
   quoteNumberSequence,
 } from "@midday/quote";
@@ -33,6 +36,7 @@ import {
   quoteTerms,
   quoteVersions,
   teams,
+  trackerProjects,
 } from "../schema";
 
 /**
@@ -731,6 +735,73 @@ async function keepPdf(
 }
 
 /**
+ * The tracker project an accepted quote becomes (FF-1617, docs/quotes.md
+ * §8.7), so quoted and tracked hours can be compared from day one. One
+ * project per quote: accepting again — a corrected scenario, an optional
+ * item that was in fact taken — moves the same project rather than adding a
+ * second. Gives back the project's id, for the quote to hold.
+ *
+ * A project carries one rate and an estimate in whole hours, which is what
+ * `quoteBudget` flattens the accepted scenario to. A version sent before
+ * pricing was frozen has none, so its budget is worked out at today's rates
+ * — the same reading the PDF and the editor give it.
+ */
+async function upsertTrackerProjectFor(
+  tx: DatabaseOrTransaction,
+  params: {
+    teamId: string;
+    quote: typeof quotes.$inferSelect;
+    version: typeof quoteVersions.$inferSelect;
+    acceptance: Acceptance;
+  },
+) {
+  const { quote, version } = params;
+  const ratesFor = await ratesForTeam(tx, params.teamId);
+  const budget = quoteBudget(
+    version.content as QuoteContent,
+    pricingOf(version, ratesFor(quote.customerId)),
+    params.acceptance,
+  );
+
+  const budgetValues = {
+    rate: budget?.rate ?? null,
+    estimate: budget?.estimate ?? null,
+  };
+
+  // Only the budget is written again. What the project was called, who it
+  // is for and how it is run belong to the tracker once it exists there,
+  // and a correction to the answer is not a reason to undo a rename.
+  if (quote.trackerProjectId) {
+    const [moved] = await tx
+      .update(trackerProjects)
+      .set(budgetValues)
+      .where(
+        and(
+          eq(trackerProjects.id, quote.trackerProjectId),
+          eq(trackerProjects.teamId, params.teamId),
+        ),
+      )
+      .returning({ id: trackerProjects.id });
+    if (moved) return moved.id;
+  }
+
+  const [project] = await tx
+    .insert(trackerProjects)
+    .values({
+      ...budgetValues,
+      teamId: params.teamId,
+      name: quote.title,
+      // The one way back to the quote from the tracker side.
+      description: formatQuoteVersion(quote.quoteNumber, version.version),
+      customerId: quote.customerId,
+      currency: quote.currency,
+      billable: true,
+    })
+    .returning({ id: trackerProjects.id });
+  return project!.id;
+}
+
+/**
  * Records that a client accepted the version they hold (FF-1615): which
  * scenario, which of its optional items, who said so and when, the PO
  * number, and the document that says it. The version becomes `accepted` and
@@ -822,6 +893,12 @@ export async function acceptQuoteVersion(
         outcome: "won",
         outcomeReason: null,
         outcomeAt: sql`now()`,
+        trackerProjectId: await upsertTrackerProjectFor(tx, {
+          teamId: params.teamId,
+          quote,
+          version,
+          acceptance: { scenarioId: params.scenarioId, optionalLineIds },
+        }),
         updatedAt: sql`now()`,
       })
       .where(eq(quotes.id, quote.id));

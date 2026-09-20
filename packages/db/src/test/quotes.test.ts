@@ -43,6 +43,7 @@ import {
   invoiceTemplates,
   quotes,
   quoteVersions,
+  trackerProjects,
 } from "../schema";
 import {
   seedAll,
@@ -1709,6 +1710,141 @@ describe.skipIf(SKIP)("quotes", () => {
         await deleteQuoteTerms(db, { teamId: TEAM_EUR_ID, id: terms.id }),
       ).toBeNull();
       expect(await listQuoteTerms(db, { teamId: TEAM_USD_ID })).toHaveLength(1);
+    });
+  });
+
+  /**
+   * FF-1617. An accepted quote becomes a tracker project with a budget, so
+   * quoted and tracked hours can be compared from day one. A project holds
+   * one rate and an estimate in whole hours.
+   */
+  describe("the tracker project an accepted quote becomes", () => {
+    /** One scenario of 10 hours at 100, with a 5-hour optional item. */
+    function content(productId: string): QuoteContent {
+      const item = (id: string, hours: number, optional: boolean) => ({
+        id,
+        type: "item" as const,
+        title: `Work ${id}`,
+        description: null,
+        productId,
+        hours,
+        hoursMax: null,
+        optional,
+        once: false,
+      });
+      return {
+        blocks: [{ id: "b1", type: "pricing" }],
+        rates: { productRates: {}, volumeTiers: [], termTiers: [] },
+        displayUnit: "hours",
+        hoursPerDay: 8,
+        scenarios: [
+          {
+            id: "s1",
+            name: "Fixed price",
+            recommended: true,
+            pricing: "fixed",
+            capped: false,
+            recurrence: null,
+            adjustmentOverride: null,
+            paymentSchedule: [],
+            lines: [item("base", 10, false), item("extra", 5, true)],
+          },
+        ],
+      };
+    }
+
+    async function accepted(optionalLineIds: string[] = []) {
+      const product = await createInvoiceProduct(db, {
+        teamId: TEAM_USD_ID,
+        createdBy: TEST_USER_ID,
+        name: "Development",
+        price: 100,
+        currency: "USD",
+        unit: "hour",
+      });
+      const quote = await create();
+      const draft = draftOf(quote);
+      await updateQuoteDraft(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        content: content(product.id),
+      });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+      const after = await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+        scenarioId: "s1",
+        optionalLineIds,
+        today: TODAY,
+      });
+      return { quote: after!, versionId: draft.id };
+    }
+
+    async function projectOf(id: string) {
+      const [row] = await db
+        .select()
+        .from(trackerProjects)
+        .where(eq(trackerProjects.id, id));
+      return row!;
+    }
+
+    test("carries the quote's name, customer and currency, and its budget", async () => {
+      const { quote } = await accepted();
+
+      expect(quote.trackerProjectId).not.toBeNull();
+      expect(await projectOf(quote.trackerProjectId!)).toMatchObject({
+        teamId: TEAM_USD_ID,
+        name: "Maintenance proposal",
+        description: "OFF-0001",
+        customerId,
+        currency: "USD",
+        billable: true,
+        estimate: 10,
+        rate: 100,
+      });
+    });
+
+    test("counts the optional items that were taken", async () => {
+      const { quote } = await accepted(["extra"]);
+
+      expect(await projectOf(quote.trackerProjectId!)).toMatchObject({
+        estimate: 15,
+        rate: 100,
+      });
+    });
+
+    test("accepting again moves the same project, not a second one", async () => {
+      const { quote, versionId } = await accepted();
+      const first = quote.trackerProjectId!;
+      await db
+        .update(trackerProjects)
+        .set({ name: "Renamed in the tracker" })
+        .where(eq(trackerProjects.id, first));
+
+      const again = await acceptQuoteVersion(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+        scenarioId: "s1",
+        optionalLineIds: ["extra"],
+        today: TODAY,
+      });
+
+      expect(again!.trackerProjectId).toBe(first);
+      // A rename in the tracker survives a corrected answer.
+      expect(await projectOf(first)).toMatchObject({
+        name: "Renamed in the tracker",
+      });
+      // Counted by the quote it names: the seed has projects of its own.
+      expect(
+        await db
+          .select()
+          .from(trackerProjects)
+          .where(eq(trackerProjects.description, "OFF-0001")),
+      ).toHaveLength(1);
+      expect(await projectOf(first)).toMatchObject({ estimate: 15 });
     });
   });
 
