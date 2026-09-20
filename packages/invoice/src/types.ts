@@ -134,6 +134,10 @@ export interface EditorNode {
     level?: number;
     /** The number an ordered list starts at. */
     start?: number;
+    /** A picture's place in storage, never a public address (FF-1625). */
+    path?: string;
+    /** A picture's description. */
+    alt?: string;
   };
   content?: EditorNode[];
   text?: string;

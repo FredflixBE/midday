@@ -4,6 +4,7 @@ import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
+import { type StoredImages, storedImage } from "./stored-image";
 
 // Add your extensions here
 const extensions = [
@@ -16,7 +17,15 @@ const extensions = [
   }),
 ];
 
-export function registerExtensions(options?: { placeholder?: string }) {
-  const { placeholder } = options ?? {};
-  return [...extensions, Placeholder.configure({ placeholder })];
+export function registerExtensions(options?: {
+  placeholder?: string;
+  /** Given, the editor also holds pictures. */
+  images?: StoredImages;
+}) {
+  const { placeholder, images } = options ?? {};
+  return [
+    ...extensions,
+    ...(images ? [storedImage(images)] : []),
+    Placeholder.configure({ placeholder }),
+  ];
 }

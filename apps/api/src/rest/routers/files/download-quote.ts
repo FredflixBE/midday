@@ -1,9 +1,11 @@
 import type { Context } from "@api/rest/types";
 import { downloadQuoteSchema } from "@api/schemas/files";
+import { createAdminClient } from "@api/services/supabase";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getQuotePdfInput } from "@midday/db/queries";
 import { verifyFileKey } from "@midday/encryption";
-import { quotePdfFilename } from "@midday/quote";
+import type { ImageSource } from "@midday/invoice/templates/pdf/format";
+import { imagePathsIn, quotePdfFilename } from "@midday/quote";
 import { renderQuotePdf } from "@midday/quote/pdf";
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -74,7 +76,10 @@ app.openapi(
 
     let pdf: Buffer;
     try {
-      pdf = await renderQuotePdf(input);
+      pdf = await renderQuotePdf({
+        ...input,
+        images: await readImages(teamId, imagePathsIn(input.content)),
+      });
     } catch (error: unknown) {
       throw new HTTPException(500, {
         message: `Failed to generate quote PDF: ${
@@ -95,5 +100,40 @@ app.openapi(
     return new Response(new Uint8Array(pdf), { headers });
   },
 );
+
+/**
+ * The bytes behind each picture a quote's text holds (FF-1625). The text
+ * keeps a path, not an address, so the PDF cannot be drawn until they are
+ * read. A path that reads back nothing is simply left out: a missing picture
+ * must not cost the whole quote its PDF.
+ *
+ * Every path is checked to live under this team, so a doctored one cannot
+ * pull a file out of another team's vault.
+ */
+async function readImages(
+  teamId: string,
+  paths: string[],
+): Promise<Record<string, ImageSource>> {
+  if (paths.length === 0) return {};
+
+  const supabase = await createAdminClient();
+  const images: Record<string, ImageSource> = {};
+
+  await Promise.all(
+    paths.map(async (path) => {
+      if (!path.startsWith(`${teamId}/`)) return;
+
+      const { data } = await supabase.storage.from("vault").download(path);
+      if (!data) return;
+
+      images[path] = {
+        data: Buffer.from(await data.arrayBuffer()),
+        format: data.type === "image/png" ? "png" : "jpg",
+      };
+    }),
+  );
+
+  return images;
+}
 
 export { app as downloadQuoteRouter };

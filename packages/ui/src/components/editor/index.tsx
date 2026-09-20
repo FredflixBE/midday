@@ -10,6 +10,10 @@ import {
 } from "@tiptap/react";
 import { BubbleMenu } from "./extentions/bubble-menu";
 import { registerExtensions } from "./extentions/register";
+import type { StoredImages } from "./extentions/stored-image";
+
+export type { StoredImages };
+
 import { Toolbar } from "./extentions/toolbar";
 
 type EditorProps = {
@@ -29,6 +33,11 @@ type EditorProps = {
   toolbar?: boolean;
   /** True puts the caret at the end of the text as soon as it is mounted. */
   autoFocus?: boolean;
+  /**
+   * Given, the text may hold pictures: each is kept as a path in storage, and
+   * the toolbar offers to add one when the pictures can also be uploaded.
+   */
+  images?: StoredImages;
 };
 
 export function Editor({
@@ -42,9 +51,10 @@ export function Editor({
   editable = true,
   toolbar = false,
   autoFocus = false,
+  images,
 }: EditorProps) {
   const editor = useEditor({
-    extensions: registerExtensions({ placeholder }),
+    extensions: registerExtensions({ placeholder, images }),
     content: initialContent,
     immediatelyRender: false,
     editable,
@@ -60,7 +70,7 @@ export function Editor({
 
   return (
     <>
-      {toolbar && editable ? <Toolbar editor={editor} /> : null}
+      {toolbar && editable ? <Toolbar editor={editor} images={images} /> : null}
       <EditorContent
         editor={editor}
         className={className}

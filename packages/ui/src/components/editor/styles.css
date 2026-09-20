@@ -27,3 +27,13 @@
   height: 0;
   pointer-events: none;
 }
+
+.tiptap img {
+  @apply my-2 max-w-full;
+  height: auto;
+}
+
+/* Clicked, and so ready to be taken out again. */
+.tiptap img.ProseMirror-selectednode {
+  @apply outline outline-2 outline-primary;
+}

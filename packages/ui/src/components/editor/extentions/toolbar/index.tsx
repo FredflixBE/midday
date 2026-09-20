@@ -14,13 +14,21 @@ import {
 import { Separator } from "../../../separator";
 import { BubbleMenuItem } from "../bubble-menu/bubble-item";
 import { LinkItem } from "../bubble-menu/link-item";
+import type { StoredImages } from "../stored-image";
+import { ImageItem } from "./image-item";
 
 /**
  * The formatting a text block offers without knowing a markdown shortcut
  * (FF-1623). Off by default on the shared editor: the invoice blocks are a
  * few lines of address text and want no chrome above them.
  */
-export function Toolbar({ editor }: { editor: Editor }) {
+export function Toolbar({
+  editor,
+  images,
+}: {
+  editor: Editor;
+  images?: StoredImages;
+}) {
   const [openLink, setOpenLink] = useState(false);
 
   return (
@@ -101,6 +109,10 @@ export function Toolbar({ editor }: { editor: Editor }) {
       <Divider />
 
       <LinkItem editor={editor} open={openLink} setOpen={setOpenLink} />
+
+      {images?.upload ? (
+        <ImageItem editor={editor} upload={images.upload} />
+      ) : null}
     </div>
   );
 }
