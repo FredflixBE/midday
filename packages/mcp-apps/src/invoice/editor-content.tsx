@@ -102,7 +102,7 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
             {lines.map((line, lineIndex) => (
               <tr
                 key={`${key}-row-${lineIndex.toString()}`}
-                className="border-b border-[#DCDAD2]"
+                className="border-b border-border"
               >
                 {(line.content ?? []).map((cell, cellIndex) => {
                   const span = Math.max(1, cell.attrs?.colspan ?? 1);

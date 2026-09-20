@@ -20,19 +20,22 @@ export function formatEditorContent(doc?: EditorDoc) {
  * What the card does owe is the words: a block it did not know used to be
  * dropped whole, and every line in it with it.
  */
+// Blocks the card draws nothing of its own for — no markers, no indent, no
+// grid, all of which would read as noise at this size — but whose children
+// still hold the words. A block walked past is a block whose words go with
+// it, which is what these used to be (FF-1642 added the table four).
+const walkedThrough = new Set([
+  "bulletList",
+  "orderedList",
+  "listItem",
+  "table",
+  "tableRow",
+  "tableCell",
+  "tableHeader",
+]);
+
 function renderBlock(node: EditorNode, path: string): ReactNode {
-  if (
-    node.type === "bulletList" ||
-    node.type === "orderedList" ||
-    node.type === "listItem" ||
-    // A table (FF-1642) draws no grid here either — the card has no room for
-    // one — but its cells hold words, and a block walked past is a block
-    // whose words go with it.
-    node.type === "table" ||
-    node.type === "tableRow" ||
-    node.type === "tableCell" ||
-    node.type === "tableHeader"
-  ) {
+  if (walkedThrough.has(node.type)) {
     return node.content?.map((child, index) =>
       renderBlock(child, `${path}-${index}`),
     );

@@ -24,9 +24,10 @@ const listBlock = "pl-4 my-0.5";
 // A table (FF-1642). `table-fixed` over a full width is what makes every
 // column an equal share: left to itself the browser sizes columns by what
 // they hold, and the page would then disagree with the PDF, which cannot
-// measure text at all. The rule is the grey the quote PDF uses.
+// measure text at all. The rule is the theme's, like every other rule on
+// this view, so it holds up in the dark as well as the light.
 const tableBlock = "table-fixed w-full my-1.5 border-collapse";
-const tableRow = "border-b border-[#DCDAD2]";
+const tableRow = "border-b border-border";
 const tableCell = "align-top text-left pr-2 py-1";
 
 export function formatEditorContent(doc?: EditorDoc): ReactNode | null {

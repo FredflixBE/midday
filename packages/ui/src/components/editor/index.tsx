@@ -46,10 +46,10 @@ type EditorProps = {
    */
   images?: StoredImages;
   /**
-   * True lets a table be written here, not only shown (FF-1642): `/table`
-   * offers one, and a bar of row and column controls floats while the caret
-   * is inside it. A table already in the text is drawn either way — the
-   * schema always knows the node, so no surface can strip one out.
+   * True lets a table be written here (FF-1642): `/table` offers one, and a
+   * bar of row and column controls floats while the caret is inside it. A
+   * table already in the text is shown either way — the schema always knows
+   * the node, so no surface can strip one out.
    */
   tables?: boolean;
 };
@@ -79,7 +79,6 @@ export function Editor({
     extensions: registerExtensions({
       placeholder,
       images,
-      tables,
       extra: slash.extension ? [slash.extension] : undefined,
     }),
     content: initialContent,

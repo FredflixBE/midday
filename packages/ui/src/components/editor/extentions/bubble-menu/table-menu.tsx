@@ -16,6 +16,19 @@ import { BubbleMenuButton } from "./bubble-menu-button";
  * Written out rather than drawn: bold and italic have a glyph everyone
  * already reads, and "add a column to the right" does not.
  */
+/** Where the table holding the caret is on screen. */
+function tableRect(editor: Editor): DOMRect {
+  const { from } = editor.state.selection;
+  const at = editor.view.domAtPos(from).node;
+  const el = at instanceof HTMLElement ? at : at.parentElement;
+  return (
+    el?.closest("table")?.getBoundingClientRect() ??
+    // The caret left the table between the bar being shown and being
+    // placed; an empty rect parks it rather than throwing.
+    new DOMRect()
+  );
+}
+
 export function TableMenu({
   editor,
   tippyOptions,
@@ -53,7 +66,17 @@ export function TableMenu({
       shouldShow={({ editor: current, state }) =>
         current.isEditable && current.isActive("table") && state.selection.empty
       }
-      tippyOptions={{ placement: "top", ...tippyOptions }}
+      tippyOptions={{
+        placement: "top-start",
+        // Anchored to the table, not to the caret. Tippy's default reference
+        // is the selection, which put the bar straight on top of the cell
+        // being typed in — measured at 800px wide, it covered the whole
+        // first column. Above the table it covers nothing anyone is
+        // writing, and it is drawn over the document rather than in it, so
+        // the page does not move when it appears.
+        getReferenceClientRect: () => tableRect(editor),
+        ...tippyOptions,
+      }}
     >
       <div className="flex w-fit max-w-[90vw] overflow-hidden rounded-full border border-border bg-background text-mono font-regular">
         {controls.map((control) => (

@@ -23,16 +23,14 @@ export function registerExtensions(options?: {
   placeholder?: string;
   /** Where the editor's pictures are stored and shown from. */
   images?: StoredImages;
-  /** True where a table may be written, not only shown (FF-1642). */
-  tables?: boolean;
   /** Anything the caller adds, such as the slash menu (FF-1638). */
   extra?: Extensions;
 }) {
-  const { placeholder, images, tables, extra } = options ?? {};
+  const { placeholder, images, extra } = options ?? {};
   return [
     ...extensions,
     storedImage(images),
-    ...tableExtensions(tables),
+    ...tableExtensions,
     // On every empty node, not only the one the caret is in: an untouched
     // block has to say how to start before it is clicked into (FF-1638).
     // What is drawn from it is the caller's CSS.
