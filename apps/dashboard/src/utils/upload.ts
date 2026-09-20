@@ -1,4 +1,4 @@
-import { stripSpecialCharacters } from "@midday/utils";
+import { inboxFileName, stripSpecialCharacters } from "@midday/utils";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as tus from "tus-js-client";
 
@@ -64,4 +64,40 @@ export async function resumableUpload(
       upload.start();
     });
   });
+}
+
+/**
+ * A file ready for the team's inbox: the same bytes under a name of its own,
+ * and the name the person gave it, kept aside.
+ *
+ * The inbox is a single flat folder per team and the upload above upserts, so
+ * two receipts called `invoice.pdf` — the ordinary case for a vendor that
+ * bills monthly — would share one object, and the first receipt would be lost
+ * behind an inbox item that still describes it (FF-1508). Renaming the file
+ * is enough to stop it: the object key is derived from `file.name`.
+ *
+ * The name is stripped before the suffix is added, so the strip this uploader
+ * does on its way through leaves the result alone. That is what lets a caller
+ * register the inbox item under this name and know the file lands there.
+ *
+ * `originalName` is what the inbox item is named after: the generated name
+ * belongs in the path, where a person never reads it, and the name they
+ * recognise is what the list and the download offer them.
+ */
+export function prepareInboxUpload(file: File): {
+  file: File;
+  originalName: string;
+} {
+  const name = inboxFileName({
+    filename: stripSpecialCharacters(file.name),
+    mimeType: file.type,
+  });
+
+  return {
+    file: new File([file], name, {
+      type: file.type,
+      lastModified: file.lastModified,
+    }),
+    originalName: file.name,
+  };
 }

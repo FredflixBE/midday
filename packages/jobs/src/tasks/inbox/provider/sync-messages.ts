@@ -3,7 +3,10 @@ import {
   failedBatchItems,
   markAttachmentFailed,
 } from "@jobs/utils/attachment-failure";
-import { inboxFileName, MESSAGES_PER_BATCH } from "@jobs/utils/inbox-sync";
+import {
+  MESSAGES_PER_BATCH,
+  syncedAttachmentFileName,
+} from "@jobs/utils/inbox-sync";
 import { recordSyncFailure } from "@jobs/utils/inbox-sync-failure";
 import { processBatch } from "@jobs/utils/process-batch";
 import { getInboxAccountInfo, getInboxBlocklist } from "@midday/db/queries";
@@ -176,7 +179,7 @@ export const syncInboxMessages = schemaTask({
         async (batch) => {
           const results = [];
           for (const item of batch) {
-            const fileName = inboxFileName(item);
+            const fileName = syncedAttachmentFileName(item);
 
             const { data: uploadData, error: uploadError } =
               await supabase.storage

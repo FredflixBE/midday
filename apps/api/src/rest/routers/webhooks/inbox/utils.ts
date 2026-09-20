@@ -1,16 +1,14 @@
 import type { ProcessAttachmentPayload } from "@midday/jobs/schemas/inbox";
 import { logger } from "@midday/logger";
-import { getExtensionFromMimeType } from "@midday/utils";
+import { inboxFileName } from "@midday/utils";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { tasks } from "@trigger.dev/sdk";
-import { nanoid } from "nanoid";
 
 // Constants
 export const ALLOWED_FORWARDING_EMAILS = [
   "forwarding-noreply@google.com",
 ] as const;
 export const MIN_ATTACHMENT_SIZE_BYTES = 100000; // 100KB
-export const FILE_EXTENSION_REGEX = /\.[^.]+$/;
 
 // Types
 export type InboxAttachment = {
@@ -30,20 +28,6 @@ export type UploadResult = {
   reference_id: string;
   size: number;
 };
-
-/**
- * Generate a unique file name by appending a random 4-character string before the extension
- */
-export function generateUniqueFileName(
-  name: string,
-  contentType: string,
-): string {
-  const hasExtension = FILE_EXTENSION_REGEX.test(name);
-  if (hasExtension) {
-    return name.replace(/(\.[^.]+)$/, (ext) => `_${nanoid(4)}${ext}`);
-  }
-  return `${name}_${nanoid(4)}${getExtensionFromMimeType(contentType)}`;
-}
 
 /**
  * Filter attachments by size - exclude small images (<100KB) except PDFs
@@ -75,10 +59,13 @@ export async function uploadAttachment(
   messageId: string,
 ) {
   try {
-    const uniqueFileName = generateUniqueFileName(
-      attachment.Name,
-      attachment.ContentType,
-    );
+    // A name of this attachment's own: two emails that each attach an
+    // `invoice.pdf` would otherwise write one file, and it is also what makes
+    // a name like `Rechnung Müller.pdf` a key Storage accepts.
+    const uniqueFileName = inboxFileName({
+      filename: attachment.Name,
+      mimeType: attachment.ContentType,
+    });
 
     const { data, error } = await supabase.storage
       .from("vault")
