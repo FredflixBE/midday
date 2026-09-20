@@ -287,6 +287,9 @@ export const mocks = {
   setQuoteOutcome: mock(() => ({})) as MockFn,
   // Quote PDF (FF-1613)
   getQuotePdfInput: mock(() => null) as MockFn,
+  // Acceptance and the PDF kept when a version is sent (FF-1615)
+  acceptQuoteVersion: mock(() => ({})) as MockFn,
+  getQuoteVersionFile: mock(() => null) as MockFn,
   // Quotes through MCP (FF-1618)
   getPricedQuote: mock(() => null) as MockFn,
   // Imported by the MCP tools and missing here, so no MCP test could load.
@@ -982,6 +985,8 @@ const dbQueriesMock = new Proxy(
     markQuoteVersionSent: mocks.markQuoteVersionSent,
     setQuoteOutcome: mocks.setQuoteOutcome,
     getQuotePdfInput: mocks.getQuotePdfInput,
+    acceptQuoteVersion: mocks.acceptQuoteVersion,
+    getQuoteVersionFile: mocks.getQuoteVersionFile,
     getPricedQuote: mocks.getPricedQuote,
     getBalanceSheet: mocks.getBalanceSheet,
     getTagById: mocks.getTagById,

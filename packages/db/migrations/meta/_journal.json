@@ -155,6 +155,13 @@
       "when": 1789838988375,
       "tag": "0021_drop_work_types",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789892899780,
+      "tag": "0022_quote_acceptance",
+      "breakpoints": true
     }
   ]
 }
