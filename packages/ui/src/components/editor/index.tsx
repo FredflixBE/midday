@@ -31,6 +31,8 @@ type EditorProps = {
    * default, and never shown on content that cannot be changed.
    */
   toolbar?: boolean;
+  /** Where the toolbar sits, for a caller that does not want it in flow. */
+  toolbarClassName?: string;
   /** True puts the caret at the end of the text as soon as it is mounted. */
   autoFocus?: boolean;
   /**
@@ -50,6 +52,7 @@ export function Editor({
   tabIndex,
   editable = true,
   toolbar = false,
+  toolbarClassName,
   autoFocus = false,
   images,
 }: EditorProps) {
@@ -70,7 +73,9 @@ export function Editor({
 
   return (
     <>
-      {toolbar && editable ? <Toolbar editor={editor} images={images} /> : null}
+      {toolbar && editable ? (
+        <Toolbar editor={editor} images={images} className={toolbarClassName} />
+      ) : null}
       <EditorContent
         editor={editor}
         className={className}

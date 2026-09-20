@@ -11,6 +11,7 @@ import {
   MdOutlineFormatStrikethrough,
   MdOutlineFormatUnderlined,
 } from "react-icons/md";
+import { cn } from "../../../../utils";
 import { Separator } from "../../../separator";
 import { BubbleMenuItem } from "../bubble-menu/bubble-item";
 import { LinkItem } from "../bubble-menu/link-item";
@@ -25,14 +26,22 @@ import { ImageItem } from "./image-item";
 export function Toolbar({
   editor,
   images,
+  className,
 }: {
   editor: Editor;
   images?: StoredImages;
+  /** Where the toolbar sits, for a caller that does not want it in flow. */
+  className?: string;
 }) {
   const [openLink, setOpenLink] = useState(false);
 
   return (
-    <div className="flex flex-wrap items-center border-b border-border px-1 py-0.5">
+    <div
+      className={cn(
+        "flex flex-wrap items-center border-b border-border px-1 py-0.5",
+        className,
+      )}
+    >
       {([1, 2, 3] as const).map((level) => {
         const Icon = { 1: Heading1, 2: Heading2, 3: Heading3 }[level];
         return (
