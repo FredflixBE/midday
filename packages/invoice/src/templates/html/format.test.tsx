@@ -184,6 +184,111 @@ describe("formatEditorContent", () => {
     expect(markup).toMatch(/class="[^"]*underline_line-through[^"]*">both</);
   });
 
+  describe("a table", () => {
+    const cell = (value: string) => ({
+      type: "tableCell",
+      content: [paragraph(value)],
+    });
+    const header = (value: string) => ({
+      type: "tableHeader",
+      content: [paragraph(value)],
+    });
+    const row = (...content: object[]) => ({ type: "tableRow", content });
+
+    const comparison = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            row(header("Feature"), header("Basis"), header("Compleet")),
+            row(cell("Pages"), cell("5"), cell("20")),
+          ],
+        },
+      ],
+    } as EditorDoc;
+
+    test("renders a table as a table, a row per row and a cell per cell", () => {
+      const markup = html(comparison);
+
+      expect(markup).toContain("<table");
+      expect(markup.match(/<tr/g)).toHaveLength(2);
+      expect(markup.match(/<th/g)).toHaveLength(3);
+      expect(markup.match(/<td/g)).toHaveLength(3);
+      expect(markup).toContain("Compleet");
+      expect(markup).toContain("Pages");
+    });
+
+    test("gives every column the same share of the text column", () => {
+      const markup = html(comparison);
+
+      // `table-fixed` with a full width is what makes the columns equal;
+      // without it the browser would size them by what they hold and the
+      // page would disagree with the PDF.
+      expect(markup).toMatch(/<table class="[^"]*table-fixed/);
+      expect(markup).toMatch(/<table class="[^"]*w-full/);
+    });
+
+    test("gives a cell spanning two columns two columns' room", () => {
+      const markup = html({
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              row({ ...cell("Both"), attrs: { colspan: 2 } }, cell("One")),
+            ],
+          },
+        ],
+      } as EditorDoc);
+
+      expect(markup).toMatch(/<td [^>]*colspan="2"/i);
+    });
+
+    test("rules every row off and sets the header row apart", () => {
+      const markup = html(comparison);
+
+      expect(markup).toMatch(/<tr class="[^"]*border-b/);
+      expect(markup).toMatch(/<th class="[^"]*font-semibold/);
+      expect(markup).not.toMatch(/<td class="[^"]*font-semibold/);
+    });
+
+    test("draws a list written inside a cell as a list", () => {
+      const markup = html({
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              row({
+                type: "tableCell",
+                content: [
+                  {
+                    type: "bulletList",
+                    content: [item(paragraph("One")), item(paragraph("Two"))],
+                  },
+                ],
+              }),
+            ],
+          },
+        ],
+      } as EditorDoc);
+
+      expect(markup).toMatch(/<td[^>]*><ul class="[^"]*list-disc/);
+      expect(markup).toContain("One");
+    });
+
+    test("leaves out a table with no rows rather than an empty box", () => {
+      const markup = html({
+        type: "doc",
+        content: [{ type: "table", content: [] }, paragraph("After")],
+      } as EditorDoc);
+
+      expect(markup).not.toContain("<table");
+      expect(markup).toContain("After");
+    });
+  });
+
   test("skips nodes it does not know instead of failing", () => {
     const markup = html({
       type: "doc",

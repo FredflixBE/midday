@@ -37,3 +37,35 @@
 .tiptap img.ProseMirror-selectednode {
   @apply outline outline-2 outline-primary;
 }
+
+/* A table (FF-1642): equal columns and ruled rows, the same grid the PDF
+   draws, so what is written here is what is printed. No handles down the
+   edges and no cell borders — this is a document, not a spreadsheet. */
+.tiptap table {
+  @apply my-2 w-full table-fixed border-collapse;
+}
+
+.tiptap table tr {
+  @apply border-b border-border;
+}
+
+.tiptap table th,
+.tiptap table td {
+  /* Positioned so the selection tint below has something to sit in. */
+  @apply relative align-top py-1 pr-2;
+}
+
+.tiptap table th {
+  @apply text-left font-semibold;
+}
+
+.tiptap table p {
+  margin: 0;
+}
+
+/* The cells a selection covers. A tint rather than an outline: the document
+   pane holds no input fields to draw borders around. */
+.tiptap table .selectedCell::after {
+  @apply pointer-events-none absolute inset-0 z-10 bg-accent/60;
+  content: "";
+}

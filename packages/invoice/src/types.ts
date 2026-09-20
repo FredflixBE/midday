@@ -126,7 +126,8 @@ export interface EditorDoc {
 }
 
 // One node of a Tiptap document: a block (paragraph, heading, list, list
-// item) holding further nodes, or an inline piece of text.
+// item, table, table row, table cell) holding further nodes, or an inline
+// piece of text.
 export interface EditorNode {
   type: string;
   attrs?: {
@@ -138,6 +139,8 @@ export interface EditorNode {
     path?: string;
     /** A picture's description. */
     alt?: string;
+    /** How many columns a table cell takes up (FF-1642). */
+    colspan?: number;
   };
   content?: EditorNode[];
   text?: string;

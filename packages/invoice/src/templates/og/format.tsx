@@ -15,16 +15,23 @@ export function formatEditorContent(doc?: EditorDoc) {
 
 /**
  * The card carries the from and customer address blocks only, drawn at
- * 1200×630 — so a heading is not sized up here and a list is given no
- * markers or indent, which at that size would read as noise. What the card
- * does owe is the words: a block it did not know used to be dropped whole,
- * and every line in it with it.
+ * 1200×630 — so a heading is not sized up here, and a list or a table is
+ * given no markers, indent or grid, which at that size would read as noise.
+ * What the card does owe is the words: a block it did not know used to be
+ * dropped whole, and every line in it with it.
  */
 function renderBlock(node: EditorNode, path: string): ReactNode {
   if (
     node.type === "bulletList" ||
     node.type === "orderedList" ||
-    node.type === "listItem"
+    node.type === "listItem" ||
+    // A table (FF-1642) draws no grid here either — the card has no room for
+    // one — but its cells hold words, and a block walked past is a block
+    // whose words go with it.
+    node.type === "table" ||
+    node.type === "tableRow" ||
+    node.type === "tableCell" ||
+    node.type === "tableHeader"
   ) {
     return node.content?.map((child, index) =>
       renderBlock(child, `${path}-${index}`),

@@ -21,6 +21,14 @@ const smallestHeadingText = "text-[12px]";
 const headingBlock = "font-semibold mt-1.5 mb-0.5";
 const listBlock = "pl-4 my-0.5";
 
+// A table (FF-1642). `table-fixed` over a full width is what makes every
+// column an equal share: left to itself the browser sizes columns by what
+// they hold, and the page would then disagree with the PDF, which cannot
+// measure text at all. The rule is the grey the quote PDF uses.
+const tableBlock = "table-fixed w-full my-1.5 border-collapse";
+const tableRow = "border-b border-[#DCDAD2]";
+const tableCell = "align-top text-left pr-2 py-1";
+
 export function formatEditorContent(doc?: EditorDoc): ReactNode | null {
   if (!doc?.content) {
     return null;
@@ -76,6 +84,50 @@ function renderBlock(node: EditorNode, path: string): ReactNode {
         <ul key={`list-${path}`} className={`list-disc ${listBlock}`}>
           {items}
         </ul>
+      );
+    }
+
+    case "table": {
+      const lines = node.content ?? [];
+      // A table with no rows is an empty box; leave it out.
+      if (lines.length === 0) {
+        return null;
+      }
+
+      return (
+        <table key={`table-${path}`} className={tableBlock}>
+          <tbody>
+            {lines.map((line, index) => (
+              <tr
+                key={`table-row-${path}-${index.toString()}`}
+                className={tableRow}
+              >
+                {(line.content ?? []).map((cell, cellIndex) => {
+                  const span = Math.max(1, cell.attrs?.colspan ?? 1);
+                  const Cell = cell.type === "tableHeader" ? "th" : "td";
+                  return (
+                    <Cell
+                      key={`table-cell-${path}-${index.toString()}-${cellIndex.toString()}`}
+                      colSpan={span === 1 ? undefined : span}
+                      className={
+                        Cell === "th"
+                          ? `${tableCell} ${bodyText} font-semibold`
+                          : `${tableCell} ${bodyText}`
+                      }
+                    >
+                      {cell.content?.map((child, childIndex) =>
+                        renderBlock(
+                          child,
+                          `${path}-${index}-${cellIndex}-${childIndex}`,
+                        ),
+                      )}
+                    </Cell>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       );
     }
 

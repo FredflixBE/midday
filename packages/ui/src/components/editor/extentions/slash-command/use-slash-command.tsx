@@ -21,9 +21,12 @@ import type { SlashCommandItem } from "./types";
 export function useSlashCommand({
   enabled,
   images,
+  tables,
 }: {
   enabled: boolean;
   images?: StoredImages;
+  /** True where a table may be written, not only shown (FF-1642). */
+  tables?: boolean;
 }) {
   const { toast } = useToast();
   // The menu is drawn into the body, which only exists in the browser.
@@ -92,8 +95,9 @@ export function useSlashCommand({
               file.current?.click();
             }
           : undefined,
+        tables,
       }),
-    [images?.upload],
+    [images?.upload, tables],
   );
 
   const extension = useMemo(() => {

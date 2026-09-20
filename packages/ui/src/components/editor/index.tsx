@@ -9,6 +9,7 @@ import {
   useEditor,
 } from "@tiptap/react";
 import { BubbleMenu } from "./extentions/bubble-menu";
+import { TableMenu } from "./extentions/bubble-menu/table-menu";
 import { registerExtensions } from "./extentions/register";
 import { useSlashCommand } from "./extentions/slash-command/use-slash-command";
 import type { StoredImages } from "./extentions/stored-image";
@@ -44,6 +45,13 @@ type EditorProps = {
    * the toolbar offers to add one when the pictures can also be uploaded.
    */
   images?: StoredImages;
+  /**
+   * True lets a table be written here, not only shown (FF-1642): `/table`
+   * offers one, and a bar of row and column controls floats while the caret
+   * is inside it. A table already in the text is drawn either way — the
+   * schema always knows the node, so no surface can strip one out.
+   */
+  tables?: boolean;
 };
 
 export function Editor({
@@ -59,13 +67,19 @@ export function Editor({
   slashMenu = false,
   autoFocus = false,
   images,
+  tables = false,
 }: EditorProps) {
-  const slash = useSlashCommand({ enabled: slashMenu && editable, images });
+  const slash = useSlashCommand({
+    enabled: slashMenu && editable,
+    images,
+    tables: tables && editable,
+  });
 
   const editor = useEditor({
     extensions: registerExtensions({
       placeholder,
       images,
+      tables,
       extra: slash.extension ? [slash.extension] : undefined,
     }),
     content: initialContent,
@@ -90,6 +104,7 @@ export function Editor({
         tabIndex={tabIndex}
       />
       <BubbleMenu editor={editor} />
+      {tables && editable ? <TableMenu editor={editor} /> : null}
       {slash.overlay}
     </>
   );
