@@ -742,9 +742,11 @@ async function keepPdf(
  * second. Gives back the project's id, for the quote to hold.
  *
  * A project carries one rate and an estimate in whole hours, which is what
- * `quoteBudget` flattens the accepted scenario to.
+ * `quoteBudget` flattens the accepted scenario to. A version sent before
+ * pricing was frozen has none, so its budget is worked out at today's rates
+ * — the same reading the PDF and the editor give it.
  */
-async function handOver(
+async function upsertTrackerProjectFor(
   tx: DatabaseOrTransaction,
   params: {
     teamId: string;
@@ -761,22 +763,18 @@ async function handOver(
     params.acceptance,
   );
 
-  const values = {
-    teamId: params.teamId,
-    name: quote.title,
-    // The one way back to the quote from the tracker side.
-    description: formatQuoteVersion(quote.quoteNumber, version.version),
-    customerId: quote.customerId,
-    currency: quote.currency,
-    billable: true,
+  const budgetValues = {
     rate: budget?.rate ?? null,
     estimate: budget?.estimate ?? null,
   };
 
+  // Only the budget is written again. What the project was called, who it
+  // is for and how it is run belong to the tracker once it exists there,
+  // and a correction to the answer is not a reason to undo a rename.
   if (quote.trackerProjectId) {
     const [moved] = await tx
       .update(trackerProjects)
-      .set(values)
+      .set(budgetValues)
       .where(
         and(
           eq(trackerProjects.id, quote.trackerProjectId),
@@ -789,7 +787,16 @@ async function handOver(
 
   const [project] = await tx
     .insert(trackerProjects)
-    .values(values)
+    .values({
+      ...budgetValues,
+      teamId: params.teamId,
+      name: quote.title,
+      // The one way back to the quote from the tracker side.
+      description: formatQuoteVersion(quote.quoteNumber, version.version),
+      customerId: quote.customerId,
+      currency: quote.currency,
+      billable: true,
+    })
     .returning({ id: trackerProjects.id });
   return project!.id;
 }
@@ -886,7 +893,7 @@ export async function acceptQuoteVersion(
         outcome: "won",
         outcomeReason: null,
         outcomeAt: sql`now()`,
-        trackerProjectId: await handOver(tx, {
+        trackerProjectId: await upsertTrackerProjectFor(tx, {
           teamId: params.teamId,
           quote,
           version,

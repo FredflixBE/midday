@@ -1819,6 +1819,10 @@ describe.skipIf(SKIP)("quotes", () => {
     test("accepting again moves the same project, not a second one", async () => {
       const { quote, versionId } = await accepted();
       const first = quote.trackerProjectId!;
+      await db
+        .update(trackerProjects)
+        .set({ name: "Renamed in the tracker" })
+        .where(eq(trackerProjects.id, first));
 
       const again = await acceptQuoteVersion(db, {
         teamId: TEAM_USD_ID,
@@ -1829,12 +1833,16 @@ describe.skipIf(SKIP)("quotes", () => {
       });
 
       expect(again!.trackerProjectId).toBe(first);
-      // Counted by name: the seed has tracker projects of its own.
+      // A rename in the tracker survives a corrected answer.
+      expect(await projectOf(first)).toMatchObject({
+        name: "Renamed in the tracker",
+      });
+      // Counted by the quote it names: the seed has projects of its own.
       expect(
         await db
           .select()
           .from(trackerProjects)
-          .where(eq(trackerProjects.name, "Maintenance proposal")),
+          .where(eq(trackerProjects.description, "OFF-0001")),
       ).toHaveLength(1);
       expect(await projectOf(first)).toMatchObject({ estimate: 15 });
     });
