@@ -50,7 +50,6 @@ export function QuoteBlocks({
   change,
   editable,
   pricing,
-  onShowPricing,
 }: {
   content: QuoteContent;
   change: (next: DraftChange) => void;
@@ -58,8 +57,6 @@ export function QuoteBlocks({
   /** The priced scenarios as they print, for the block that stands where
       they go. */
   pricing: { comparison: ComparisonView | null; scenarios: ScenarioView[] };
-  /** Where they are edited. */
-  onShowPricing: () => void;
 }) {
   const setBlocks = (blocks: (current: Block[]) => Block[]) =>
     change((d) => ({
@@ -91,7 +88,6 @@ export function QuoteBlocks({
                     handle={editable ? handle : null}
                     pricing={pricing}
                     dragging={dragging}
-                    onShowPricing={onShowPricing}
                   />
                 )}
               </SortableRow>
@@ -151,20 +147,19 @@ export function QuoteBlocks({
  * among the text is what decides where the tables go, and it is the only
  * thing that decides it.
  *
- * Nothing is edited here. The label is the way to the Pricing tab, which is.
+ * Nothing is edited or reached from here: the Pricing tab is where the
+ * numbers are changed, and the tab strip is the way to it.
  */
 function PricingBlock({
   handle,
   pricing,
   dragging,
-  onShowPricing,
 }: {
   handle: ReactNode;
   pricing: { comparison: ComparisonView | null; scenarios: ScenarioView[] };
   /** True while it is being moved: a block the height of a page is not one
       you can drop where you meant to. */
   dragging: boolean;
-  onShowPricing: () => void;
 }) {
   const [open, setOpen] = useState(true);
   const empty = pricing.scenarios.length === 0;
@@ -173,14 +168,7 @@ function PricingBlock({
     <div className="border border-dashed border-border">
       <div className="flex items-center gap-3 px-3 py-2 text-sm text-[#878787]">
         {handle}
-        <button
-          type="button"
-          aria-label="Show the pricing"
-          className="flex-1 text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
-          onClick={onShowPricing}
-        >
-          Pricing
-        </button>
+        <span className="flex-1">Pricing</span>
         {/* On the right, where every other thing that opens and shuts on
             this page has its chevron. */}
         <button

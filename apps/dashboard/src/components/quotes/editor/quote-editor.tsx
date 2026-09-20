@@ -308,10 +308,6 @@ function VersionEditor({
                   change={change}
                   editable={editable}
                   pricing={printed}
-                  onShowPricing={() => {
-                    setPane("pricing");
-                    window.scrollTo({ top: 0 });
-                  }}
                 />
               </TabsContent>
 
