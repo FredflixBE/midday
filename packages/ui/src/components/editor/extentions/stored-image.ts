@@ -14,10 +14,15 @@ export type StoredImages = {
 };
 
 /**
- * Always registered, whether or not anything can add a picture here. Tiptap
- * throws away nodes its schema does not know, so an editor built without this
- * would quietly strip the pictures out of text it was only meant to show —
- * and the next keystroke would save the text without them.
+ * Part of the schema wherever `registerExtensions` builds one, whether or not
+ * pictures can be added there. Tiptap throws away nodes its schema does not
+ * know, so an editor built without this would quietly strip the pictures out
+ * of text it was only meant to show — and the next keystroke would save the
+ * text without them.
+ *
+ * Being in the schema is not the same as taking one, though: an editor with
+ * nowhere to store pictures parses none, so a picture copied out of a quote
+ * cannot be pasted into a surface that would only lose it again.
  */
 export function storedImage(images?: StoredImages) {
   return Image.extend({
@@ -33,8 +38,16 @@ export function storedImage(images?: StoredImages) {
       };
     },
 
+    // A picture arrives from the toolbar, which puts the file somewhere and
+    // gets a path back. Tiptap's own `![alt](src)` shortcut would make one
+    // out of an address instead — an address this node has nowhere to keep —
+    // so it is dropped rather than left to insert an empty picture.
+    addInputRules() {
+      return [];
+    },
+
     parseHTML() {
-      return [{ tag: "img[data-path]" }];
+      return images ? [{ tag: "img[data-path]" }] : [];
     },
 
     renderHTML({ HTMLAttributes }) {

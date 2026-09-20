@@ -10,6 +10,16 @@ import { resumableUpload } from "@/utils/upload";
 const MAX_BYTES = 10 * 1024 * 1024;
 
 /**
+ * What the PDF can draw. The file dialog is told the same, but that is only
+ * a hint it will let you past, and a picture the editor shows and the PDF
+ * silently drops is worse than one that was never added.
+ */
+const TYPES: Record<string, string | undefined> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+};
+
+/**
  * The pictures a quote's text may hold (FF-1625). They live in the `vault`
  * bucket under the team, the way documents do, and the text keeps the path
  * they were stored under — never a public address, so a picture is only
@@ -53,7 +63,11 @@ export function useQuoteImages(): StoredImages & { ready: boolean } {
       throw new Error("Pictures in a quote are up to 10 MB.");
     }
 
-    const extension = file.name.split(".").pop()?.toLowerCase() || "png";
+    const extension = TYPES[file.type];
+    if (!extension) {
+      throw new Error("A quote holds PNG and JPEG pictures.");
+    }
+
     const named = new File([file], `${crypto.randomUUID()}.${extension}`, {
       type: file.type,
     });

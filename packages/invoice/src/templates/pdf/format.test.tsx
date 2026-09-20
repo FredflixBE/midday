@@ -294,8 +294,12 @@ describe("formatEditorContent", () => {
         format: "png",
       });
       expect(styleOf(image).width).toBe("100%");
-      // Its own proportions: nothing fixes the height.
+      // Its own proportions: nothing fixes the height, and a tall one is
+      // fitted inside the room a page has rather than running off it.
       expect(styleOf(image).height).toBeUndefined();
+      expect(Number(styleOf(image).maxHeight)).toBeGreaterThan(0);
+      expect(Number(styleOf(image).maxHeight)).toBeLessThan(700);
+      expect(styleOf(image).objectFit).toBe("contain");
 
       const holder = out.find((e) => e.children.includes(image))!;
       expect((holder.props as { wrap?: boolean }).wrap).toBe(false);

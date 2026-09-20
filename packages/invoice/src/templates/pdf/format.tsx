@@ -19,6 +19,12 @@ const bodyText: PDFTextStyle = { fontSize: 9, fontFamily: "Inter" };
 const headingSizes: Record<number, number> = { 1: 14, 2: 12 };
 const smallestHeadingSize = 10;
 
+// A picture is drawn the width of the text column, but a tall one drawn to
+// that width would run off the foot of the page — a phone screenshot is
+// twice as tall as it is wide. This leaves it room to stand whole on a page
+// of its own, and a taller one is fitted inside rather than cut.
+const maxImageHeight = 560;
+
 // The cell that holds a list item's bullet or number: a bullet's width, or
 // room for the list's longest number, so every item's text lines up.
 const bulletWidth = 12;
@@ -124,7 +130,14 @@ function renderBlock(
         // The text column's full width, its own proportions, and never
         // divided over two pages.
         <View key={`image-${path}`} style={{ marginVertical: 6 }} wrap={false}>
-          <Image src={source} style={{ width: "100%" }} />
+          <Image
+            src={source}
+            style={{
+              width: "100%",
+              maxHeight: maxImageHeight,
+              objectFit: "contain",
+            }}
+          />
         </View>
       );
     }
