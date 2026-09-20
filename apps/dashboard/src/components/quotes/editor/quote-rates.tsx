@@ -31,7 +31,9 @@ const RATE_COLUMNS = "grid grid-cols-[minmax(0,1fr)_68px_68px_100px] gap-2";
  * full. Tiers adjust it by volume of hours and by term.
  *
  * Three sections of the settings rail (FF-1630), each collapsing on its own
- * and each disabled on a version that cannot be edited.
+ * and each disabled on a version that cannot be edited. A section that would
+ * open on nothing is not drawn at all: no product is priced until a
+ * scenario's lines name one, and a sent version has no tier to add.
  */
 export function QuoteRates({
   content,
@@ -70,8 +72,8 @@ export function QuoteRates({
 
   return (
     <>
-      <RailSection title="Rates" filled={shown.length > 0} disabled={!editable}>
-        {shown.length > 0 ? (
+      {shown.length > 0 ? (
+        <RailSection title="Rates" disabled={!editable}>
           <div>
             <div
               className={cn(
@@ -108,68 +110,72 @@ export function QuoteRates({
               ))}
             </div>
           </div>
-        ) : null}
-      </RailSection>
+        </RailSection>
+      ) : null}
 
-      <RailSection
-        title="Volume tiers"
-        filled={content.rates.volumeTiers.length > 0}
-        disabled={!editable}
-      >
-        <Tiers
-          addLabel="Add volume tier"
-          threshold={`From ${content.displayUnit}`}
-          // Thresholds are hours, typed in the quote's unit like its lines.
-          tiers={content.rates.volumeTiers.map((t) => ({
-            from: hoursToUnit(t.minHours, content),
-            percent: t.percent,
-          }))}
-          integer={false}
-          editable={editable}
-          onChange={(next) =>
-            setRates((rates) => ({
-              ...rates,
-              volumeTiers: next(
-                rates.volumeTiers.map((t) => ({
-                  from: hoursToUnit(t.minHours, content),
+      {content.rates.volumeTiers.length > 0 || editable ? (
+        <RailSection
+          title="Volume tiers"
+          filled={content.rates.volumeTiers.length > 0}
+          disabled={!editable}
+        >
+          <Tiers
+            addLabel="Add volume tier"
+            threshold={`From ${content.displayUnit}`}
+            // Thresholds are hours, typed in the quote's unit like its lines.
+            tiers={content.rates.volumeTiers.map((t) => ({
+              from: hoursToUnit(t.minHours, content),
+              percent: t.percent,
+            }))}
+            integer={false}
+            editable={editable}
+            onChange={(next) =>
+              setRates((rates) => ({
+                ...rates,
+                volumeTiers: next(
+                  rates.volumeTiers.map((t) => ({
+                    from: hoursToUnit(t.minHours, content),
+                    percent: t.percent,
+                  })),
+                ).map((t) => ({
+                  minHours: unitToHours(t.from, content),
                   percent: t.percent,
                 })),
-              ).map((t) => ({
-                minHours: unitToHours(t.from, content),
-                percent: t.percent,
-              })),
-            }))
-          }
-        />
-      </RailSection>
+              }))
+            }
+          />
+        </RailSection>
+      ) : null}
 
-      <RailSection
-        title="Term tiers"
-        filled={content.rates.termTiers.length > 0}
-        disabled={!editable}
-      >
-        <Tiers
-          addLabel="Add term tier"
-          threshold="From months"
-          tiers={content.rates.termTiers.map((t) => ({
-            from: t.minMonths,
-            percent: t.percent,
-          }))}
-          integer
-          editable={editable}
-          onChange={(next) =>
-            setRates((rates) => ({
-              ...rates,
-              termTiers: next(
-                rates.termTiers.map((t) => ({
-                  from: t.minMonths,
-                  percent: t.percent,
-                })),
-              ).map((t) => ({ minMonths: t.from, percent: t.percent })),
-            }))
-          }
-        />
-      </RailSection>
+      {content.rates.termTiers.length > 0 || editable ? (
+        <RailSection
+          title="Term tiers"
+          filled={content.rates.termTiers.length > 0}
+          disabled={!editable}
+        >
+          <Tiers
+            addLabel="Add term tier"
+            threshold="From months"
+            tiers={content.rates.termTiers.map((t) => ({
+              from: t.minMonths,
+              percent: t.percent,
+            }))}
+            integer
+            editable={editable}
+            onChange={(next) =>
+              setRates((rates) => ({
+                ...rates,
+                termTiers: next(
+                  rates.termTiers.map((t) => ({
+                    from: t.minMonths,
+                    percent: t.percent,
+                  })),
+                ).map((t) => ({ minMonths: t.from, percent: t.percent })),
+              }))
+            }
+          />
+        </RailSection>
+      ) : null}
     </>
   );
 }
