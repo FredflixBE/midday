@@ -251,6 +251,16 @@ A new react-pdf template in `packages/quote`, downloaded from the dashboard. It'
    - then each scenario: lines grouped by section, section subtotals, work-type subtotals, optional items, totals (per period, per year, over the term for recurring; fixed, or min–max with the cap, for project), payment schedule.
 4. Amounts are excluding VAT (Open 5).
 
+**The PDF of a sent version is stored** (FF-1615). A version freezes its
+content, its pricing and the sender and customer snapshots, but the logo, the
+payment details, the team's labels and the pictures in the text are all read
+live when the quote is drawn — so only a file can be what the client holds.
+Marking a version sent renders it once and keeps it in the `vault` bucket
+under `<team>/quotes/<version id>.pdf`, inside the same transaction: a PDF
+that cannot be stored refuses the send. The download serves that file when
+there is one, and draws the quote only for a draft (or a version sent before
+this was built).
+
 ## 7. Build order
 
 **Phase 1: send a multi-scenario estimate as a PDF (the first real use case).**
