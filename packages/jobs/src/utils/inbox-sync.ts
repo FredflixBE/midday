@@ -1,5 +1,5 @@
 import { DEFAULT_SYNC_DAYS } from "@midday/inbox/sync-start";
-import { inboxFileName as storedInboxFileName } from "@midday/utils";
+import { inboxFileName } from "@midday/utils";
 
 /**
  * Messages read by one run of `sync-inbox-messages`: small enough that a run
@@ -110,12 +110,12 @@ export async function syncMailbox(
  * being random, so syncing the same attachment again writes the same file
  * instead of a second copy of it.
  */
-export function inboxFileName(attachment: {
+export function syncedAttachmentFileName(attachment: {
   filename: string;
   mimeType: string;
   referenceId: string;
 }): string {
-  return storedInboxFileName({
+  return inboxFileName({
     filename: attachment.filename,
     mimeType: attachment.mimeType,
     suffix: attachment.referenceId.slice(0, 8),

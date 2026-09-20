@@ -45,8 +45,6 @@ export function useInboxUpload() {
 
       toastIdRef.current = id;
 
-      // Each file goes up under a name of its own, so two receipts called
-      // `invoice.pdf` do not overwrite one another (FF-1508).
       const uploads = files.map(withInboxFileName);
 
       try {

@@ -46,6 +46,16 @@ describe("the name a document is stored under in the inbox", () => {
     expect(name("発票.pdf")).toBe("___abc123.pdf");
   });
 
+  test("is one path segment, so a slash in the name makes no folder", () => {
+    expect(
+      inboxFileName({
+        filename: "2026/09 invoice.pdf",
+        mimeType: "application/pdf",
+        suffix: "abc123",
+      }),
+    ).toBe("2026_09 invoice_abc123.pdf");
+  });
+
   test("gains its extension when the document arrived without one", () => {
     expect(
       inboxFileName({

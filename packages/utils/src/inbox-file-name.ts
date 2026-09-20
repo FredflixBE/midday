@@ -2,9 +2,11 @@ import { ensureFileExtension } from "./mime-to-extension";
 
 /**
  * The characters Supabase Storage accepts in an object key; it answers any
- * other with "Invalid key". Mirrors `isValidKey` in storage-api.
+ * other with "Invalid key". Mirrors `isValidKey` in storage-api, less the
+ * separator: what this module makes is one segment of a key, and a document
+ * called `2026/09.pdf` must not become a folder.
  */
-const STORAGE_KEY_CHARACTER = /[\w/!\-.*'() &$@=;:+,?]/;
+const STORAGE_KEY_CHARACTER = /[\w!\-.*'() &$@=;:+,?]/;
 
 const FILE_EXTENSION = /\.[^.]+$/;
 
@@ -12,7 +14,7 @@ const FILE_EXTENSION = /\.[^.]+$/;
  * A file name Storage accepts: accents dropped (é → e), and whatever it would
  * still refuse replaced by an underscore.
  */
-export function storageSafeFileName(name: string): string {
+function storageSafeFileName(name: string): string {
   return Array.from(name.normalize("NFKD").replace(/\p{M}/gu, ""))
     .map((character) =>
       STORAGE_KEY_CHARACTER.test(character) ? character : "_",

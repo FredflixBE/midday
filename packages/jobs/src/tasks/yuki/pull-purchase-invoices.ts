@@ -6,7 +6,7 @@ import {
   type YukiPullPurchaseInvoicesPayload,
   yukiPullPurchaseInvoicesSchema,
 } from "@jobs/schemas/yuki";
-import { inboxFileName } from "@jobs/utils/inbox-sync";
+import { syncedAttachmentFileName } from "@jobs/utils/inbox-sync";
 import { planYukiPull, type YukiPullCandidate } from "@jobs/utils/yuki-pull";
 import {
   calculateInboxSuggestions,
@@ -246,7 +246,7 @@ export class YukiPullPurchaseInvoicesProcessor extends BaseProcessor<YukiPullPur
     // called `invoice.pdf` do not overwrite each other in a flat bucket. The
     // suffix is the Yuki document id, which makes storing the same document
     // twice write the same file rather than a second one.
-    const fileName = inboxFileName({
+    const fileName = syncedAttachmentFileName({
       filename: document.fileName ?? `${document.documentId}.pdf`,
       mimeType: contentType,
       referenceId: document.documentId,

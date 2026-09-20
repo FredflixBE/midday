@@ -25,7 +25,7 @@ import { readYukiArchive } from "@midday/yuki/archive";
 import { fetchDocumentBinary } from "@midday/yuki/documents";
 import { YUKI_APP_ID, yukiClientForTeam } from "@midday/yuki/team";
 import { DEFAULT_YUKI_PULL_CUTOFF } from "../src/schemas/yuki";
-import { inboxFileName } from "../src/utils/inbox-sync";
+import { syncedAttachmentFileName } from "../src/utils/inbox-sync";
 import { planYukiPull } from "../src/utils/yuki-pull";
 
 const short = (id: string) => `${id.slice(0, 8)}…`;
@@ -110,7 +110,7 @@ async function main() {
     const bytes = await fetchDocumentBinary(client, {
       documentId: next.document.documentId,
     });
-    const fileName = inboxFileName({
+    const fileName = syncedAttachmentFileName({
       filename: next.document.fileName ?? `${next.document.documentId}.pdf`,
       mimeType: next.document.contentType ?? "application/pdf",
       referenceId: next.document.documentId,

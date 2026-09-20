@@ -13,7 +13,7 @@ export {
   getFiscalYearLabel,
   getFiscalYearToDate,
 } from "./fiscal-year";
-export { inboxFileName, storageSafeFileName } from "./inbox-file-name";
+export { inboxFileName } from "./inbox-file-name";
 export {
   ensureFileExtension,
   getExtensionFromMimeType,
