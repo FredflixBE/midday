@@ -165,7 +165,7 @@ quote_settings
   labels jsonb                   -- PDF labels per language: { nl: {...}, en: {...} }
 ```
 
-Phase 2 adds `quote_terms` (id, team_id, version label, file path, created_at). A version records the terms it was sent with.
+Phase 2 adds `quote_terms` (id, team_id, label, language, file path and name, created_at), with a label unique per language (FF-1616). Marking a version sent records the newest terms in the quote's language, before its PDF is drawn, and the PDF names it in its closing notes. Terms a sent version records cannot be removed.
 
 ## 4. Pricing rules
 
@@ -250,6 +250,16 @@ A new react-pdf template in `packages/quote`, downloaded from the dashboard. It'
    - a comparison table when there are several scenarios (one column per scenario, recommended one marked)
    - then each scenario: lines grouped by section, section subtotals, work-type subtotals, optional items, totals (per period, per year, over the term for recurring; fixed, or min–max with the cap, for project), payment schedule.
 4. Amounts are excluding VAT (Open 5).
+
+**The PDF of a sent version is stored** (FF-1615). A version freezes its
+content, its pricing and the sender and customer snapshots, but the logo, the
+payment details, the team's labels and the pictures in the text are all read
+live when the quote is drawn — so only a file can be what the client holds.
+Marking a version sent renders it once and keeps it in the `vault` bucket
+under `<team>/quotes/<version id>.pdf`, inside the same transaction: a PDF
+that cannot be stored refuses the send. The download serves that file when
+there is one, and draws the quote only for a draft (or a version sent before
+this was built).
 
 ## 7. Build order
 
