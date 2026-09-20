@@ -63,7 +63,8 @@ export function QuoteBlocks({
               <SortableRow key={block.id} id={block.id} label="Pricing">
                 {(handle) => (
                   <div className="flex items-center gap-3 border border-dashed border-border px-3 py-2 text-sm text-[#878787]">
-                    {handle}
+                    {/* A grip is chrome that says the block can be moved. */}
+                    {editable ? handle : null}
                     Pricing
                   </div>
                 )}
@@ -220,12 +221,13 @@ function TextBlockEditor({
         // it can (FF-1631, closing FF-1628): no box, no field for the
         // heading, nothing to type into. Expanding is still how it is read
         // full screen (FF-1624), so that one control stays — out of the
-        // text's way until the block is under the pointer or holds focus.
+        // text's way until the block is under the pointer or holds focus,
+        // and always shown where there is no pointer to hover with.
         <>
           {block.heading ? (
             <h3 className="pr-10 text-base font-medium">{block.heading}</h3>
           ) : null}
-          <div className="absolute right-0 top-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+          <div className="pointer-events-none absolute right-0 top-0 opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
             {expand}
           </div>
         </>
@@ -236,7 +238,7 @@ function TextBlockEditor({
           <div style={{ height: heldHeight }} />
         ) : (
           renderEditor(
-            cn(editable ? "min-h-[72px] px-3 py-2" : "py-1", TEXT_STYLES),
+            cn(editable ? "min-h-[72px] px-3 py-2" : "py-1 pr-10", TEXT_STYLES),
           )
         )}
       </div>

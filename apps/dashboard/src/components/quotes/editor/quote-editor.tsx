@@ -22,7 +22,14 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { type ReactNode, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
 import { DownloadQuotePdf } from "../download-quote-pdf";
@@ -34,7 +41,7 @@ import { MarkSentButton, OutcomeMenu } from "./quote-actions";
 import { QuoteBlocks } from "./quote-blocks";
 import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields, QuoteTitleField } from "./quote-header-fields";
-import { QuoteRail } from "./quote-rail";
+import { QuoteRail, STRIP_HEIGHT } from "./quote-rail";
 import { QuoteRates } from "./quote-rates";
 import { QuoteScenarios } from "./quote-scenarios";
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
@@ -156,14 +163,23 @@ function VersionEditor({
     [version.pricing, draft.content, products, customerRates],
   );
 
+  const [strip, stripHeight] = useStripHeight();
+
   return (
     <ReadOnlyContext.Provider value={!editable}>
-      <div className="mx-auto max-w-[1600px] pb-24">
+      <div
+        className="mx-auto max-w-[1600px] pb-24"
+        style={{ [STRIP_HEIGHT]: `${stripHeight}px` } as CSSProperties}
+      >
         {/* Which quote this is, and whether it can be typed into, stay on
             screen the whole way down (FF-1631). The note has a line of its
-            own so it can never push the actions off a narrow window. */}
-        <div className="sticky top-0 z-30 border-b border-border bg-background pb-3 pt-6">
-          <div className="flex items-center justify-between gap-4">
+            own so it can never push the actions off a narrow window, and the
+            actions drop to a line of their own before they overflow. */}
+        <div
+          ref={strip}
+          className="sticky top-0 z-30 border-b border-border bg-background pb-3 pt-6"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <div className="flex min-w-0 items-center gap-3">
               <h1 className="truncate text-lg font-medium">
                 {formatQuoteVersion(quote.quoteNumber, version.version)}
@@ -172,7 +188,7 @@ function VersionEditor({
                 {quoteState(quote, version)}
               </Badge>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {controls}
               <DownloadQuotePdf
                 versionId={version.id}
@@ -189,19 +205,18 @@ function VersionEditor({
               ) : null}
             </div>
           </div>
-          {quote.outcomeReason || version.acceptedAt ? (
-            <div className="mt-1 flex min-w-0 items-center gap-3">
-              {quote.outcomeReason ? (
-                <span className="truncate text-sm text-[#878787]">
-                  {quote.outcomeReason}
-                </span>
-              ) : null}
-              <AcceptanceNote
-                version={version}
-                trackerProjectId={quote.trackerProjectId}
-              />
-            </div>
-          ) : null}
+          {/* Nothing to say leaves no element behind, and so no line. */}
+          <div className="mt-1 flex min-w-0 items-center gap-3 empty:hidden">
+            {quote.outcomeReason ? (
+              <span className="truncate text-sm text-[#878787]">
+                {quote.outcomeReason}
+              </span>
+            ) : null}
+            <AcceptanceNote
+              version={version}
+              trackerProjectId={quote.trackerProjectId}
+            />
+          </div>
         </div>
 
         {/* The document in the middle, what configures it in the rail
@@ -271,4 +286,26 @@ function VersionEditor({
       </div>
     </ReadOnlyContext.Provider>
   );
+}
+
+/**
+ * How tall the strip stands, published to the page so the rail can stick
+ * below it (FF-1631). It is a line taller when a quote has been accepted or
+ * answered, so it is measured rather than guessed at from the padding.
+ */
+function useStripHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    const strip = ref.current;
+    if (!strip) return;
+    const observer = new ResizeObserver(() =>
+      setHeight(strip.getBoundingClientRect().height),
+    );
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, height] as const;
 }
