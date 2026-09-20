@@ -165,7 +165,7 @@ quote_settings
   labels jsonb                   -- PDF labels per language: { nl: {...}, en: {...} }
 ```
 
-Phase 2 adds `quote_terms` (id, team_id, version label, file path, created_at). A version records the terms it was sent with.
+Phase 2 adds `quote_terms` (id, team_id, label, language, file path and name, created_at), with a label unique per language (FF-1616). Marking a version sent records the newest terms in the quote's language, before its PDF is drawn, and the PDF names it in its closing notes. Terms a sent version records cannot be removed.
 
 ## 4. Pricing rules
 
