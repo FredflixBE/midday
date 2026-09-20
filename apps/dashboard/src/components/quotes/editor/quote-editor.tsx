@@ -9,7 +9,6 @@ import {
 } from "@midday/quote";
 import { Badge } from "@midday/ui/badge";
 import { Button } from "@midday/ui/button";
-import { cn } from "@midday/ui/cn";
 import {
   Select,
   SelectContent,
@@ -186,17 +185,11 @@ function VersionEditor({
   return (
     <ReadOnlyContext.Provider value={!editable}>
       <div
-        className={cn(
-          "mx-auto pb-24",
-          // The document and the rail, and nothing between them: 800 + 48 +
-          // 380. A wider page only puts empty space beside text that is set
-          // to the width the PDF prints it at. The priced tables are not,
-          // and want every pixel there is.
-          // Kept close together on purpose: the strip and the tabs are
-          // inside this, so the wider the gap between the two the further
-          // the tab you just clicked slides out from under the pointer.
-          pane === "document" ? "max-w-[1228px]" : "max-w-[1380px]",
-        )}
+        // The document and the rail, and nothing between them: 800 + 48 +
+        // 380. One width for both tabs, because anything else moves the tab
+        // you just clicked out from under the pointer — the priced tables
+        // would like more room, and not at that price (FF-1639).
+        className="mx-auto max-w-[1228px] pb-24"
         style={{ [STRIP_HEIGHT]: `${stripHeight}px` } as CSSProperties}
       >
         {/* Which quote this is, and whether it can be typed into, stay on
