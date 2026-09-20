@@ -70,7 +70,11 @@ export function SortableList<T extends { id: string }>({
   );
 }
 
-/** A row of a `SortableList`; `children` gets the drag handle to place. */
+/**
+ * A row of a `SortableList`; `children` gets the drag handle to place, and
+ * whether the row is on the move — a tall row can say less while it is,
+ * which is the difference between reordering it and wrestling it.
+ */
 export function SortableRow({
   id,
   label,
@@ -80,7 +84,7 @@ export function SortableRow({
   id: string;
   label: string;
   className?: string;
-  children: (handle: ReactNode) => ReactNode;
+  children: (handle: ReactNode, dragging: boolean) => ReactNode;
 }) {
   const {
     attributes,
@@ -116,7 +120,7 @@ export function SortableRow({
         className,
       )}
     >
-      {children(handle)}
+      {children(handle, isDragging)}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   priceVersion,
   quoteState,
 } from "@midday/quote";
+import { pricingView } from "@midday/quote/view";
 import { Badge } from "@midday/ui/badge";
 import { Button } from "@midday/ui/button";
 import {
@@ -182,6 +183,28 @@ function VersionEditor({
     (p) => p.scenarioId === scenario?.id,
   );
 
+  // What the pricing prints, worked out by the same function the PDF is laid
+  // out from, so the block standing where it prints can show it (FF-1640).
+  const printed = useMemo(
+    () =>
+      pricingView({
+        content: draft.content,
+        pricing,
+        kind: draft.kind,
+        language: draft.language,
+        currency: quote.currency,
+        productNames: Object.fromEntries(products.map((p) => [p.id, p.name])),
+      }),
+    [
+      draft.content,
+      draft.kind,
+      draft.language,
+      pricing,
+      quote.currency,
+      products,
+    ],
+  );
+
   return (
     <ReadOnlyContext.Provider value={!editable}>
       <div
@@ -284,10 +307,7 @@ function VersionEditor({
                   content={draft.content}
                   change={change}
                   editable={editable}
-                  onShowPricing={() => {
-                    setPane("pricing");
-                    window.scrollTo({ top: 0 });
-                  }}
+                  pricing={printed}
                 />
               </TabsContent>
 

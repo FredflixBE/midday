@@ -148,7 +148,36 @@ function asDoc(value: unknown): EditorDoc | null {
   return doc?.type === "doc" && Array.isArray(doc.content) ? doc : null;
 }
 
-export function quoteDocument(input: QuotePdfInput): QuoteDocument {
+/** What the pricing of a version says, apart from the rest of the document. */
+export type PricingViewInput = {
+  content: QuoteContent;
+  pricing: PricingResult;
+  kind: QuoteKind;
+  language: QuoteLanguage;
+  currency: string;
+  /** Product names by id; a line names its product. */
+  productNames: Record<string, string>;
+  /** The team's own labels, `quote_settings.labels`. */
+  labels?: Record<string, Record<string, string>> | null;
+};
+
+type ViewContext = {
+  labels: QuoteLabels;
+  locale: string;
+  format: Format;
+  unitLabel: string;
+  date: (value: string) => string;
+  number: (value: number) => string;
+  cents: (value: number) => string;
+};
+
+/** Every number and date in one language, the version's own. */
+function viewContext(input: {
+  language: QuoteLanguage;
+  currency: string;
+  content: QuoteContent;
+  labels?: Record<string, Record<string, string>> | null;
+}): ViewContext {
   const labels = quoteLabels(input.language, input.labels);
   const locale = LOCALES[input.language];
   const unit = input.content;
@@ -174,7 +203,7 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
       ? format(value.amount)
       : `${format(value.amount)} – ${format(value.max)}`;
 
-  const format = {
+  const format: Format = {
     money: (value: Amount) => range(value, cents),
     quantity: (hours: Amount) => range(amountInUnit(hours, unit), number),
     rate: (hourlyCents: number | null | undefined) =>
@@ -185,8 +214,29 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
           }`,
     percent: (value: number) => `${number(value)}%`,
   };
-  const unitLabel = unit.displayUnit === "days" ? labels.days : labels.hours;
 
+  return {
+    labels,
+    locale,
+    format,
+    unitLabel: unit.displayUnit === "days" ? labels.days : labels.hours,
+    date,
+    number,
+    cents,
+  };
+}
+
+/**
+ * The comparison table and the scenarios, as they print. Split out of
+ * `quoteDocument` (FF-1640) so the editor can draw the same thing on screen
+ * without reaching for react-pdf: what the pricing *says* is worked out once,
+ * here, and laid out twice.
+ */
+export function pricingView(input: PricingViewInput): {
+  comparison: ComparisonView | null;
+  scenarios: ScenarioView[];
+} {
+  const ctx = viewContext(input);
   const pricedById = new Map(
     input.pricing.scenarios.map((p) => [p.scenarioId, p]),
   );
@@ -195,24 +245,30 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
     return priced ? [{ scenario, priced }] : [];
   });
 
-  const views = scenarios.map(({ scenario, priced }) =>
-    scenarioView(scenario, priced, {
-      labels,
-      format,
-      unitLabel,
-      productNames: input.productNames,
-    }),
-  );
+  return {
+    scenarios: scenarios.map(({ scenario, priced }) =>
+      scenarioView(scenario, priced, {
+        labels: ctx.labels,
+        format: ctx.format,
+        unitLabel: ctx.unitLabel,
+        productNames: input.productNames,
+      }),
+    ),
+    comparison:
+      scenarios.length > 1
+        ? comparisonView(input.content, input.pricing, scenarios, {
+            labels: ctx.labels,
+            format: ctx.format,
+            unitLabel: ctx.unitLabel,
+            recurring: input.kind === "recurring",
+          })
+        : null,
+  };
+}
 
-  const comparison =
-    scenarios.length > 1
-      ? comparisonView(input.content, input.pricing, scenarios, {
-          labels,
-          format,
-          unitLabel,
-          recurring: input.kind === "recurring",
-        })
-      : null;
+export function quoteDocument(input: QuotePdfInput): QuoteDocument {
+  const { labels, date } = viewContext(input);
+  const { comparison, scenarios: views } = pricingView(input);
 
   const blocks: DocumentBlock[] = input.content.blocks.map((block) =>
     block.type === "text"

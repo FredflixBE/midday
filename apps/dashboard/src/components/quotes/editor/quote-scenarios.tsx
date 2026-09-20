@@ -600,14 +600,23 @@ export function ScenarioTotals({
           muted
         />
       ) : null}
-      {pricing.products.map((w) => (
-        <Total
-          key={w.productId}
-          label={`${names.get(w.productId) ?? "Unknown"} · ${formatQuantityWithUnit(w.hours, unit, locale)}${rate(w.productId)}`}
-          value={money(w.amount)}
-          muted
-        />
-      ))}
+      {/* A line whose product has not been picked yet has no name to break
+          down under, and reading "Unknown" told nobody anything. Its hours
+          still count towards the scenario's own total, which is right: they
+          are quoted, they are just not priced. */}
+      {pricing.products.flatMap((w) => {
+        const name = names.get(w.productId);
+        return name
+          ? [
+              <Total
+                key={w.productId}
+                label={`${name} · ${formatQuantityWithUnit(w.hours, unit, locale)}${rate(w.productId)}`}
+                value={money(w.amount)}
+                muted
+              />,
+            ]
+          : [];
+      })}
       {optional > 0 ? (
         <Total
           label="Optional"
