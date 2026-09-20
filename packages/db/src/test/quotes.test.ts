@@ -1589,7 +1589,7 @@ describe.skipIf(SKIP)("quotes", () => {
       });
     }
 
-    test("versions come back newest first, and per language", async () => {
+    test("versions come back newest first, each with its language", async () => {
       await add("2025-01", "en");
       await add("2026-01", "en");
       await add("2026-01", "nl");
@@ -1599,9 +1599,6 @@ describe.skipIf(SKIP)("quotes", () => {
           (row) => `${row.label} ${row.language}`,
         ),
       ).toEqual(["2026-01 nl", "2026-01 en", "2025-01 en"]);
-      expect(
-        await listQuoteTerms(db, { teamId: TEAM_USD_ID, language: "nl" }),
-      ).toHaveLength(1);
     });
 
     test("the same version twice in one language is refused", async () => {
@@ -1668,6 +1665,17 @@ describe.skipIf(SKIP)("quotes", () => {
       const input = await getQuotePdfInput(db, {
         teamId: TEAM_USD_ID,
         versionId: draft.id,
+      });
+      expect(input!.termsLabel).toBe("2026-01");
+    });
+
+    test("a draft is drawn with the terms it would be sent with", async () => {
+      await add("2026-01", "en");
+      const quote = await create({ language: "en" });
+
+      const input = await getQuotePdfInput(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
       });
       expect(input!.termsLabel).toBe("2026-01");
     });

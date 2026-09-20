@@ -519,17 +519,12 @@ export async function reviseQuote(
  */
 export async function listQuoteTerms(
   db: DatabaseOrTransaction,
-  params: { teamId: string; language?: QuoteLanguage },
+  params: { teamId: string },
 ) {
   return db
     .select()
     .from(quoteTerms)
-    .where(
-      and(
-        eq(quoteTerms.teamId, params.teamId),
-        params.language ? eq(quoteTerms.language, params.language) : undefined,
-      ),
-    )
+    .where(eq(quoteTerms.teamId, params.teamId))
     .orderBy(desc(quoteTerms.createdAt));
 }
 
@@ -971,11 +966,21 @@ export async function getQuotePdfInput(
     .orderBy(desc(invoiceTemplates.isDefault), invoiceTemplates.createdAt)
     .limit(1);
   const settings = await getQuoteSettings(db, params.teamId);
-  const [terms] = version.termsVersionId
+
+  // The terms this version went out with (FF-1616). A draft has none
+  // recorded yet, so it is drawn with the ones it would be sent with —
+  // otherwise the PDF a person downloads and emails would say nothing about
+  // terms while the copy kept at send says they apply.
+  const termsId =
+    version.termsVersionId ??
+    (version.status === "draft"
+      ? await latestQuoteTerms(db, params.teamId, quote.language)
+      : null);
+  const [terms] = termsId
     ? await db
         .select({ label: quoteTerms.label })
         .from(quoteTerms)
-        .where(eq(quoteTerms.id, version.termsVersionId))
+        .where(eq(quoteTerms.id, termsId))
     : [];
 
   return {
