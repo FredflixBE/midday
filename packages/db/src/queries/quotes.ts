@@ -1,10 +1,12 @@
 import { transformCustomerToContent } from "@midday/invoice/utils";
+import { createLoggerWithContext } from "@midday/logger";
 import {
   type Acceptance,
   acceptanceProblem,
   type Block,
   blockSchema,
   formatQuoteVersion,
+  imagePathsIn,
   initialQuoteContent,
   isExpired,
   nextQuoteNumber,
@@ -22,8 +24,8 @@ import type {
   QuoteLanguage as PdfLanguage,
   QuotePdfInput,
 } from "@midday/quote/pdf";
-import { and, desc, eq, gte, lt, lte, ne, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { and, desc, eq, gte, inArray, lt, lte, ne, or, sql } from "drizzle-orm";
+import { type AnyPgColumn, alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { Database, DatabaseOrTransaction } from "../client";
 import {
@@ -56,6 +58,8 @@ import {
  * Every content write is checked against `QuoteContent` from @midday/quote.
  */
 
+const logger = createLoggerWithContext("quotes");
+
 /** A person's mistake, told apart from a failure so the API can say so. */
 export class QuoteInputError extends Error {}
 
@@ -73,6 +77,24 @@ export class QuoteInputError extends Error {}
  * they are at render time — so only a stored file is what the client holds.
  */
 export type StoreQuotePdf = (input: QuotePdfInput) => Promise<string[]>;
+
+/**
+ * Lets go of pictures a draft edit took out of a quote's text (FF-1626).
+ * Storage does not belong here either, so the caller passes this in, and
+ * this module decides when it runs: after the edit is committed, never
+ * inside it, because an edit that was rolled back must leave every file
+ * where it was.
+ *
+ * What it is handed is never anything but a picture. The candidates are the
+ * paths this edit took *out of a version's text*, so the other three kinds
+ * of file under `<team>/quotes/` — the PDF kept when a version was sent, the
+ * order form attached at acceptance, the team's general terms — are not
+ * reached by the ordinary path: none of them is ever written into a
+ * version's content. They are also checked for by name before anything is
+ * deleted, because a version's text is a Tiptap document nothing validates
+ * the inside of, and a crafted save could name any path at all.
+ */
+export type DropQuoteImages = (paths: string[]) => Promise<void>;
 
 export type QuoteLanguage = "nl" | "en";
 export type QuoteMode = "estimate" | "firm";
@@ -359,6 +381,103 @@ async function lockVersion(
 }
 
 /**
+ * Of the pictures an edit took out, the ones no version of any of the team's
+ * quotes names any more — the only ones it is safe to let go of.
+ *
+ * A picture a sent or superseded version holds is kept even though that
+ * version's PDF was stored whole (FF-1615) and no longer depends on the
+ * file: the editor still draws a sent version's text from the path, so
+ * deleting it would leave a hole on screen.
+ *
+ * The `like` is a narrowing filter, not the answer — the answer is
+ * `imagePathsIn` on the rows it lets through, so a path that merely appears
+ * somewhere in the text cannot keep a picture alive by accident.
+ */
+async function orphanedImages(
+  tx: DatabaseOrTransaction,
+  teamId: string,
+  paths: string[],
+): Promise<string[]> {
+  if (paths.length === 0) return [];
+
+  const rows = await tx
+    .select({ content: quoteVersions.content })
+    .from(quoteVersions)
+    .where(
+      and(
+        eq(quoteVersions.teamId, teamId),
+        or(
+          ...paths.map(
+            (path) => sql`${quoteVersions.content}::text like ${`%${path}%`}`,
+          ),
+        ),
+      ),
+    );
+
+  const named = new Set(
+    rows.flatMap((row) => imagePathsIn(row.content as QuoteContent)),
+  );
+  const kept = await keptFiles(tx, teamId, paths);
+
+  return paths.filter((path) => !named.has(path) && !kept.has(path));
+}
+
+/** A path column of the `vault` bucket read as the path it stands for. */
+const storedAt = (column: AnyPgColumn) =>
+  sql<string>`array_to_string(${column}, '/')`;
+
+/**
+ * Which of these paths are one of the other three kinds of file kept under
+ * `<team>/quotes/`: the PDF of a sent version, the order form attached at
+ * acceptance, or a version of the team's general terms.
+ *
+ * In principle none of them can ever be a candidate — each is written to a
+ * column of its own and never into a version's text. In practice a version's
+ * text is a Tiptap document the content schema does not look inside, so a
+ * crafted save could write a picture node pointing at the stored PDF, and a
+ * second save could drop it again. This is what makes "only pictures are
+ * ever deleted" true rather than merely intended.
+ */
+async function keptFiles(
+  tx: DatabaseOrTransaction,
+  teamId: string,
+  paths: string[],
+): Promise<Set<string>> {
+  const versionFiles = await tx
+    .select({
+      pdf: storedAt(quoteVersions.pdfPath),
+      acceptance: storedAt(quoteVersions.acceptanceFilePath),
+    })
+    .from(quoteVersions)
+    .where(
+      and(
+        eq(quoteVersions.teamId, teamId),
+        or(
+          inArray(storedAt(quoteVersions.pdfPath), paths),
+          inArray(storedAt(quoteVersions.acceptanceFilePath), paths),
+        ),
+      ),
+    );
+
+  const termsFiles = await tx
+    .select({ terms: storedAt(quoteTerms.filePath) })
+    .from(quoteTerms)
+    .where(
+      and(
+        eq(quoteTerms.teamId, teamId),
+        inArray(storedAt(quoteTerms.filePath), paths),
+      ),
+    );
+
+  return new Set(
+    [
+      ...versionFiles.flatMap((row) => [row.pdf, row.acceptance]),
+      ...termsFiles.map((row) => row.terms),
+    ].filter((path): path is string => Boolean(path)),
+  );
+}
+
+/**
  * Edits a draft: its content, mode, dates and note, and the quote's header
  * (title, kind, language, customer), which the draft is what gets sent with.
  * Null when the version is not the team's.
@@ -377,9 +496,14 @@ export async function updateQuoteDraft(
     validUntil?: string;
     content?: QuoteContent;
     internalNote?: string | null;
+    /**
+     * Lets go of the pictures this edit took out of the text and nothing
+     * else names. Left out, nothing is deleted and the files simply stay.
+     */
+    dropImages?: DropQuoteImages;
   },
 ) {
-  const quoteId = await db.transaction(async (tx) => {
+  const edited = await db.transaction(async (tx) => {
     const row = await lockVersion(tx, params.teamId, params.versionId);
     if (!row) return null;
     const { version, quote } = row;
@@ -450,10 +574,36 @@ export async function updateQuoteDraft(
       })
       .where(eq(quoteVersions.id, version.id));
 
-    return quote.id;
+    const dropped =
+      content === undefined
+        ? []
+        : imagePathsIn(version.content as QuoteContent).filter(
+            (path) => !imagePathsIn(content).includes(path),
+          );
+
+    return {
+      quoteId: quote.id,
+      // Looked for after the write, so the version being edited counts as
+      // it now stands rather than as it was.
+      orphans: await orphanedImages(tx, params.teamId, dropped),
+    };
   });
 
-  return quoteId ? getQuote(db, { id: quoteId, teamId: params.teamId }) : null;
+  if (!edited) return null;
+
+  // After the commit, and never at the cost of the edit: a file nobody can
+  // see costs storage, where a failed edit costs the work that went into it.
+  // Said out loud, because nothing else will ever notice it stayed.
+  if (edited.orphans.length > 0 && params.dropImages) {
+    await params.dropImages(edited.orphans).catch((error) => {
+      logger.warn("Quote pictures stayed in the vault", {
+        paths: edited.orphans,
+        error,
+      });
+    });
+  }
+
+  return getQuote(db, { id: edited.quoteId, teamId: params.teamId });
 }
 
 /**

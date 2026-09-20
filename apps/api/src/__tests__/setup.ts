@@ -388,6 +388,9 @@ export const mocks = {
   supabaseAdminDeleteUser: mock(() =>
     Promise.resolve({ data: {}, error: null }),
   ) as MockFn,
+  supabaseStorageRemove: mock(() =>
+    Promise.resolve({ data: [], error: null }),
+  ) as MockFn,
   resendContactsRemove: mock(() =>
     Promise.resolve({ data: {}, error: null }),
   ) as MockFn,
@@ -1428,6 +1431,11 @@ mock.module("@api/services/supabase", () => ({
         deleteUser: (...args: unknown[]) =>
           mocks.supabaseAdminDeleteUser(...args),
       },
+    },
+    storage: {
+      from: () => ({
+        remove: (...args: unknown[]) => mocks.supabaseStorageRemove(...args),
+      }),
     },
   })),
 }));

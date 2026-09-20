@@ -11,6 +11,7 @@ import {
   updateQuoteDraftSchema,
   updateQuoteSettingsSchema,
 } from "@api/schemas/quotes";
+import { dropQuoteImages } from "@api/services/quote-images";
 import { storeQuotePdf } from "@api/services/quote-pdf";
 import { createTRPCRouter, protectedProcedure } from "@api/trpc/init";
 import {
@@ -76,9 +77,13 @@ export const quotesRouter = createTRPCRouter({
     .input(updateQuoteDraftSchema)
     .mutation(async ({ input, ctx: { db, teamId } }) => {
       return found(
-        await updateQuoteDraft(db, { ...input, teamId: teamId! }).catch(
-          asUserError,
-        ),
+        await updateQuoteDraft(db, {
+          ...input,
+          teamId: teamId!,
+          // A picture taken out of the text is taken out of the vault too,
+          // once nothing else names it (FF-1626).
+          dropImages: dropQuoteImages(teamId!),
+        }).catch(asUserError),
       );
     }),
 
