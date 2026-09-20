@@ -352,6 +352,12 @@ function TextBlockEditor({
           className={cn(
             HEADING_STYLES,
             "h-auto border-0 bg-transparent p-0 focus-visible:ring-0",
+            // A heading is content and always shows; an empty one is a
+            // field, and waits out of sight with the block's other chrome
+            // (FF-1644). It keeps its line rather than collapsing, so
+            // nothing below it moves when it appears.
+            !block.heading &&
+              "opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
           )}
           onChange={(event) =>
             onChange({ heading: event.target.value || null })
