@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@midday/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import {
   useMutation,
   useQuery,
@@ -192,7 +192,10 @@ function VersionEditor({
           // 380. A wider page only puts empty space beside text that is set
           // to the width the PDF prints it at. The priced tables are not,
           // and want every pixel there is.
-          pane === "document" ? "max-w-[1228px]" : "max-w-[1600px]",
+          // Kept close together on purpose: the strip and the tabs are
+          // inside this, so the wider the gap between the two the further
+          // the tab you just clicked slides out from under the pointer.
+          pane === "document" ? "max-w-[1228px]" : "max-w-[1380px]",
         )}
         style={{ [STRIP_HEIGHT]: `${stripHeight}px` } as CSSProperties}
       >
@@ -247,16 +250,30 @@ function VersionEditor({
         {/* The document in the middle, what configures it in the rail
             (FF-1630). A narrow window stacks them. */}
         <div className="mt-6 flex flex-col gap-10 xl:flex-row xl:items-start xl:gap-12">
-          <main className="min-w-0 flex-1 space-y-8">
-            <Tabs value={pane} onValueChange={(next) => setPane(next as Pane)}>
+          <main className="min-w-0 flex-1">
+            <Tabs
+              value={pane}
+              // The panes are different lengths, so keeping the scroll
+              // would land you in the middle of the shorter one.
+              onValueChange={(next) => {
+                setPane(next as Pane);
+                window.scrollTo({ top: 0 });
+              }}
+              className="space-y-8"
+            >
               <TabsList>
                 <TabsTrigger value="document">Document</TabsTrigger>
                 <TabsTrigger value="pricing">Pricing</TabsTrigger>
               </TabsList>
-            </Tabs>
 
-            {pane === "document" ? (
-              <div className="space-y-10">
+              {/* Both panes stay mounted: unmounting an editor throws away
+                  its undo history and a half-typed number, neither of which
+                  is worth a tab switch. */}
+              <TabsContent
+                value="document"
+                forceMount
+                className="space-y-10 data-[state=inactive]:hidden"
+              >
                 <div className={DOCUMENT_WIDTH}>
                   <QuoteTitleField
                     draft={draft}
@@ -274,11 +291,18 @@ function VersionEditor({
                   content={draft.content}
                   change={change}
                   editable={editable}
-                  onShowPricing={() => setPane("pricing")}
+                  onShowPricing={() => {
+                    setPane("pricing");
+                    window.scrollTo({ top: 0 });
+                  }}
                 />
-              </div>
-            ) : (
-              <div className="space-y-10">
+              </TabsContent>
+
+              <TabsContent
+                value="pricing"
+                forceMount
+                className="space-y-10 data-[state=inactive]:hidden"
+              >
                 {/* Outside the fieldset: a sent version's scenarios are still
                     browsed. */}
                 <QuoteScenarios
@@ -301,8 +325,8 @@ function VersionEditor({
                   currency={quote.currency}
                   locale={user?.locale ?? undefined}
                 />
-              </div>
-            )}
+              </TabsContent>
+            </Tabs>
           </main>
 
           <QuoteRail>

@@ -88,7 +88,8 @@ export function QuoteBlocks({
                         the way to them (FF-1639). */}
                     <button
                       type="button"
-                      className="flex-1 text-left hover:text-primary"
+                      aria-label="Show the pricing"
+                      className="flex-1 text-left hover:text-primary focus-visible:text-primary focus-visible:outline-none"
                       onClick={onShowPricing}
                     >
                       Pricing
