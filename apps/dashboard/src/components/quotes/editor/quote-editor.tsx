@@ -34,7 +34,7 @@ import { MarkSentButton, OutcomeMenu } from "./quote-actions";
 import { QuoteBlocks } from "./quote-blocks";
 import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields, QuoteTitleField } from "./quote-header-fields";
-import { QuoteRail, RailSection } from "./quote-rail";
+import { QuoteRail } from "./quote-rail";
 import { QuoteRates } from "./quote-rates";
 import { QuoteScenarios } from "./quote-scenarios";
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
@@ -201,8 +201,8 @@ function VersionEditor({
               <QuoteTitleField
                 draft={draft}
                 change={change}
-                // What the client holds names the title.
-                locked={version.version > 1 || !editable}
+                headerLocked={version.version > 1}
+                disabled={!editable}
               />
             </div>
 
@@ -238,18 +238,14 @@ function VersionEditor({
           </main>
 
           <QuoteRail>
-            <RailSection title="Details">
-              <fieldset disabled={!editable} className="min-w-0">
-                <QuoteHeaderFields
-                  draft={draft}
-                  change={change}
-                  // What the client holds names the customer, kind and
-                  // language.
-                  headerLocked={version.version > 1}
-                  disabled={!editable}
-                />
-              </fieldset>
-            </RailSection>
+            {/* What the client holds names the customer, title, kind and
+                language, so a revision shows those locked. */}
+            <QuoteHeaderFields
+              draft={draft}
+              change={change}
+              headerLocked={version.version > 1}
+              disabled={!editable}
+            />
 
             <QuoteRates
               content={draft.content}

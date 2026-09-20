@@ -24,30 +24,43 @@ export function QuoteRail({ children }: { children: ReactNode }) {
 }
 
 /**
- * One collapsible group of settings. `filled` is what the section holds
- * today: an empty one opens as a single line rather than an empty table,
- * and follows its content until someone opens or closes it by hand.
+ * One collapsible group of settings, with its fields disabled on a version
+ * that cannot be edited.
  *
- * The trigger sits outside whatever `children` disables, so a sent version's
- * rail still opens and closes (the trap FF-1624 hit: a disabled fieldset
- * disables every button inside it).
+ * `filled` is what the section holds: an empty one opens as a single line
+ * rather than an empty table, and opens by itself once something lands in it
+ * — including content that arrives after the first render, such as the rates
+ * of products still being read. Emptying a section never shuts it, so
+ * removing the last tier does not take the Add button out from under the
+ * cursor.
+ *
+ * The trigger sits outside the fieldset, which is the trap FF-1624 hit: a
+ * disabled fieldset disables every button inside it, so a sent version's rail
+ * would no longer open.
  */
 export function RailSection({
   title,
   filled = true,
+  disabled = false,
   children,
 }: {
   title: string;
   filled?: boolean;
+  disabled?: boolean;
   children: ReactNode;
 }) {
-  const [toggled, setToggled] = useState<boolean>();
-  const open = toggled ?? filled;
+  const [open, setOpen] = useState(filled);
+  const [wasFilled, setWasFilled] = useState(filled);
+
+  if (filled && !wasFilled) {
+    setWasFilled(true);
+    setOpen(true);
+  }
 
   return (
     <Collapsible
       open={open}
-      onOpenChange={setToggled}
+      onOpenChange={setOpen}
       className="border-b border-border"
     >
       <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 py-3 text-left">
@@ -60,7 +73,11 @@ export function RailSection({
           )}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pb-5">{children}</CollapsibleContent>
+      <CollapsibleContent className="pb-5">
+        <fieldset disabled={disabled} className="min-w-0">
+          {children}
+        </fieldset>
+      </CollapsibleContent>
     </Collapsible>
   );
 }

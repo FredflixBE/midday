@@ -22,7 +22,7 @@ type CustomerRate = RouterOutputs["productRates"]["customerRates"][number];
 
 // Product, then the three rates: the default, the customer's and this
 // quote's. Narrow enough for the settings rail (FF-1630).
-const COLUMNS = "grid grid-cols-[minmax(0,1fr)_56px_56px_104px] gap-2";
+const RATE_COLUMNS = "grid grid-cols-[minmax(0,1fr)_68px_68px_100px] gap-2";
 
 /**
  * What this quote charges per hour (FF-1612, FF-1620), for each product it
@@ -30,9 +30,8 @@ const COLUMNS = "grid grid-cols-[minmax(0,1fr)_56px_56px_104px] gap-2";
  * set. The one that applies is the rightmost, and it is the one drawn in
  * full. Tiers adjust it by volume of hours and by term.
  *
- * Three sections of the settings rail (FF-1630), each collapsing on its own.
- * Every fieldset sits inside a section rather than around it, so a sent
- * version's rail still opens.
+ * Three sections of the settings rail (FF-1630), each collapsing on its own
+ * and each disabled on a version that cannot be edited.
  */
 export function QuoteRates({
   content,
@@ -71,111 +70,105 @@ export function QuoteRates({
 
   return (
     <>
-      <RailSection title="Rates" filled={shown.length > 0}>
-        <fieldset disabled={!editable} className="min-w-0">
-          {shown.length > 0 ? (
-            <div>
-              <div
-                className={cn(
-                  COLUMNS,
-                  "items-center border-b border-border pb-2 text-[11px] text-[#606060]",
-                )}
-              >
-                <span>Product</span>
-                <span className="text-right">Default</span>
-                <span className="text-right">Customer</span>
-                <span className="text-right">Quote</span>
-              </div>
-              <div className="divide-y divide-border">
-                {shown.map((product) => (
-                  <RateRow
-                    key={`${product.id}:${own[product.id]}`}
-                    product={product}
-                    customerRate={customer.get(product.id)}
-                    currency={product.currency ?? currency}
-                    quoteRate={own[product.id]}
-                    onChange={(rate) =>
-                      setRates((rates) => {
-                        const { [product.id]: _, ...rest } = rates.productRates;
-                        return {
-                          ...rates,
-                          productRates:
-                            rate === undefined
-                              ? rest
-                              : { ...rest, [product.id]: rate },
-                        };
-                      })
-                    }
-                  />
-                ))}
-              </div>
+      <RailSection title="Rates" filled={shown.length > 0} disabled={!editable}>
+        {shown.length > 0 ? (
+          <div>
+            <div
+              className={cn(
+                RATE_COLUMNS,
+                "items-center border-b border-border pb-2 text-[11px] text-[#606060]",
+              )}
+            >
+              <span>Product</span>
+              <span className="text-right">Default</span>
+              <span className="text-right">Customer</span>
+              <span className="text-right">Quote</span>
             </div>
-          ) : (
-            <p className="text-sm text-[#878787]">Nothing priced yet.</p>
-          )}
-        </fieldset>
+            <div className="divide-y divide-border">
+              {shown.map((product) => (
+                <RateRow
+                  key={`${product.id}:${own[product.id]}`}
+                  product={product}
+                  customerRate={customer.get(product.id)}
+                  currency={product.currency ?? currency}
+                  quoteRate={own[product.id]}
+                  onChange={(rate) =>
+                    setRates((rates) => {
+                      const { [product.id]: _, ...rest } = rates.productRates;
+                      return {
+                        ...rates,
+                        productRates:
+                          rate === undefined
+                            ? rest
+                            : { ...rest, [product.id]: rate },
+                      };
+                    })
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
       </RailSection>
 
       <RailSection
         title="Volume tiers"
         filled={content.rates.volumeTiers.length > 0}
+        disabled={!editable}
       >
-        <fieldset disabled={!editable} className="min-w-0">
-          <Tiers
-            addLabel="Add volume tier"
-            threshold={`From ${content.displayUnit}`}
-            // Thresholds are hours, typed in the quote's unit like its lines.
-            tiers={content.rates.volumeTiers.map((t) => ({
-              from: hoursToUnit(t.minHours, content),
-              percent: t.percent,
-            }))}
-            integer={false}
-            editable={editable}
-            onChange={(next) =>
-              setRates((rates) => ({
-                ...rates,
-                volumeTiers: next(
-                  rates.volumeTiers.map((t) => ({
-                    from: hoursToUnit(t.minHours, content),
-                    percent: t.percent,
-                  })),
-                ).map((t) => ({
-                  minHours: unitToHours(t.from, content),
+        <Tiers
+          addLabel="Add volume tier"
+          threshold={`From ${content.displayUnit}`}
+          // Thresholds are hours, typed in the quote's unit like its lines.
+          tiers={content.rates.volumeTiers.map((t) => ({
+            from: hoursToUnit(t.minHours, content),
+            percent: t.percent,
+          }))}
+          integer={false}
+          editable={editable}
+          onChange={(next) =>
+            setRates((rates) => ({
+              ...rates,
+              volumeTiers: next(
+                rates.volumeTiers.map((t) => ({
+                  from: hoursToUnit(t.minHours, content),
                   percent: t.percent,
                 })),
-              }))
-            }
-          />
-        </fieldset>
+              ).map((t) => ({
+                minHours: unitToHours(t.from, content),
+                percent: t.percent,
+              })),
+            }))
+          }
+        />
       </RailSection>
 
       <RailSection
         title="Term tiers"
         filled={content.rates.termTiers.length > 0}
+        disabled={!editable}
       >
-        <fieldset disabled={!editable} className="min-w-0">
-          <Tiers
-            addLabel="Add term tier"
-            threshold="From months"
-            tiers={content.rates.termTiers.map((t) => ({
-              from: t.minMonths,
-              percent: t.percent,
-            }))}
-            integer
-            editable={editable}
-            onChange={(next) =>
-              setRates((rates) => ({
-                ...rates,
-                termTiers: next(
-                  rates.termTiers.map((t) => ({
-                    from: t.minMonths,
-                    percent: t.percent,
-                  })),
-                ).map((t) => ({ minMonths: t.from, percent: t.percent })),
-              }))
-            }
-          />
-        </fieldset>
+        <Tiers
+          addLabel="Add term tier"
+          threshold="From months"
+          tiers={content.rates.termTiers.map((t) => ({
+            from: t.minMonths,
+            percent: t.percent,
+          }))}
+          integer
+          editable={editable}
+          onChange={(next) =>
+            setRates((rates) => ({
+              ...rates,
+              termTiers: next(
+                rates.termTiers.map((t) => ({
+                  from: t.minMonths,
+                  percent: t.percent,
+                })),
+              ).map((t) => ({ minMonths: t.from, percent: t.percent })),
+            }))
+          }
+        />
       </RailSection>
     </>
   );
@@ -217,7 +210,7 @@ function RateRow({
   );
 
   return (
-    <div className={cn(COLUMNS, "items-center py-2")}>
+    <div className={cn(RATE_COLUMNS, "items-center py-2")}>
       <span className="truncate text-sm" title={product.name}>
         {product.name}
       </span>
