@@ -39,10 +39,15 @@
 }
 
 /* A table (FF-1642): equal columns and ruled rows, the same grid the PDF
-   draws, so what is written here is what is printed. No handles down the
-   edges and no cell borders — this is a document, not a spreadsheet. */
+   draws, so what is written here is what is printed. No cell borders — this
+   is a document, not a spreadsheet — and the row and column grips are drawn
+   in the margin beside it, never over it. */
 .tiptap table {
-  @apply my-2 w-full table-fixed border-collapse;
+  /* The margin is the room the row and column grips stand in. They are
+     drawn beside the grid rather than over it, and without this they would
+     sit on top of the line above — which is the one rule the document pane
+     has: nothing covers what is being written. */
+  @apply my-5 w-full table-fixed border-collapse;
 }
 
 .tiptap table tr {
@@ -68,4 +73,10 @@
 .tiptap table .selectedCell::after {
   @apply pointer-events-none absolute inset-0 z-10 bg-accent/60;
   content: "";
+}
+
+/* A whole table is one thing to ProseMirror, so it gets the same treatment a
+   picture does when it is picked out. */
+.tiptap .ProseMirror-selectednode table {
+  @apply outline outline-2 outline-primary;
 }

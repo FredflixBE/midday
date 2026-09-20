@@ -11,11 +11,11 @@ import TableRow from "@tiptap/extension-table-row";
  * keystroke would save the text without them (the lesson `storedImage`
  * records from FF-1625).
  *
- * Showing a table and offering to write one are separate, and only the
- * second is gated: the `/table` command and the row and column controls are
- * the quote document's, so an invoice note stays the few lines of text it
- * is. Nothing is gated here, because a surface that cannot be given a table
- * must still draw one it is handed.
+ * The grid itself is plain markup, drawn by Tiptap's own `renderHTML`. It is
+ * deliberately not a React node view: React's `NodeViewContent` puts a `div`
+ * of its own between the `tbody` and the rows, which is not something a
+ * table may contain, and the browser hoists the rows out of it. The row and
+ * column grips are drawn over the page instead — see `table-controls.tsx`.
  */
 export const tableExtensions = [
   Table.configure({
