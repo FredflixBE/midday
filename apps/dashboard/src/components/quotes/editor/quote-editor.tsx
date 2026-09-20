@@ -169,7 +169,10 @@ function VersionEditor({
                 {quote.outcomeReason}
               </span>
             ) : null}
-            <AcceptanceNote version={version} />
+            <AcceptanceNote
+              version={version}
+              trackerProjectId={quote.trackerProjectId}
+            />
           </div>
           <div className="flex items-center gap-2">
             {controls}

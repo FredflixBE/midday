@@ -24,6 +24,7 @@ import {
 import { useToast } from "@midday/ui/use-toast";
 import { formatDate } from "@midday/utils/format";
 import { useMutation } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
@@ -302,9 +303,17 @@ function AcceptanceForm({
 
 /**
  * What was recorded, in one line beside the state (FF-1615): who answered,
- * when, the PO number, and the document that says so.
+ * when, the PO number, the document that says so, and the tracker project
+ * the quote became (FF-1617).
  */
-export function AcceptanceNote({ version }: { version: Version }) {
+export function AcceptanceNote({
+  version,
+  trackerProjectId,
+}: {
+  version: Version;
+  /** The project the quote became (FF-1617), when it has one. */
+  trackerProjectId: string | null;
+}) {
   const { data: user } = useUserQuery();
 
   if (!version.acceptedAt) return null;
@@ -335,6 +344,17 @@ export function AcceptanceNote({ version }: { version: Version }) {
           >
             Document
           </a>
+        </>
+      ) : null}
+      {trackerProjectId ? (
+        <>
+          {" · "}
+          <Link
+            className="underline"
+            href={`/tracker?projectId=${trackerProjectId}&update=true`}
+          >
+            Project
+          </Link>
         </>
       ) : null}
     </span>
