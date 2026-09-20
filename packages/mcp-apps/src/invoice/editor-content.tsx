@@ -1,22 +1,6 @@
-type Mark = {
-  type: string;
-  attrs?: Record<string, any>;
-};
-
-// One node of a Tiptap document: a block (paragraph, heading, list, list
-// item) holding further nodes, or an inline piece of text.
-type DocNode = {
-  type: string;
-  attrs?: { level?: number; start?: number };
-  content?: DocNode[];
-  text?: string;
-  marks?: Mark[];
-};
-
-type EditorDoc = {
-  type?: string;
-  content?: DocNode[];
-};
+// The same document the web invoice view and the PDF are drawn from, so a
+// preview cannot drift from the page by describing it differently.
+import type { EditorDoc, EditorNode } from "@midday/invoice/types";
 
 const bodySize = 11;
 
@@ -25,7 +9,7 @@ const bodySize = 11;
 const headingSizes: Record<number, number> = { 1: 17, 2: 15 };
 const smallestHeadingSize = 12;
 
-function nodeKey(node: DocNode, index: number): string {
+function nodeKey(node: EditorNode, index: number): string {
   const text =
     node.content
       ?.map((c) => c.text ?? c.type)
@@ -34,12 +18,16 @@ function nodeKey(node: DocNode, index: number): string {
   return `${node.type}-${text || index}`;
 }
 
-function inlineKey(inline: DocNode, parentKey: string, index: number): string {
+function inlineKey(
+  inline: EditorNode,
+  parentKey: string,
+  index: number,
+): string {
   if (inline.type === "hardBreak") return `${parentKey}-br-${index}`;
   return `${parentKey}-${inline.text?.slice(0, 24) ?? inline.type}-${index}`;
 }
 
-function renderBlock(node: DocNode, index: number): React.ReactNode {
+function renderBlock(node: EditorNode, index: number): React.ReactNode {
   const key = nodeKey(node, index);
 
   switch (node.type) {
@@ -106,7 +94,7 @@ function renderBlock(node: DocNode, index: number): React.ReactNode {
 }
 
 function renderInline(
-  node: DocNode,
+  node: EditorNode,
   parentKey: string,
   base: React.CSSProperties,
 ): React.ReactNode {

@@ -6,6 +6,10 @@ const bodyText = "text-[11px]";
 // Headings by level; the editor allows 1 to 6, and 3 and below read alike.
 // The steps follow the PDF's (14, 12 and 10 against a 9pt body), scaled to
 // the 11px this view reads at, so a heading is the same size on both.
+//
+// Written out as whole class names rather than built from the numbers,
+// because Tailwind finds classes by reading this file: a size it never sees
+// spelled out is a size it never generates.
 const headingText: Record<number, string> = {
   1: "text-[17px]",
   2: "text-[15px]",
