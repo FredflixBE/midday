@@ -78,6 +78,19 @@ export const setQuoteOutcomeSchema = z.object({
   reason: z.string().trim().max(2000).nullable(),
 });
 
+/**
+ * A version of the team's general terms (FF-1616). The file is uploaded to
+ * the vault first; this records it under the label it is known by.
+ */
+export const addQuoteTermsSchema = z.object({
+  label: z.string().trim().min(1).max(50),
+  language: quoteLanguageSchema,
+  filePath: z.array(z.string().min(1).max(300)).min(2).max(10),
+  fileName: z.string().trim().min(1).max(300),
+});
+
+export const quoteTermsIdSchema = z.object({ id: z.string().uuid() });
+
 export const updateQuoteSettingsSchema = z.object({
   numberPrefix: z.string().trim().min(1).max(20).optional(),
   defaultValidDays: z.number().int().min(1).max(365).optional(),

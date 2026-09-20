@@ -46,6 +46,7 @@ export const QUOTE_LABELS = {
     paymentDetails: "Payment details",
     exclVat: "All amounts exclude VAT.",
     reverseCharge: "VAT reverse charge: the customer accounts for the VAT.",
+    terms: "Our general terms, version {version}, apply to this quote.",
     page: "Page {page} of {pages}",
   },
   nl: {
@@ -90,6 +91,8 @@ export const QUOTE_LABELS = {
     exclVat: "Alle bedragen zijn exclusief btw.",
     reverseCharge:
       "Btw verlegd: de medecontractant is tot voldoening van de btw gehouden.",
+    terms:
+      "Onze algemene voorwaarden, versie {version}, zijn van toepassing op deze offerte.",
     page: "Pagina {page} van {pages}",
   },
 } as const;

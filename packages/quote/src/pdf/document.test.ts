@@ -410,6 +410,29 @@ describe("VAT", () => {
   });
 });
 
+describe("general terms", () => {
+  const c = content([scenario([item(DEVELOPMENT, 8)])]);
+
+  test("the version that went out is named in the closing notes", () => {
+    expect(quoteDocument(input(c, { termsLabel: "2026-01" })).notes).toEqual([
+      "All amounts exclude VAT.",
+      "Our general terms, version 2026-01, apply to this quote.",
+    ]);
+  });
+
+  test("in the quote's language", () => {
+    expect(
+      quoteDocument(input(c, { language: "nl", termsLabel: "2026-01" })).notes,
+    ).toContain(
+      "Onze algemene voorwaarden, versie 2026-01, zijn van toepassing op deze offerte.",
+    );
+  });
+
+  test("no terms on file, no note about terms", () => {
+    expect(quoteDocument(input(c)).notes).toEqual(["All amounts exclude VAT."]);
+  });
+});
+
 describe("labels", () => {
   test("a team's own label replaces the default in its language only", () => {
     const c = content([scenario([item(DEVELOPMENT, 8)])]);

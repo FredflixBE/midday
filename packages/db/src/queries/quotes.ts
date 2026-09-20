@@ -30,6 +30,7 @@ import {
   invoiceTemplates,
   quoteSettings,
   quotes,
+  quoteTerms,
   quoteVersions,
   teams,
 } from "../schema";
@@ -511,6 +512,107 @@ export async function reviseQuote(
 }
 
 /**
+ * The team's general terms versions (FF-1616, docs/quotes.md §3.4), newest
+ * first. General terms only bind if the client could know them before the
+ * contract was concluded (Civil Code art. 5.23), so each version is kept as
+ * its own file and a sent quote records which one went with it.
+ */
+export async function listQuoteTerms(
+  db: DatabaseOrTransaction,
+  params: { teamId: string; language?: QuoteLanguage },
+) {
+  return db
+    .select()
+    .from(quoteTerms)
+    .where(
+      and(
+        eq(quoteTerms.teamId, params.teamId),
+        params.language ? eq(quoteTerms.language, params.language) : undefined,
+      ),
+    )
+    .orderBy(desc(quoteTerms.createdAt));
+}
+
+/** The newest version in a language, which is what a quote is sent with. */
+async function latestQuoteTerms(
+  tx: DatabaseOrTransaction,
+  teamId: string,
+  language: string,
+) {
+  const [row] = await tx
+    .select({ id: quoteTerms.id })
+    .from(quoteTerms)
+    .where(
+      and(eq(quoteTerms.teamId, teamId), eq(quoteTerms.language, language)),
+    )
+    .orderBy(desc(quoteTerms.createdAt))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** A new version of the terms, the file already stored in the vault. */
+export async function addQuoteTerms(
+  db: Database,
+  params: {
+    teamId: string;
+    label: string;
+    language: QuoteLanguage;
+    filePath: string[];
+    fileName: string;
+  },
+) {
+  const label = params.label.trim();
+  if (!label) throw new QuoteInputError("A version needs a label");
+  if (params.filePath[0] !== params.teamId || params.filePath.length < 2) {
+    throw new QuoteInputError("The file is stored outside this team");
+  }
+
+  const [row] = await db
+    .insert(quoteTerms)
+    .values({ ...params, label })
+    .onConflictDoNothing({
+      target: [quoteTerms.teamId, quoteTerms.label, quoteTerms.language],
+    })
+    .returning();
+  if (!row) {
+    throw new QuoteInputError("That version already exists in this language");
+  }
+  return row;
+}
+
+/**
+ * Removes a version of the terms — a wrong upload, before it was used. One a
+ * sent quote names stays: which terms went with it is the record this table
+ * exists for. Null when it is not the team's.
+ */
+export async function deleteQuoteTerms(
+  db: Database,
+  params: { teamId: string; id: string },
+) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ id: quoteTerms.id })
+      .from(quoteTerms)
+      .where(
+        and(eq(quoteTerms.id, params.id), eq(quoteTerms.teamId, params.teamId)),
+      );
+    if (!row) return null;
+
+    const [used] = await tx
+      .select({ id: quoteVersions.id })
+      .from(quoteVersions)
+      .where(eq(quoteVersions.termsVersionId, params.id))
+      .limit(1);
+    if (used) {
+      throw new QuoteInputError("A quote was sent with these terms");
+    }
+
+    await tx.delete(quoteTerms).where(eq(quoteTerms.id, params.id));
+    return row;
+  });
+}
+
+/**
  * Marks a draft sent and freezes it with its pricing; the version sent before
  * it, if any, becomes superseded. The action a person takes is FF-1614's; the
  * rule is here. Null when the version is not the team's.
@@ -582,6 +684,13 @@ export async function markQuoteVersionSent(
         sentAt: params.sentAt ?? sql`now()`,
         sentTo: params.sentTo ?? null,
         pricing,
+        // The terms in force for this language, recorded before the PDF is
+        // drawn so the file names them (FF-1616). None on file, none named.
+        termsVersionId: await latestQuoteTerms(
+          tx,
+          params.teamId,
+          row.quote.language,
+        ),
         updatedAt: sql`now()`,
       })
       .where(eq(quoteVersions.id, row.version.id));
@@ -856,6 +965,12 @@ export async function getQuotePdfInput(
     .orderBy(desc(invoiceTemplates.isDefault), invoiceTemplates.createdAt)
     .limit(1);
   const settings = await getQuoteSettings(db, params.teamId);
+  const [terms] = version.termsVersionId
+    ? await db
+        .select({ label: quoteTerms.label })
+        .from(quoteTerms)
+        .where(eq(quoteTerms.id, version.termsVersionId))
+    : [];
 
   return {
     quoteNumber: quote.quoteNumber,
@@ -877,6 +992,7 @@ export async function getQuotePdfInput(
     labels: settings.labels,
     logoUrl: template?.logoUrl ?? null,
     paymentDetails: template?.paymentDetails ?? null,
+    termsLabel: terms?.label ?? null,
   };
 }
 

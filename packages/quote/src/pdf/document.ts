@@ -56,6 +56,12 @@ export type QuotePdfInput = {
   logoUrl?: string | null;
   paymentDetails?: unknown;
   /**
+   * The label of the general terms this version went out with (FF-1616),
+   * e.g. `2026-01`. Null before any were uploaded, and the note is then
+   * left off rather than referring to terms that do not exist.
+   */
+  termsLabel?: string | null;
+  /**
    * The bytes behind each picture the text holds, by its stored path. What
    * is missing is left out of the PDF rather than failing it.
    */
@@ -241,7 +247,13 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
         ? fill(labels.firm, { validUntil: date(input.validUntil) })
         : labels.estimate,
     blocks,
-    notes: abroad ? [labels.exclVat, labels.reverseCharge] : [labels.exclVat],
+    notes: [
+      labels.exclVat,
+      ...(abroad ? [labels.reverseCharge] : []),
+      ...(input.termsLabel
+        ? [fill(labels.terms, { version: input.termsLabel })]
+        : []),
+    ],
   };
 }
 

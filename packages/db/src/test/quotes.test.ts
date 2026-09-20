@@ -19,13 +19,16 @@ import { createInvoiceProduct } from "../queries/invoice-products";
 import { setCustomerProductRate } from "../queries/product-rates";
 import {
   acceptQuoteVersion,
+  addQuoteTerms,
   createQuote,
+  deleteQuoteTerms,
   getPricedQuote,
   getQuote,
   getQuotePdfInput,
   getQuoteSettings,
   getQuoteVersionFile,
   listQuotes,
+  listQuoteTerms,
   markQuoteVersionSent,
   QuoteInputError,
   reviseQuote,
@@ -1540,6 +1543,141 @@ describe.skipIf(SKIP)("quotes", () => {
       expect(
         await getQuoteVersionFile(db, { teamId: TEAM_EUR_ID, versionId }),
       ).toBeNull();
+    });
+  });
+
+  /**
+   * FF-1616. General terms only bind if the client could know them before
+   * the contract was concluded (Civil Code art. 5.23), so every sent version
+   * records which version went with it, and the PDF names it.
+   */
+  describe("general terms", () => {
+    const file = (name: string) => ({
+      filePath: [TEAM_USD_ID, "quotes", name],
+      fileName: "terms.pdf",
+    });
+
+    async function add(label: string, language: "nl" | "en", name = label) {
+      return addQuoteTerms(db, {
+        teamId: TEAM_USD_ID,
+        label,
+        language,
+        ...file(name),
+      });
+    }
+
+    test("versions come back newest first, and per language", async () => {
+      await add("2025-01", "en");
+      await add("2026-01", "en");
+      await add("2026-01", "nl");
+
+      expect(
+        (await listQuoteTerms(db, { teamId: TEAM_USD_ID })).map(
+          (row) => `${row.label} ${row.language}`,
+        ),
+      ).toEqual(["2026-01 nl", "2026-01 en", "2025-01 en"]);
+      expect(
+        await listQuoteTerms(db, { teamId: TEAM_USD_ID, language: "nl" }),
+      ).toHaveLength(1);
+    });
+
+    test("the same version twice in one language is refused", async () => {
+      await add("2026-01", "en");
+      await expect(add("2026-01", "en", "again")).rejects.toBeInstanceOf(
+        QuoteInputError,
+      );
+    });
+
+    test("a file stored outside the team is refused", async () => {
+      await expect(
+        addQuoteTerms(db, {
+          teamId: TEAM_USD_ID,
+          label: "2026-01",
+          language: "en",
+          filePath: [TEAM_EUR_ID, "quotes", "terms.pdf"],
+          fileName: "terms.pdf",
+        }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("sending records the newest version in the quote's language", async () => {
+      await add("2025-01", "en");
+      const current = await add("2026-01", "en");
+      await add("2026-06", "nl");
+
+      const quote = await create({ language: "en" });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+      });
+
+      const sentVersion = (await getQuote(db, {
+        id: quote.id,
+        teamId: TEAM_USD_ID,
+      }))!.versions[0]!;
+      expect(sentVersion.termsVersionId).toBe(current.id);
+    });
+
+    test("no terms in that language, none recorded", async () => {
+      await add("2026-01", "nl");
+      const quote = await create({ language: "en" });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+      });
+
+      const sentVersion = (await getQuote(db, {
+        id: quote.id,
+        teamId: TEAM_USD_ID,
+      }))!.versions[0]!;
+      expect(sentVersion.termsVersionId).toBeNull();
+    });
+
+    test("the PDF names the version that went out", async () => {
+      await add("2026-01", "en");
+      const quote = await create({ language: "en" });
+      const draft = draftOf(quote);
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+
+      const input = await getQuotePdfInput(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draft.id,
+      });
+      expect(input!.termsLabel).toBe("2026-01");
+    });
+
+    test("a version nobody was sent is removed", async () => {
+      const terms = await add("2026-01", "en");
+
+      expect(
+        await deleteQuoteTerms(db, { teamId: TEAM_USD_ID, id: terms.id }),
+      ).not.toBeNull();
+      expect(await listQuoteTerms(db, { teamId: TEAM_USD_ID })).toHaveLength(0);
+    });
+
+    test("one a quote was sent with stays", async () => {
+      const terms = await add("2026-01", "en");
+      const quote = await create({ language: "en" });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+      });
+
+      await expect(
+        deleteQuoteTerms(db, { teamId: TEAM_USD_ID, id: terms.id }),
+      ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    test("another team's version is not removed", async () => {
+      const terms = await add("2026-01", "en");
+
+      expect(
+        await deleteQuoteTerms(db, { teamId: TEAM_EUR_ID, id: terms.id }),
+      ).toBeNull();
+      expect(await listQuoteTerms(db, { teamId: TEAM_USD_ID })).toHaveLength(1);
     });
   });
 

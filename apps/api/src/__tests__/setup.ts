@@ -289,6 +289,10 @@ export const mocks = {
   getQuotePdfInput: mock(() => null) as MockFn,
   // Acceptance and the PDF kept when a version is sent (FF-1615)
   acceptQuoteVersion: mock(() => ({})) as MockFn,
+  // General terms versions (FF-1616)
+  listQuoteTerms: mock(() => []) as MockFn,
+  addQuoteTerms: mock(() => ({})) as MockFn,
+  deleteQuoteTerms: mock(() => ({})) as MockFn,
   getQuoteVersionFile: mock(() => null) as MockFn,
   // Quotes through MCP (FF-1618)
   getPricedQuote: mock(() => null) as MockFn,
@@ -986,6 +990,9 @@ const dbQueriesMock = new Proxy(
     setQuoteOutcome: mocks.setQuoteOutcome,
     getQuotePdfInput: mocks.getQuotePdfInput,
     acceptQuoteVersion: mocks.acceptQuoteVersion,
+    listQuoteTerms: mocks.listQuoteTerms,
+    addQuoteTerms: mocks.addQuoteTerms,
+    deleteQuoteTerms: mocks.deleteQuoteTerms,
     getQuoteVersionFile: mocks.getQuoteVersionFile,
     getPricedQuote: mocks.getPricedQuote,
     getBalanceSheet: mocks.getBalanceSheet,

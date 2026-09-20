@@ -1663,6 +1663,48 @@ export const quotes = pgTable(
 );
 
 /**
+ * A version of the team's general terms (FF-1616, docs/quotes.md §3.4): the
+ * file as it stood, under the label it is known by. Terms only bind if the
+ * client could know them beforehand, so a sent quote records the one that
+ * went with it and this row keeps that file for good.
+ */
+export const quoteTerms = pgTable(
+  "quote_terms",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    teamId: uuid("team_id").notNull(),
+    /** What this version is called, e.g. `2026-01`. */
+    label: text().notNull(),
+    language: text().notNull(), // 'nl' | 'en'
+    /** Path tokens in the `vault` bucket, and the name to download it as. */
+    filePath: text("file_path").array().notNull(),
+    fileName: text("file_name").notNull(),
+  },
+  (table) => [
+    index("quote_terms_team_id_idx").on(table.teamId),
+    unique("quote_terms_team_id_label_language_key").on(
+      table.teamId,
+      table.label,
+      table.language,
+    ),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [teams.id],
+      name: "quote_terms_team_id_fkey",
+    }).onDelete("cascade"),
+    pgPolicy("Quote terms can be handled by members of the team", {
+      as: "permissive",
+      for: "all",
+      to: ["public"],
+      using: sql`(team_id IN ( SELECT private.get_teams_for_authenticated_user() AS get_teams_for_authenticated_user))`,
+    }),
+  ],
+);
+
+/**
  * One revision of a quote, and the thing that is sent. Only a draft is
  * edited; a sent version is frozen because the client holds that PDF, and
  * revising copies the latest into a new draft. A quote has at most one draft,
@@ -1699,6 +1741,10 @@ export const quoteVersions = pgTable(
     // path tokens in the `vault` bucket. What the logo, the payment details,
     // the labels and the pictures said then is in the file, not read again.
     pdfPath: text("pdf_path").array(),
+    // The general terms this version went out with (FF-1616). Terms only
+    // bind if the client could know them before the contract was concluded
+    // (Civil Code art. 5.23), so every sent version records which.
+    termsVersionId: uuid("terms_version_id"),
     // Acceptance, recorded by hand (FF-1615). It arrives outside Midday — an
     // email, an order form, a PO — so this is what was answered, by whom,
     // and the document that says so.
@@ -1731,6 +1777,13 @@ export const quoteVersions = pgTable(
       foreignColumns: [quotes.id],
       name: "quote_versions_quote_id_fkey",
     }).onDelete("cascade"),
+    // Restricted, not set null: which terms were sent is the record this
+    // column exists for, so terms a sent version names are not deleted.
+    foreignKey({
+      columns: [table.termsVersionId],
+      foreignColumns: [quoteTerms.id],
+      name: "quote_versions_terms_version_id_fkey",
+    }).onDelete("restrict"),
     pgPolicy("Quote versions can be handled by members of the team", {
       as: "permissive",
       for: "all",
