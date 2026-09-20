@@ -14,7 +14,9 @@ let loading: Promise<typeof import("mermaid").default> | null = null;
 
 function mermaidModule() {
   // Held so that typing in the dialog does not fetch it again on every
-  // keystroke; the import itself is only reached once a diagram is open.
+  // keystroke; the import itself is only reached once a diagram is open. A
+  // failed one is not held, or a network blip at the wrong moment would
+  // leave the dialog unable to draw anything for as long as the page lives.
   loading ??= import("mermaid").then(({ default: mermaid }) => {
     mermaid.initialize({
       startOnLoad: false,
@@ -28,7 +30,10 @@ function mermaidModule() {
     });
     return mermaid;
   });
-  return loading;
+  return loading.catch((error: unknown) => {
+    loading = null;
+    throw error;
+  });
 }
 
 /** Mermaid's own reading of the source, as the message it would show. */
@@ -63,11 +68,19 @@ function sizeOf(svg: string): { width: number; height: number } {
 export async function diagramToPng(svg: string): Promise<Blob> {
   const { width, height } = sizeOf(svg);
   // Sized on the way in: the canvas draws the SVG at whatever size the SVG
-  // asks for, so a percentage width would come out a single pixel wide.
-  const sized = svg.replace(
-    /<svg([^>]*)>/,
-    `<svg$1 width="${width}" height="${height}">`,
-  );
+  // asks for, and mermaid writes `width="100%"` with the real size in a
+  // `max-width` style, which a canvas reads as one pixel.
+  //
+  // The sizes it already carries have to come off first. A data URL is
+  // parsed as XML, where a repeated attribute is not last-one-wins but a
+  // fatal error — a second `width` would make the whole picture fail to
+  // load, and the only sign of it is a diagram that will not save.
+  const sized = svg.replace(/<svg([^>]*)>/, (_, attributes: string) => {
+    const kept = attributes
+      .replace(/\s(?:width|height)="[^"]*"/g, "")
+      .replace(/\s*max-width:\s*[^;"]*;?/g, "");
+    return `<svg${kept} width="${width}" height="${height}">`;
+  });
 
   const image = new Image();
   const loaded = new Promise<void>((resolve, reject) => {

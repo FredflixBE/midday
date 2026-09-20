@@ -1,7 +1,7 @@
 "use client";
 
 import { type NodeViewProps, NodeViewWrapper } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../../../button";
 import {
   Dialog,
@@ -47,13 +47,25 @@ export function DiagramView(props: NodeViewProps) {
           alt="Diagram"
           className={`max-w-full ${selected ? "outline outline-2 outline-primary" : ""}`}
         />
+      ) : canEdit ? (
+        // Nothing has been written yet, so the whole box is the way in. It
+        // is not opened for you: a document that already holds unfinished
+        // diagrams would then put a dialog on screen for each of them the
+        // moment it was opened.
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex h-24 w-full items-center justify-center border border-dashed border-border text-[11px] text-[#878787] hover:text-primary"
+        >
+          Write a diagram
+        </button>
       ) : (
         <div className="flex h-24 items-center justify-center border border-dashed border-border text-[11px] text-[#878787]">
-          {canEdit ? "Diagram — open it to draw it" : "Diagram"}
+          Diagram
         </div>
       )}
 
-      {canEdit ? (
+      {canEdit && src ? (
         <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover/diagram:opacity-100 focus-within:opacity-100">
           <Button
             type="button"
@@ -99,13 +111,19 @@ function DiagramDialog({
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Each drawing is numbered so a slow one landing late cannot overwrite the
-  // picture of something typed after it.
+  // picture of something typed after it, and so nothing is set after the
+  // dialog has closed.
   const attempt = useRef(0);
+  // One id for the dialog, not one per keystroke. Mermaid tidies up after a
+  // drawing it could not finish by looking for what it left under the same
+  // id — so a new id each time leaves the half-typed "Syntax error" it drew
+  // sitting at the foot of the page, once per keystroke.
+  const drawingId = `diagram-${useId().replace(/:/g, "")}`;
 
   useEffect(() => {
     const mine = ++attempt.current;
     const timer = setTimeout(() => {
-      drawDiagram(source, `diagram-preview-${mine}`)
+      drawDiagram(source, drawingId)
         .then((svg) => {
           if (attempt.current !== mine) return;
           setDrawn(svg);
@@ -118,14 +136,18 @@ function DiagramDialog({
           setProblem(error instanceof Error ? error.message : "Unreadable.");
         });
     }, SETTLE);
-    return () => clearTimeout(timer);
-  }, [source]);
+    return () => {
+      clearTimeout(timer);
+      // Nothing already in flight may land on a dialog that has gone.
+      attempt.current++;
+    };
+  }, [source, drawingId]);
 
   const save = async () => {
     if (!images?.upload) return;
     setSaving(true);
     try {
-      const svg = await drawDiagram(source, `diagram-save-${Date.now()}`);
+      const svg = await drawDiagram(source, drawingId);
       const png = await diagramToPng(svg);
       const path = await images.upload(
         new File([png], "diagram.png", { type: "image/png" }),
@@ -147,58 +169,62 @@ function DiagramDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
+      {/* `DialogContent` carries no padding of its own; every dialog in the
+          app puts its own on, so this one does too. */}
       <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Diagram</DialogTitle>
-          <DialogDescription className="sr-only">
-            Write the diagram in mermaid; it is drawn as you type.
-          </DialogDescription>
-        </DialogHeader>
+        <div className="space-y-4 p-4">
+          <DialogHeader>
+            <DialogTitle>Diagram</DialogTitle>
+            <DialogDescription className="sr-only">
+              Write the diagram in mermaid; it is drawn as you type.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Textarea
-            value={source}
-            onChange={(event) => setSource(event.target.value)}
-            className="h-80 resize-none font-mono text-[11px]"
-            spellCheck={false}
-            // The dialog is opened to write in, so the caret starts here.
-            autoFocus
-          />
-          <div className="flex h-80 items-center justify-center overflow-auto border border-border p-2">
-            {drawn ? (
-              // Mermaid's own output, which is why it is set rather than
-              // built: nothing reaches this that has not been through
-              // mermaid's parser first, and it never leaves the dialog — a
-              // picture is what is stored and what anyone else ever sees.
-              <div
-                className="[&>svg]:max-h-full [&>svg]:max-w-full"
-                dangerouslySetInnerHTML={{ __html: drawn }}
-              />
-            ) : (
-              <span className="text-[11px] text-[#878787]">
-                Nothing drawn yet
-              </span>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <Textarea
+              value={source}
+              onChange={(event) => setSource(event.target.value)}
+              className="h-80 resize-none font-mono text-[11px]"
+              spellCheck={false}
+              // The dialog is opened to write in, so the caret starts here.
+              autoFocus
+            />
+            <div className="flex h-80 items-center justify-center overflow-auto border border-border p-2">
+              {drawn ? (
+                // Mermaid's own output, which is why it is set rather than
+                // built: nothing reaches this that has not been through
+                // mermaid's parser first, and it never leaves the dialog — a
+                // picture is what is stored and what anyone else ever sees.
+                <div
+                  className="[&>svg]:max-h-full [&>svg]:max-w-full"
+                  dangerouslySetInnerHTML={{ __html: drawn }}
+                />
+              ) : (
+                <span className="text-[11px] text-[#878787]">
+                  Nothing drawn yet
+                </span>
+              )}
+            </div>
           </div>
+
+          {problem ? (
+            <p className="text-[11px] text-[#FF3638]">{problem}</p>
+          ) : null}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={save}
+              // Nothing readable to draw, so nothing to store a picture of.
+              disabled={saving || !drawn || !images?.upload}
+            >
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
         </div>
-
-        {problem ? (
-          <p className="text-[11px] text-[#FF3638]">{problem}</p>
-        ) : null}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={save}
-            // Nothing readable to draw, so nothing to store a picture of.
-            disabled={saving || !drawn || !images?.upload}
-          >
-            {saving ? "Saving…" : "Save"}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

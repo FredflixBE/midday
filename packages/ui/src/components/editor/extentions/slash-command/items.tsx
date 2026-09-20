@@ -76,8 +76,9 @@ export function slashCommandItems(options?: {
       id: "diagram",
       label: "Diagram",
       icon: <Workflow className="size-3.5" />,
-      // Empty, and opened straight away: a diagram is written in mermaid in
-      // its own dialog, not in the line the "/" was typed on.
+      // Empty: a diagram is written in mermaid in its own dialog, not in the
+      // line the "/" was typed on, and the empty box it leaves is what opens
+      // that dialog.
       command: ({ editor, range }) =>
         editor
           .chain()

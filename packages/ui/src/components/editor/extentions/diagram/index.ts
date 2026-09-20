@@ -45,11 +45,22 @@ export const Diagram = Node.create<DiagramOptions>({
   },
 
   addAttributes() {
+    // Read back off the markup as well as out of the saved JSON: a diagram
+    // copied from one block and pasted into another goes through HTML, and
+    // without these it would arrive stripped of both the things that make it
+    // a diagram.
     return {
       /** The mermaid the picture was drawn from. */
-      source: { default: "" },
+      source: {
+        default: "",
+        parseHTML: (element: HTMLElement) =>
+          element.getAttribute("data-source") ?? "",
+      },
       /** The picture's place in storage, never a public address. */
-      path: { default: null },
+      path: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute("data-path"),
+      },
     };
   },
 
