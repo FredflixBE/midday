@@ -178,7 +178,10 @@ function VersionEditor({
   return (
     <ReadOnlyContext.Provider value={!editable}>
       <div
-        className="mx-auto max-w-[1600px] pb-24"
+        // The document and the rail, and nothing between them: 800 + 48 + 380.
+        // A wider page only puts empty space between the text and the rail,
+        // because the text is set to the width the PDF prints it at.
+        className="mx-auto max-w-[1228px] pb-24"
         style={{ [STRIP_HEIGHT]: `${stripHeight}px` } as CSSProperties}
       >
         {/* Which quote this is, and whether it can be typed into, stay on

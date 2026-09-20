@@ -25,8 +25,14 @@ import { SortableList, SortableRow } from "./sortable";
 
 type Product = RouterOutputs["productRates"]["products"][number];
 
-/** Handle, item, product, hours or days, optional, one-off, amount, remove. */
-const COLUMNS = "grid-cols-[20px_1fr_180px_140px_repeat(2,56px)_120px_32px]";
+/**
+ * Handle, item, product, hours or days, optional, one-off, amount, remove.
+ * Sized to fit the document's own column (800px, FF-1633) rather than
+ * whatever width the page happened to have: the item is what gives, and it
+ * is given a floor so it can never collapse to three letters.
+ */
+const COLUMNS =
+  "grid-cols-[20px_minmax(140px,1fr)_140px_120px_repeat(2,48px)_100px_32px]";
 
 /**
  * A scenario's lines: section headings, notes and priced items, in the order
@@ -91,9 +97,11 @@ export function ScenarioLines({
   return (
     <div className="space-y-3">
       {scenario.lines.length > 0 ? (
-        <div className="border border-border">
+        // Narrower than the columns can go, the table scrolls rather than
+        // squeezing the item out of existence.
+        <div className="overflow-x-auto border border-border">
           <div
-            className={`grid ${COLUMNS} items-center gap-3 border-b border-border px-3 py-2 text-[12px] text-[#606060]`}
+            className={`grid ${COLUMNS} min-w-[680px] items-center gap-2 border-b border-border px-3 py-2 text-[12px] text-[#606060]`}
           >
             <span />
             <span>Item</span>
@@ -229,7 +237,9 @@ function Row({
   children: ReactNode;
 }) {
   return (
-    <div className={`grid ${COLUMNS} items-start gap-3 px-3 py-2`}>
+    <div
+      className={`grid ${COLUMNS} min-w-[680px] items-start gap-2 px-3 py-2`}
+    >
       <div className="flex h-9 items-center">{handle}</div>
       {children}
       <div className="flex h-9 items-center">
