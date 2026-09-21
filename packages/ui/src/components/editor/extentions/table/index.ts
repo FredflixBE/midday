@@ -4,6 +4,26 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 
 /**
+ * What a cell carries, for both kinds of cell.
+ *
+ * `colwidth` is deliberately not among them. It is where a dragged column
+ * width is kept, nothing here drags, and a width left on a cell by an older
+ * table is the one thing that can make a grid narrower than the text column
+ * it sits in — so it is neither read nor written.
+ *
+ * `rowspan` is fixed at one for a related reason: nothing offers to merge
+ * cells down and none of the four renderers can draw a merged one, so a span
+ * arriving on a pasted table is flattened at the door and ProseMirror fills
+ * the gap with empty cells rather than letting the rows below slide
+ * sideways. A `colspan` is drawn by every renderer, so it is kept.
+ */
+const cellAttributes = {
+  colspan: { default: 1 },
+  rowspan: { default: 1, parseHTML: () => 1, renderHTML: () => ({}) },
+  colwidth: { default: null, parseHTML: () => null, renderHTML: () => ({}) },
+};
+
+/**
  * Tables (FF-1642), part of the schema wherever `registerExtensions` builds
  * one — every surface, not only the quote document. Tiptap throws away nodes
  * its schema does not know, so an editor built without these would quietly
@@ -11,11 +31,8 @@ import TableRow from "@tiptap/extension-table-row";
  * keystroke would save the text without them (the lesson `storedImage`
  * records from FF-1625).
  *
- * The grid itself is plain markup, drawn by Tiptap's own `renderHTML`. It is
- * deliberately not a React node view: React's `NodeViewContent` puts a `div`
- * of its own between the `tbody` and the rows, which is not something a
- * table may contain, and the browser hoists the rows out of it. The row and
- * column grips are drawn over the page instead — see `table-controls.tsx`.
+ * The row and column controls are drawn over the page rather than in the
+ * document — see `table-controls.tsx`.
  */
 export const tableExtensions = [
   Table.extend({
@@ -50,18 +67,6 @@ export const tableExtensions = [
     resizable: false,
   }),
   TableRow,
-  TableHeader,
-  TableCell.extend({
-    addAttributes() {
-      return {
-        ...this.parent?.(),
-        // Cells are never merged down: nothing offers it, and none of the
-        // four renderers can draw it — a row is a row of cells in all of
-        // them. A `rowspan` arriving on a pasted table is flattened at the
-        // door, so ProseMirror fills the gap with empty cells rather than
-        // letting the rows below silently slide sideways.
-        rowspan: { default: 1, parseHTML: () => 1, renderHTML: () => ({}) },
-      };
-    },
-  }),
+  TableHeader.extend({ addAttributes: () => cellAttributes }),
+  TableCell.extend({ addAttributes: () => cellAttributes }),
 ];

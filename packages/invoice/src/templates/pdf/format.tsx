@@ -38,6 +38,9 @@ const digitWidth = 5;
 // reads as a list of sentences, and the editor draws all four (FF-1642).
 const tableRuleColor = "#DCDAD2";
 const tableRuleWidth = 0.5;
+// A header cell is tinted as well as bold, so which row or column is the
+// header reads at a glance. The same grey the editor and the web view use.
+const tableHeaderFill = "#F6F6F3";
 const cellPaddingVertical = 3;
 const cellPaddingHorizontal = 4;
 
@@ -233,8 +236,8 @@ function renderTableCell(
   // it draws it, and a width that differed from the editor's would make the
   // PDF disagree with what was written.
   const span = Math.max(1, cell.attrs?.colspan ?? 1);
-  const base =
-    cell.type === "tableHeader" ? { ...bodyText, fontWeight: 600 } : bodyText;
+  const heading = cell.type === "tableHeader";
+  const base = heading ? { ...bodyText, fontWeight: 600 } : bodyText;
 
   return (
     <View
@@ -242,6 +245,7 @@ function renderTableCell(
       style={{
         flexGrow: span,
         flexBasis: 0,
+        ...(heading ? { backgroundColor: tableHeaderFill } : {}),
         paddingVertical: cellPaddingVertical,
         paddingHorizontal: cellPaddingHorizontal,
         borderRightWidth: tableRuleWidth,

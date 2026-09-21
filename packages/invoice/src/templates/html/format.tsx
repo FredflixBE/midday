@@ -28,6 +28,9 @@ const listBlock = "pl-4 my-0.5";
 // this view, so it holds up in the dark as well as the light.
 const tableBlock = "table-fixed w-full my-1.5 border-collapse";
 const tableCell = "align-top text-left border border-border px-1.5 py-1";
+// A header cell is tinted as well as bold, the same pair the editor and the
+// PDF draw, so which row or column is the header reads at a glance.
+const tableHeaderCell = "bg-[#F6F6F3] font-semibold dark:bg-[#1C1C1C]";
 
 export function formatEditorContent(doc?: EditorDoc): ReactNode | null {
   if (!doc?.content) {
@@ -108,7 +111,7 @@ function renderBlock(node: EditorNode, path: string): ReactNode {
                       colSpan={span === 1 ? undefined : span}
                       className={
                         Cell === "th"
-                          ? `${tableCell} ${bodyText} font-semibold`
+                          ? `${tableCell} ${bodyText} ${tableHeaderCell}`
                           : `${tableCell} ${bodyText}`
                       }
                     >

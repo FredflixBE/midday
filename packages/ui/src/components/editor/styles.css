@@ -57,8 +57,12 @@
   @apply relative border border-border align-top px-2 py-1;
 }
 
+/* A header is tinted as well as bold, the way every table editor draws one,
+   so which row or column is the header is visible rather than inferred.
+   Written out rather than taken from a token: the same pair is drawn by the
+   PDF and the web view, and the three have to agree. */
 .tiptap table th {
-  @apply text-left font-semibold;
+  @apply bg-[#F6F6F3] text-left font-semibold dark:bg-[#1C1C1C];
 }
 
 .tiptap table p {

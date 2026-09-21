@@ -24,9 +24,19 @@ import {
 /** Where one column or row sits on screen. */
 type Band = { start: number; size: number };
 
+/** Where the cells are, which is not always where the `table` element is. */
+type Grid = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  width: number;
+  height: number;
+};
+
 type Measured = {
   ref: Omit<CellRef, "row" | "column">;
-  box: DOMRect;
+  box: Grid;
   columns: Band[];
   rows: Band[];
   /** The column and row the pointer is on, or -1 when it is beside them. */
@@ -89,7 +99,6 @@ export function TableControls({ editor }: { editor: Editor }) {
       return;
     }
 
-    const box = element.getBoundingClientRect();
     const firstRow = element.querySelector("tr");
     const columns = Array.from(firstRow?.children ?? []).map((cell) => {
       const rect = cell.getBoundingClientRect();
@@ -99,6 +108,27 @@ export function TableControls({ editor }: { editor: Editor }) {
       const rect = row.getBoundingClientRect();
       return { start: rect.top, size: rect.height };
     });
+
+    // The grid is where the cells are, not where the `table` element is. The
+    // two can differ — a table element is free to be wider than the columns
+    // inside it — and when they do, a bar drawn to the element's edge sits
+    // out in the whitespace beside a grid it is supposed to belong to.
+    const first = columns[0];
+    const last = columns[columns.length - 1];
+    const top = rows[0];
+    const bottom = rows[rows.length - 1];
+    if (!first || !last || !top || !bottom) {
+      setMeasured(null);
+      return;
+    }
+    const box = {
+      left: first.start,
+      right: last.start + last.size,
+      top: top.start,
+      bottom: bottom.start + bottom.size,
+      width: last.start + last.size - first.start,
+      height: bottom.start + bottom.size - top.start,
+    };
 
     // The grid is laid out by the browser and the node is changed by
     // ProseMirror, and the two are not always in step on the frame an edit
@@ -218,6 +248,7 @@ export function TableControls({ editor }: { editor: Editor }) {
           onInsertBefore={() => act(columnActions.insertBefore, 0, atColumn)}
           onInsertAfter={() => act(columnActions.insertAfter, 0, atColumn)}
           onRemove={() => act(columnActions.remove, 0, atColumn)}
+          onDeleteTable={() => act(columnActions.removeTable, 0, atColumn)}
           onToggleHeader={() => act(columnActions.toggleHeader, 0, atColumn)}
         />
       ) : null}
@@ -242,6 +273,7 @@ export function TableControls({ editor }: { editor: Editor }) {
           onInsertBefore={() => act(rowActions.insertBefore, atRow, 0)}
           onInsertAfter={() => act(rowActions.insertAfter, atRow, 0)}
           onRemove={() => act(rowActions.remove, atRow, 0)}
+          onDeleteTable={() => act(rowActions.removeTable, atRow, 0)}
           onToggleHeader={() => act(rowActions.toggleHeader, atRow, 0)}
         />
       ) : null}
@@ -287,6 +319,7 @@ function Handle({
   insertAfter,
   remove,
   removable,
+  onDeleteTable,
   onOpenChange,
   onInsertBefore,
   onInsertAfter,
@@ -302,6 +335,7 @@ function Handle({
   insertAfter: string;
   remove: string;
   removable: boolean;
+  onDeleteTable: () => void;
   onOpenChange: (open: boolean) => void;
   onInsertBefore: () => void;
   onInsertAfter: () => void;
@@ -334,12 +368,13 @@ function Handle({
         <DropdownMenuItem onSelect={onToggleHeader}>
           {isHeader ? `Remove ${headerLabel.toLowerCase()}` : headerLabel}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
         {removable ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onRemove}>{remove}</DropdownMenuItem>
-          </>
+          <DropdownMenuItem onSelect={onRemove}>{remove}</DropdownMenuItem>
         ) : null}
+        <DropdownMenuItem onSelect={onDeleteTable}>
+          Delete table
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

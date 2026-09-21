@@ -253,6 +253,10 @@ describe("formatEditorContent", () => {
       expect(markup).toMatch(/<td class="[^"]*\bborder\b/);
       expect(markup).toMatch(/<th class="[^"]*font-semibold/);
       expect(markup).not.toMatch(/<td class="[^"]*font-semibold/);
+      // Tinted as well as bold, so the header shows rather than being
+      // inferred from the weight alone.
+      expect(markup).toMatch(/<th class="[^"]*bg-\[#F6F6F3\]/);
+      expect(markup).not.toMatch(/<td class="[^"]*bg-\[#F6F6F3\]/);
     });
 
     test("draws a list written inside a cell as a list", () => {

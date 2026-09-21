@@ -54,7 +54,11 @@ function runAt(
   return command(editor.chain()).focus().run();
 }
 
+/** Taking the whole table out, offered from either handle's menu. */
+const removeTable = (ref: CellRef) => runAt(ref, (c) => c.deleteTable());
+
 export const columnActions = {
+  removeTable,
   insertBefore: (ref: CellRef) => runAt(ref, (c) => c.addColumnBefore()),
   insertAfter: (ref: CellRef) => runAt(ref, (c) => c.addColumnAfter()),
   remove: (ref: CellRef) => runAt(ref, (c) => c.deleteColumn()),
@@ -62,6 +66,7 @@ export const columnActions = {
 };
 
 export const rowActions = {
+  removeTable,
   insertBefore: (ref: CellRef) => runAt(ref, (c) => c.addRowBefore()),
   insertAfter: (ref: CellRef) => runAt(ref, (c) => c.addRowAfter()),
   remove: (ref: CellRef) => runAt(ref, (c) => c.deleteRow()),

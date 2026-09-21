@@ -436,6 +436,17 @@ describe("formatEditorContent", () => {
       expect(weightOf("Pages")).not.toBeGreaterThanOrEqual(600);
     });
 
+    test("tints a header cell, so the header shows and is not only inferred", () => {
+      const table = tableOf(comparison);
+      const [head, body] = table.children as Element[];
+      for (const cell of head!.children as Element[]) {
+        expect(styleOf(cell).backgroundColor).toBeTruthy();
+      }
+      for (const cell of body!.children as Element[]) {
+        expect(styleOf(cell).backgroundColor).toBeUndefined();
+      }
+    });
+
     test("rules every cell on all four sides, so a column shows as well as a row", () => {
       const table = tableOf(comparison);
       // Each cell closes its own right and bottom edge; the table closes the

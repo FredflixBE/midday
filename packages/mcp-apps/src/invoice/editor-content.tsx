@@ -108,7 +108,11 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
                     <Cell
                       key={`${key}-cell-${lineIndex.toString()}-${cellIndex.toString()}`}
                       colSpan={span === 1 ? undefined : span}
-                      className="align-top text-left border border-border px-1.5 py-1"
+                      className={
+                        Cell === "th"
+                          ? "align-top text-left border border-border px-1.5 py-1 bg-[#F6F6F3] dark:bg-[#1C1C1C]"
+                          : "align-top text-left border border-border px-1.5 py-1"
+                      }
                       style={{
                         fontSize: bodySize,
                         ...(Cell === "th" ? { fontWeight: 600 } : {}),
