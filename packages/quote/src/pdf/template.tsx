@@ -36,6 +36,49 @@ const RULE = "#DCDAD2";
 
 const small: Style = { fontSize: 8, color: GREY };
 const body: Style = { fontSize: 9 };
+
+/**
+ * The page's two columns (FF-1666).
+ *
+ * A quote used to set its text at 42em hard against the left margin, which
+ * left 126pt — a fifth of every page — unused on the right. It read as a
+ * document with a piece missing rather than as one that had been laid out.
+ *
+ * So the page has a spine: a section's number and its title stand in a
+ * column of their own, and the text runs beside them. The width is not a
+ * taste: "Projectbeschrijving" is one unbreakable word 165pt wide, and a
+ * Dutch compound is the thing most likely to run past the edge of a narrow
+ * sidehead.
+ *
+ * The text column is what the measure says, so the two cannot drift: the
+ * sidehead is the rest of the page.
+ */
+const PAGE_MARGIN = 40;
+const CONTENT = 595.28 - PAGE_MARGIN * 2;
+const COLUMN = measureWidth(9);
+const GUTTER = 25;
+const SIDEHEAD = CONTENT - COLUMN - GUTTER;
+
+/**
+ * What each titled section is called by its number (FF-1666).
+ *
+ * A client answers a quote section by section — "over punt 3 heb ik een
+ * vraag" needs a 3 to point at — which is the whole reason these are drawn.
+ * So only a section a reader can name is counted: a block with no title is
+ * a continuation of the one above it, and the pricing is reached by its own
+ * tables rather than by number.
+ */
+function sectionNumbers(doc: QuoteDocument): Map<string, string> {
+  const numbers = new Map<string, string>();
+  let n = 0;
+  for (const block of doc.blocks) {
+    if (block.type === "text" && block.heading) {
+      n += 1;
+      numbers.set(block.id, String(n).padStart(2, "0"));
+    }
+  }
+  return numbers;
+}
 const strong: Style = { fontSize: 9, fontWeight: 600 };
 
 // Line columns: description, quantity, rate, amount.
@@ -428,6 +471,7 @@ function Notes({ doc }: { doc: QuoteDocument }) {
 export function QuotePdf({ doc }: { doc: QuoteDocument }) {
   const { labels } = doc;
   const hasPricing = doc.blocks.some((b) => b.type === "pricing");
+  const sections = sectionNumbers(doc);
 
   return (
     <Document title={`${labels.quote} ${doc.number}`}>
@@ -489,8 +533,12 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
           ) : null}
         </View>
 
+        {/* On the same two columns the document below stands on (FF-1666):
+            who it is from in the sidehead, who it is for at the head of the
+            text column. Before this the page had three different left edges
+            down it. */}
         <View style={{ flexDirection: "row", marginBottom: 20 }}>
-          <View style={{ flex: 1, marginRight: 10 }}>
+          <View style={{ width: SIDEHEAD, marginRight: GUTTER }}>
             <Text style={{ ...small, marginBottom: 2 }}>{labels.from}</Text>
             <Rich doc={doc.fromDetails} />
             {/* The bank account belongs with the sender's legal details. */}
@@ -503,7 +551,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
               </View>
             ) : null}
           </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
+          <View style={{ width: COLUMN }}>
             <Text style={{ ...small, marginBottom: 2 }}>{labels.to}</Text>
             <Rich doc={doc.customerDetails} />
           </View>
@@ -516,8 +564,10 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             paddingLeft: 8,
             borderLeftWidth: 2,
             borderLeftColor: "#000",
-            // Running text, so it takes the measure like the rest of it.
-            maxWidth: measureWidth(9),
+            // Running text, so it stands in the text column with the rest
+            // of it rather than out on its own to the left (FF-1666).
+            marginLeft: SIDEHEAD + GUTTER,
+            width: COLUMN,
           }}
         >
           {doc.statement}
@@ -525,31 +575,37 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
 
         {doc.blocks.map((block) =>
           block.type === "text" ? (
-            <View key={block.id} style={{ marginBottom: 16 }}>
-              {block.heading ? (
-                <Text
-                  minPresenceAhead={40}
-                  // A block's title sits above every heading its text can
-                  // hold (FF-1651). It used to be drawn at exactly an h1's
-                  // size, so a section's title and a heading inside it were
-                  // the same thing to look at.
-                  style={{
-                    fontSize: blockHeadingSize(9),
-                    fontWeight: QUOTE_TYPESET.weight.blockHeading,
-                    lineHeight: QUOTE_TYPESET.leading.heading,
-                    // The one bottom margin in the document, and it is
-                    // safe to be one: a title stands outside the text, and
-                    // the first block of that text takes no room above it,
-                    // so nothing meets this (FF-1665).
-                    marginBottom: 9 * QUOTE_TYPESET.flow.below,
-                    // The title sits over its own text, not over the page.
-                    maxWidth: measureWidth(9),
-                  }}
-                >
-                  {block.heading}
-                </Text>
-              ) : null}
-              <Rich doc={block.body} images={doc.images} prose />
+            // Title beside its text, not above it (FF-1666).
+            <View
+              key={block.id}
+              style={{ flexDirection: "row", marginBottom: 16 }}
+            >
+              <View style={{ width: SIDEHEAD, marginRight: GUTTER }}>
+                {block.heading ? (
+                  <Text style={{ ...small, marginBottom: 3 }}>
+                    {sections.get(block.id)}
+                  </Text>
+                ) : null}
+                {block.heading ? (
+                  <Text
+                    minPresenceAhead={40}
+                    // A block's title names the section its text belongs to
+                    // (FF-1651). In the sidehead it is also the only thing
+                    // on that side of the page, so it reads as a heading
+                    // without having to be large enough to shout.
+                    style={{
+                      fontSize: blockHeadingSize(9),
+                      fontWeight: QUOTE_TYPESET.weight.blockHeading,
+                      lineHeight: QUOTE_TYPESET.leading.heading,
+                    }}
+                  >
+                    {block.heading}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={{ width: COLUMN }}>
+                <Rich doc={block.body} images={doc.images} prose />
+              </View>
             </View>
           ) : (
             <View key={block.id}>

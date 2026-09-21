@@ -138,8 +138,19 @@ export const QUOTE_TYPESET = {
    *
    * Upstream leaves measure to the layout for the same reason, so this is
    * ours by their design as much as by ours.
+   *
+   * 32, not the 42 FF-1662 set: the page has a sidehead column down its
+   * left now (FF-1666), and the text column is what is left of the page
+   * beside it. 42em ran about 80 characters, at the top of the comfortable
+   * band; this runs about 61, in the middle of it. The column got narrower
+   * and the page stopped being lopsided in the same move.
+   *
+   * What settled on 32 rather than 34 is the other column: at 34 the
+   * sidehead was 184pt and "Waarom dit nu nodig is" is 193pt, so it broke
+   * with "is" alone on a line. A title is the thing in a sidehead, and a
+   * one-word widow in it is the first thing you see.
    */
-  measure: 42,
+  measure: 32,
 } as const;
 
 /** A heading's size at this body size, for the level given. */
