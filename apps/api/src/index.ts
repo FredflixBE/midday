@@ -19,6 +19,7 @@ import type { Context } from "./rest/types";
 import { createTRPCContext } from "./trpc/init";
 import { appRouter } from "./trpc/routers/_app";
 import { httpLogger } from "./utils/logger";
+import { processLifecycle } from "./utils/process-lifecycle";
 import { getRequestTrace } from "./utils/request-trace";
 
 const app = new OpenAPIHono<Context>();
@@ -313,6 +314,8 @@ app.get(
 
 app.route("/", routers);
 
+const POOL_STATS_TIMER = "db-pool-stats";
+
 const poolStatsIntervalMsRaw = process.env.DB_POOL_STATS_INTERVAL_MS;
 const parsedPoolStatsIntervalMs = Number.parseInt(
   poolStatsIntervalMsRaw ?? "60000",
@@ -321,14 +324,15 @@ const parsedPoolStatsIntervalMs = Number.parseInt(
 const poolStatsIntervalMs = Number.isFinite(parsedPoolStatsIntervalMs)
   ? parsedPoolStatsIntervalMs
   : 60000;
-const poolStatsInterval =
-  poolStatsIntervalMs > 0
-    ? setInterval(() => {
-        logger.info("API DB pool stats", {
-          pool: getPoolStats(),
-        });
-      }, poolStatsIntervalMs)
-    : null;
+processLifecycle.startInterval(
+  POOL_STATS_TIMER,
+  () => {
+    logger.info("API DB pool stats", {
+      pool: getPoolStats(),
+    });
+  },
+  poolStatsIntervalMs,
+);
 
 if (poolStatsIntervalMs <= 0) {
   logger.info("API DB pool stats logging disabled", {
@@ -354,15 +358,18 @@ app.onError((err, c) => {
  * Close database connections cleanly on process termination (e.g. redeploys)
  */
 const shutdown = async (signal: string) => {
+  // `bun --hot` leaves the listener from every previous evaluation in place, so
+  // one signal arrives here once per save the session has seen. The first
+  // arrival shuts the server down; the rest have nothing left to do.
+  if (!processLifecycle.claim("shutdown")) return;
+
   logger.info(`Received ${signal}, starting graceful shutdown...`);
 
   const SHUTDOWN_TIMEOUT = 12_000; // 12s — fits within a 15s draining window
 
   const shutdownPromise = (async () => {
     try {
-      if (poolStatsInterval) {
-        clearInterval(poolStatsInterval);
-      }
+      processLifecycle.stopInterval(POOL_STATS_TIMER);
 
       logger.info("Closing database connections...");
       await closeDb();
@@ -405,10 +412,11 @@ process.on("unhandledRejection", (reason, promise) => {
 
 // Pre-warm the chat tool index in the background so the first request is fast.
 // It embeds the tool descriptions, so it needs OpenAI; without a key it would
-// only log a failure at every boot.
+// only log a failure at every boot. Once per process, not once per hot reload —
+// every save would otherwise embed them against OpenAI again.
 import { warmToolIndex } from "./chat/tools";
 
-if (process.env.OPENAI_API_KEY) {
+if (process.env.OPENAI_API_KEY && processLifecycle.claim("warm-tool-index")) {
   warmToolIndex();
 }
 
