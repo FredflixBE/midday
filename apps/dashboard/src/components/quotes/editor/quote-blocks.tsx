@@ -219,51 +219,49 @@ function PricingBlock({
 const BODY = 14;
 
 /**
- * The reading rhythm, handed to the editor's stylesheet as the sizes it
- * should draw (FF-1651).
+ * The three controls a typeset is reduced to, plus the hierarchy the print
+ * has to agree with (FF-1663).
  *
- * Every size here is a multiple of the body size, from the one scale that
- * the PDF, the web view and the MCP preview read as well — so the screen
- * reads as the print reads because both are derived from the same
- * proportions, rather than because someone keeps four sets of numbers in
- * step by hand (FF-1633).
+ * The document on screen is set by shadcn/typeset — `apps/dashboard/src/
+ * styles/typeset.css` — which sizes and spaces everything a block can hold
+ * from a base size, a leading and a flow. These are those three, and the
+ * few sizes our scale steps differently from theirs, all from the one scale
+ * `@midday/invoice`'s `typeset` holds (FF-1651).
+ *
+ * That scale is the source because react-pdf takes numbers and can read no
+ * stylesheet: the print reads it directly, the editor reads it through
+ * these. Where a line breaks was never going to match — different metrics,
+ * different renderer — but the hierarchy does, which is what lets the author
+ * trust what is on screen (FF-1662).
  *
  * Custom properties rather than classes: Tailwind finds its classes by
  * reading source text, and a size worked out from a ratio is a size it would
  * never generate.
  */
 const TYPESET_VARS = {
+  "--typeset-size": `${BODY}px`,
+  "--typeset-leading": `${TYPESET.leading.body}`,
+  "--typeset-flow": `${px(BODY * TYPESET.flow.paragraph)}px`,
   "--typeset-h1": `${px(headingSize(BODY, 1))}px`,
   "--typeset-h2": `${px(headingSize(BODY, 2))}px`,
   "--typeset-h3": `${px(headingSize(BODY, 3))}px`,
   "--typeset-heading-leading": `${TYPESET.leading.heading}`,
+  "--typeset-heading-weight": `${TYPESET.weight.heading}`,
+  /* A heading takes more room above than below, so it belongs to what
+     follows it rather than floating between two things equally (FF-1652).
+     One flow cannot say that, so these two say it instead. */
   "--typeset-above": `${px(BODY * TYPESET.flow.above)}px`,
   "--typeset-below": `${px(BODY * TYPESET.flow.below)}px`,
-  "--typeset-paragraph": `${px(BODY * TYPESET.flow.paragraph)}px`,
-  "--typeset-heading-weight": `${TYPESET.weight.heading}`,
 } as CSSProperties;
 
 /**
- * What the text reads like wherever it is written (FF-1633). Tailwind's reset
- * flattens lists, so they carry their own markers and indent here; the sizes
- * come from `TYPESET_VARS` above.
+ * The container the typeset styles, and the preset that holds our steps
+ * (FF-1663). It replaced a list of arbitrary variants that re-taught
+ * Tailwind's reset what a list is — a typeset absorbs those, and reaches
+ * what they never did: blockquotes, code, rules, nested lists, and the room
+ * around the first thing in a block.
  */
-const TEXT_STYLES = cn(
-  "text-sm leading-[1.55]",
-  "[&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5",
-  "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5",
-  // The editor sets its own size and a loose leading for invoice text.
-  "[&_.tiptap]:text-sm [&_.tiptap]:leading-[1.55]",
-  // How to start, on the line being written and nowhere else (FF-1649). The
-  // extension marks only the node the caret is in, and the focused editor is
-  // the only one that draws it — so a document of empty blocks is empty
-  // rather than a column of repeated instructions.
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:pointer-events-none",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:float-left",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:h-0",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:text-[#878787]",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:content-[attr(data-placeholder)]",
-);
+const TYPESET_CLASS = "typeset typeset-quote";
 
 /**
  * A block's own title, which sits above every heading its text can hold
@@ -355,6 +353,9 @@ function TextBlockEditor({
       diagrams
       autoFocus={autoFocus}
       className={className}
+      // On the container itself: a typeset declares its own controls, so a
+      // value inherited from the block around it would lose to them.
+      style={TYPESET_VARS}
       onUpdate={(editor) =>
         onChange({
           body: (editor.isEmpty
@@ -450,11 +451,11 @@ function TextBlockEditor({
         </h3>
       ) : null}
 
-      <div ref={body} style={TYPESET_VARS}>
+      <div ref={body}>
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (
-          renderEditor(cn(editable && "min-h-[1.5rem]", TEXT_STYLES))
+          renderEditor(cn(editable && "min-h-[1.5rem]", TYPESET_CLASS))
         )}
       </div>
 
@@ -469,13 +470,13 @@ function TextBlockEditor({
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle>{block.heading || "Text block"}</DialogTitle>
           </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col" style={TYPESET_VARS}>
+          <div className="flex min-h-0 flex-1 flex-col">
             {/* Radix keeps the dialog mounted while it animates shut, and by
                 then the page holds the editor again: this guard is what keeps
                 it to one. */}
             {expanded
               ? renderEditor(
-                  cn("min-h-0 flex-1 overflow-y-auto px-6 py-4", TEXT_STYLES),
+                  cn("min-h-0 flex-1 overflow-y-auto px-6 py-4", TYPESET_CLASS),
                   true,
                 )
               : null}

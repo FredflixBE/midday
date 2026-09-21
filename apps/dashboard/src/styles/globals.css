@@ -8,6 +8,13 @@
  */
 @import "@midday/ui/globals.css";
 
+/*
+ * The typeset a document is set in (FF-1663). After the theme, because it
+ * reads the theme's tokens; in a layer of its own making, because unlayered
+ * CSS beats every utility here.
+ */
+@import "./typeset.css";
+
 @source "../";
 @source "../../../../packages/ui/src";
 @source "../../../../packages/invoice/src";

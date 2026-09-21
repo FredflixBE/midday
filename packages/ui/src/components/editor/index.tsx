@@ -16,6 +16,7 @@ import { TableControls } from "./extentions/table/table-controls";
 
 export type { StoredImages };
 
+import type { CSSProperties } from "react";
 import { Toolbar } from "./extentions/toolbar";
 
 type EditorProps = {
@@ -25,6 +26,12 @@ type EditorProps = {
   onBlur?: () => void;
   onFocus?: () => void;
   className?: string;
+  /**
+   * Set on the same element `className` is, which is what a typeset needs:
+   * its container declares its own three controls, so a value inherited
+   * from an ancestor would lose to them (FF-1663).
+   */
+  style?: CSSProperties;
   tabIndex?: number;
   /** False shows the content without letting it be changed. */
   editable?: boolean;
@@ -67,6 +74,7 @@ export function Editor({
   onBlur,
   onFocus,
   className,
+  style,
   tabIndex,
   editable = true,
   toolbar = false,
@@ -109,6 +117,7 @@ export function Editor({
       <EditorContent
         editor={editor}
         className={className}
+        style={style}
         tabIndex={tabIndex}
       />
       <BubbleMenu editor={editor} />
