@@ -358,6 +358,11 @@ app.onError((err, c) => {
  * Close database connections cleanly on process termination (e.g. redeploys)
  */
 const shutdown = async (signal: string) => {
+  // `bun --hot` leaves the listener from every previous evaluation in place, so
+  // one signal arrives here once per save the session has seen. The first
+  // arrival shuts the server down; the rest have nothing left to do.
+  if (!processLifecycle.claim("shutdown")) return;
+
   logger.info(`Received ${signal}, starting graceful shutdown...`);
 
   const SHUTDOWN_TIMEOUT = 12_000; // 12s — fits within a 15s draining window
@@ -388,25 +393,21 @@ const shutdown = async (signal: string) => {
   process.exit(0);
 };
 
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
 /**
- * Signal, exception and rejection handlers. Registered through the process
- * lifecycle so a `bun --hot` reload replaces them instead of stacking another
- * set — otherwise one SIGTERM shuts the server down once per save.
+ * Unhandled exception and rejection handlers
  */
-processLifecycle.registerHandlers({
-  shutdown,
-  uncaughtException: (err) => {
-    logger.error("Uncaught exception", {
-      error: err.message,
-      stack: err.stack,
-    });
-  },
-  unhandledRejection: (reason) => {
-    logger.error("Unhandled rejection", {
-      reason: reason instanceof Error ? reason.message : String(reason),
-      stack: reason instanceof Error ? reason.stack : undefined,
-    });
-  },
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception", { error: err.message, stack: err.stack });
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled rejection", {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
 });
 
 // Pre-warm the chat tool index in the background so the first request is fast.

@@ -4,76 +4,66 @@
  * `bun run --hot` re-runs the whole module graph inside the running process on
  * every save. Module scope is new each time; `process` and `globalThis` are
  * not. So `process.on("SIGTERM", ...)` in module scope stacks one more listener
- * per save — a single Ctrl-C then logged a graceful shutdown once per
- * evaluation — and a `setInterval` left the previous timer ticking beside the
- * new one. Route both through here and they happen once per process, with the
- * newest evaluation's behaviour behind them.
+ * per save — a single Ctrl-C was handled once per evaluation — and a
+ * `setInterval` leaves the previous timer running beside the new one.
+ *
+ * Signal listeners are deliberately *not* handled here. Every arrangement that
+ * had this module register them — attaching once and swapping the handler
+ * behind it, or replacing the listener each evaluation, in either order — left
+ * SIGTERM undeliverable from the first reload on, so the server died on Ctrl-C
+ * without closing a connection, which is worse than the duplicate log it set
+ * out to fix. The listeners stay in the entry module exactly as they were, and
+ * `claim` makes the work behind them run once however many of them there are.
  *
  * Outside `--hot` the module is evaluated once and this is a thin pass-through.
  */
 
-export type ProcessHandlers = {
-  shutdown: (signal: string) => void | Promise<void>;
-  uncaughtException: (error: Error) => void;
-  unhandledRejection: (reason: unknown) => void;
+type IntervalHandle = ReturnType<typeof setInterval>;
+
+/** The whole of what outlives an evaluation. Data, never behaviour. */
+export type LifecycleState = {
+  intervals: Map<string, IntervalHandle>;
+  done: Set<string>;
 };
 
-type IntervalHandle = ReturnType<typeof setInterval>;
+export const emptyState = (): LifecycleState => ({
+  intervals: new Map(),
+  done: new Set(),
+});
 
 type Timers = {
   setInterval: (callback: () => void, ms: number) => IntervalHandle;
   clearInterval: (handle: IntervalHandle) => void;
 };
 
-type ProcessTarget = {
-  on: (event: string, listener: (...args: never[]) => void) => void;
-};
-
 type Options = {
-  target?: ProcessTarget;
+  state?: LifecycleState;
   timers?: Timers;
 };
 
 export const createProcessLifecycle = ({
-  target = process as unknown as ProcessTarget,
+  state = emptyState(),
   timers = {
     setInterval: (callback, ms) => setInterval(callback, ms),
     clearInterval: (handle) => clearInterval(handle),
   },
 }: Options = {}) => {
-  const intervals = new Map<string, IntervalHandle>();
-  const done = new Set<string>();
-  let handlers: ProcessHandlers | undefined;
-  let attached = false;
-
   const stopInterval = (name: string) => {
-    const running = intervals.get(name);
+    const running = state.intervals.get(name);
     if (running === undefined) return;
 
-    intervals.delete(name);
+    state.intervals.delete(name);
     timers.clearInterval(running);
   };
 
+  const claim = (name: string) => {
+    if (state.done.has(name)) return false;
+
+    state.done.add(name);
+    return true;
+  };
+
   return {
-    /**
-     * Point the process's signal and crash listeners at `next`, attaching them
-     * on the first call and only swapping the handlers on every call after.
-     */
-    registerHandlers(next: ProcessHandlers) {
-      handlers = next;
-      if (attached) return;
-      attached = true;
-
-      target.on("SIGTERM", () => handlers?.shutdown("SIGTERM"));
-      target.on("SIGINT", () => handlers?.shutdown("SIGINT"));
-      target.on("uncaughtException", (error: Error) =>
-        handlers?.uncaughtException(error),
-      );
-      target.on("unhandledRejection", (reason: unknown) =>
-        handlers?.unhandledRejection(reason),
-      );
-    },
-
     /**
      * Start the interval known by `name`, replacing any the process is already
      * running under that name. A period of zero or less only clears.
@@ -83,28 +73,40 @@ export const createProcessLifecycle = ({
       if (ms <= 0) return null;
 
       const handle = timers.setInterval(callback, ms);
-      intervals.set(name, handle);
+      state.intervals.set(name, handle);
       return handle;
     },
 
     stopInterval,
 
+    /**
+     * True for the first caller in this process and false for every one after.
+     *
+     * What a hot reload cannot be stopped from stacking is process listeners:
+     * registering them from here, so that an evaluation could replace the last
+     * one's, left the signal undeliverable and the server dying on Ctrl-C
+     * without closing a connection. So the listeners stay where they are and
+     * the work behind them is claimed instead — one signal, one shutdown,
+     * whatever number of listeners passed it on.
+     */
+    claim,
+
     /** Run `task` the first time this process asks for it, and never again. */
     once(name: string, task: () => void) {
-      if (done.has(name)) return;
-      done.add(name);
-      task();
+      if (claim(name)) task();
     },
   };
 };
 
 export type ProcessLifecycle = ReturnType<typeof createProcessLifecycle>;
 
-const LIFECYCLE = Symbol.for("@midday/api/process-lifecycle");
+const STATE = Symbol.for("@midday/api/process-lifecycle");
 
-const store = globalThis as unknown as Record<symbol, ProcessLifecycle>;
+const globals = globalThis as unknown as Record<symbol, LifecycleState>;
 
-// The one a hot reload must find again, so it has to outlive this module.
-store[LIFECYCLE] ??= createProcessLifecycle();
+// The state a hot reload has to find again, so it has to outlive this module.
+globals[STATE] ??= emptyState();
 
-export const processLifecycle = store[LIFECYCLE];
+export const processLifecycle = createProcessLifecycle({
+  state: globals[STATE],
+});
