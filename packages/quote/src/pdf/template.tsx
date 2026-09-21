@@ -537,6 +537,10 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
                     fontSize: blockHeadingSize(9),
                     fontWeight: QUOTE_TYPESET.weight.blockHeading,
                     lineHeight: QUOTE_TYPESET.leading.heading,
+                    // The one bottom margin in the document, and it is
+                    // safe to be one: a title stands outside the text, and
+                    // the first block of that text takes no room above it,
+                    // so nothing meets this (FF-1665).
                     marginBottom: 9 * QUOTE_TYPESET.flow.below,
                     // The title sits over its own text, not over the page.
                     maxWidth: measureWidth(9),

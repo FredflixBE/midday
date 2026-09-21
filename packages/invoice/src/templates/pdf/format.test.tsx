@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { isValidElement, type ReactNode } from "react";
 import type { EditorDoc } from "../../types";
+import { QUOTE_TYPESET } from "../typeset";
 import { formatEditorContent } from "./format";
 
 type Tree =
@@ -623,7 +624,8 @@ describe("formatEditorContent", () => {
   });
 
   test("spaces a document's paragraphs, and an address block's never", () => {
-    // The View a paragraph is drawn as, not the Text inside it.
+    // The View a paragraph is drawn as, not the Text inside it. The room is
+    // above it and never below, so two margins never meet (FF-1665).
     const spacing = (options?: { spacedParagraphs?: boolean }) =>
       elements(tree(formatEditorContent(paragraphsOnly, options)))
         .filter(
@@ -631,14 +633,15 @@ describe("formatEditorContent", () => {
             e.type === "VIEW" &&
             e.children.some((c) => typeof c !== "string" && c.type === "TEXT"),
         )
-        .map((e) => Number(styleOf(e).marginBottom ?? 0));
+        .map((e) => Number(styleOf(e).marginTop ?? 0));
 
     // An address is a list of lines, not a run of paragraphs; spacing one
     // out reads as a mistake, and this renders both (FF-1652).
     expect(spacing().every((gap) => gap === 0)).toBe(true);
-    expect(spacing({ spacedParagraphs: true }).every((gap) => gap > 0)).toBe(
-      true,
-    );
+    // Every one but the first, which opens the block and needs no room.
+    const [opening, ...rest] = spacing({ spacedParagraphs: true });
+    expect(opening).toBe(0);
+    expect(rest.every((gap) => gap > 0)).toBe(true);
   });
 
   test("skips nodes it does not know instead of failing", () => {
@@ -658,5 +661,76 @@ describe("formatEditorContent", () => {
 
   test("renders paragraph-only content exactly as before", () => {
     expect(tree(formatEditorContent(paragraphsOnly))).toMatchSnapshot();
+  });
+});
+
+/**
+ * Spacing flows one way (FF-1665).
+ *
+ * react-pdf has no margin collapsing: where the browser takes the larger of
+ * two margins that meet, it adds them, and a quote's title-to-heading came
+ * out at 1.5 lines in print against 0.57 on screen. shadcn/typeset avoids
+ * the question entirely — "spacing flows in one direction, using
+ * margin-block-start only" — and so does this now.
+ */
+describe("a block takes its room above and never below", () => {
+  const spaced = { spacedParagraphs: true, scale: QUOTE_TYPESET };
+  const blocks = (
+    doc: EditorDoc,
+    options?: Parameters<typeof formatEditorContent>[1],
+  ) =>
+    elements(tree(formatEditorContent(doc, options))).filter(
+      (e) => e.type === "VIEW" && styleOf(e).flexDirection !== "row",
+    );
+
+  test("nothing carries a bottom margin, so two margins never meet", () => {
+    const bottoms = blocks(proposal as EditorDoc, spaced)
+      .map((e) => styleOf(e).marginBottom)
+      .filter((m) => m !== undefined);
+    expect(bottoms).toEqual([]);
+  });
+
+  test("the first block of a document takes no room above it", () => {
+    const [first] = blocks(proposal as EditorDoc, spaced);
+    expect(styleOf(first!).marginTop ?? 0).toBe(0);
+  });
+
+  test("a block under a heading takes the room the heading owns below it", () => {
+    const doc = {
+      type: "doc",
+      content: [
+        paragraph("Intro."),
+        { type: "heading", attrs: { level: 2 }, content: [text("Scope")] },
+        paragraph("What we will build."),
+      ],
+    } as EditorDoc;
+    const [, heading, under] = blocks(doc, spaced);
+    expect(styleOf(heading!).marginTop).toBe(9 * QUOTE_TYPESET.flow.above);
+    // Not its own paragraph flow: a heading owns the space beneath it.
+    expect(styleOf(under!).marginTop).toBe(9 * QUOTE_TYPESET.flow.below);
+  });
+
+  test("a bullet is spaced by its item, not by the paragraph inside it", () => {
+    const listed = rows(
+      tree(formatEditorContent(proposal as EditorDoc, spaced)),
+    );
+    // The paragraph inside an item carries nothing at all.
+    const insides = listed.flatMap((r) =>
+      elements([r.body]).filter(
+        (e) => e.type === "VIEW" && styleOf(e).alignItems,
+      ),
+    );
+    expect(insides.map((e) => styleOf(e).marginTop ?? 0)).toEqual(
+      insides.map(() => 0),
+    );
+    // The item does the spacing, and the first of a list takes none.
+    const tops = listed.map((r) => Number(styleOf(r.row).marginTop ?? 0));
+    expect(tops[0]).toBe(0);
+    expect(tops[1]).toBe(9 * QUOTE_TYPESET.flow.item);
+  });
+
+  test("an invoice, which passes no options, is spaced by nothing", () => {
+    const tops = blocks(paragraphsOnly).map((e) => styleOf(e).marginTop ?? 0);
+    expect(tops).toEqual(tops.map(() => 0));
   });
 });
