@@ -57,6 +57,26 @@ const SPLIT = 1;
 const bandAt = (bands: Band[], at: number) =>
   bands.findIndex((band) => at >= band.start && at < band.start + band.size);
 
+const sameBands = (a: Band[], b: Band[]) =>
+  a.length === b.length &&
+  a.every(
+    (band, i) =>
+      Math.abs(band.start - b[i]!.start) < 0.5 &&
+      Math.abs(band.size - b[i]!.size) < 0.5,
+  );
+
+/** Whether a fresh measurement says anything the last one did not. */
+const unchanged = (was: Measured | null, next: Measured) =>
+  was !== null &&
+  was.ref.table === next.ref.table &&
+  was.ref.tablePos === next.ref.tablePos &&
+  was.atColumn === next.atColumn &&
+  was.atRow === next.atRow &&
+  Math.abs(was.box.left - next.box.left) < 0.5 &&
+  Math.abs(was.box.top - next.box.top) < 0.5 &&
+  sameBands(was.columns, next.columns) &&
+  sameBands(was.rows, next.rows);
+
 /**
  * What a table can be changed into (FF-1642), the way Notion does it.
  *
@@ -141,14 +161,21 @@ export function TableControls({ editor }: { editor: Editor }) {
       return;
     }
 
-    setMeasured({
+    const next: Measured = {
       ref: { editor, table: found.node, tablePos: found.pos },
       box,
       columns,
       rows,
       atColumn: bandAt(columns, pointer.current.x),
       atRow: bandAt(rows, pointer.current.y),
-    });
+    };
+
+    // Only when something actually moved. This runs on every pointer move
+    // over a table, and handing back a new object each time would re-render
+    // the whole block sixty times a second for a grid that has not changed —
+    // on a document with several blocks, enough to make the page stutter and
+    // a save time out under it.
+    setMeasured((was) => (unchanged(was, next) ? was : next));
   }, [editor]);
 
   // The re-measure above has to reach the current `measure`, which it cannot
@@ -192,6 +219,10 @@ export function TableControls({ editor }: { editor: Editor }) {
           }
         }
 
+        // Nowhere near a table, and nothing on screen: the common case as
+        // the pointer crosses the rest of the page, and there is nothing to
+        // do for it.
+        if (!found && !near.current) return;
         near.current = found;
         measure();
       });
