@@ -34,14 +34,47 @@ export const TYPESET = {
    * offers a heading and a subheading under it rather than a second first
    * level (FF-1652).
    */
-  blockHeading: 1.75,
+  blockHeading: 1.95,
+  /**
+   * The step from a block's title down to a heading inside it is wider than
+   * the steps below it — 1.34 against 1.21 (FF-1662). Those gaps are not
+   * equal in meaning: a block's title names a section of the document, and
+   * a heading inside it names a subsection of that section. Stepped evenly
+   * they read as peers, which is what "Waarom dit nu nodig is" and
+   * "Kernproblemen vandaag" were doing.
+   */
   /**
    * The quote's own name, above every title a block can carry. It is the
    * one thing on the page that names the whole document.
    */
-  documentTitle: 2.1,
+  documentTitle: 2.4,
   /** How far apart the lines of a paragraph sit, and of a heading. */
   leading: { body: 1.55, heading: 1.25 },
+  /**
+   * How wide a line of running text runs on a **page**, as a multiple of
+   * the body size (FF-1662). 42 is about 80 characters, where the PDF's
+   * 515pt of 9pt text ran 57em — about 120.
+   *
+   * A page only. The screen is not bound to this and deliberately so: the
+   * two used to be matched exactly, so that a line broke on screen where
+   * it breaks in print, and the cost was a browser column half as wide as
+   * the window it sits in. A page is fixed and a window is not; they are
+   * different media and only the hierarchy has to agree.
+   *
+   * This is the text column, not the page itself. A quote's pricing table
+   * carries three fixed columns inside the page's full width, and narrowing
+   * the page would leave its description column unreadable — so the running
+   * text narrows on its own and the tables keep the page.
+   */
+  measure: 42,
+  /**
+   * What separates a level from the one below it, beyond size. Every
+   * heading on both surfaces used to be one flat weight — 500 on screen and
+   * 600 in the PDF, which did not even agree with each other — so the
+   * hierarchy rested on size alone and read soft (FF-1662). One step, kept
+   * small: this is a restrained design and a bolder jump would not belong.
+   */
+  weight: { body: 400, heading: 500, blockHeading: 600, documentTitle: 600 },
   /**
    * The space around a block, as a multiple of the body size. A heading
    * takes more above than below, so it belongs to what follows it rather
@@ -67,6 +100,11 @@ export function blockHeadingSize(body: number): number {
 /** The quote's own name at this body size. */
 export function documentTitleSize(body: number): number {
   return body * TYPESET.documentTitle;
+}
+
+/** How wide running text may run at this body size. */
+export function measureWidth(body: number): number {
+  return body * TYPESET.measure;
 }
 
 /** Rounded to whole pixels, for the surfaces measured in them. */

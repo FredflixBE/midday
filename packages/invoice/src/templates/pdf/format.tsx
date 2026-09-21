@@ -71,6 +71,14 @@ export type FormatOptions = {
    * a mistake. A document that is actually prose asks for it.
    */
   spacedParagraphs?: boolean;
+  /**
+   * What a heading inside the text is set in. Left alone it is 600, which
+   * is what every caller drew before there was a scale to read — an invoice
+   * note is unchanged. A quote passes the lighter `TYPESET.weight.heading`,
+   * so that a block's own title at 600 outranks the headings under it
+   * (FF-1662).
+   */
+  headingWeight?: number;
 };
 
 export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
@@ -134,7 +142,7 @@ function renderBlock(
             {renderInline(node, path, {
               ...base,
               fontSize: size,
-              fontWeight: 600,
+              fontWeight: options?.headingWeight ?? 600,
               lineHeight: TYPESET.leading.heading,
             })}
           </Text>

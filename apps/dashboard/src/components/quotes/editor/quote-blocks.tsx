@@ -47,9 +47,17 @@ const ONE_EMPTY_PARAGRAPH: TextBlock["body"] = {
 };
 
 /**
- * The measure of the PDF's text column at the size this draws it: A4 less its
- * margins is 515pt of 9pt text, which is 800px of 14px text. The page is the
- * preview, so a line here breaks roughly where a line there does.
+ * How wide the document reads on screen.
+ *
+ * Not the PDF's measure (FF-1662). The two were tied so that a line here
+ * broke roughly where a line there does, and Frederik's call is that the
+ * preview is not worth the cost: a browser is not a page, the reader can
+ * resize it, and the rail beside the column already shapes it. The print
+ * takes the measure from `TYPESET.measure`; the screen takes this.
+ *
+ * What the two still share is the *hierarchy* — the sizes and weights of
+ * every level relative to the body — which is what "reads as it prints"
+ * was actually for.
  */
 export const DOCUMENT_WIDTH = "max-w-[800px]";
 
@@ -232,6 +240,7 @@ const TYPESET_VARS = {
   "--typeset-above": `${px(BODY * TYPESET.flow.above)}px`,
   "--typeset-below": `${px(BODY * TYPESET.flow.below)}px`,
   "--typeset-paragraph": `${px(BODY * TYPESET.flow.paragraph)}px`,
+  "--typeset-heading-weight": `${TYPESET.weight.heading}`,
 } as CSSProperties;
 
 /**
@@ -262,8 +271,13 @@ const TEXT_STYLES = cn(
  * PDF alike, so a section's title and a heading inside it were the same
  * thing to look at.
  */
-const HEADING_STYLES = "font-medium leading-snug";
-const BLOCK_HEADING_SIZE = { fontSize: px(blockHeadingSize(BODY)) } as const;
+const HEADING_STYLES = "leading-snug";
+const BLOCK_HEADING_SIZE = {
+  fontSize: px(blockHeadingSize(BODY)),
+  // Heavier than a heading inside the block, and the same weight the PDF
+  // already drew it at — the two had disagreed, 500 here against 600 there.
+  fontWeight: TYPESET.weight.blockHeading,
+} as const;
 
 /**
  * A block's controls — its grip, expand and remove — out of sight until they
