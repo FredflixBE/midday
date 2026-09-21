@@ -643,7 +643,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
                         ) : app.id === "manus-mcp" ? (
                           <ManusSetupInstructions />
                         ) : (
-                          <div className="prose prose-sm prose-invert prose-p:text-[#878787] prose-p:my-3 [&_strong]:text-primary [&_strong]:font-normal max-w-none">
+                          <div className="prose prose-sm dark:prose-invert prose-p:text-[#878787] prose-p:my-3 [&_strong]:text-primary [&_strong]:font-normal max-w-none">
                             <MemoizedReactMarkdown>
                               {app.description || app.overview || ""}
                             </MemoizedReactMarkdown>

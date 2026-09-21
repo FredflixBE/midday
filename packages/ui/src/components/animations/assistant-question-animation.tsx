@@ -288,7 +288,7 @@ export function AssistantQuestionAnimation({
               >
                 <div className="flex justify-start">
                   <div className="flex flex-col max-w-full w-full">
-                    <div className="prose prose-sm max-w-none">
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
                       {renderMarkdown(segment.text)}
                     </div>
                     {!segment.isComplete && (

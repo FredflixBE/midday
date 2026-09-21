@@ -11,6 +11,15 @@
 
 @plugin "tailwindcss-animate";
 
+/*
+ * Rich text that comes in as markdown (FF-1661): an app's "How it works",
+ * and the assistant's answer in the onboarding animation. Five components
+ * had been asking for `prose` since before this repo used v4, against a
+ * plugin nobody had ever installed — so the class names read as styling and
+ * emitted nothing.
+ */
+@plugin "@tailwindcss/typography";
+
 @source "./";
 @theme {
   --font-sans: var(--font-hedvig-sans);
