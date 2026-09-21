@@ -15,17 +15,27 @@ export function formatEditorContent(doc?: EditorDoc) {
 
 /**
  * The card carries the from and customer address blocks only, drawn at
- * 1200×630 — so a heading is not sized up here and a list is given no
- * markers or indent, which at that size would read as noise. What the card
- * does owe is the words: a block it did not know used to be dropped whole,
- * and every line in it with it.
+ * 1200×630 — so a heading is not sized up here, and a list or a table is
+ * given no markers, indent or grid, which at that size would read as noise.
+ * What the card does owe is the words: a block it did not know used to be
+ * dropped whole, and every line in it with it.
  */
+// Blocks the card draws nothing of its own for — no markers, no indent, no
+// grid, all of which would read as noise at this size — but whose children
+// still hold the words. A block walked past is a block whose words go with
+// it, which is what these used to be (FF-1642 added the table four).
+const walkedThrough = new Set([
+  "bulletList",
+  "orderedList",
+  "listItem",
+  "table",
+  "tableRow",
+  "tableCell",
+  "tableHeader",
+]);
+
 function renderBlock(node: EditorNode, path: string): ReactNode {
-  if (
-    node.type === "bulletList" ||
-    node.type === "orderedList" ||
-    node.type === "listItem"
-  ) {
+  if (walkedThrough.has(node.type)) {
     return node.content?.map((child, index) =>
       renderBlock(child, `${path}-${index}`),
     );

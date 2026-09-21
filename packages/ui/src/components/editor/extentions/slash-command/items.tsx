@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   List,
   ListOrdered,
+  Table,
   Text,
 } from "lucide-react";
 import type { SlashCommandItem } from "./types";
@@ -21,10 +22,12 @@ const HEADING_ICONS = {
  * What `/` offers (FF-1638). Only what every renderer draws — the editor, the
  * PDF through `formatEditorContent`, and the web view — so nothing can be
  * written here that the client would never see. A picture is offered only
- * where there is somewhere to store one.
+ * where there is somewhere to store one, and a table only where one may be
+ * written (FF-1642).
  */
 export function slashCommandItems(options?: {
   pickImage?: () => void;
+  tables?: boolean;
 }): SlashCommandItem[] {
   const items: SlashCommandItem[] = [
     {
@@ -65,7 +68,25 @@ export function slashCommandItems(options?: {
     },
   ];
 
-  const { pickImage } = options ?? {};
+  const { pickImage, tables } = options ?? {};
+  if (tables) {
+    items.push({
+      id: "table",
+      label: "Table",
+      icon: <Table className="size-3.5" />,
+      // Three columns with a header row: enough to be a comparison table
+      // straight away, and rows and columns are added from the bar that
+      // shows while the caret is inside it.
+      command: ({ editor, range }) =>
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+          .run(),
+    });
+  }
+
   if (pickImage) {
     items.push({
       id: "image",

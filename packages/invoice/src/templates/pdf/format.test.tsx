@@ -338,6 +338,205 @@ describe("formatEditorContent", () => {
     });
   });
 
+  describe("a table", () => {
+    const cell = (value: string) => ({
+      type: "tableCell",
+      content: [paragraph(value)],
+    });
+    const header = (value: string) => ({
+      type: "tableHeader",
+      content: [paragraph(value)],
+    });
+    const row = (...content: object[]) => ({ type: "tableRow", content });
+
+    const comparison = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            row(header("Feature"), header("Basis"), header("Compleet")),
+            row(cell("Pages"), cell("5"), cell("20")),
+            row(cell("Support"), cell("Email"), cell("Phone")),
+          ],
+        },
+      ],
+    } as EditorDoc;
+
+    // The table itself: the outermost element holding the rows.
+    function tableOf(doc: EditorDoc) {
+      const out = elements(tree(formatEditorContent(doc)));
+      const rowsOf = (e: Element) =>
+        e.children.filter(
+          (c): c is Element =>
+            typeof c !== "string" && styleOf(c).flexDirection === "row",
+        );
+      return out.find((e) => rowsOf(e).length > 0)!;
+    }
+
+    test("draws the cells row by row, in the order they were written", () => {
+      const table = tableOf(comparison);
+      expect(table.children.map(textOf)).toEqual([
+        "FeatureBasisCompleet",
+        "Pages520",
+        "SupportEmailPhone",
+      ]);
+    });
+
+    test("gives every column the same share of the text column", () => {
+      const table = tableOf(comparison);
+      expect(styleOf(table).width).toBe("100%");
+      for (const line of table.children as Element[]) {
+        const widths = (line.children as Element[]).map(
+          (c) => styleOf(c).flexGrow ?? styleOf(c).flex,
+        );
+        expect(widths).toEqual([1, 1, 1]);
+        // Nothing fixes a column, so three columns are three equal thirds
+        // whatever the text column happens to be.
+        for (const c of line.children as Element[]) {
+          expect(styleOf(c).width).toBeUndefined();
+        }
+      }
+    });
+
+    test("gives a cell spanning two columns two columns' room", () => {
+      const doc = {
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              row({ ...cell("Both"), attrs: { colspan: 2 } }, cell("One")),
+            ],
+          },
+        ],
+      } as EditorDoc;
+      const line = tableOf(doc).children[0] as Element;
+      expect(
+        (line.children as Element[]).map((c) => styleOf(c).flexGrow),
+      ).toEqual([2, 1]);
+    });
+
+    test("keeps a row whole but lets a long table break between rows", () => {
+      const table = tableOf(comparison);
+      expect((table.props as { wrap?: boolean }).wrap).not.toBe(false);
+      for (const line of table.children as Element[]) {
+        expect((line.props as { wrap?: boolean }).wrap).toBe(false);
+      }
+    });
+
+    test("sets the header row apart from the rows under it", () => {
+      const out = elements(tree(formatEditorContent(comparison)));
+      const weightOf = (value: string) =>
+        Number(
+          styleOf(out.find((e) => e.children.includes(value))!).fontWeight,
+        );
+
+      expect(weightOf("Feature")).toBeGreaterThanOrEqual(600);
+      expect(weightOf("Pages")).not.toBeGreaterThanOrEqual(600);
+    });
+
+    test("tints a header cell, so the header shows and is not only inferred", () => {
+      const table = tableOf(comparison);
+      const [head, body] = table.children as Element[];
+      for (const cell of head!.children as Element[]) {
+        expect(styleOf(cell).backgroundColor).toBeTruthy();
+      }
+      for (const cell of body!.children as Element[]) {
+        expect(styleOf(cell).backgroundColor).toBeUndefined();
+      }
+    });
+
+    test("rules every cell on all four sides, so a column shows as well as a row", () => {
+      const table = tableOf(comparison);
+      // Each cell closes its own right and bottom edge; the table closes the
+      // top and left, so every line in the grid is drawn exactly once.
+      expect(Number(styleOf(table).borderTopWidth)).toBeGreaterThan(0);
+      expect(Number(styleOf(table).borderLeftWidth)).toBeGreaterThan(0);
+      for (const line of table.children as Element[]) {
+        for (const cell of line.children as Element[]) {
+          expect(Number(styleOf(cell).borderRightWidth)).toBeGreaterThan(0);
+          expect(Number(styleOf(cell).borderBottomWidth)).toBeGreaterThan(0);
+        }
+      }
+    });
+
+    test("sits a cell's content where the cell says, so a number column prints right", () => {
+      const doc = {
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              row(
+                { ...cell("Left"), attrs: { align: "left" } },
+                { ...cell("Middle"), attrs: { align: "center" } },
+                { ...cell("Right"), attrs: { align: "right" } },
+                cell("Unsaid"),
+              ),
+            ],
+          },
+        ],
+      } as EditorDoc;
+      const line = tableOf(doc).children[0] as Element;
+      expect(
+        (line.children as Element[]).map((c) => styleOf(c).alignItems),
+      ).toEqual(["flex-start", "center", "flex-end", "flex-start"]);
+    });
+
+    test("draws a list written inside a cell as a list", () => {
+      const doc = {
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              row({
+                type: "tableCell",
+                content: [
+                  {
+                    type: "bulletList",
+                    content: [item(paragraph("One")), item(paragraph("Two"))],
+                  },
+                ],
+              }),
+            ],
+          },
+        ],
+      } as EditorDoc;
+      const listed = rows(tree(formatEditorContent(doc))).filter(
+        (r) => r.marker === "\u2022",
+      );
+      expect(listed.map((r) => textOf(r.body))).toEqual(["One", "Two"]);
+    });
+
+    test("draws an empty cell as an empty cell, not as nothing", () => {
+      const doc = {
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [row(cell("Filled"), { type: "tableCell" })],
+          },
+        ],
+      } as EditorDoc;
+      const line = tableOf(doc).children[0] as Element;
+      expect(line.children).toHaveLength(2);
+      expect(textOf(line)).toBe("Filled");
+    });
+
+    test("leaves out a table with no rows rather than drawing an empty box", () => {
+      const doc = {
+        type: "doc",
+        content: [{ type: "table", content: [] }, paragraph("After")],
+      } as EditorDoc;
+      const out = tree(formatEditorContent(doc));
+      expect(textOf({ type: "x", key: null, props: {}, children: out })).toBe(
+        "After",
+      );
+    });
+  });
+
   test("skips nodes it does not know instead of failing", () => {
     const doc = {
       type: "doc",

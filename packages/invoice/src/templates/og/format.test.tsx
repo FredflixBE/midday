@@ -116,6 +116,39 @@ describe("formatEditorContent", () => {
     expect(lines).toEqual(["Scope", "Design", "Build", "Frontend", "Access"]);
   });
 
+  test("keeps the words of a table, a line per cell", () => {
+    const cell = (value: string) => ({
+      type: "tableCell",
+      content: [paragraph(value)],
+    });
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                { type: "tableHeader", content: [paragraph("Feature")] },
+                { type: "tableHeader", content: [paragraph("Basis")] },
+              ],
+            },
+            { type: "tableRow", content: [cell("Pages"), cell("5")] },
+          ],
+        },
+      ],
+    } as EditorDoc;
+
+    // The card is 1200×630 and draws no grid, but a block it cannot draw
+    // must still not swallow the words inside it.
+    const lines = elements(tree(formatEditorContent(doc)))
+      .filter((e) => e.type === "p")
+      .map(textOf);
+
+    expect(lines).toEqual(["Feature", "Basis", "Pages", "5"]);
+  });
+
   test("underlines and strikes the marks it never read", () => {
     const doc = {
       type: "doc",

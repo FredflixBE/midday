@@ -30,6 +30,26 @@ const maxImageHeight = 560;
 const bulletWidth = 12;
 const digitWidth = 5;
 
+// A table's rules, and the room a cell keeps from them. The same grey the
+// quote PDF rules its own line table with, so a written table and a priced
+// one read as the same document rather than two.
+//
+// A line on every edge, not only under each row: a grid with no verticals
+// reads as a list of sentences, and the editor draws all four (FF-1642).
+const tableRuleColor = "#DCDAD2";
+const tableRuleWidth = 0.5;
+// A header cell is tinted as well as bold, so which row or column is the
+// header reads at a glance. The same grey the editor and the web view use.
+const tableHeaderFill = "#F6F6F3";
+// Where a cell's content sits across it, as react-pdf says it.
+const cellAlignment: Record<string, "flex-start" | "center" | "flex-end"> = {
+  left: "flex-start",
+  center: "center",
+  right: "flex-end",
+};
+const cellPaddingVertical = 3;
+const cellPaddingHorizontal = 4;
+
 /**
  * What a picture stored under a path looks like to react-pdf: the bytes,
  * because the PDF is drawn on the server and a stored path is not an address
@@ -55,16 +75,23 @@ export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
   );
 }
 
+/**
+ * @param base What plain text in this block reads as. It is `bodyText`
+ * everywhere but inside a table's header row, which is what carries the
+ * weight down to the text itself — react-pdf inherits some of a View's text
+ * styles and not others, so the weight is put where it cannot be lost.
+ */
 function renderBlock(
   node: EditorNode,
   path: string,
   options?: FormatOptions,
+  base: PDFTextStyle = bodyText,
 ): ReactNode {
   switch (node.type) {
     case "paragraph":
       return (
         <View key={`paragraph-${path}`} style={{ alignItems: "flex-start" }}>
-          <Text>{renderInline(node, path, bodyText)}</Text>
+          <Text>{renderInline(node, path, base)}</Text>
         </View>
       );
 
@@ -78,7 +105,7 @@ function renderBlock(
         >
           <Text>
             {renderInline(node, path, {
-              ...bodyText,
+              ...base,
               fontSize: size,
               fontWeight: 600,
             })}
@@ -105,12 +132,17 @@ function renderBlock(
               key={`list-item-${path}-${index.toString()}`}
               style={{ flexDirection: "row" }}
             >
-              <Text style={{ ...bodyText, width: markerWidth }}>
+              <Text style={{ ...base, width: markerWidth }}>
                 {markerOf(index)}
               </Text>
               <View style={{ flex: 1 }}>
                 {item.content?.map((child, childIndex) =>
-                  renderBlock(child, `${path}-${index}-${childIndex}`, options),
+                  renderBlock(
+                    child,
+                    `${path}-${index}-${childIndex}`,
+                    options,
+                    base,
+                  ),
                 )}
               </View>
             </View>
@@ -142,9 +174,102 @@ function renderBlock(
       );
     }
 
+    case "table": {
+      const lines = node.content ?? [];
+      // A table with no rows is a box with nothing in it; leave it out, the
+      // way a picture with no bytes behind it is left out.
+      if (lines.length === 0) {
+        return null;
+      }
+
+      return (
+        // The text column's full width, always: a table is never wider than
+        // the words around it, so nothing can run off the side of the page.
+        // It may break between rows — a feature matrix can be longer than a
+        // page — but it does not start with only a sliver of room left.
+        <View
+          key={`table-${path}`}
+          style={{
+            width: "100%",
+            marginVertical: 6,
+            // Each cell draws its own right and bottom line, so the grid
+            // needs its top and left edge closing.
+            borderTopWidth: tableRuleWidth,
+            borderTopColor: tableRuleColor,
+            borderLeftWidth: tableRuleWidth,
+            borderLeftColor: tableRuleColor,
+          }}
+          minPresenceAhead={40}
+        >
+          {lines.map((line, index) =>
+            renderTableRow(line, `${path}-${index}`, options),
+          )}
+        </View>
+      );
+    }
+
     default:
       return null;
   }
+}
+
+function renderTableRow(
+  row: EditorNode,
+  path: string,
+  options?: FormatOptions,
+): ReactNode {
+  return (
+    // Whole: a row divided over two pages reads as two different rows.
+    <View
+      key={`table-row-${path}`}
+      wrap={false}
+      style={{ flexDirection: "row" }}
+    >
+      {(row.content ?? []).map((cell, index) =>
+        renderTableCell(cell, `${path}-${index}`, options),
+      )}
+    </View>
+  );
+}
+
+function renderTableCell(
+  cell: EditorNode,
+  path: string,
+  options?: FormatOptions,
+): ReactNode {
+  // Every column takes the same share of the text column. Nothing here is
+  // measured against what a cell holds: react-pdf cannot measure text before
+  // it draws it, and a width that differed from the editor's would make the
+  // PDF disagree with what was written.
+  const span = Math.max(1, cell.attrs?.colspan ?? 1);
+  const heading = cell.type === "tableHeader";
+  // A cell's own alignment (FF-1642). The cell is a column of blocks, so
+  // where its content sits across it is `alignItems` — the blocks inside
+  // shrink to their content rather than filling the cell.
+  const across = cellAlignment[cell.attrs?.align ?? "left"] ?? "flex-start";
+  const base = heading ? { ...bodyText, fontWeight: 600 } : bodyText;
+
+  return (
+    <View
+      key={`table-cell-${path}`}
+      style={{
+        flexGrow: span,
+        flexBasis: 0,
+        alignItems: across,
+        ...(heading ? { backgroundColor: tableHeaderFill } : {}),
+        paddingVertical: cellPaddingVertical,
+        paddingHorizontal: cellPaddingHorizontal,
+        borderRightWidth: tableRuleWidth,
+        borderRightColor: tableRuleColor,
+        borderBottomWidth: tableRuleWidth,
+        borderBottomColor: tableRuleColor,
+      }}
+    >
+      {cell.content?.map((child, index) =>
+        renderBlock(child, `${path}-${index}`, options, base),
+      )}
+    </View>
+  );
 }
 
 function renderInline(node: EditorNode, path: string, base: PDFTextStyle) {

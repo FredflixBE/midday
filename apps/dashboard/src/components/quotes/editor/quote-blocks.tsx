@@ -289,6 +289,9 @@ function TextBlockEditor({
       slashMenu
       placeholder="Type '/' for commands"
       images={images}
+      // A quote lays out comparison tables; an invoice note does not
+      // (FF-1642).
+      tables
       autoFocus={autoFocus}
       className={className}
       onUpdate={(editor) =>

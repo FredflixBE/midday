@@ -87,6 +87,58 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
       );
     }
 
+    case "table": {
+      const lines = node.content ?? [];
+      // A table with no rows is an empty box; leave it out.
+      if (lines.length === 0) return null;
+
+      return (
+        // `table-fixed` over a full width gives every column an equal share,
+        // which is what the PDF and the web view draw: left to itself the
+        // browser would size the columns by what they hold, and the preview
+        // would disagree with the page it is previewing.
+        <table key={key} className="table-fixed w-full my-1.5 border-collapse">
+          <tbody>
+            {lines.map((line, lineIndex) => (
+              <tr key={`${key}-row-${lineIndex.toString()}`}>
+                {(line.content ?? []).map((cell, cellIndex) => {
+                  const span = Math.max(1, cell.attrs?.colspan ?? 1);
+                  const Cell = cell.type === "tableHeader" ? "th" : "td";
+                  // Written out per value: Tailwind finds its classes by
+                  // reading this file, and these come from an attribute.
+                  const across =
+                    {
+                      left: "text-left",
+                      center: "text-center",
+                      right: "text-right",
+                    }[cell.attrs?.align ?? "left"] ?? "text-left";
+                  return (
+                    <Cell
+                      key={`${key}-cell-${lineIndex.toString()}-${cellIndex.toString()}`}
+                      colSpan={span === 1 ? undefined : span}
+                      className={
+                        Cell === "th"
+                          ? `align-top border border-border px-1.5 py-1 bg-[#F6F6F3] dark:bg-[#1C1C1C] ${across}`
+                          : `align-top border border-border px-1.5 py-1 ${across}`
+                      }
+                      style={{
+                        fontSize: bodySize,
+                        ...(Cell === "th" ? { fontWeight: 600 } : {}),
+                      }}
+                    >
+                      {cell.content?.map((child, childIndex) =>
+                        renderBlock(child, childIndex),
+                      )}
+                    </Cell>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+    }
+
     // A picture (FF-1625) is quotes-only, and this previews an invoice.
     default:
       return null;

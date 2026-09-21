@@ -21,6 +21,24 @@ const smallestHeadingText = "text-[12px]";
 const headingBlock = "font-semibold mt-1.5 mb-0.5";
 const listBlock = "pl-4 my-0.5";
 
+// A table (FF-1642). `table-fixed` over a full width is what makes every
+// column an equal share: left to itself the browser sizes columns by what
+// they hold, and the page would then disagree with the PDF, which cannot
+// measure text at all. The rule is the theme's, like every other rule on
+// this view, so it holds up in the dark as well as the light.
+const tableBlock = "table-fixed w-full my-1.5 border-collapse";
+const tableCell = "align-top border border-border px-1.5 py-1";
+// A cell's own alignment (FF-1642), written out per value because Tailwind
+// finds its classes by reading this file.
+const cellAlignment: Record<string, string> = {
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+};
+// A header cell is tinted as well as bold, the same pair the editor and the
+// PDF draw, so which row or column is the header reads at a glance.
+const tableHeaderCell = "bg-[#F6F6F3] font-semibold dark:bg-[#1C1C1C]";
+
 export function formatEditorContent(doc?: EditorDoc): ReactNode | null {
   if (!doc?.content) {
     return null;
@@ -76,6 +94,49 @@ function renderBlock(node: EditorNode, path: string): ReactNode {
         <ul key={`list-${path}`} className={`list-disc ${listBlock}`}>
           {items}
         </ul>
+      );
+    }
+
+    case "table": {
+      const lines = node.content ?? [];
+      // A table with no rows is an empty box; leave it out.
+      if (lines.length === 0) {
+        return null;
+      }
+
+      return (
+        <table key={`table-${path}`} className={tableBlock}>
+          <tbody>
+            {lines.map((line, index) => (
+              <tr key={`table-row-${path}-${index.toString()}`}>
+                {(line.content ?? []).map((cell, cellIndex) => {
+                  const span = Math.max(1, cell.attrs?.colspan ?? 1);
+                  const Cell = cell.type === "tableHeader" ? "th" : "td";
+                  const across =
+                    cellAlignment[cell.attrs?.align ?? "left"] ?? "text-left";
+                  return (
+                    <Cell
+                      key={`table-cell-${path}-${index.toString()}-${cellIndex.toString()}`}
+                      colSpan={span === 1 ? undefined : span}
+                      className={
+                        Cell === "th"
+                          ? `${tableCell} ${bodyText} ${across} ${tableHeaderCell}`
+                          : `${tableCell} ${bodyText} ${across}`
+                      }
+                    >
+                      {cell.content?.map((child, childIndex) =>
+                        renderBlock(
+                          child,
+                          `${path}-${index}-${cellIndex}-${childIndex}`,
+                        ),
+                      )}
+                    </Cell>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       );
     }
 

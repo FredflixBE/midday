@@ -12,6 +12,7 @@ import { BubbleMenu } from "./extentions/bubble-menu";
 import { registerExtensions } from "./extentions/register";
 import { useSlashCommand } from "./extentions/slash-command/use-slash-command";
 import type { StoredImages } from "./extentions/stored-image";
+import { TableControls } from "./extentions/table/table-controls";
 
 export type { StoredImages };
 
@@ -44,6 +45,13 @@ type EditorProps = {
    * the toolbar offers to add one when the pictures can also be uploaded.
    */
   images?: StoredImages;
+  /**
+   * True lets a table be written here (FF-1642): `/table` offers one, and a
+   * grip appears beside every row and column while the table is under the
+   * pointer. A table already in the text is shown either way — the schema
+   * always knows the node, so no surface can strip one out.
+   */
+  tables?: boolean;
 };
 
 export function Editor({
@@ -59,8 +67,13 @@ export function Editor({
   slashMenu = false,
   autoFocus = false,
   images,
+  tables = false,
 }: EditorProps) {
-  const slash = useSlashCommand({ enabled: slashMenu && editable, images });
+  const slash = useSlashCommand({
+    enabled: slashMenu && editable,
+    images,
+    tables: tables && editable,
+  });
 
   const editor = useEditor({
     extensions: registerExtensions({
@@ -90,6 +103,7 @@ export function Editor({
         tabIndex={tabIndex}
       />
       <BubbleMenu editor={editor} />
+      {tables && editable ? <TableControls editor={editor} /> : null}
       {slash.overlay}
     </>
   );
