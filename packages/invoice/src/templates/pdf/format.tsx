@@ -93,9 +93,59 @@ export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
 
   return (
     <>
-      {doc.content.map((node, index) => renderBlock(node, `${index}`, options))}
+      {doc.content.map((node, index) =>
+        renderBlock(node, `${index}`, options, bodyText, {
+          first: index === 0,
+          afterHeading: doc.content?.[index - 1]?.type === "heading",
+        }),
+      )}
     </>
   );
+}
+
+/**
+ * Where a block stands among its siblings, which is all it needs to know to
+ * work out the room above it (FF-1665).
+ */
+type Position = {
+  /** First of its container, so it opens at the top rather than below a gap. */
+  first?: boolean;
+  /** The block above is a heading, and a heading owns the room beneath it. */
+  afterHeading?: boolean;
+  /** Inside a list item, where the item's own margin is the room. */
+  inItem?: boolean;
+};
+
+/**
+ * The room above a block, and there is never any below it.
+ *
+ * react-pdf has no margin collapsing: two margins that meet are added, where
+ * a browser takes the larger. shadcn/typeset does not rely on collapsing
+ * either — "spacing flows in one direction, using margin-block-start only" —
+ * so this follows the same rule and the question never arises (FF-1665).
+ */
+function roomAbove(
+  node: EditorNode,
+  options: FormatOptions | undefined,
+  at: Position,
+): number {
+  if (at.inItem || at.first) {
+    return 0;
+  }
+  const scale = options?.scale ?? TYPESET;
+  if (at.afterHeading) {
+    return BODY * scale.flow.below;
+  }
+  if (node.type === "heading") {
+    return BODY * scale.flow.above;
+  }
+  // Only a document spaces its paragraphs; an address is a list of lines.
+  return options?.spacedParagraphs ? BODY * scale.flow.paragraph : 0;
+}
+
+/** Omitted entirely when it is nothing, so a block's style reads as it did. */
+function above(room: number) {
+  return room ? { marginTop: room } : {};
 }
 
 /**
@@ -109,24 +159,19 @@ function renderBlock(
   path: string,
   options?: FormatOptions,
   base: PDFTextStyle = bodyText,
+  at: Position = {},
 ): ReactNode {
+  const room = above(roomAbove(node, options, at));
+
   switch (node.type) {
     case "paragraph":
       return (
         <View
           key={`paragraph-${path}`}
-          // Room under every paragraph of a document (FF-1652). Without it
+          // Room above every paragraph of a document (FF-1652). Without it
           // a block of three reads as one grey slab with line breaks in it,
           // which no amount of heading size fixes.
-          style={{
-            alignItems: "flex-start",
-            ...(options?.spacedParagraphs
-              ? {
-                  marginBottom:
-                    BODY * (options?.scale ?? TYPESET).flow.paragraph,
-                }
-              : {}),
-          }}
+          style={{ alignItems: "flex-start", ...room }}
         >
           <Text>{renderInline(node, path, base)}</Text>
         </View>
@@ -138,13 +183,10 @@ function renderBlock(
       return (
         <View
           key={`heading-${path}`}
-          // More room above than below, so a heading belongs to what
-          // follows it rather than floating between two things equally.
-          style={{
-            alignItems: "flex-start",
-            marginTop: BODY * scale.flow.above,
-            marginBottom: BODY * scale.flow.below,
-          }}
+          // A heading takes more above than below, so it belongs to what
+          // follows it rather than floating between two things equally. The
+          // room below is the next block's to take (FF-1665).
+          style={{ alignItems: "flex-start", ...room }}
           minPresenceAhead={24}
         >
           <Text>
@@ -171,11 +213,23 @@ function renderBlock(
           : bulletWidth + digitWidth * (markerOf(items.length - 1).length - 2);
 
       return (
-        <View key={`list-${path}`} style={{ marginVertical: 2 }}>
+        <View key={`list-${path}`} style={room}>
           {items.map((item, index) => (
             <View
               key={`list-item-${path}-${index.toString()}`}
-              style={{ flexDirection: "row" }}
+              // The gap between items is the item's, not its paragraph's: a
+              // bullet spaced like a paragraph is what made the print read
+              // loose against the screen (FF-1665).
+              style={{
+                flexDirection: "row",
+                ...above(
+                  index === 0
+                    ? 0
+                    : BODY * (options?.scale ?? TYPESET).flow.item,
+                ),
+              }}
+              // An item is a thought; it does not straddle two pages.
+              wrap={false}
             >
               <Text style={{ ...base, width: markerWidth }}>
                 {markerOf(index)}
@@ -187,6 +241,9 @@ function renderBlock(
                     `${path}-${index}-${childIndex}`,
                     options,
                     base,
+                    // The paragraph in an item, and a nested list under it,
+                    // take nothing: the item above already made the room.
+                    { inItem: true },
                   ),
                 )}
               </View>

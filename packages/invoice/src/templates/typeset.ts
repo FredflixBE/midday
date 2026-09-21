@@ -30,10 +30,13 @@ export type Typeset = {
   /** What separates a level from the one below it, beyond size. */
   weight: { body: number; heading: number };
   /**
-   * The space around a block, as a multiple of the body size: above a
-   * heading, below one, and between paragraphs.
+   * The space above a block, as a multiple of the body size. Above only:
+   * spacing flows one way, which is shadcn/typeset's own rule and the reason
+   * two margins never meet (FF-1665). `below` is the room a heading owns
+   * beneath it, taken by whatever follows; `item` is the gap between the
+   * items of a list, which is not the gap between paragraphs.
    */
-  flow: { above: number; below: number; paragraph: number };
+  flow: { above: number; below: number; paragraph: number; item: number };
 };
 
 /**
@@ -55,7 +58,8 @@ export const TYPESET: Typeset = {
   smallestHeading: 1.2,
   leading: { body: 1.55, heading: 1.25 },
   weight: { body: 400, heading: 500 },
-  flow: { above: 1.1, below: 0.35, paragraph: 0.55 },
+  /** A list's items sit flush, which is what an invoice note draws today. */
+  flow: { above: 1.1, below: 0.35, paragraph: 0.55, item: 0 },
 };
 
 /**
@@ -93,11 +97,15 @@ export const QUOTE_TYPESET = {
    * a heading alike, and `1em` below a heading — upstream's "headings own
    * the space below them".
    *
+   * `item` is `li { margin-block-start: 0.5em }` — a list's items sit closer
+   * together than paragraphs do, and a bullet spaced like a paragraph is
+   * what made the print read loose against the screen (FF-1665).
+   *
    * Upstream gives an `h2` 1.4× the flow above it rather than the flow, a
    * step one number cannot carry. The screen takes it because the screen
    * reads the stylesheet; the print gives every level the same room above.
    */
-  flow: { above: 1.25, below: 1, paragraph: 1.25 },
+  flow: { above: 1.25, below: 1, paragraph: 1.25, item: 0.5 },
   /**
    * A block's own title, which names the section its text belongs to. Drawn
    * at what used to be an h1's size, because that is what it is — the
