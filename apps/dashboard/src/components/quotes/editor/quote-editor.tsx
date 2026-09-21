@@ -40,7 +40,7 @@ import { useErrorToast } from "../use-error-toast";
 import { useQuoteDraft } from "../use-quote-draft";
 import { ReadOnlyContext } from "./fields";
 import { MarkSentButton, OutcomeMenu } from "./quote-actions";
-import { DOCUMENT_WIDTH, QuoteBlocks } from "./quote-blocks";
+import { QuoteBlocks } from "./quote-blocks";
 import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields, QuoteTitleField } from "./quote-header-fields";
 import { QuoteRail, RailCard, RailSections, STRIP_HEIGHT } from "./quote-rail";
@@ -224,10 +224,21 @@ function VersionEditor({
           className="sticky top-0 z-30 border-b border-border bg-background pb-3 pt-6"
         >
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div className="flex min-w-0 items-center gap-3">
-              <h1 className="truncate text-lg font-medium">
+            {/* The title leads, and is typed here (FF-1649). It used to be
+                set inside the document pane, where it scrolled away and was
+                not there at all on the Pricing tab; the strip is the one
+                part of the page that stays. The number still identifies the
+                quote, it is simply no longer the loudest thing on it. */}
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <QuoteTitleField
+                draft={draft}
+                change={change}
+                headerLocked={version.version > 1}
+                disabled={!editable}
+              />
+              <span className="shrink-0 text-sm text-[#878787]">
                 {formatQuoteVersion(quote.quoteNumber, version.version)}
-              </h1>
+              </span>
               <Badge variant="tag-rounded" className="shrink-0">
                 {quoteState(quote, version)}
               </Badge>
@@ -290,15 +301,6 @@ function VersionEditor({
                 forceMount
                 className="space-y-10 data-[state=inactive]:hidden"
               >
-                <div className={DOCUMENT_WIDTH}>
-                  <QuoteTitleField
-                    draft={draft}
-                    change={change}
-                    headerLocked={version.version > 1}
-                    disabled={!editable}
-                  />
-                </div>
-
                 {/* Outside the fieldset: a sent version's text is still read,
                     and a block still expands to be read full screen
                     (FF-1624). The blocks turn every control of their own off

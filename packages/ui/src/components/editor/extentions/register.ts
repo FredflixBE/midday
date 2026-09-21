@@ -36,10 +36,12 @@ export function registerExtensions(options?: {
     ...tableExtensions,
     // Always in the schema; only the quote document may write one.
     diagram({ images, canEdit: Boolean(diagrams) }),
-    // On every empty node, not only the one the caret is in: an untouched
-    // block has to say how to start before it is clicked into (FF-1638).
-    // What is drawn from it is the caller's CSS.
-    Placeholder.configure({ placeholder, showOnlyCurrent: false }),
+    // On the node the caret is in and no other (FF-1649). FF-1638 put it on
+    // every empty node, so an untouched block would say how to start before
+    // it was clicked into; in a document of several blocks that reads as a
+    // column of repeated instructions. What is drawn from it is the
+    // caller's CSS, which also asks for focus.
+    Placeholder.configure({ placeholder, showOnlyCurrent: true }),
     ...(extra ?? []),
   ];
 }

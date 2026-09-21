@@ -74,21 +74,30 @@ const proposal = {
   ],
 } as EditorDoc;
 
-// The pixel size Tailwind's `text-[13px]` asks for, on the element holding
-// `value`. Tailwind's reset flattens headings, so a heading that carries no
-// size of its own reads as body text.
+/**
+ * The pixel size the element holding `value` is drawn at.
+ *
+ * Asked of what is rendered rather than of how it is written, and of the
+ * nearest element that says anything: a heading carries its size in a style
+ * attribute, computed from the one scale every surface reads (FF-1651),
+ * while body text carries Tailwind's `text-[11px]` on a span inside it.
+ * Tailwind's reset flattens headings, so one that carries no size of its own
+ * reads as body text.
+ */
 function fontSizeOf(markup: string, value: string) {
-  const tag = markup.match(
-    new RegExp(`<(\\w+)[^>]*class="([^"]*)"[^>]*>(?:<[^>]+>)*${value}`),
-  );
-  if (!tag) {
+  const at = markup.indexOf(value);
+  if (at < 0) {
     throw new Error(`No element holding ${value} in ${markup}`);
   }
-  const size = tag[2]?.match(/text-\[(\d+)px\]/);
-  if (!size) {
-    throw new Error(`No font size on ${value}: ${tag[2]}`);
+  const opened = [...markup.slice(0, at).matchAll(/<(\w+)([^>]*)>/g)];
+  for (let i = opened.length - 1; i >= 0; i--) {
+    const attributes = opened[i]?.[2] ?? "";
+    const styled = attributes.match(/font-size:\s*([\d.]+)px/);
+    if (styled) return Number(styled[1]);
+    const classed = attributes.match(/text-\[([\d.]+)px\]/);
+    if (classed) return Number(classed[1]);
   }
-  return Number(size[1]);
+  throw new Error(`No font size anywhere above ${value}`);
 }
 
 describe("formatEditorContent", () => {
@@ -131,7 +140,8 @@ describe("formatEditorContent", () => {
     } as EditorDoc);
 
     expect(markup).toMatch(/class="[^"]*italic[^"]*">slanted/);
-    expect(fontSizeOf(markup, "slanted")).toBeGreaterThan(11);
+    // The mark is on a span inside the heading, which carries the size.
+    expect(fontSizeOf(markup, "Plain ")).toBeGreaterThan(11);
   });
 
   test("renders a bullet list as a bulleted list, an item per entry", () => {

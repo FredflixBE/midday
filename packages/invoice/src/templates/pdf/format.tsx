@@ -2,6 +2,7 @@ import { Image, Link, Text, View } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/types";
 import type { ReactNode } from "react";
 import type { EditorDoc, EditorNode } from "../../types";
+import { headingSize, TYPESET } from "../typeset";
 
 type PDFTextStyle = Style & {
   fontFamily?: string;
@@ -13,11 +14,11 @@ type PDFTextStyle = Style & {
     | "underline line-through";
 };
 
-const bodyText: PDFTextStyle = { fontSize: 9, fontFamily: "Inter" };
-
-// Headings by level; the editor allows 1 to 6, and 3 and below read alike.
-const headingSizes: Record<number, number> = { 1: 14, 2: 12 };
-const smallestHeadingSize = 10;
+/** What the printed document reads at; every other size follows from it. */
+const BODY = 9;
+// No leading here: this is shared with an invoice's address blocks, where
+// the caller sets it. The quote's own wrapper sets the document's.
+const bodyText: PDFTextStyle = { fontSize: BODY, fontFamily: "Inter" };
 
 // A picture is drawn the width of the text column, but a tall one drawn to
 // that width would run off the foot of the page — a phone screenshot is
@@ -61,6 +62,15 @@ export type ImageSource = { data: Buffer; format: "png" | "jpg" };
 export type FormatOptions = {
   /** The bytes behind a stored path, or null when there are none. */
   imageOf?: (storedPath: string) => ImageSource | null;
+  /**
+   * True puts room under every paragraph (FF-1652).
+   *
+   * Off by default, and deliberately: this draws an invoice's `from` and
+   * customer address blocks as well as a quote's text, and an address is a
+   * list of lines rather than a run of paragraphs. Spacing one out reads as
+   * a mistake. A document that is actually prose asks for it.
+   */
+  spacedParagraphs?: boolean;
 };
 
 export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
@@ -90,17 +100,34 @@ function renderBlock(
   switch (node.type) {
     case "paragraph":
       return (
-        <View key={`paragraph-${path}`} style={{ alignItems: "flex-start" }}>
+        <View
+          key={`paragraph-${path}`}
+          // Room under every paragraph of a document (FF-1652). Without it
+          // a block of three reads as one grey slab with line breaks in it,
+          // which no amount of heading size fixes.
+          style={{
+            alignItems: "flex-start",
+            ...(options?.spacedParagraphs
+              ? { marginBottom: BODY * TYPESET.flow.paragraph }
+              : {}),
+          }}
+        >
           <Text>{renderInline(node, path, base)}</Text>
         </View>
       );
 
     case "heading": {
-      const size = headingSizes[node.attrs?.level ?? 1] ?? smallestHeadingSize;
+      const size = headingSize(BODY, node.attrs?.level ?? 1);
       return (
         <View
           key={`heading-${path}`}
-          style={{ alignItems: "flex-start", marginTop: 6, marginBottom: 3 }}
+          // More room above than below, so a heading belongs to what
+          // follows it rather than floating between two things equally.
+          style={{
+            alignItems: "flex-start",
+            marginTop: BODY * TYPESET.flow.above,
+            marginBottom: BODY * TYPESET.flow.below,
+          }}
           minPresenceAhead={24}
         >
           <Text>
@@ -108,6 +135,7 @@ function renderBlock(
               ...base,
               fontSize: size,
               fontWeight: 600,
+              lineHeight: TYPESET.leading.heading,
             })}
           </Text>
         </View>

@@ -6,10 +6,38 @@
   @apply text-xs leading-loose;
 }
 
+/*
+ * A document's reading rhythm (FF-1651). The caller sets the four sizes and
+ * two spacings from the one scale every surface reads — `@midday/invoice`'s
+ * `typeset` — because react-pdf takes numbers and cannot read any of this,
+ * so a stylesheet could never be where the sizes live. Without them set,
+ * nothing here applies and the editor reads as it always did.
+ */
+.tiptap :is(h1, h2, h3, h4, h5, h6) {
+  font-size: var(--typeset-h3, inherit);
+  line-height: var(--typeset-heading-leading, inherit);
+  margin-top: var(--typeset-above, 0.5rem);
+  margin-bottom: var(--typeset-below, 0.25rem);
+  font-weight: 500;
+}
+
+.tiptap h1 {
+  font-size: var(--typeset-h1, inherit);
+}
+
 .tiptap h2 {
-  @apply text-2xl;
-  @apply font-sans;
-  margin-bottom: 1.5rem;
+  font-size: var(--typeset-h2, inherit);
+}
+
+/* Room under every paragraph (FF-1652). Without it a block of three reads as
+   one grey slab with line breaks in it, which no heading size fixes. */
+.tiptap p {
+  margin-bottom: var(--typeset-paragraph, 0);
+}
+
+/* Except inside a table, where a cell's own padding is the room. */
+.tiptap table p {
+  margin-bottom: 0;
 }
 
 .tiptap a {
@@ -20,7 +48,10 @@
   @apply flex gap-2;
 }
 
-.tiptap p.is-empty::before {
+/* Only while this editor holds the caret (FF-1649). The extension marks the
+   node the caret is in; this is what keeps an editor that was merely clicked
+   away from still showing an instruction. */
+.tiptap.ProseMirror-focused p.is-empty::before {
   color: #404040;
   content: attr(data-placeholder);
   float: left;

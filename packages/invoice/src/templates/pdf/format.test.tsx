@@ -174,6 +174,22 @@ describe("formatEditorContent", () => {
     expect(weightOf("Scope")).toBeGreaterThanOrEqual(600);
   });
 
+  test("steps each heading far enough from the text under it to be one", () => {
+    const out = elements(tree(formatEditorContent(proposal)));
+    const sizeOf = (value: string) =>
+      Number(styleOf(out.find((e) => e.children.includes(value))!).fontSize);
+
+    const body = sizeOf("What we will build.");
+    // The scale this replaced stepped 1.11 from the body at the small end,
+    // and a heading 11% larger than the text under it is not a heading — it
+    // is body text someone made bold (FF-1651).
+    expect(sizeOf("Assumptions") / body).toBeGreaterThanOrEqual(1.18);
+    expect(sizeOf("Scope") / sizeOf("Assumptions")).toBeGreaterThanOrEqual(
+      1.15,
+    );
+    expect(sizeOf("Proposal") / sizeOf("Scope")).toBeGreaterThanOrEqual(1.15);
+  });
+
   test("keeps marks inside a heading", () => {
     const doc = {
       type: "doc",
@@ -604,6 +620,25 @@ describe("formatEditorContent", () => {
         "After",
       );
     });
+  });
+
+  test("spaces a document's paragraphs, and an address block's never", () => {
+    // The View a paragraph is drawn as, not the Text inside it.
+    const spacing = (options?: { spacedParagraphs?: boolean }) =>
+      elements(tree(formatEditorContent(paragraphsOnly, options)))
+        .filter(
+          (e) =>
+            e.type === "VIEW" &&
+            e.children.some((c) => typeof c !== "string" && c.type === "TEXT"),
+        )
+        .map((e) => Number(styleOf(e).marginBottom ?? 0));
+
+    // An address is a list of lines, not a run of paragraphs; spacing one
+    // out reads as a mistake, and this renders both (FF-1652).
+    expect(spacing().every((gap) => gap === 0)).toBe(true);
+    expect(spacing({ spacedParagraphs: true }).every((gap) => gap > 0)).toBe(
+      true,
+    );
   });
 
   test("skips nodes it does not know instead of failing", () => {

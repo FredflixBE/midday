@@ -1,24 +1,17 @@
 import type { ReactNode } from "react";
 import type { EditorDoc, EditorNode } from "../../types";
+import { headingSize, TYPESET } from "../typeset";
 
+/** What this view reads at; every other size follows from it. */
+const BODY = 11;
 const bodyText = "text-[11px]";
 
-// Headings by level; the editor allows 1 to 6, and 3 and below read alike.
-// The steps follow the PDF's (14, 12 and 10 against a 9pt body), scaled to
-// the 11px this view reads at, so a heading is the same size on both.
-//
-// Written out as whole class names rather than built from the numbers,
-// because Tailwind finds classes by reading this file: a size it never sees
-// spelled out is a size it never generates.
-const headingText: Record<number, string> = {
-  1: "text-[17px]",
-  2: "text-[15px]",
-};
-const smallestHeadingText = "text-[12px]";
-
 // Tailwind's reset flattens headings and lists, so every one of them carries
-// its own size, weight and marker here.
-const headingBlock = "font-semibold mt-1.5 mb-0.5";
+// its own size, weight and marker here. The size comes from the one scale
+// every surface reads (FF-1651) rather than a class name, because Tailwind
+// finds its classes by reading this file and a computed one would be a size
+// it never generates.
+const headingBlock = "font-semibold";
 const listBlock = "pl-4 my-0.5";
 
 // A table (FF-1642). `table-fixed` over a full width is what makes every
@@ -56,12 +49,22 @@ function renderBlock(node: EditorNode, path: string): ReactNode {
 
     case "heading": {
       const level = Math.min(Math.max(node.attrs?.level ?? 1, 1), 6);
-      const size = headingText[level] ?? smallestHeadingText;
       const Heading = `h${level}` as "h1";
 
       return (
-        <Heading key={`heading-${path}`} className={`${size} ${headingBlock}`}>
-          {renderInline(node, path, size)}
+        <Heading
+          key={`heading-${path}`}
+          className={headingBlock}
+          // More room above than below, so a heading belongs to what
+          // follows it rather than floating between two things equally.
+          style={{
+            fontSize: headingSize(BODY, level),
+            lineHeight: TYPESET.leading.heading,
+            marginTop: BODY * TYPESET.flow.above,
+            marginBottom: BODY * TYPESET.flow.below,
+          }}
+        >
+          {renderInline(node, path, "")}
         </Heading>
       );
     }

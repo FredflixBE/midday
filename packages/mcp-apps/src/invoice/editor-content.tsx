@@ -1,13 +1,10 @@
 // The same document the web invoice view and the PDF are drawn from, so a
 // preview cannot drift from the page by describing it differently.
+import { headingSize, TYPESET } from "@midday/invoice/templates/typeset";
 import type { EditorDoc, EditorNode } from "@midday/invoice/types";
 
+/** What this preview reads at; every other size follows from it. */
 const bodySize = 11;
-
-// Headings by level; the editor allows 1 to 6, and 3 and below read alike.
-// The sizes are the web invoice view's, so a preview reads like the page.
-const headingSizes: Record<number, number> = { 1: 17, 2: 15 };
-const smallestHeadingSize = 12;
 
 function nodeKey(node: EditorNode, index: number): string {
   const text =
@@ -41,13 +38,21 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
     case "heading": {
       const level = Math.min(Math.max(node.attrs?.level ?? 1, 1), 6);
       const style: React.CSSProperties = {
-        fontSize: headingSizes[level] ?? smallestHeadingSize,
+        fontSize: headingSize(bodySize, level),
         fontWeight: 600,
+        lineHeight: TYPESET.leading.heading,
       };
       const Heading = `h${level}` as "h1";
 
       return (
-        <Heading key={key} className="mt-1.5 mb-0.5" style={style}>
+        <Heading
+          key={key}
+          style={{
+            ...style,
+            marginTop: bodySize * TYPESET.flow.above,
+            marginBottom: bodySize * TYPESET.flow.below,
+          }}
+        >
           {renderInline(node, key, style)}
         </Heading>
       );
