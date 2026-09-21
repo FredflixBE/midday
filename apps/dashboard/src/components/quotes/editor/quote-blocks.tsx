@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  blockHeadingSize,
+  headingSize,
+  px,
+  TYPESET,
+} from "@midday/invoice/templates/typeset";
 import type { Block, QuoteContent } from "@midday/quote";
 import type { ComparisonView, ScenarioView } from "@midday/quote/view";
 import { Button } from "@midday/ui/button";
@@ -13,7 +19,13 @@ import {
 import { Editor } from "@midday/ui/editor";
 import { Input } from "@midday/ui/input";
 import { ChevronDown, Heading1, Maximize2, Trash2 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { DraftChange } from "../use-quote-draft";
 import { useQuoteImages } from "../use-quote-images";
 import { PricingPreview } from "./pricing-preview";
@@ -195,25 +207,41 @@ function PricingBlock({
   );
 }
 
+/** What the document reads at on screen; every other size follows from it. */
+const BODY = 14;
+
+/**
+ * The reading rhythm, handed to the editor's stylesheet as the sizes it
+ * should draw (FF-1651).
+ *
+ * Every size here is a multiple of the body size, from the one scale that
+ * the PDF, the web view and the MCP preview read as well — so the screen
+ * reads as the print reads because both are derived from the same
+ * proportions, rather than because someone keeps four sets of numbers in
+ * step by hand (FF-1633).
+ *
+ * Custom properties rather than classes: Tailwind finds its classes by
+ * reading source text, and a size worked out from a ratio is a size it would
+ * never generate.
+ */
+const TYPESET_VARS = {
+  "--typeset-h1": `${px(headingSize(BODY, 1))}px`,
+  "--typeset-h2": `${px(headingSize(BODY, 2))}px`,
+  "--typeset-h3": `${px(headingSize(BODY, 3))}px`,
+  "--typeset-heading-leading": `${TYPESET.leading.heading}`,
+  "--typeset-above": `${px(BODY * TYPESET.flow.above)}px`,
+  "--typeset-below": `${px(BODY * TYPESET.flow.below)}px`,
+} as CSSProperties;
+
 /**
  * What the text reads like wherever it is written (FF-1633). Tailwind's reset
- * flattens headings and lists, and the editor's own stylesheet sizes them for
- * an invoice's few lines of address text; a quote is a document, so the sizes
- * come from the PDF instead.
- *
- * `packages/quote/src/pdf/template.tsx` and the shared
- * `formatEditorContent` decide what the client actually holds: 9pt body,
- * headings at 14, 12 and 10pt, lists indented by 12pt. At 14px body that is
- * the scale below. The PDF is the reference; this borrows its proportions
- * and does not repeat its logic.
+ * flattens lists, so they carry their own markers and indent here; the sizes
+ * come from `TYPESET_VARS` above.
  */
 const TEXT_STYLES = cn(
   "text-sm leading-[1.55]",
   "[&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5",
   "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5",
-  "[&_.tiptap_h1]:mb-1 [&_.tiptap_h1]:mt-2 [&_.tiptap_h1]:text-[22px] [&_.tiptap_h1]:font-medium [&_.tiptap_h1]:leading-snug",
-  "[&_.tiptap_h2]:mb-1 [&_.tiptap_h2]:mt-2 [&_.tiptap_h2]:text-[19px] [&_.tiptap_h2]:font-medium [&_.tiptap_h2]:leading-snug",
-  "[&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:mt-2 [&_.tiptap_h3]:text-base [&_.tiptap_h3]:font-medium",
   // The editor sets its own size and a loose leading for invoice text.
   "[&_.tiptap]:text-sm [&_.tiptap]:leading-[1.55]",
   // How to start, on the line being written and nowhere else (FF-1649). The
@@ -227,8 +255,14 @@ const TEXT_STYLES = cn(
   "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:content-[attr(data-placeholder)]",
 );
 
-/** A block's own heading, which the PDF sets at the size of an h1. */
-const HEADING_STYLES = "text-[22px] font-medium leading-snug";
+/**
+ * A block's own title, which sits above every heading its text can hold
+ * (FF-1651). It used to be drawn at exactly an h1's size, here and in the
+ * PDF alike, so a section's title and a heading inside it were the same
+ * thing to look at.
+ */
+const HEADING_STYLES = "font-medium leading-snug";
+const BLOCK_HEADING_SIZE = { fontSize: px(blockHeadingSize(BODY)) } as const;
 
 /**
  * A block's controls — its grip, expand and remove — out of sight until they
@@ -386,6 +420,7 @@ function TextBlockEditor({
             HEADING_STYLES,
             "h-auto border-0 bg-transparent p-0 focus-visible:ring-0",
           )}
+          style={BLOCK_HEADING_SIZE}
           onChange={(event) =>
             onChange({ heading: event.target.value || null })
           }
@@ -395,10 +430,12 @@ function TextBlockEditor({
           onBlur={() => setHeadingWanted(false)}
         />
       ) : block.heading ? (
-        <h3 className={HEADING_STYLES}>{block.heading}</h3>
+        <h3 className={HEADING_STYLES} style={BLOCK_HEADING_SIZE}>
+          {block.heading}
+        </h3>
       ) : null}
 
-      <div ref={body}>
+      <div ref={body} style={TYPESET_VARS}>
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (
@@ -417,7 +454,7 @@ function TextBlockEditor({
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle>{block.heading || "Text block"}</DialogTitle>
           </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex min-h-0 flex-1 flex-col" style={TYPESET_VARS}>
             {/* Radix keeps the dialog mounted while it animates shut, and by
                 then the page holds the editor again: this guard is what keeps
                 it to one. */}

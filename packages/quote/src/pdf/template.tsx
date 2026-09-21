@@ -3,6 +3,7 @@ import {
   formatEditorContent,
   type ImageSource,
 } from "@midday/invoice/templates/pdf/format";
+import { blockHeadingSize, TYPESET } from "@midday/invoice/templates/typeset";
 import type { EditorDoc as InvoiceEditorDoc } from "@midday/invoice/types";
 import { Document, Image, Page, Text, View } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/types";
@@ -46,7 +47,7 @@ function Rich({
   if (!doc) return null;
   return (
     // Sized here: react-pdf's default of 18 would set the line height.
-    <View style={{ fontSize: 9, lineHeight: 1.4 }}>
+    <View style={{ fontSize: 9, lineHeight: TYPESET.leading.body }}>
       {/* The same Tiptap shape, typed loosely on this side. */}
       {formatEditorContent(doc as unknown as InvoiceEditorDoc, {
         imageOf: (path) => images?.[path] ?? null,
@@ -463,8 +464,16 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
               {block.heading ? (
                 <Text
                   minPresenceAhead={40}
-                  // A block's own heading reads above an h2 in its text.
-                  style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}
+                  // A block's title sits above every heading its text can
+                  // hold (FF-1651). It used to be drawn at exactly an h1's
+                  // size, so a section's title and a heading inside it were
+                  // the same thing to look at.
+                  style={{
+                    fontSize: blockHeadingSize(9),
+                    fontWeight: 600,
+                    lineHeight: TYPESET.leading.heading,
+                    marginBottom: 9 * TYPESET.flow.below,
+                  }}
                 >
                   {block.heading}
                 </Text>

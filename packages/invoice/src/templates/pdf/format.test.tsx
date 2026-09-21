@@ -174,6 +174,22 @@ describe("formatEditorContent", () => {
     expect(weightOf("Scope")).toBeGreaterThanOrEqual(600);
   });
 
+  test("steps each heading far enough from the text under it to be one", () => {
+    const out = elements(tree(formatEditorContent(proposal)));
+    const sizeOf = (value: string) =>
+      Number(styleOf(out.find((e) => e.children.includes(value))!).fontSize);
+
+    const body = sizeOf("What we will build.");
+    // The scale this replaced stepped 1.11 from the body at the small end,
+    // and a heading 11% larger than the text under it is not a heading — it
+    // is body text someone made bold (FF-1651).
+    expect(sizeOf("Assumptions") / body).toBeGreaterThanOrEqual(1.18);
+    expect(sizeOf("Scope") / sizeOf("Assumptions")).toBeGreaterThanOrEqual(
+      1.15,
+    );
+    expect(sizeOf("Proposal") / sizeOf("Scope")).toBeGreaterThanOrEqual(1.15);
+  });
+
   test("keeps marks inside a heading", () => {
     const doc = {
       type: "doc",
