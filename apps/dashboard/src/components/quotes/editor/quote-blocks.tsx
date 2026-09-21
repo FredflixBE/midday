@@ -3,6 +3,7 @@
 import {
   blockHeadingSize,
   headingSize,
+  measureWidth,
   px,
   TYPESET,
 } from "@midday/invoice/templates/typeset";
@@ -47,9 +48,12 @@ const ONE_EMPTY_PARAGRAPH: TextBlock["body"] = {
 };
 
 /**
- * The measure of the PDF's text column at the size this draws it: A4 less its
- * margins is 515pt of 9pt text, which is 800px of 14px text. The page is the
- * preview, so a line here breaks roughly where a line there does.
+ * The page, at the size this draws it: A4 less its margins is 515pt of 9pt
+ * text, which is 800px of 14px. The pricing block takes all of it, the way
+ * it takes the whole page in print.
+ *
+ * Running text does not — it takes the measure instead (FF-1662). This used
+ * to be both, which is how a line of a quote came to run 120 characters.
  */
 export const DOCUMENT_WIDTH = "max-w-[800px]";
 
@@ -211,6 +215,13 @@ function PricingBlock({
 const BODY = 14;
 
 /**
+ * How wide a line of running text runs (FF-1662). The block's own width, not
+ * the page's: the pricing block keeps `DOCUMENT_WIDTH`, because its tables
+ * need the room and take the whole page in print too.
+ */
+const MEASURE = `${px(measureWidth(BODY))}px`;
+
+/**
  * The reading rhythm, handed to the editor's stylesheet as the sizes it
  * should draw (FF-1651).
  *
@@ -232,6 +243,7 @@ const TYPESET_VARS = {
   "--typeset-above": `${px(BODY * TYPESET.flow.above)}px`,
   "--typeset-below": `${px(BODY * TYPESET.flow.below)}px`,
   "--typeset-paragraph": `${px(BODY * TYPESET.flow.paragraph)}px`,
+  "--typeset-heading-weight": `${TYPESET.weight.heading}`,
 } as CSSProperties;
 
 /**
@@ -262,8 +274,13 @@ const TEXT_STYLES = cn(
  * PDF alike, so a section's title and a heading inside it were the same
  * thing to look at.
  */
-const HEADING_STYLES = "font-medium leading-snug";
-const BLOCK_HEADING_SIZE = { fontSize: px(blockHeadingSize(BODY)) } as const;
+const HEADING_STYLES = "leading-snug";
+const BLOCK_HEADING_SIZE = {
+  fontSize: px(blockHeadingSize(BODY)),
+  // Heavier than a heading inside the block, and the same weight the PDF
+  // already drew it at — the two had disagreed, 500 here against 600 there.
+  fontWeight: TYPESET.weight.blockHeading,
+} as const;
 
 /**
  * A block's controls — its grip, expand and remove — out of sight until they
@@ -421,7 +438,7 @@ function TextBlockEditor({
             HEADING_STYLES,
             "h-auto border-0 bg-transparent p-0 focus-visible:ring-0",
           )}
-          style={BLOCK_HEADING_SIZE}
+          style={{ ...BLOCK_HEADING_SIZE, maxWidth: MEASURE }}
           onChange={(event) =>
             onChange({ heading: event.target.value || null })
           }
@@ -431,12 +448,15 @@ function TextBlockEditor({
           onBlur={() => setHeadingWanted(false)}
         />
       ) : block.heading ? (
-        <h3 className={HEADING_STYLES} style={BLOCK_HEADING_SIZE}>
+        <h3
+          className={HEADING_STYLES}
+          style={{ ...BLOCK_HEADING_SIZE, maxWidth: MEASURE }}
+        >
           {block.heading}
         </h3>
       ) : null}
 
-      <div ref={body} style={TYPESET_VARS}>
+      <div ref={body} style={{ ...TYPESET_VARS, maxWidth: MEASURE }}>
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (

@@ -1,6 +1,10 @@
 "use client";
 
-import { documentTitleSize, px } from "@midday/invoice/templates/typeset";
+import {
+  documentTitleSize,
+  px,
+  TYPESET,
+} from "@midday/invoice/templates/typeset";
 import { withKind } from "@midday/quote";
 import { cn } from "@midday/ui/cn";
 import { Input } from "@midday/ui/input";
@@ -57,11 +61,16 @@ export function QuoteTitleField({
       // above every title a block can carry (FF-1652). It was `text-lg`,
       // which left it smaller than every heading inside the document it
       // names.
-      style={{ fontSize: px(documentTitleSize(DOCUMENT_BODY)) }}
+      // The weight comes from the scale too (FF-1662): this used to be
+      // `font-medium` while the PDF drew the same title at 600.
+      style={{
+        fontSize: px(documentTitleSize(DOCUMENT_BODY)),
+        fontWeight: TYPESET.weight.documentTitle,
+      }}
       className={cn(
         // No ring and no box: the caret is what says the title is being
         // typed, the way it does everywhere else in the document.
-        "h-auto border-0 bg-transparent p-0 font-medium leading-tight focus-visible:ring-0",
+        "h-auto border-0 bg-transparent p-0 leading-tight focus-visible:ring-0",
         // A version that cannot be edited reads as the document throughout,
         // so its title is neither dimmed nor refused under the pointer. A
         // title locked on a draft still is: there, it is the one field of

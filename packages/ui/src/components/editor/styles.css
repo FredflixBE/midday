@@ -29,7 +29,9 @@
   line-height: var(--typeset-heading-leading, inherit);
   margin-top: var(--typeset-above, 0.5rem);
   margin-bottom: var(--typeset-below, 0.25rem);
-  font-weight: 500;
+  /* A block's own title is heavier than a heading inside it (FF-1662). The
+     fallback is what every caller drew before there was a scale to read. */
+  font-weight: var(--typeset-heading-weight, 500);
 }
 
 .tiptap h1 {

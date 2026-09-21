@@ -7,6 +7,7 @@ import {
   blockHeadingSize,
   documentTitleSize,
   headingSize,
+  measureWidth,
   TYPESET,
 } from "@midday/invoice/templates/typeset";
 import type { EditorDoc as InvoiceEditorDoc } from "@midday/invoice/types";
@@ -52,12 +53,22 @@ function Rich({
   if (!doc) return null;
   return (
     // Sized here: react-pdf's default of 18 would set the line height.
-    <View style={{ fontSize: 9, lineHeight: TYPESET.leading.body }}>
+    // Bounded here too: the page is 515pt wide and a line of text is not
+    // (FF-1662) — the tables below take the page, the prose takes a measure.
+    <View
+      style={{
+        fontSize: 9,
+        lineHeight: TYPESET.leading.body,
+        maxWidth: measureWidth(9),
+      }}
+    >
       {/* The same Tiptap shape, typed loosely on this side. */}
       {formatEditorContent(doc as unknown as InvoiceEditorDoc, {
         imageOf: (path) => images?.[path] ?? null,
         // A quote's text is prose, not an address block (FF-1652).
         spacedParagraphs: true,
+        // Lighter than the block's own title above it (FF-1662).
+        headingWeight: TYPESET.weight.heading,
       })}
     </View>
   );
@@ -438,7 +449,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             <Text
               style={{
                 fontSize: documentTitleSize(9),
-                fontWeight: 600,
+                fontWeight: TYPESET.weight.documentTitle,
                 lineHeight: TYPESET.leading.heading,
                 marginTop: 2,
               }}
@@ -489,6 +500,8 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             paddingLeft: 8,
             borderLeftWidth: 2,
             borderLeftColor: "#000",
+            // Running text, so it takes the measure like the rest of it.
+            maxWidth: measureWidth(9),
           }}
         >
           {doc.statement}
@@ -506,9 +519,11 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
                   // the same thing to look at.
                   style={{
                     fontSize: blockHeadingSize(9),
-                    fontWeight: 600,
+                    fontWeight: TYPESET.weight.blockHeading,
                     lineHeight: TYPESET.leading.heading,
                     marginBottom: 9 * TYPESET.flow.below,
+                    // The title sits over its own text, not over the page.
+                    maxWidth: measureWidth(9),
                   }}
                 >
                   {block.heading}
