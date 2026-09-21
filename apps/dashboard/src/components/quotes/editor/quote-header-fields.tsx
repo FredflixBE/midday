@@ -22,10 +22,8 @@ import {
   OptionSelect,
   UNIT_LABELS,
 } from "./fields";
+import { DOCUMENT_BODY } from "./quote-blocks";
 import { RailSection } from "./quote-rail";
-
-/** What the document reads at on screen, which the title is sized from. */
-const DOCUMENT_BODY = 14;
 
 /**
  * The quote's title, which is part of the document and so stays in the main

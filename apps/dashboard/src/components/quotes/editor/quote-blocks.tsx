@@ -214,8 +214,21 @@ function PricingBlock({
   );
 }
 
-/** What the document reads at on screen; every other size follows from it. */
-const BODY = 14;
+/**
+ * What the document reads at on screen; every other size follows from it.
+ *
+ * A screen is not a page, so this is not the print's 9pt and does not have
+ * to be: the scale is a set of proportions and each surface states only how
+ * big its own body text is (FF-1651). 16 is what a document reads at on a
+ * screen — Notion's size — where 14 was inherited from the invoice sheet
+ * around it.
+ *
+ * It shortens the line as well as enlarging the text: the column is 800px,
+ * which was 57em of 14px — about 108 characters — and is 50em of this, about
+ * 95. Still over the 45–75 FF-1662 asked for, but nearer it.
+ */
+export const DOCUMENT_BODY = 16;
+const BODY = DOCUMENT_BODY;
 
 /**
  * The three controls a typeset is reduced to (FF-1663).
