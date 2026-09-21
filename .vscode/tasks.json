@@ -1,0 +1,103 @@
+{
+  // A script started from the NPM Scripts pane runs as an auto-detected task,
+  // and an auto-detected task is one-shot in a *shared* terminal: the next
+  // script launched from the pane takes that terminal over and SIGTERMs
+  // whatever is running in it. That is what kills the dev servers mid-session.
+  //
+  // These entries match the detected tasks by script name, so the pane's play
+  // button picks them up. Each long-running one gets `isBackground` — it is
+  // never "finished" — and a dedicated terminal no other task may claim.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev",
+        "reveal": "always",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "detail": "Long-running. Every app and package in parallel."
+    },
+    {
+      "type": "npm",
+      "script": "dev:api",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev",
+        "reveal": "always",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "detail": "Long-running. The API on :3003."
+    },
+    {
+      "type": "npm",
+      "script": "dev:dashboard",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev",
+        "reveal": "always",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "detail": "Long-running. The dashboard on :3001."
+    },
+    {
+      "type": "npm",
+      "script": "dev:desktop",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev",
+        "reveal": "always",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "detail": "Long-running. The desktop app."
+    },
+    {
+      "type": "npm",
+      "script": "jobs:dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev",
+        "reveal": "always",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "detail": "Long-running. The Trigger.dev dev worker."
+    },
+    {
+      "type": "npm",
+      "script": "start:dashboard",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev",
+        "reveal": "always",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "runOptions": { "instanceLimit": 1 },
+      "detail": "Long-running. The built dashboard, production mode."
+    }
+  ]
+}
