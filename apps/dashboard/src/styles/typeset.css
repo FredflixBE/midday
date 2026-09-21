@@ -513,17 +513,18 @@
   /*
    * A quote's document as it is written (FF-1663).
    *
-   * The preset the builder would have generated, written by hand because
-   * its three controls cannot be literals here. The PDF is drawn by
-   * react-pdf, which takes numbers and can read no stylesheet, so the sizes
-   * live in `@midday/invoice`'s `typeset` and both surfaces read them from
-   * there — the editor through the custom properties `quote-blocks.tsx`
-   * sets, the print directly. That is what keeps the two in step on the one
-   * thing they must agree on: the hierarchy.
+   * A preset is meant to be the three controls and nothing else, and this
+   * is. Every size, weight and space you see on screen is upstream's,
+   * derived from these; the quote's own scale in `@midday/invoice` holds the
+   * same numbers so that react-pdf, which can read no stylesheet, prints the
+   * same rhythm. `typeset.test.ts` is what keeps the two honest.
    *
-   * Every rule here overrides one of upstream's, and each says which. What
-   * upstream is left to decide on its own — lists, blockquotes, code, rules,
-   * the room around a first child — is the reason it is here at all.
+   * The three come in as custom properties from `quote-blocks.tsx`, set on
+   * this element rather than an ancestor: a typeset container declares its
+   * own defaults for them, and a declaration beats an inherited value.
+   *
+   * The rules under them are not rhythm. They are the three places this app
+   * puts something between the container and the text.
    */
   .typeset-quote {
     /* `--font-heading` is not a token this theme defines, and an undefined
@@ -545,47 +546,14 @@
       line-height: inherit;
     }
 
-    /* Our steps, not upstream's 1.75 / 1.25 / 1.125 at weight 600. Levels 3
-       and below read alike, because past the third a document wants a new
-       section rather than a smaller heading.
-
-       Every fallback here is the same ratio the variable carries, so a
-       container that somehow arrives without them degrades to the right
-       proportions rather than to flat body text. `em` is honest for a size,
-       which resolves against the parent; it would be wrong for the room
-       around a heading, which is a multiple of the *body* and not of the
-       heading's own size — so those two fall back to upstream's instead.
-
-       A heading that opens a block keeps the room above it, which is why
-       this wins over upstream's first-child reset: a block's own title sits
-       directly above it with nothing between them. Upstream still owns the
-       first-child rule for everything else, paragraphs included. */
-    & :is(h1, h2, h3, h4, h5, h6) {
-      font-size: var(--typeset-h3, 1.2em);
-      font-weight: var(--typeset-heading-weight, 500);
-      line-height: var(--typeset-heading-leading, 1.25);
-      /* Upstream draws its fifth and sixth levels as muted small caps. Ours
-         are headings like the rest. */
-      color: inherit;
-      letter-spacing: normal;
-      text-transform: none;
-      margin-block-start: var(--typeset-above, var(--typeset-flow));
-      margin-block-end: 0;
-    }
-
-    & :is(h1) {
-      font-size: var(--typeset-h1, 1.75em);
-    }
-
-    & :is(h2) {
-      font-size: var(--typeset-h2, 1.45em);
-    }
-
-    /* A heading belongs to what follows it, so it takes more room above than
-       below (FF-1652). Upstream gives every heading a full em underneath —
-       wider than its own flow — which reads the other way round. */
-    & :is(h1, h2, h3, h4, h5, h6) + * {
-      margin-block-start: var(--typeset-below, 1em);
+    /* Upstream trims the room above the first thing in the container, so a
+       document does not open with a band of space. It reaches one wrapper
+       deep; ProseMirror can sit deeper than that, and a block's own title
+       adds another level again. This says the same thing where it counts:
+       the first node of the text never takes room above it. The room under a
+       title is the title's, and comes from the scale. */
+    & .tiptap > :first-child {
+      margin-block-start: 0;
     }
 
     /* A quote's tables are the grid the PDF draws, and the editor's own
@@ -604,13 +572,6 @@
     /* A picture prints square. */
     & :is(img, video) {
       border-radius: 0;
-    }
-
-    /* The print draws a link at the weight of the text around it, so this
-       does too. Upstream lifts one to 500, which would be a level of
-       hierarchy the page does not have. */
-    & a {
-      font-weight: inherit;
     }
   }
 }

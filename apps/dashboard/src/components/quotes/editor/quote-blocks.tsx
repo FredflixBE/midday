@@ -2,9 +2,8 @@
 
 import {
   blockHeadingSize,
-  headingSize,
   px,
-  TYPESET,
+  QUOTE_TYPESET,
 } from "@midday/invoice/templates/typeset";
 import type { Block, QuoteContent } from "@midday/quote";
 import type { ComparisonView, ScenarioView } from "@midday/quote/view";
@@ -53,7 +52,7 @@ const ONE_EMPTY_PARAGRAPH: TextBlock["body"] = {
  * broke roughly where a line there does, and Frederik's call is that the
  * preview is not worth the cost: a browser is not a page, the reader can
  * resize it, and the rail beside the column already shapes it. The print
- * takes the measure from `TYPESET.measure`; the screen takes this.
+ * takes the measure from `QUOTE_TYPESET.measure`; the screen takes this.
  *
  * What the two still share is the *hierarchy* — the sizes and weights of
  * every level relative to the body — which is what "reads as it prints"
@@ -219,20 +218,21 @@ function PricingBlock({
 const BODY = 14;
 
 /**
- * The three controls a typeset is reduced to, plus the hierarchy the print
- * has to agree with (FF-1663).
+ * The three controls a typeset is reduced to (FF-1663).
  *
- * The document on screen is set by shadcn/typeset — `apps/dashboard/src/
- * styles/typeset.css` — which sizes and spaces everything a block can hold
- * from a base size, a leading and a flow. These are those three, and the
- * few sizes our scale steps differently from theirs, all from the one scale
- * `@midday/invoice`'s `typeset` holds (FF-1651).
+ * This is the whole of what the editor tells the stylesheet. Every size,
+ * weight and space on screen is derived from these by shadcn/typeset —
+ * `apps/dashboard/src/styles/typeset.css` — rather than by us.
  *
- * That scale is the source because react-pdf takes numbers and can read no
- * stylesheet: the print reads it directly, the editor reads it through
- * these. Where a line breaks was never going to match — different metrics,
- * different renderer — but the hierarchy does, which is what lets the author
- * trust what is on screen (FF-1662).
+ * They come from the quote's own scale because react-pdf takes numbers and
+ * can read no stylesheet, so the print reads that scale directly and the
+ * screen reads it through these. The scale holds the stylesheet's own
+ * numbers, and `typeset.test.ts` is what proves it still does.
+ *
+ * The flow is in ems because upstream converts it into the ems of whatever
+ * block it is spacing — `calc(var(--typeset-flow) / 0.875)` above a code
+ * block, and so on — and that arithmetic only means what it says if the
+ * value it starts from is relative.
  *
  * Custom properties rather than classes: Tailwind finds its classes by
  * reading source text, and a size worked out from a ratio is a size it would
@@ -240,23 +240,8 @@ const BODY = 14;
  */
 const TYPESET_VARS = {
   "--typeset-size": `${BODY}px`,
-  "--typeset-leading": `${TYPESET.leading.body}`,
-  // In ems, because upstream converts it into the ems of whatever block it
-  // is spacing — `calc(var(--typeset-flow) / 0.875)` above a code block, and
-  // so on — and that arithmetic only means what it says if the value it
-  // starts from is relative. The two below cannot be: the room around a
-  // heading is a multiple of the body, not of the heading's own size.
-  "--typeset-flow": `${TYPESET.flow.paragraph}em`,
-  "--typeset-h1": `${px(headingSize(BODY, 1))}px`,
-  "--typeset-h2": `${px(headingSize(BODY, 2))}px`,
-  "--typeset-h3": `${px(headingSize(BODY, 3))}px`,
-  "--typeset-heading-leading": `${TYPESET.leading.heading}`,
-  "--typeset-heading-weight": `${TYPESET.weight.heading}`,
-  /* A heading takes more room above than below, so it belongs to what
-     follows it rather than floating between two things equally (FF-1652).
-     One flow cannot say that, so these two say it instead. */
-  "--typeset-above": `${px(BODY * TYPESET.flow.above)}px`,
-  "--typeset-below": `${px(BODY * TYPESET.flow.below)}px`,
+  "--typeset-leading": `${QUOTE_TYPESET.leading.body}`,
+  "--typeset-flow": `${QUOTE_TYPESET.flow.paragraph}em`,
 } as CSSProperties;
 
 /**
@@ -282,7 +267,22 @@ const BLOCK_HEADING_SIZE = {
   fontSize: px(blockHeadingSize(BODY)),
   // Heavier than a heading inside the block, and the same weight the PDF
   // already drew it at — the two had disagreed, 500 here against 600 there.
-  fontWeight: TYPESET.weight.blockHeading,
+  fontWeight: QUOTE_TYPESET.weight.blockHeading,
+  /**
+   * The room under it, which the print has always given and the screen never
+   * did (FF-1663). A title is a field of the page rather than a node of the
+   * document, so it stands outside the typeset — and a typeset trims the
+   * space above the first thing in its container, which is right for a
+   * document that starts at its own top and wrong for one with a title
+   * bolted above it. A block opening with a paragraph had the title sitting
+   * flat on the text.
+   *
+   * `flow.below` is what the PDF gives it, so this is the same room drawn
+   * the same way rather than a number chosen to look right. It collapses
+   * with whatever follows, so a block opening with a heading still takes
+   * that heading's own room and no more.
+   */
+  marginBottom: px(BODY * QUOTE_TYPESET.flow.below),
 } as const;
 
 /**

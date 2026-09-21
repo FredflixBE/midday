@@ -8,6 +8,7 @@ import {
   documentTitleSize,
   headingSize,
   measureWidth,
+  QUOTE_TYPESET,
   TYPESET,
 } from "@midday/invoice/templates/typeset";
 import type { EditorDoc as InvoiceEditorDoc } from "@midday/invoice/types";
@@ -45,12 +46,26 @@ const AMOUNT_WIDTH = 124;
 function Rich({
   doc,
   images,
+  prose = false,
 }: {
   doc: EditorDoc | null;
   /** Given, the text's pictures are drawn from these bytes. */
   images?: Record<string, ImageSource>;
+  /**
+   * True where this is the document itself rather than one of the blocks of
+   * detail around it (FF-1663). A quote's text is prose and is set in the
+   * quote's own rhythm, which is shadcn/typeset's: loose lines, room between
+   * paragraphs, headings that step.
+   *
+   * An address is a list of lines — "DPG Media NV", "Belgium", an email —
+   * and at 1.75 it spreads down the page. It keeps the tighter rhythm every
+   * other document in this codebase uses, which is exactly what it was
+   * drawn at before there were two.
+   */
+  prose?: boolean;
 }) {
   if (!doc) return null;
+  const scale = prose ? QUOTE_TYPESET : TYPESET;
   return (
     // Sized here: react-pdf's default of 18 would set the line height.
     // Bounded here too: the page is 515pt wide and a line of text is not
@@ -58,17 +73,18 @@ function Rich({
     <View
       style={{
         fontSize: 9,
-        lineHeight: TYPESET.leading.body,
+        lineHeight: scale.leading.body,
         maxWidth: measureWidth(9),
       }}
     >
       {/* The same Tiptap shape, typed loosely on this side. */}
       {formatEditorContent(doc as unknown as InvoiceEditorDoc, {
         imageOf: (path) => images?.[path] ?? null,
-        // A quote's text is prose, not an address block (FF-1652).
+        // Both, as before: whether an address wants room under each of its
+        // lines is a question this change does not open.
         spacedParagraphs: true,
-        // Lighter than the block's own title above it (FF-1662).
-        headingWeight: TYPESET.weight.heading,
+        scale,
+        headingWeight: scale.weight.heading,
       })}
     </View>
   );
@@ -161,9 +177,9 @@ function Comparison({
     <View wrap={false} style={{ marginBottom: 20 }}>
       <Text
         style={{
-          fontSize: headingSize(9, 2),
+          fontSize: headingSize(9, 2, QUOTE_TYPESET),
           fontWeight: 600,
-          lineHeight: TYPESET.leading.heading,
+          lineHeight: QUOTE_TYPESET.leading.heading,
           marginBottom: 6,
         }}
       >
@@ -299,9 +315,9 @@ function Scenario({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text
             style={{
-              fontSize: headingSize(9, 2),
+              fontSize: headingSize(9, 2, QUOTE_TYPESET),
               fontWeight: 600,
-              lineHeight: TYPESET.leading.heading,
+              lineHeight: QUOTE_TYPESET.leading.heading,
             }}
           >
             {scenario.name}
@@ -449,8 +465,8 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             <Text
               style={{
                 fontSize: documentTitleSize(9),
-                fontWeight: TYPESET.weight.documentTitle,
-                lineHeight: TYPESET.leading.heading,
+                fontWeight: QUOTE_TYPESET.weight.documentTitle,
+                lineHeight: QUOTE_TYPESET.leading.heading,
                 marginTop: 2,
               }}
             >
@@ -519,9 +535,9 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
                   // the same thing to look at.
                   style={{
                     fontSize: blockHeadingSize(9),
-                    fontWeight: TYPESET.weight.blockHeading,
-                    lineHeight: TYPESET.leading.heading,
-                    marginBottom: 9 * TYPESET.flow.below,
+                    fontWeight: QUOTE_TYPESET.weight.blockHeading,
+                    lineHeight: QUOTE_TYPESET.leading.heading,
+                    marginBottom: 9 * QUOTE_TYPESET.flow.below,
                     // The title sits over its own text, not over the page.
                     maxWidth: measureWidth(9),
                   }}
@@ -529,7 +545,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
                   {block.heading}
                 </Text>
               ) : null}
-              <Rich doc={block.body} images={doc.images} />
+              <Rich doc={block.body} images={doc.images} prose />
             </View>
           ) : (
             <View key={block.id}>

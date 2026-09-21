@@ -2,7 +2,7 @@ import { Image, Link, Text, View } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/types";
 import type { ReactNode } from "react";
 import type { EditorDoc, EditorNode } from "../../types";
-import { headingSize, TYPESET } from "../typeset";
+import { headingSize, TYPESET, type Typeset } from "../typeset";
 
 type PDFTextStyle = Style & {
   fontFamily?: string;
@@ -74,11 +74,16 @@ export type FormatOptions = {
   /**
    * What a heading inside the text is set in. Left alone it is 600, which
    * is what every caller drew before there was a scale to read — an invoice
-   * note is unchanged. A quote passes the lighter `TYPESET.weight.heading`,
-   * so that a block's own title at 600 outranks the headings under it
-   * (FF-1662).
+   * note is unchanged.
    */
   headingWeight?: number;
+  /**
+   * Which document's rhythm this text is set in (FF-1663). Left alone it is
+   * the invoice's, which is what every surface but a quote's draws: a note
+   * at the foot of a page and two address blocks. A quote passes its own,
+   * because a quote is a document and outgrew that rhythm.
+   */
+  scale?: Typeset;
 };
 
 export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
@@ -116,7 +121,10 @@ function renderBlock(
           style={{
             alignItems: "flex-start",
             ...(options?.spacedParagraphs
-              ? { marginBottom: BODY * TYPESET.flow.paragraph }
+              ? {
+                  marginBottom:
+                    BODY * (options?.scale ?? TYPESET).flow.paragraph,
+                }
               : {}),
           }}
         >
@@ -125,7 +133,8 @@ function renderBlock(
       );
 
     case "heading": {
-      const size = headingSize(BODY, node.attrs?.level ?? 1);
+      const scale = options?.scale ?? TYPESET;
+      const size = headingSize(BODY, node.attrs?.level ?? 1, scale);
       return (
         <View
           key={`heading-${path}`}
@@ -133,8 +142,8 @@ function renderBlock(
           // follows it rather than floating between two things equally.
           style={{
             alignItems: "flex-start",
-            marginTop: BODY * TYPESET.flow.above,
-            marginBottom: BODY * TYPESET.flow.below,
+            marginTop: BODY * scale.flow.above,
+            marginBottom: BODY * scale.flow.below,
           }}
           minPresenceAhead={24}
         >
@@ -143,7 +152,7 @@ function renderBlock(
               ...base,
               fontSize: size,
               fontWeight: options?.headingWeight ?? 600,
-              lineHeight: TYPESET.leading.heading,
+              lineHeight: scale.leading.heading,
             })}
           </Text>
         </View>

@@ -3,7 +3,7 @@
 import {
   documentTitleSize,
   px,
-  TYPESET,
+  QUOTE_TYPESET,
 } from "@midday/invoice/templates/typeset";
 import { withKind } from "@midday/quote";
 import { cn } from "@midday/ui/cn";
@@ -65,7 +65,7 @@ export function QuoteTitleField({
       // `font-medium` while the PDF drew the same title at 600.
       style={{
         fontSize: px(documentTitleSize(DOCUMENT_BODY)),
-        fontWeight: TYPESET.weight.documentTitle,
+        fontWeight: QUOTE_TYPESET.weight.documentTitle,
       }}
       className={cn(
         // No ring and no box: the caret is what says the title is being
