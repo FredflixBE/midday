@@ -13,7 +13,6 @@
   "exports": {
     "./platform": "./src/platform.ts",
     "./deep-links": "./src/platform.ts",
-    "./desktop-variants": "./src/desktop-variants.ts",
     "./core": "./src/core.ts"
   }
 }

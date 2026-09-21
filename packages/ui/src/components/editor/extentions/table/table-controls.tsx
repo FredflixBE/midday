@@ -534,7 +534,7 @@ function Handle({
           // being written keeps it, and the action puts the selection
           // exactly where it needs it.
           onMouseDown={(event) => event.preventDefault()}
-          className="pointer-events-auto fixed bg-[#DCDAD2] transition-colors hover:bg-[#878787] focus-visible:bg-[#878787] focus-visible:outline-none dark:bg-[#2C2C2C] dark:hover:bg-[#878787]"
+          className="pointer-events-auto fixed bg-[#DCDAD2] transition-colors hover:bg-[#878787] focus-visible:bg-[#878787] focus-visible:outline-hidden dark:bg-[#2C2C2C] dark:hover:bg-[#878787]"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-44">
@@ -602,7 +602,7 @@ function Edge({
       // Outlined, not filled: the document pane holds no filled controls,
       // and a bar the width of the table would be a slab of colour across
       // it. What answers the pointer is the line and the glyph.
-      className="pointer-events-auto fixed flex items-center justify-center border border-border text-[#878787] transition-colors hover:border-[#878787] hover:text-primary focus-visible:border-[#878787] focus-visible:outline-none"
+      className="pointer-events-auto fixed flex items-center justify-center border border-border text-[#878787] transition-colors hover:border-[#878787] hover:text-primary focus-visible:border-[#878787] focus-visible:outline-hidden"
     >
       <Plus className="size-3" />
     </button>

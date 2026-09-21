@@ -144,7 +144,7 @@ export function CommandPanelAnimation({
               value={displayedQuery}
               readOnly
               placeholder="Type a command or search..."
-              className="w-full bg-background px-2 md:px-3 py-1 md:py-1.5 text-[11px] md:text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none rounded-none pr-7 md:pr-8"
+              className="w-full bg-background px-2 md:px-3 py-1 md:py-1.5 text-[11px] md:text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-hidden rounded-none pr-7 md:pr-8"
             />
             <MdSearch
               className="absolute right-2 md:right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
@@ -175,7 +175,7 @@ export function CommandPanelAnimation({
                     className="flex items-center gap-2 md:gap-3 pr-2 md:pr-3 py-1 md:py-1.5 cursor-pointer hover:bg-muted transition-colors"
                   >
                     <MdOutlineListAlt
-                      className="text-muted-foreground flex-shrink-0"
+                      className="text-muted-foreground shrink-0"
                       size={16}
                     />
                     <div className="flex-1 min-w-0">
@@ -212,7 +212,7 @@ export function CommandPanelAnimation({
                         className="flex items-center gap-2 md:gap-3 pr-2 md:pr-3 py-1 md:py-1.5 cursor-pointer hover:bg-muted transition-colors"
                       >
                         <MdOutlineDescription
-                          className="text-muted-foreground flex-shrink-0"
+                          className="text-muted-foreground shrink-0"
                           size={16}
                         />
                         <div className="flex-1 min-w-0">
@@ -251,7 +251,7 @@ export function CommandPanelAnimation({
                         className="flex items-center gap-2 md:gap-3 pr-2 md:pr-3 py-1 md:py-1.5 cursor-pointer hover:bg-muted transition-colors"
                       >
                         <MdOutlineReceipt
-                          className="text-muted-foreground flex-shrink-0"
+                          className="text-muted-foreground shrink-0"
                           size={16}
                         />
                         <div className="flex-1 min-w-0">
@@ -290,7 +290,7 @@ export function CommandPanelAnimation({
                         className="flex items-center gap-2 md:gap-3 pr-2 md:pr-3 py-1 md:py-1.5 cursor-pointer hover:bg-muted transition-colors"
                       >
                         <MdOutlinePictureAsPdf
-                          className="text-muted-foreground flex-shrink-0"
+                          className="text-muted-foreground shrink-0"
                           size={16}
                         />
                         <div className="flex-1 min-w-0">

@@ -163,7 +163,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(
               key={item.id}
               type="button"
               className={cn(
-                "flex w-full items-center justify-between px-2 py-1.5 text-[11px] outline-none cursor-pointer",
+                "flex w-full items-center justify-between px-2 py-1.5 text-[11px] outline-hidden cursor-pointer",
                 index === selectedIndex
                   ? "bg-accent text-accent-foreground"
                   : "hover:bg-accent hover:text-accent-foreground",
@@ -203,7 +203,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(
                   key={subItem.id}
                   type="button"
                   className={cn(
-                    "flex w-full flex-col items-start px-2 py-1.5 text-[11px] outline-none cursor-pointer",
+                    "flex w-full flex-col items-start px-2 py-1.5 text-[11px] outline-hidden cursor-pointer",
                     index === submenuSelectedIndex
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent hover:text-accent-foreground",

@@ -275,19 +275,19 @@ export function BulkReconciliationAnimation({
           <input
             type="text"
             placeholder="Search transactions..."
-            className="w-full bg-background border border-border px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-border/50 rounded-none pr-6 md:pr-7"
+            className="w-full bg-background border border-border px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-border/50 rounded-none pr-6 md:pr-7"
           />
           <div className="absolute right-1.5 md:right-2 top-0 bottom-0 flex items-center pointer-events-none">
             <MdSearch className="text-muted-foreground" size={12} />
           </div>
         </div>
 
-        <div className="relative flex items-stretch bg-muted flex-shrink-0">
+        <div className="relative flex items-stretch bg-muted shrink-0">
           <div className="flex items-stretch">
             <button
               type="button"
               onClick={() => setActiveTab("all")}
-              className={`group relative flex items-center gap-1.5 px-2 py-1 h-7 text-[10px] md:text-[11px] whitespace-nowrap border transition-colors touch-manipulation focus:outline-none focus-visible:outline-none ${
+              className={`group relative flex items-center gap-1.5 px-2 py-1 h-7 text-[10px] md:text-[11px] whitespace-nowrap border transition-colors touch-manipulation focus:outline-hidden focus-visible:outline-hidden ${
                 activeTab === "all"
                   ? "text-foreground bg-background border-border"
                   : "text-muted-foreground hover:text-foreground bg-muted border-transparent"
@@ -304,7 +304,7 @@ export function BulkReconciliationAnimation({
             <button
               type="button"
               onClick={() => setActiveTab("in_review")}
-              className={`group relative flex items-center gap-1.5 px-2 py-1 h-7 text-[10px] md:text-[11px] whitespace-nowrap border transition-colors touch-manipulation focus:outline-none focus-visible:outline-none ${
+              className={`group relative flex items-center gap-1.5 px-2 py-1 h-7 text-[10px] md:text-[11px] whitespace-nowrap border transition-colors touch-manipulation focus:outline-hidden focus-visible:outline-hidden ${
                 activeTab === "in_review"
                   ? "text-foreground bg-background border-border"
                   : "text-muted-foreground hover:text-foreground bg-muted border-transparent"

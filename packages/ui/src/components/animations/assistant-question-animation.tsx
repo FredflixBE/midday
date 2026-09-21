@@ -358,7 +358,7 @@ export function AssistantQuestionAnimation({
                           size={12}
                         />
                         <motion.span
-                          className="text-[10px] leading-[14px] relative inline-block bg-gradient-to-r from-muted-foreground via-foreground to-muted-foreground bg-[length:200%_100%] bg-clip-text text-transparent"
+                          className="text-[10px] leading-[14px] relative inline-block bg-linear-to-r from-muted-foreground via-foreground to-muted-foreground bg-size-[200%_100%] bg-clip-text text-transparent"
                           animate={{
                             backgroundPosition: ["200% 0", "-200% 0"],
                           }}
@@ -386,7 +386,7 @@ export function AssistantQuestionAnimation({
           <input
             type="text"
             placeholder="Ask anything"
-            className="flex-1 bg-transparent border-0 outline-none text-[10px] md:text-[11px] text-foreground placeholder:text-muted-foreground"
+            className="flex-1 bg-transparent border-0 outline-hidden text-[10px] md:text-[11px] text-foreground placeholder:text-muted-foreground"
             readOnly
           />
         </div>

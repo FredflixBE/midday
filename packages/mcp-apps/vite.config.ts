@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type PluginOption } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
@@ -8,7 +9,7 @@ const INPUT = process.env.INPUT;
 export default defineConfig(({ command }) => {
   if (command === "serve") {
     return {
-      plugins: [react()] as PluginOption[],
+      plugins: [react(), tailwindcss()] as PluginOption[],
       root: resolve(__dirname, "src/dev"),
     };
   }
@@ -20,7 +21,7 @@ export default defineConfig(({ command }) => {
   }
 
   return {
-    plugins: [react(), viteSingleFile()] as PluginOption[],
+    plugins: [react(), tailwindcss(), viteSingleFile()] as PluginOption[],
     build: {
       outDir: "dist",
       emptyOutDir: false,

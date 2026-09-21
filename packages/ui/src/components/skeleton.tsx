@@ -10,8 +10,8 @@ function Skeleton({
     <div
       className={cn(
         "relative overflow-hidden",
-        "bg-gradient-to-r from-transparent via-primary/10 to-transparent dark:via-primary/10",
-        "bg-[length:200%_100%]",
+        "bg-linear-to-r from-transparent via-primary/10 to-transparent dark:via-primary/10",
+        "bg-size-[200%_100%]",
         "rounded-none",
         animate && "animate-shimmer",
         className,

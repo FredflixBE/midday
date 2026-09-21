@@ -1,3 +1,10 @@
+/*
+ * Imported by the editor component rather than through the app's stylesheet,
+ * so Tailwind compiles it on its own and `@apply` here would have no theme
+ * to read. `@reference` points at one without emitting it twice (FF-1650).
+ */
+@reference "../../globals.css";
+
 .ProseMirror-focused {
   @apply outline-none;
 }

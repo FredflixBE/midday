@@ -1,3 +1,33 @@
+/*
+ * The dashboard's stylesheet (FF-1650).
+ *
+ * The shared theme brings Tailwind with it; what the app adds on top is
+ * which files its classes are written in, and its own variants. Under v3
+ * both lived in `tailwind.config.ts`; v4 reads them from the stylesheet, so
+ * the config is gone and this is the one place.
+ */
+@import "@midday/ui/globals.css";
+
+@source "../";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/invoice/src";
+
+/*
+ * `dark:` is a class on the html element, not the operating system's
+ * preference — the app has its own switch.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * The desktop app's own variants. These were a Tailwind plugin using
+ * `modifySelectors`, an API v4 removed; a variant is a line of CSS now.
+ * Usage is unchanged: `desktop:rounded-[10px]`, `mac:hidden`.
+ */
+@custom-variant desktop (html.desktop &);
+@custom-variant mac (html.desktop-platform-darwin &);
+@custom-variant windows (html.desktop-platform-win32 &);
+@custom-variant linux (html.desktop-platform-linux &);
+
 html,
 body {
   height: 100%;

@@ -255,7 +255,7 @@ export function InvoicePromptAnimation({
             <div className="text-[11px] md:text-[12px] text-muted-foreground">
               Payment Details
             </div>
-            <div className="text-[11px] md:text-[12px] text-foreground break-words">
+            <div className="text-[11px] md:text-[12px] text-foreground wrap-break-word">
               Bank: Example Bank, IBAN: XX00 0000 0000 0000 0000
             </div>
             <div className="text-[11px] md:text-[12px] text-foreground">

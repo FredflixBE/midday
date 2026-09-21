@@ -103,7 +103,7 @@ export function EmailTagInput({
           {!disabled && (
             <button
               type="button"
-              className="ml-0.5 outline-none hover:text-primary"
+              className="ml-0.5 outline-hidden hover:text-primary"
               onClick={(e) => {
                 e.stopPropagation();
                 removeEmail(email);
@@ -125,7 +125,7 @@ export function EmailTagInput({
         onPaste={handlePaste}
         placeholder={emails.length === 0 ? placeholder : ""}
         disabled={disabled}
-        className="flex-1 min-w-[120px] bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+        className="flex-1 min-w-[120px] bg-transparent outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed"
         autoComplete="off"
       />
     </div>
