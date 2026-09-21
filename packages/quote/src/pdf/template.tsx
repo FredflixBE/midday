@@ -3,7 +3,12 @@ import {
   formatEditorContent,
   type ImageSource,
 } from "@midday/invoice/templates/pdf/format";
-import { blockHeadingSize, TYPESET } from "@midday/invoice/templates/typeset";
+import {
+  blockHeadingSize,
+  documentTitleSize,
+  headingSize,
+  TYPESET,
+} from "@midday/invoice/templates/typeset";
 import type { EditorDoc as InvoiceEditorDoc } from "@midday/invoice/types";
 import { Document, Image, Page, Text, View } from "@react-pdf/renderer";
 import type { Style } from "@react-pdf/types";
@@ -143,7 +148,14 @@ function Comparison({
 }) {
   return (
     <View wrap={false} style={{ marginBottom: 20 }}>
-      <Text style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
+      <Text
+        style={{
+          fontSize: headingSize(9, 2),
+          fontWeight: 600,
+          lineHeight: TYPESET.leading.heading,
+          marginBottom: 6,
+        }}
+      >
         {doc.labels.comparison}
       </Text>
       <View
@@ -274,7 +286,15 @@ function Scenario({
     <View style={{ marginBottom: 24 }}>
       <View wrap={false}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Text style={{ fontSize: 11, fontWeight: 600 }}>{scenario.name}</Text>
+          <Text
+            style={{
+              fontSize: headingSize(9, 2),
+              fontWeight: 600,
+              lineHeight: TYPESET.leading.heading,
+            }}
+          >
+            {scenario.name}
+          </Text>
           {scenario.recommended ? (
             <Text
               style={{
@@ -406,11 +426,25 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
           }}
         >
           <View style={{ flex: 1, marginRight: 20 }}>
-            <Text style={small}>{labels.quote}</Text>
-            <Text style={{ fontSize: 16, fontWeight: 600, marginTop: 2 }}>
-              {doc.number}
+            {/* The title leads and the number identifies (FF-1653). They
+                used to be the other way round — the number at 16pt and the
+                title at 11pt — which left a quote's own name smaller than
+                every section title inside it, and the number the same size
+                as one. The screen has read this way since FF-1652; this is
+                the print side of it. */}
+            <Text style={small}>
+              {labels.quote} · {doc.number}
             </Text>
-            <Text style={{ fontSize: 11, marginTop: 4 }}>{doc.title}</Text>
+            <Text
+              style={{
+                fontSize: documentTitleSize(9),
+                fontWeight: 600,
+                lineHeight: TYPESET.leading.heading,
+                marginTop: 2,
+              }}
+            >
+              {doc.title}
+            </Text>
             <View style={{ flexDirection: "row", gap: 16, marginTop: 8 }}>
               {doc.meta.map((m) => (
                 <View key={m.label}>
