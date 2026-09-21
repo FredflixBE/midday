@@ -396,7 +396,10 @@ function Edge({
       style={style}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
-      className="pointer-events-auto fixed flex items-center justify-center bg-[#F6F6F3] text-[#878787] transition-colors hover:bg-[#DCDAD2] hover:text-primary focus-visible:bg-[#DCDAD2] focus-visible:outline-none dark:bg-[#1C1C1C] dark:hover:bg-[#2C2C2C]"
+      // Outlined, not filled: the document pane holds no filled controls,
+      // and a bar the width of the table would be a slab of colour across
+      // it. What answers the pointer is the line and the glyph.
+      className="pointer-events-auto fixed flex items-center justify-center border border-border text-[#878787] transition-colors hover:border-[#878787] hover:text-primary focus-visible:border-[#878787] focus-visible:outline-none"
     >
       <Plus className="size-3" />
     </button>
