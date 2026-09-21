@@ -30,13 +30,16 @@ const maxImageHeight = 560;
 const bulletWidth = 12;
 const digitWidth = 5;
 
-// A table's rule, and the room a cell keeps from it. The same grey the quote
-// PDF rules its own line table with, so a written table and a priced one read
-// as the same document rather than two.
+// A table's rules, and the room a cell keeps from them. The same grey the
+// quote PDF rules its own line table with, so a written table and a priced
+// one read as the same document rather than two.
+//
+// A line on every edge, not only under each row: a grid with no verticals
+// reads as a list of sentences, and the editor draws all four (FF-1642).
 const tableRuleColor = "#DCDAD2";
 const tableRuleWidth = 0.5;
 const cellPaddingVertical = 3;
-const cellPaddingRight = 8;
+const cellPaddingHorizontal = 4;
 
 /**
  * What a picture stored under a path looks like to react-pdf: the bytes,
@@ -177,7 +180,16 @@ function renderBlock(
         // page — but it does not start with only a sliver of room left.
         <View
           key={`table-${path}`}
-          style={{ width: "100%", marginVertical: 6 }}
+          style={{
+            width: "100%",
+            marginVertical: 6,
+            // Each cell draws its own right and bottom line, so the grid
+            // needs its top and left edge closing.
+            borderTopWidth: tableRuleWidth,
+            borderTopColor: tableRuleColor,
+            borderLeftWidth: tableRuleWidth,
+            borderLeftColor: tableRuleColor,
+          }}
           minPresenceAhead={40}
         >
           {lines.map((line, index) =>
@@ -202,11 +214,7 @@ function renderTableRow(
     <View
       key={`table-row-${path}`}
       wrap={false}
-      style={{
-        flexDirection: "row",
-        borderBottomWidth: tableRuleWidth,
-        borderBottomColor: tableRuleColor,
-      }}
+      style={{ flexDirection: "row" }}
     >
       {(row.content ?? []).map((cell, index) =>
         renderTableCell(cell, `${path}-${index}`, options),
@@ -235,7 +243,11 @@ function renderTableCell(
         flexGrow: span,
         flexBasis: 0,
         paddingVertical: cellPaddingVertical,
-        paddingRight: cellPaddingRight,
+        paddingHorizontal: cellPaddingHorizontal,
+        borderRightWidth: tableRuleWidth,
+        borderRightColor: tableRuleColor,
+        borderBottomWidth: tableRuleWidth,
+        borderBottomColor: tableRuleColor,
       }}
     >
       {cell.content?.map((child, index) =>

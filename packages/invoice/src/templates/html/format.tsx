@@ -27,8 +27,7 @@ const listBlock = "pl-4 my-0.5";
 // measure text at all. The rule is the theme's, like every other rule on
 // this view, so it holds up in the dark as well as the light.
 const tableBlock = "table-fixed w-full my-1.5 border-collapse";
-const tableRow = "border-b border-border";
-const tableCell = "align-top text-left pr-2 py-1";
+const tableCell = "align-top text-left border border-border px-1.5 py-1";
 
 export function formatEditorContent(doc?: EditorDoc): ReactNode | null {
   if (!doc?.content) {
@@ -99,10 +98,7 @@ function renderBlock(node: EditorNode, path: string): ReactNode {
         <table key={`table-${path}`} className={tableBlock}>
           <tbody>
             {lines.map((line, index) => (
-              <tr
-                key={`table-row-${path}-${index.toString()}`}
-                className={tableRow}
-              >
+              <tr key={`table-row-${path}-${index.toString()}`}>
                 {(line.content ?? []).map((cell, cellIndex) => {
                   const span = Math.max(1, cell.attrs?.colspan ?? 1);
                   const Cell = cell.type === "tableHeader" ? "th" : "td";

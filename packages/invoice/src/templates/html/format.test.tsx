@@ -245,10 +245,12 @@ describe("formatEditorContent", () => {
       expect(markup).toMatch(/<td [^>]*colspan="2"/i);
     });
 
-    test("rules every row off and sets the header row apart", () => {
+    test("rules every cell on all sides and sets the header row apart", () => {
       const markup = html(comparison);
 
-      expect(markup).toMatch(/<tr class="[^"]*border-b/);
+      // A line on every edge, so a column shows as well as a row.
+      expect(markup).toMatch(/<th class="[^"]*\bborder\b/);
+      expect(markup).toMatch(/<td class="[^"]*\bborder\b/);
       expect(markup).toMatch(/<th class="[^"]*font-semibold/);
       expect(markup).not.toMatch(/<td class="[^"]*font-semibold/);
     });

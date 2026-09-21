@@ -436,10 +436,17 @@ describe("formatEditorContent", () => {
       expect(weightOf("Pages")).not.toBeGreaterThanOrEqual(600);
     });
 
-    test("rules every row off so the grid reads as a grid", () => {
+    test("rules every cell on all four sides, so a column shows as well as a row", () => {
       const table = tableOf(comparison);
+      // Each cell closes its own right and bottom edge; the table closes the
+      // top and left, so every line in the grid is drawn exactly once.
+      expect(Number(styleOf(table).borderTopWidth)).toBeGreaterThan(0);
+      expect(Number(styleOf(table).borderLeftWidth)).toBeGreaterThan(0);
       for (const line of table.children as Element[]) {
-        expect(Number(styleOf(line).borderBottomWidth)).toBeGreaterThan(0);
+        for (const cell of line.children as Element[]) {
+          expect(Number(styleOf(cell).borderRightWidth)).toBeGreaterThan(0);
+          expect(Number(styleOf(cell).borderBottomWidth)).toBeGreaterThan(0);
+        }
       }
     });
 

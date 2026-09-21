@@ -50,14 +50,11 @@
   @apply my-5 w-full table-fixed border-collapse;
 }
 
-.tiptap table tr {
-  @apply border-b border-border;
-}
-
 .tiptap table th,
 .tiptap table td {
-  /* Positioned so the selection tint below has something to sit in. */
-  @apply relative align-top py-1 pr-2;
+  /* A line on every edge, so a column is as visible as a row. Positioned
+     so the selection tint below has something to sit in. */
+  @apply relative border border-border align-top px-2 py-1;
 }
 
 .tiptap table th {

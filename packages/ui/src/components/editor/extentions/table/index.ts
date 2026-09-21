@@ -18,7 +18,31 @@ import TableRow from "@tiptap/extension-table-row";
  * column grips are drawn over the page instead — see `table-controls.tsx`.
  */
 export const tableExtensions = [
-  Table.configure({
+  Table.extend({
+    /**
+     * A plain `table` with a `tbody`, and no `colgroup`.
+     *
+     * Tiptap's own table view keeps a `col` element per column so a dragged
+     * width has somewhere to live. It does not take one away again when a
+     * column is deleted, and under `table-layout: fixed` the browser sizes
+     * the grid from that stale list — so deleting a column left the others
+     * at their old width and the last one swallowed the gap.
+     *
+     * Nothing here resizes, so there is nothing for a `colgroup` to carry,
+     * and without one every column is simply an equal share of the width.
+     * Written by hand rather than as a React view: `NodeViewContent` puts a
+     * `div` of its own between the `tbody` and the rows, which a table may
+     * not contain.
+     */
+    addNodeView() {
+      return () => {
+        const dom = document.createElement("table");
+        const contentDOM = document.createElement("tbody");
+        dom.appendChild(contentDOM);
+        return { dom, contentDOM };
+      };
+    },
+  }).configure({
     // No column dragging: every column takes an equal share of the text
     // column, because that is the only width the PDF can draw. react-pdf
     // cannot measure text before it lays it out, so a column sized here

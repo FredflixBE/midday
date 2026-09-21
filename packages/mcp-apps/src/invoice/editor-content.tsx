@@ -100,10 +100,7 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
         <table key={key} className="table-fixed w-full my-1.5 border-collapse">
           <tbody>
             {lines.map((line, lineIndex) => (
-              <tr
-                key={`${key}-row-${lineIndex.toString()}`}
-                className="border-b border-border"
-              >
+              <tr key={`${key}-row-${lineIndex.toString()}`}>
                 {(line.content ?? []).map((cell, cellIndex) => {
                   const span = Math.max(1, cell.attrs?.colspan ?? 1);
                   const Cell = cell.type === "tableHeader" ? "th" : "td";
@@ -111,7 +108,7 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
                     <Cell
                       key={`${key}-cell-${lineIndex.toString()}-${cellIndex.toString()}`}
                       colSpan={span === 1 ? undefined : span}
-                      className="align-top text-left pr-2 py-1"
+                      className="align-top text-left border border-border px-1.5 py-1"
                       style={{
                         fontSize: bodySize,
                         ...(Cell === "th" ? { fontWeight: 600 } : {}),
