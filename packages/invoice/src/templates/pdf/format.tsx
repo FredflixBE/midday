@@ -151,6 +151,10 @@ function renderBlock(
       );
     }
 
+    // A diagram (FF-1643) is drawn to a picture when it is written, so by
+    // the time it reaches a renderer there is nothing left to draw. Its
+    // mermaid source is what makes it editable again and is never printed.
+    case "diagram":
     case "image": {
       const stored = node.attrs?.path;
       const source = stored ? options?.imageOf?.(stored) : null;
@@ -161,7 +165,11 @@ function renderBlock(
       return (
         // The text column's full width, its own proportions, and never
         // divided over two pages.
-        <View key={`image-${path}`} style={{ marginVertical: 6 }} wrap={false}>
+        <View
+          key={`${node.type}-${path}`}
+          style={{ marginVertical: 6 }}
+          wrap={false}
+        >
           <Image
             src={source}
             style={{

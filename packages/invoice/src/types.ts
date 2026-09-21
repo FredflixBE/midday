@@ -143,6 +143,8 @@ export interface EditorNode {
     colspan?: number;
     /** How a table cell's content sits across it (FF-1642). */
     align?: "left" | "center" | "right" | null;
+    /** The mermaid a diagram's picture was drawn from (FF-1643). */
+    source?: string;
   };
   content?: EditorNode[];
   text?: string;

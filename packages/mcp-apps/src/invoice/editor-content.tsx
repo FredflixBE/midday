@@ -139,7 +139,9 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
       );
     }
 
-    // A picture (FF-1625) is quotes-only, and this previews an invoice.
+    // A picture (FF-1625) is quotes-only, and this previews an invoice. A
+    // diagram (FF-1643) is a picture by the time it gets here, so it is on
+    // the same terms.
     default:
       return null;
   }

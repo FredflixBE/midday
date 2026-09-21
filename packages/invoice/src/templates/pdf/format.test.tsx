@@ -537,6 +537,75 @@ describe("formatEditorContent", () => {
     });
   });
 
+  describe("a diagram", () => {
+    const withDiagram = {
+      type: "doc",
+      content: [
+        paragraph("Before"),
+        {
+          type: "diagram",
+          attrs: {
+            source: "flowchart LR\n A --> B",
+            path: "team/quotes/d.png",
+          },
+        },
+        paragraph("After"),
+      ],
+    } as EditorDoc;
+    const bytes = Buffer.from([4, 5, 6]);
+    const imageOf = () => ({ data: bytes, format: "png" as const });
+
+    // A diagram is drawn to a picture when it is written (FF-1643), so by
+    // the time the PDF sees one there is nothing left to draw — only a
+    // picture, which this already knows how to put on a page.
+    test("is drawn from its picture, like any other picture", () => {
+      const out = elements(tree(formatEditorContent(withDiagram, { imageOf })));
+      const image = out.find((e) => e.type === "IMAGE")!;
+
+      expect((image.props as { src: unknown }).src).toEqual({
+        data: bytes,
+        format: "png",
+      });
+      expect(styleOf(image).width).toBe("100%");
+      expect(styleOf(image).objectFit).toBe("contain");
+
+      const holder = out.find((e) => e.children.includes(image))!;
+      expect((holder.props as { wrap?: boolean }).wrap).toBe(false);
+    });
+
+    test("never puts its mermaid source on the page", () => {
+      const out = tree(formatEditorContent(withDiagram, { imageOf }));
+      expect(textOf({ type: "x", key: null, props: {}, children: out })).toBe(
+        "BeforeAfter",
+      );
+    });
+
+    test("is passed over when its picture cannot be had", () => {
+      const out = tree(
+        formatEditorContent(withDiagram, { imageOf: () => null }),
+      );
+      expect(elements(out).some((e) => e.type === "IMAGE")).toBe(false);
+      expect(textOf({ type: "x", key: null, props: {}, children: out })).toBe(
+        "BeforeAfter",
+      );
+    });
+
+    test("is passed over while it has been written but not yet drawn", () => {
+      const doc = {
+        type: "doc",
+        content: [
+          { type: "diagram", attrs: { source: "flowchart LR", path: null } },
+          paragraph("After"),
+        ],
+      } as EditorDoc;
+      const out = tree(formatEditorContent(doc, { imageOf }));
+      expect(elements(out).some((e) => e.type === "IMAGE")).toBe(false);
+      expect(textOf({ type: "x", key: null, props: {}, children: out })).toBe(
+        "After",
+      );
+    });
+  });
+
   test("skips nodes it does not know instead of failing", () => {
     const doc = {
       type: "doc",

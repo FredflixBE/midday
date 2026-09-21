@@ -23,11 +23,14 @@ export function useSlashCommand({
   enabled,
   images,
   tables,
+  diagrams,
 }: {
   enabled: boolean;
   images?: StoredImages;
   /** True where a table may be written, not only shown (FF-1642). */
   tables?: boolean;
+  /** True where a diagram may be written, not only shown (FF-1643). */
+  diagrams?: boolean;
 }) {
   const { toast } = useToast();
   // The menu is drawn into the body, which only exists in the browser.
@@ -97,8 +100,9 @@ export function useSlashCommand({
             }
           : undefined,
         tables,
+        diagrams,
       }),
-    [images?.upload, tables],
+    [images?.upload, tables, diagrams],
   );
 
   const extension = useMemo(() => {

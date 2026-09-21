@@ -35,6 +35,13 @@ const walkedThrough = new Set([
 ]);
 
 function renderBlock(node: EditorNode, path: string): ReactNode {
+  // A diagram (FF-1643) is a picture by the time it gets here, and its
+  // mermaid source is not something to read out. Left out rather than drawn
+  // as the blank line an empty block would be.
+  if (node.type === "diagram") {
+    return null;
+  }
+
   if (walkedThrough.has(node.type)) {
     return node.content?.map((child, index) =>
       renderBlock(child, `${path}-${index}`),
