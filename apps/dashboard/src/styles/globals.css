@@ -238,9 +238,21 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   height: 0;
 }
 
-.tiptap {
-  font-size: 11px;
-  line-height: 18px;
+/*
+ * The invoice editor's default size, in a layer on purpose (FF-1650).
+ *
+ * This file is the stylesheet's entry now, so its own rules are unlayered —
+ * and unlayered CSS beats anything in a layer whatever the specificity,
+ * including every Tailwind utility. Under v3 this lost to the quote's
+ * `[&_.tiptap]:text-sm` on specificity; unlayered it started winning, and
+ * silently dropped a quote's body text from 14px to 11px. In a layer, a
+ * utility overrides it again.
+ */
+@layer base {
+  .tiptap {
+    font-size: 11px;
+    line-height: 18px;
+  }
 }
 
 .dark .dotted-bg {
