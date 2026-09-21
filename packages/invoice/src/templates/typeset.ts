@@ -51,17 +51,19 @@ export const TYPESET = {
   /** How far apart the lines of a paragraph sit, and of a heading. */
   leading: { body: 1.55, heading: 1.25 },
   /**
-   * How wide a line of running text is allowed to run, as a multiple of the
-   * body size — so one number sets the column on every surface (FF-1662).
+   * How wide a line of running text runs on a **page**, as a multiple of
+   * the body size (FF-1662). 42 is about 80 characters, where the PDF's
+   * 515pt of 9pt text ran 57em — about 120.
    *
-   * 42 is about 80 characters. It replaces 57, which is about 120: the
-   * screen's 800px at 14px and the PDF's 515pt at 9pt were matched to each
-   * other exactly, and both were half again longer than a line wants to be.
-   * Matching them was right; the number they were matched at was not.
+   * A page only. The screen is not bound to this and deliberately so: the
+   * two used to be matched exactly, so that a line broke on screen where
+   * it breaks in print, and the cost was a browser column half as wide as
+   * the window it sits in. A page is fixed and a window is not; they are
+   * different media and only the hierarchy has to agree.
    *
-   * This is the text column, not the page. A quote's pricing table carries
-   * three fixed columns inside the page's full width, and narrowing the
-   * page would leave its description column unreadable — so the running
+   * This is the text column, not the page itself. A quote's pricing table
+   * carries three fixed columns inside the page's full width, and narrowing
+   * the page would leave its description column unreadable — so the running
    * text narrows on its own and the tables keep the page.
    */
   measure: 42,

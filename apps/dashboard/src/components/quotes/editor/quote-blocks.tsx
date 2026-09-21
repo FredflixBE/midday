@@ -3,7 +3,6 @@
 import {
   blockHeadingSize,
   headingSize,
-  measureWidth,
   px,
   TYPESET,
 } from "@midday/invoice/templates/typeset";
@@ -48,12 +47,17 @@ const ONE_EMPTY_PARAGRAPH: TextBlock["body"] = {
 };
 
 /**
- * The page, at the size this draws it: A4 less its margins is 515pt of 9pt
- * text, which is 800px of 14px. The pricing block takes all of it, the way
- * it takes the whole page in print.
+ * How wide the document reads on screen.
  *
- * Running text does not — it takes the measure instead (FF-1662). This used
- * to be both, which is how a line of a quote came to run 120 characters.
+ * Not the PDF's measure (FF-1662). The two were tied so that a line here
+ * broke roughly where a line there does, and Frederik's call is that the
+ * preview is not worth the cost: a browser is not a page, the reader can
+ * resize it, and the rail beside the column already shapes it. The print
+ * takes the measure from `TYPESET.measure`; the screen takes this.
+ *
+ * What the two still share is the *hierarchy* — the sizes and weights of
+ * every level relative to the body — which is what "reads as it prints"
+ * was actually for.
  */
 export const DOCUMENT_WIDTH = "max-w-[800px]";
 
@@ -213,13 +217,6 @@ function PricingBlock({
 
 /** What the document reads at on screen; every other size follows from it. */
 const BODY = 14;
-
-/**
- * How wide a line of running text runs (FF-1662). The block's own width, not
- * the page's: the pricing block keeps `DOCUMENT_WIDTH`, because its tables
- * need the room and take the whole page in print too.
- */
-const MEASURE = `${px(measureWidth(BODY))}px`;
 
 /**
  * The reading rhythm, handed to the editor's stylesheet as the sizes it
@@ -438,7 +435,7 @@ function TextBlockEditor({
             HEADING_STYLES,
             "h-auto border-0 bg-transparent p-0 focus-visible:ring-0",
           )}
-          style={{ ...BLOCK_HEADING_SIZE, maxWidth: MEASURE }}
+          style={BLOCK_HEADING_SIZE}
           onChange={(event) =>
             onChange({ heading: event.target.value || null })
           }
@@ -448,15 +445,12 @@ function TextBlockEditor({
           onBlur={() => setHeadingWanted(false)}
         />
       ) : block.heading ? (
-        <h3
-          className={HEADING_STYLES}
-          style={{ ...BLOCK_HEADING_SIZE, maxWidth: MEASURE }}
-        >
+        <h3 className={HEADING_STYLES} style={BLOCK_HEADING_SIZE}>
           {block.heading}
         </h3>
       ) : null}
 
-      <div ref={body} style={{ ...TYPESET_VARS, maxWidth: MEASURE }}>
+      <div ref={body} style={TYPESET_VARS}>
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (
