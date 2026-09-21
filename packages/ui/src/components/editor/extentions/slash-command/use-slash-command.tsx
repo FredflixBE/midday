@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "../../../use-toast";
 import type { StoredImages } from "../stored-image";
+import { tableSlashItems } from "../table/slash-items";
 import { SlashCommand } from ".";
 import { filterSlashCommands, slashCommandItems } from "./items";
 import { SlashMenu, type SlashMenuRef } from "./slash-menu";
@@ -104,7 +105,14 @@ export function useSlashCommand({
     if (!enabled) return null;
     return SlashCommand.configure({
       suggestion: {
-        items: ({ query }) => filterSlashCommands(items, query),
+        // Asked of the editor each time rather than built once: what a
+        // table can be changed into is only offered while the caret is
+        // inside one (FF-1642).
+        items: ({ query, editor }) =>
+          filterSlashCommands(
+            tables ? [...items, ...tableSlashItems(editor)] : items,
+            query,
+          ),
         render: () => {
           const show = (props: {
             items: SlashCommandItem[];
@@ -141,7 +149,7 @@ export function useSlashCommand({
         },
       },
     });
-  }, [enabled, items]);
+  }, [enabled, items, tables]);
 
   const add = async (chosen: File) => {
     const editor = waiting.current;

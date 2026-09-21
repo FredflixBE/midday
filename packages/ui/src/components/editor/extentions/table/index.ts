@@ -19,6 +19,18 @@ import TableRow from "@tiptap/extension-table-row";
  */
 const cellAttributes = {
   colspan: { default: 1 },
+  /**
+   * How the cell's content sits across it. Kept on the cell rather than
+   * worked out from the column, because that is what every renderer reads —
+   * and a right-aligned column of numbers has to print right-aligned, not
+   * only look it on screen.
+   */
+  align: {
+    default: null,
+    parseHTML: (element: HTMLElement) => element.getAttribute("data-align"),
+    renderHTML: (attrs: Record<string, unknown>) =>
+      attrs.align ? { "data-align": attrs.align as string } : {},
+  },
   rowspan: { default: 1, parseHTML: () => 1, renderHTML: () => ({}) },
   colwidth: { default: null, parseHTML: () => null, renderHTML: () => ({}) },
 };

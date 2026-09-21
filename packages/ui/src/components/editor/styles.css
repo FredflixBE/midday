@@ -69,6 +69,23 @@
   margin: 0;
 }
 
+/* A cell's own alignment (FF-1642). Written out per value, because Tailwind
+   finds classes by reading source text and these are set from an attribute. */
+.tiptap table th[data-align="center"],
+.tiptap table td[data-align="center"] {
+  @apply text-center;
+}
+
+.tiptap table th[data-align="right"],
+.tiptap table td[data-align="right"] {
+  @apply text-right;
+}
+
+.tiptap table th[data-align="left"],
+.tiptap table td[data-align="left"] {
+  @apply text-left;
+}
+
 /* The cells a selection covers. A tint rather than an outline: the document
    pane holds no input fields to draw borders around. */
 .tiptap table .selectedCell::after {

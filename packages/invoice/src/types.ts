@@ -141,6 +141,8 @@ export interface EditorNode {
     alt?: string;
     /** How many columns a table cell takes up (FF-1642). */
     colspan?: number;
+    /** How a table cell's content sits across it (FF-1642). */
+    align?: "left" | "center" | "right" | null;
   };
   content?: EditorNode[];
   text?: string;

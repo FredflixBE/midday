@@ -9,12 +9,17 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../../../dropdown-menu";
 import {
+  type Align,
   type CellRef,
   columnActions,
   columnIsHeader,
+  isRectangular,
   rowActions,
   rowIsHeader,
   shapeOf,
@@ -23,6 +28,34 @@ import {
 
 /** Where one column or row sits on screen. */
 type Band = { start: number; size: number };
+
+/** One line of a handle's menu. */
+export type MenuEntry =
+  | { kind: "item"; label: string; run: () => void }
+  | { kind: "separator" }
+  | {
+      kind: "submenu";
+      label: string;
+      items: { label: string; run: () => void }[];
+    };
+
+const item = (label: string, run: () => void): MenuEntry => ({
+  kind: "item",
+  label,
+  run,
+});
+const separator: MenuEntry = { kind: "separator" };
+
+/** Where a column's or a row's content sits across its cells. */
+const alignSubmenu = (set: (value: Align | null) => void): MenuEntry => ({
+  kind: "submenu",
+  label: "Align",
+  items: [
+    { label: "Left", run: () => set(null) },
+    { label: "Centre", run: () => set("center") },
+    { label: "Right", run: () => set("right") },
+  ],
+});
 
 /** Where the cells are, which is not always where the `table` element is. */
 type Grid = {
@@ -107,8 +140,46 @@ export function TableControls({ editor }: { editor: Editor }) {
   const menuOpenRef = useRef(false);
   menuOpenRef.current = menuOpen;
 
+  /**
+   * The table the caret is in, so the controls are not pointer-only.
+   *
+   * Without this they exist only where the pointer is, which is nowhere at
+   * all for anyone working from the keyboard. Tabbing or clicking into a
+   * table shows its handles, and `/` offers the same actions inside one
+   * (FF-1642).
+   */
+  const caretTable = useCallback((): HTMLTableElement | null => {
+    const { $from } = editor.state.selection;
+    for (let depth = $from.depth; depth > 0; depth--) {
+      if ($from.node(depth).type.name !== "table") continue;
+      const element = editor.view.nodeDOM($from.before(depth));
+      const grid =
+        element instanceof HTMLElement
+          ? (element.closest("table") ?? element.querySelector("table"))
+          : null;
+      if (!grid) return null;
+
+      // Which column and row to draw a handle for: the cell the caret is
+      // in, since there is no pointer to take it from.
+      const at = editor.view.domAtPos($from.pos).node;
+      const cell = (at instanceof HTMLElement ? at : at.parentElement)?.closest(
+        "td,th",
+      );
+      const rect = cell?.getBoundingClientRect();
+      if (rect) {
+        pointer.current = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+      }
+      return grid as HTMLTableElement;
+    }
+    return null;
+  }, [editor]);
+
   const measure = useCallback(() => {
-    const element = near.current;
+    // The table under the pointer, or failing that the one being written in.
+    const element = near.current ?? caretTable();
     if (!element?.isConnected) {
       setMeasured(null);
       return;
@@ -176,7 +247,7 @@ export function TableControls({ editor }: { editor: Editor }) {
     // on a document with several blocks, enough to make the page stutter and
     // a save time out under it.
     setMeasured((was) => (unchanged(was, next) ? was : next));
-  }, [editor]);
+  }, [editor, caretTable]);
 
   // The re-measure above has to reach the current `measure`, which it cannot
   // name from inside its own definition.
@@ -219,9 +290,9 @@ export function TableControls({ editor }: { editor: Editor }) {
           }
         }
 
-        // Nowhere near a table, and nothing on screen: the common case as
-        // the pointer crosses the rest of the page, and there is nothing to
-        // do for it.
+        // Nowhere near a table and none was before: the common case as the
+        // pointer crosses the rest of the page. `measure` would only fall
+        // back to the caret, which has not moved, so there is nothing to do.
         if (!found && !near.current) return;
         near.current = found;
         measure();
@@ -249,6 +320,9 @@ export function TableControls({ editor }: { editor: Editor }) {
 
   const { ref, box, columns, rows, atColumn, atRow } = measured;
   const shape = shapeOf(ref.table);
+  // Duplicating, moving and sorting all name a column by its index, which
+  // means nothing across a row whose cells span two columns each.
+  const plain = isRectangular(ref.table);
   const act = (action: (cell: CellRef) => void, row: number, column: number) =>
     action({ ...ref, row, column });
   const column = columns[atColumn];
@@ -269,18 +343,75 @@ export function TableControls({ editor }: { editor: Editor }) {
             height: HANDLE,
           }}
           label={`Column ${atColumn + 1}`}
-          isHeader={columnIsHeader(ref.table, atColumn)}
-          headerLabel="Header column"
-          insertBefore="Insert column left"
-          insertAfter="Insert column right"
-          remove="Delete column"
-          removable={shape.columns > 1}
           onOpenChange={setMenuOpen}
-          onInsertBefore={() => act(columnActions.insertBefore, 0, atColumn)}
-          onInsertAfter={() => act(columnActions.insertAfter, 0, atColumn)}
-          onRemove={() => act(columnActions.remove, 0, atColumn)}
-          onDeleteTable={() => act(columnActions.removeTable, 0, atColumn)}
-          onToggleHeader={() => act(columnActions.toggleHeader, 0, atColumn)}
+          items={[
+            item("Insert column left", () =>
+              act(columnActions.insertBefore, 0, atColumn),
+            ),
+            item("Insert column right", () =>
+              act(columnActions.insertAfter, 0, atColumn),
+            ),
+            separator,
+            alignSubmenu((value) =>
+              columnActions.align({ ...ref, row: 0, column: atColumn }, value),
+            ),
+            ...(plain
+              ? [
+                  separator,
+                  item("Duplicate column", () =>
+                    act(columnActions.duplicate, 0, atColumn),
+                  ),
+                  ...(atColumn > 0
+                    ? [
+                        item("Move left", () =>
+                          columnActions.move(
+                            { ...ref, row: 0, column: atColumn },
+                            -1,
+                          ),
+                        ),
+                      ]
+                    : []),
+                  ...(atColumn < shape.columns - 1
+                    ? [
+                        item("Move right", () =>
+                          columnActions.move(
+                            { ...ref, row: 0, column: atColumn },
+                            1,
+                          ),
+                        ),
+                      ]
+                    : []),
+                  separator,
+                  item("Sort A–Z", () =>
+                    columnActions.sort({ ...ref, row: 0, column: atColumn }, 1),
+                  ),
+                  item("Sort Z–A", () =>
+                    columnActions.sort(
+                      { ...ref, row: 0, column: atColumn },
+                      -1,
+                    ),
+                  ),
+                ]
+              : []),
+            separator,
+            item(
+              columnIsHeader(ref.table, atColumn)
+                ? "Remove header column"
+                : "Header column",
+              () => act(columnActions.toggleHeader, 0, atColumn),
+            ),
+            separator,
+            ...(shape.columns > 1
+              ? [
+                  item("Delete column", () =>
+                    act(columnActions.remove, 0, atColumn),
+                  ),
+                ]
+              : []),
+            item("Delete table", () =>
+              act(columnActions.removeTable, 0, atColumn),
+            ),
+          ]}
         />
       ) : null}
 
@@ -294,18 +425,56 @@ export function TableControls({ editor }: { editor: Editor }) {
             width: HANDLE,
           }}
           label={`Row ${atRow + 1}`}
-          isHeader={rowIsHeader(ref.table, atRow)}
-          headerLabel="Header row"
-          insertBefore="Insert row above"
-          insertAfter="Insert row below"
-          remove="Delete row"
-          removable={shape.rows > 1}
           onOpenChange={setMenuOpen}
-          onInsertBefore={() => act(rowActions.insertBefore, atRow, 0)}
-          onInsertAfter={() => act(rowActions.insertAfter, atRow, 0)}
-          onRemove={() => act(rowActions.remove, atRow, 0)}
-          onDeleteTable={() => act(rowActions.removeTable, atRow, 0)}
-          onToggleHeader={() => act(rowActions.toggleHeader, atRow, 0)}
+          items={[
+            item("Insert row above", () =>
+              act(rowActions.insertBefore, atRow, 0),
+            ),
+            item("Insert row below", () =>
+              act(rowActions.insertAfter, atRow, 0),
+            ),
+            separator,
+            alignSubmenu((value) =>
+              rowActions.align({ ...ref, row: atRow, column: 0 }, value),
+            ),
+            ...(plain
+              ? [
+                  separator,
+                  item("Duplicate row", () =>
+                    act(rowActions.duplicate, atRow, 0),
+                  ),
+                  ...(atRow > 0
+                    ? [
+                        item("Move up", () =>
+                          rowActions.move(
+                            { ...ref, row: atRow, column: 0 },
+                            -1,
+                          ),
+                        ),
+                      ]
+                    : []),
+                  ...(atRow < shape.rows - 1
+                    ? [
+                        item("Move down", () =>
+                          rowActions.move({ ...ref, row: atRow, column: 0 }, 1),
+                        ),
+                      ]
+                    : []),
+                ]
+              : []),
+            separator,
+            item(
+              rowIsHeader(ref.table, atRow)
+                ? "Remove header row"
+                : "Header row",
+              () => act(rowActions.toggleHeader, atRow, 0),
+            ),
+            separator,
+            ...(shape.rows > 1
+              ? [item("Delete row", () => act(rowActions.remove, atRow, 0))]
+              : []),
+            item("Delete table", () => act(rowActions.removeTable, atRow, 0)),
+          ]}
         />
       ) : null}
 
@@ -344,34 +513,14 @@ function Handle({
   kind,
   style,
   label,
-  isHeader,
-  headerLabel,
-  insertBefore,
-  insertAfter,
-  remove,
-  removable,
-  onDeleteTable,
+  items,
   onOpenChange,
-  onInsertBefore,
-  onInsertAfter,
-  onRemove,
-  onToggleHeader,
 }: {
   kind: "row" | "column";
   style: React.CSSProperties;
   label: string;
-  isHeader: boolean;
-  headerLabel: string;
-  insertBefore: string;
-  insertAfter: string;
-  remove: string;
-  removable: boolean;
-  onDeleteTable: () => void;
+  items: MenuEntry[];
   onOpenChange: (open: boolean) => void;
-  onInsertBefore: () => void;
-  onInsertAfter: () => void;
-  onRemove: () => void;
-  onToggleHeader: () => void;
 }) {
   return (
     <DropdownMenu onOpenChange={onOpenChange}>
@@ -389,25 +538,48 @@ function Handle({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-44">
-        <DropdownMenuItem onSelect={onInsertBefore}>
-          {insertBefore}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onInsertAfter}>
-          {insertAfter}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onToggleHeader}>
-          {isHeader ? `Remove ${headerLabel.toLowerCase()}` : headerLabel}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {removable ? (
-          <DropdownMenuItem onSelect={onRemove}>{remove}</DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem onSelect={onDeleteTable}>
-          Delete table
-        </DropdownMenuItem>
+        <MenuEntries items={items} />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function MenuEntries({ items }: { items: MenuEntry[] }) {
+  return (
+    <>
+      {items.map((entry, index) => {
+        if (entry.kind === "separator") {
+          // Two separators running together, or one at either end, is what
+          // you get when a whole group is left out; they are dropped here
+          // rather than guarded at every call site.
+          const before = items[index - 1];
+          const after = items[index + 1];
+          if (!before || !after || before.kind === "separator") return null;
+          return (
+            <DropdownMenuSeparator key={`separator-${index.toString()}`} />
+          );
+        }
+        if (entry.kind === "submenu") {
+          return (
+            <DropdownMenuSub key={entry.label}>
+              <DropdownMenuSubTrigger>{entry.label}</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {entry.items.map((sub) => (
+                  <DropdownMenuItem key={sub.label} onSelect={sub.run}>
+                    {sub.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          );
+        }
+        return (
+          <DropdownMenuItem key={entry.label} onSelect={entry.run}>
+            {entry.label}
+          </DropdownMenuItem>
+        );
+      })}
+    </>
   );
 }
 

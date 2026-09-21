@@ -461,6 +461,29 @@ describe("formatEditorContent", () => {
       }
     });
 
+    test("sits a cell's content where the cell says, so a number column prints right", () => {
+      const doc = {
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              row(
+                { ...cell("Left"), attrs: { align: "left" } },
+                { ...cell("Middle"), attrs: { align: "center" } },
+                { ...cell("Right"), attrs: { align: "right" } },
+                cell("Unsaid"),
+              ),
+            ],
+          },
+        ],
+      } as EditorDoc;
+      const line = tableOf(doc).children[0] as Element;
+      expect(
+        (line.children as Element[]).map((c) => styleOf(c).alignItems),
+      ).toEqual(["flex-start", "center", "flex-end", "flex-start"]);
+    });
+
     test("draws a list written inside a cell as a list", () => {
       const doc = {
         type: "doc",

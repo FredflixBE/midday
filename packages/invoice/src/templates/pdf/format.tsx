@@ -41,6 +41,12 @@ const tableRuleWidth = 0.5;
 // A header cell is tinted as well as bold, so which row or column is the
 // header reads at a glance. The same grey the editor and the web view use.
 const tableHeaderFill = "#F6F6F3";
+// Where a cell's content sits across it, as react-pdf says it.
+const cellAlignment: Record<string, "flex-start" | "center" | "flex-end"> = {
+  left: "flex-start",
+  center: "center",
+  right: "flex-end",
+};
 const cellPaddingVertical = 3;
 const cellPaddingHorizontal = 4;
 
@@ -237,6 +243,10 @@ function renderTableCell(
   // PDF disagree with what was written.
   const span = Math.max(1, cell.attrs?.colspan ?? 1);
   const heading = cell.type === "tableHeader";
+  // A cell's own alignment (FF-1642). The cell is a column of blocks, so
+  // where its content sits across it is `alignItems` — the blocks inside
+  // shrink to their content rather than filling the cell.
+  const across = cellAlignment[cell.attrs?.align ?? "left"] ?? "flex-start";
   const base = heading ? { ...bodyText, fontWeight: 600 } : bodyText;
 
   return (
@@ -245,6 +255,7 @@ function renderTableCell(
       style={{
         flexGrow: span,
         flexBasis: 0,
+        alignItems: across,
         ...(heading ? { backgroundColor: tableHeaderFill } : {}),
         paddingVertical: cellPaddingVertical,
         paddingHorizontal: cellPaddingHorizontal,

@@ -104,14 +104,22 @@ function renderBlock(node: EditorNode, index: number): React.ReactNode {
                 {(line.content ?? []).map((cell, cellIndex) => {
                   const span = Math.max(1, cell.attrs?.colspan ?? 1);
                   const Cell = cell.type === "tableHeader" ? "th" : "td";
+                  // Written out per value: Tailwind finds its classes by
+                  // reading this file, and these come from an attribute.
+                  const across =
+                    {
+                      left: "text-left",
+                      center: "text-center",
+                      right: "text-right",
+                    }[cell.attrs?.align ?? "left"] ?? "text-left";
                   return (
                     <Cell
                       key={`${key}-cell-${lineIndex.toString()}-${cellIndex.toString()}`}
                       colSpan={span === 1 ? undefined : span}
                       className={
                         Cell === "th"
-                          ? "align-top text-left border border-border px-1.5 py-1 bg-[#F6F6F3] dark:bg-[#1C1C1C]"
-                          : "align-top text-left border border-border px-1.5 py-1"
+                          ? `align-top border border-border px-1.5 py-1 bg-[#F6F6F3] dark:bg-[#1C1C1C] ${across}`
+                          : `align-top border border-border px-1.5 py-1 ${across}`
                       }
                       style={{
                         fontSize: bodySize,
