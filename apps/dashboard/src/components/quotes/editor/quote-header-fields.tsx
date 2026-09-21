@@ -1,5 +1,6 @@
 "use client";
 
+import { documentTitleSize, px } from "@midday/invoice/templates/typeset";
 import { withKind } from "@midday/quote";
 import { cn } from "@midday/ui/cn";
 import { Input } from "@midday/ui/input";
@@ -18,6 +19,9 @@ import {
   UNIT_LABELS,
 } from "./fields";
 import { RailSection } from "./quote-rail";
+
+/** What the document reads at on screen, which the title is sized from. */
+const DOCUMENT_BODY = 14;
 
 /**
  * The quote's title, which is part of the document and so stays in the main
@@ -49,10 +53,15 @@ export function QuoteTitleField({
       value={title}
       maxLength={300}
       disabled={locked}
+      // The one thing on the page that names the whole document, so it sits
+      // above every title a block can carry (FF-1652). It was `text-lg`,
+      // which left it smaller than every heading inside the document it
+      // names.
+      style={{ fontSize: px(documentTitleSize(DOCUMENT_BODY)) }}
       className={cn(
         // No ring and no box: the caret is what says the title is being
         // typed, the way it does everywhere else in the document.
-        "h-auto border-0 bg-transparent p-0 text-lg font-medium focus-visible:ring-0",
+        "h-auto border-0 bg-transparent p-0 font-medium leading-tight focus-visible:ring-0",
         // A version that cannot be edited reads as the document throughout,
         // so its title is neither dimmed nor refused under the pointer. A
         // title locked on a draft still is: there, it is the one field of

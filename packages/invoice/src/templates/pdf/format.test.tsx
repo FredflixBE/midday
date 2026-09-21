@@ -622,6 +622,25 @@ describe("formatEditorContent", () => {
     });
   });
 
+  test("spaces a document's paragraphs, and an address block's never", () => {
+    // The View a paragraph is drawn as, not the Text inside it.
+    const spacing = (options?: { spacedParagraphs?: boolean }) =>
+      elements(tree(formatEditorContent(paragraphsOnly, options)))
+        .filter(
+          (e) =>
+            e.type === "VIEW" &&
+            e.children.some((c) => typeof c !== "string" && c.type === "TEXT"),
+        )
+        .map((e) => Number(styleOf(e).marginBottom ?? 0));
+
+    // An address is a list of lines, not a run of paragraphs; spacing one
+    // out reads as a mistake, and this renders both (FF-1652).
+    expect(spacing().every((gap) => gap === 0)).toBe(true);
+    expect(spacing({ spacedParagraphs: true }).every((gap) => gap > 0)).toBe(
+      true,
+    );
+  });
+
   test("skips nodes it does not know instead of failing", () => {
     const doc = {
       type: "doc",

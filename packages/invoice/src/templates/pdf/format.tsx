@@ -62,6 +62,15 @@ export type ImageSource = { data: Buffer; format: "png" | "jpg" };
 export type FormatOptions = {
   /** The bytes behind a stored path, or null when there are none. */
   imageOf?: (storedPath: string) => ImageSource | null;
+  /**
+   * True puts room under every paragraph (FF-1652).
+   *
+   * Off by default, and deliberately: this draws an invoice's `from` and
+   * customer address blocks as well as a quote's text, and an address is a
+   * list of lines rather than a run of paragraphs. Spacing one out reads as
+   * a mistake. A document that is actually prose asks for it.
+   */
+  spacedParagraphs?: boolean;
 };
 
 export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
@@ -91,7 +100,18 @@ function renderBlock(
   switch (node.type) {
     case "paragraph":
       return (
-        <View key={`paragraph-${path}`} style={{ alignItems: "flex-start" }}>
+        <View
+          key={`paragraph-${path}`}
+          // Room under every paragraph of a document (FF-1652). Without it
+          // a block of three reads as one grey slab with line breaks in it,
+          // which no amount of heading size fixes.
+          style={{
+            alignItems: "flex-start",
+            ...(options?.spacedParagraphs
+              ? { marginBottom: BODY * TYPESET.flow.paragraph }
+              : {}),
+          }}
+        >
           <Text>{renderInline(node, path, base)}</Text>
         </View>
       );

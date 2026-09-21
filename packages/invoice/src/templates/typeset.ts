@@ -27,20 +27,31 @@ export const TYPESET = {
   heading: { 1: 1.75, 2: 1.45, 3: 1.2 } as Record<number, number>,
   smallestHeading: 1.2,
   /**
-   * A block's own title, which sits above every heading its text can hold.
-   * It used to be drawn at exactly an h1's size, in the editor and in the
-   * PDF alike, so a section's title and a heading inside it were the same
-   * thing to look at.
+   * A block's own title, which names the section its text belongs to. It is
+   * drawn at what used to be an h1's size, because that is what it is — the
+   * heading a block already has. Offering an h1 inside it as well gave a
+   * block two titles trying to mean the same thing, so the slash menu now
+   * offers a heading and a subheading under it rather than a second first
+   * level (FF-1652).
    */
-  blockHeading: 2.1,
+  blockHeading: 1.75,
+  /**
+   * The quote's own name, above every title a block can carry. It is the
+   * one thing on the page that names the whole document.
+   */
+  documentTitle: 2.1,
   /** How far apart the lines of a paragraph sit, and of a heading. */
   leading: { body: 1.55, heading: 1.25 },
   /**
-   * The space around a heading, as a multiple of the body size. More above
-   * than below, so a heading belongs to what follows it rather than
-   * floating between two things equally.
+   * The space around a block, as a multiple of the body size. A heading
+   * takes more above than below, so it belongs to what follows it rather
+   * than floating between two things equally; a paragraph takes the same on
+   * both sides, because it belongs to nothing but itself.
+   *
+   * Paragraphs had none at all, which is what made a written block read as
+   * one grey slab with line breaks in it (FF-1652).
    */
-  flow: { above: 1.1, below: 0.35 },
+  flow: { above: 1.1, below: 0.35, paragraph: 0.55 },
 } as const;
 
 /** A heading's size at this body size, for the level given. */
@@ -51,6 +62,11 @@ export function headingSize(body: number, level = 1): number {
 /** A block's own title at this body size. */
 export function blockHeadingSize(body: number): number {
   return body * TYPESET.blockHeading;
+}
+
+/** The quote's own name at this body size. */
+export function documentTitleSize(body: number): number {
+  return body * TYPESET.documentTitle;
 }
 
 /** Rounded to whole pixels, for the surfaces measured in them. */

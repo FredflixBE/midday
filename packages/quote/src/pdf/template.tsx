@@ -51,6 +51,8 @@ function Rich({
       {/* The same Tiptap shape, typed loosely on this side. */}
       {formatEditorContent(doc as unknown as InvoiceEditorDoc, {
         imageOf: (path) => images?.[path] ?? null,
+        // A quote's text is prose, not an address block (FF-1652).
+        spacedParagraphs: true,
       })}
     </View>
   );

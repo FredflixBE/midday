@@ -231,6 +231,7 @@ const TYPESET_VARS = {
   "--typeset-heading-leading": `${TYPESET.leading.heading}`,
   "--typeset-above": `${px(BODY * TYPESET.flow.above)}px`,
   "--typeset-below": `${px(BODY * TYPESET.flow.below)}px`,
+  "--typeset-paragraph": `${px(BODY * TYPESET.flow.paragraph)}px`,
 } as CSSProperties;
 
 /**

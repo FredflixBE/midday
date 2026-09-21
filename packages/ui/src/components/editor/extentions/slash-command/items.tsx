@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Heading1,
   Heading2,
   Heading3,
   Image as ImageIcon,
@@ -13,11 +12,29 @@ import {
 } from "lucide-react";
 import type { SlashCommandItem } from "./types";
 
-const HEADING_ICONS = {
-  1: <Heading1 className="size-3.5" />,
-  2: <Heading2 className="size-3.5" />,
-  3: <Heading3 className="size-3.5" />,
-};
+/**
+ * A heading and a subheading, and no first level (FF-1652).
+ *
+ * A quote's block already carries a title, drawn at what used to be an h1's
+ * size — so offering an h1 inside it gave the block two titles trying to
+ * mean the same thing, and they were indistinguishable. What a block's text
+ * wants under its own title is a heading and one below it.
+ *
+ * Named for what they are rather than numbered, because the numbers no
+ * longer start at one. Text already written as an h1 still draws as one.
+ */
+const HEADINGS = [
+  {
+    level: 2 as const,
+    label: "Heading",
+    icon: <Heading2 className="size-3.5" />,
+  },
+  {
+    level: 3 as const,
+    label: "Subheading",
+    icon: <Heading3 className="size-3.5" />,
+  },
+];
 
 /**
  * What `/` offers (FF-1638). Only what every renderer draws — the editor, the
@@ -39,10 +56,10 @@ export function slashCommandItems(options?: {
       command: ({ editor, range }) =>
         editor.chain().focus().deleteRange(range).setParagraph().run(),
     },
-    ...([1, 2, 3] as const).map((level) => ({
+    ...HEADINGS.map(({ level, label, icon }) => ({
       id: `heading-${level}`,
-      label: `Heading ${level}`,
-      icon: HEADING_ICONS[level],
+      label,
+      icon,
       command: ({
         editor,
         range,

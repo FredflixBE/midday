@@ -29,6 +29,17 @@
   font-size: var(--typeset-h2, inherit);
 }
 
+/* Room under every paragraph (FF-1652). Without it a block of three reads as
+   one grey slab with line breaks in it, which no heading size fixes. */
+.tiptap p {
+  margin-bottom: var(--typeset-paragraph, 0);
+}
+
+/* Except inside a table, where a cell's own padding is the room. */
+.tiptap table p {
+  margin-bottom: 0;
+}
+
 .tiptap a {
   @apply underline;
 }
