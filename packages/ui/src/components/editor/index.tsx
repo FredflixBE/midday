@@ -16,6 +16,7 @@ import { TableControls } from "./extentions/table/table-controls";
 
 export type { StoredImages };
 
+import type { CSSProperties } from "react";
 import { Toolbar } from "./extentions/toolbar";
 
 type EditorProps = {
@@ -25,6 +26,13 @@ type EditorProps = {
   onBlur?: () => void;
   onFocus?: () => void;
   className?: string;
+  /**
+   * Set on the same element `className` is, so a caller whose class reads a
+   * custom property can declare it on the element that class is on. Setting
+   * it on an ancestor is not the same thing: a class that declares its own
+   * default for that property would beat the inherited value.
+   */
+  style?: CSSProperties;
   tabIndex?: number;
   /** False shows the content without letting it be changed. */
   editable?: boolean;
@@ -67,6 +75,7 @@ export function Editor({
   onBlur,
   onFocus,
   className,
+  style,
   tabIndex,
   editable = true,
   toolbar = false,
@@ -109,6 +118,7 @@ export function Editor({
       <EditorContent
         editor={editor}
         className={className}
+        style={style}
         tabIndex={tabIndex}
       />
       <BubbleMenu editor={editor} />

@@ -18,39 +18,29 @@
  */
 
 /*
- * A document's reading rhythm (FF-1651). The caller sets the four sizes and
- * two spacings from the one scale every surface reads — `@midday/invoice`'s
- * `typeset` — because react-pdf takes numbers and cannot read any of this,
- * so a stylesheet could never be where the sizes live. Without them set,
- * nothing here applies and the editor reads as it always did.
+ * What an editor draws where no typeset sets its headings (FF-1663).
+ *
+ * A quote's document is wrapped in one now, and a typeset is what sizes and
+ * spaces every level there. This rule has to stand out of its way, because
+ * everything in this file is unlayered — `@reference` emits no layer — and
+ * unlayered CSS beats a layer whatever the specificity. It would win the one
+ * argument the typeset exists to settle.
+ *
+ * The rest of the file is deliberately left reaching inside: the table grid,
+ * the picture margins and the placeholder are this editor's, not a
+ * document's, and the same ones are drawn on every surface. What is left
+ * here is the invoice's notes and details, at exactly what they were drawn
+ * at before there was a typeset to read (FF-1651).
  */
-.tiptap :is(h1, h2, h3, h4, h5, h6) {
-  font-size: var(--typeset-h3, inherit);
-  line-height: var(--typeset-heading-leading, inherit);
-  margin-top: var(--typeset-above, 0.5rem);
-  margin-bottom: var(--typeset-below, 0.25rem);
-  /* A block's own title is heavier than a heading inside it (FF-1662). The
-     fallback is what every caller drew before there was a scale to read. */
-  font-weight: var(--typeset-heading-weight, 500);
+.tiptap:not(.typeset *) :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
 }
 
-.tiptap h1 {
-  font-size: var(--typeset-h1, inherit);
-}
-
-.tiptap h2 {
-  font-size: var(--typeset-h2, inherit);
-}
-
-/* Room under every paragraph (FF-1652). Without it a block of three reads as
-   one grey slab with line breaks in it, which no heading size fixes. */
-.tiptap p {
-  margin-bottom: var(--typeset-paragraph, 0);
-}
-
-/* Except inside a table, where a cell's own padding is the room. */
+/* A cell's own padding is the room inside a table, on every surface. */
 .tiptap table p {
-  margin-bottom: 0;
+  margin: 0;
 }
 
 .tiptap a {
@@ -107,10 +97,6 @@
    PDF and the web view, and the three have to agree. */
 .tiptap table th {
   @apply bg-[#F6F6F3] text-left font-semibold dark:bg-[#1C1C1C];
-}
-
-.tiptap table p {
-  margin: 0;
 }
 
 /* A cell's own alignment (FF-1642). Written out per value, because Tailwind

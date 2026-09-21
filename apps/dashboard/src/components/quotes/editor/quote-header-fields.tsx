@@ -3,7 +3,7 @@
 import {
   documentTitleSize,
   px,
-  TYPESET,
+  QUOTE_TYPESET,
 } from "@midday/invoice/templates/typeset";
 import { withKind } from "@midday/quote";
 import { cn } from "@midday/ui/cn";
@@ -22,10 +22,8 @@ import {
   OptionSelect,
   UNIT_LABELS,
 } from "./fields";
+import { DOCUMENT_BODY } from "./quote-blocks";
 import { RailSection } from "./quote-rail";
-
-/** What the document reads at on screen, which the title is sized from. */
-const DOCUMENT_BODY = 14;
 
 /**
  * The quote's title, which is part of the document and so stays in the main
@@ -65,7 +63,7 @@ export function QuoteTitleField({
       // `font-medium` while the PDF drew the same title at 600.
       style={{
         fontSize: px(documentTitleSize(DOCUMENT_BODY)),
-        fontWeight: TYPESET.weight.documentTitle,
+        fontWeight: QUOTE_TYPESET.weight.documentTitle,
       }}
       className={cn(
         // No ring and no box: the caret is what says the title is being

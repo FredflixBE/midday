@@ -8,6 +8,17 @@
  */
 @import "@midday/ui/globals.css";
 
+/*
+ * The typeset a document is set in (FF-1663).
+ *
+ * After the theme's import, because that is what brings Tailwind and so
+ * declares the layer order — `theme, base, components, utilities`. The file
+ * puts itself in `components`, which is the point: a layer loses to every
+ * utility, and an unlayered stylesheet imported here would beat them all
+ * whatever the specificity (FF-1650).
+ */
+@import "./typeset.css";
+
 @source "../";
 @source "../../../../packages/ui/src";
 @source "../../../../packages/invoice/src";

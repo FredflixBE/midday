@@ -2,9 +2,8 @@
 
 import {
   blockHeadingSize,
-  headingSize,
   px,
-  TYPESET,
+  QUOTE_TYPESET,
 } from "@midday/invoice/templates/typeset";
 import type { Block, QuoteContent } from "@midday/quote";
 import type { ComparisonView, ScenarioView } from "@midday/quote/view";
@@ -53,7 +52,7 @@ const ONE_EMPTY_PARAGRAPH: TextBlock["body"] = {
  * broke roughly where a line there does, and Frederik's call is that the
  * preview is not worth the cost: a browser is not a page, the reader can
  * resize it, and the rail beside the column already shapes it. The print
- * takes the measure from `TYPESET.measure`; the screen takes this.
+ * takes the measure from `QUOTE_TYPESET.measure`; the screen takes this.
  *
  * What the two still share is the *hierarchy* — the sizes and weights of
  * every level relative to the body — which is what "reads as it prints"
@@ -215,55 +214,60 @@ function PricingBlock({
   );
 }
 
-/** What the document reads at on screen; every other size follows from it. */
-const BODY = 14;
+/**
+ * What the document reads at on screen; every other size follows from it.
+ *
+ * A screen is not a page, so this is not the print's 9pt and does not have
+ * to be: the scale is a set of proportions and each surface states only how
+ * big its own body text is (FF-1651). 16 is what a document reads at on a
+ * screen — Notion's size — where 14 was inherited from the invoice sheet
+ * around it.
+ *
+ * It shortens the line as well as enlarging the text: the column is 800px,
+ * which was 57em of 14px — about 108 characters — and is 50em of this, about
+ * 95. Still over the 45–75 FF-1662 asked for, but nearer it.
+ */
+export const DOCUMENT_BODY = 16;
+const BODY = DOCUMENT_BODY;
 
 /**
- * The reading rhythm, handed to the editor's stylesheet as the sizes it
- * should draw (FF-1651).
+ * The three controls a typeset is reduced to (FF-1663).
  *
- * Every size here is a multiple of the body size, from the one scale that
- * the PDF, the web view and the MCP preview read as well — so the screen
- * reads as the print reads because both are derived from the same
- * proportions, rather than because someone keeps four sets of numbers in
- * step by hand (FF-1633).
+ * This is the whole of what the editor tells the stylesheet. Every size,
+ * weight and space on screen is derived from these by shadcn/typeset —
+ * `apps/dashboard/src/styles/typeset.css` — rather than by us.
+ *
+ * They come from the quote's own scale because react-pdf takes numbers and
+ * can read no stylesheet, so the print reads that scale directly and the
+ * screen reads it through these. The scale holds the stylesheet's own
+ * numbers, and `typeset.test.ts` is what proves it still does.
+ *
+ * The flow is in ems because upstream converts it into the ems of whatever
+ * block it is spacing — `calc(var(--typeset-flow) / 0.875)` above a code
+ * block, and so on — and that arithmetic only means what it says if the
+ * value it starts from is relative.
  *
  * Custom properties rather than classes: Tailwind finds its classes by
  * reading source text, and a size worked out from a ratio is a size it would
  * never generate.
  */
 const TYPESET_VARS = {
-  "--typeset-h1": `${px(headingSize(BODY, 1))}px`,
-  "--typeset-h2": `${px(headingSize(BODY, 2))}px`,
-  "--typeset-h3": `${px(headingSize(BODY, 3))}px`,
-  "--typeset-heading-leading": `${TYPESET.leading.heading}`,
-  "--typeset-above": `${px(BODY * TYPESET.flow.above)}px`,
-  "--typeset-below": `${px(BODY * TYPESET.flow.below)}px`,
-  "--typeset-paragraph": `${px(BODY * TYPESET.flow.paragraph)}px`,
-  "--typeset-heading-weight": `${TYPESET.weight.heading}`,
+  "--typeset-size": `${BODY}px`,
+  "--typeset-leading": `${QUOTE_TYPESET.leading.body}`,
+  "--typeset-flow": `${QUOTE_TYPESET.flow.paragraph}em`,
 } as CSSProperties;
 
 /**
- * What the text reads like wherever it is written (FF-1633). Tailwind's reset
- * flattens lists, so they carry their own markers and indent here; the sizes
- * come from `TYPESET_VARS` above.
+ * The two classes a document is set by (FF-1663): `typeset` is the container
+ * shadcn's stylesheet styles everything inside, and `typeset-quote` is our
+ * preset on top of it — the steps and the rhythm the print also draws.
+ *
+ * Between them they replaced a list of arbitrary variants that re-taught
+ * Tailwind's reset what a list is, and they reach what those never did:
+ * blockquotes, code, rules, nested lists, and the room above the first
+ * paragraph of a block.
  */
-const TEXT_STYLES = cn(
-  "text-sm leading-[1.55]",
-  "[&_ol]:my-1 [&_ol]:list-decimal [&_ol]:pl-5",
-  "[&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5",
-  // The editor sets its own size and a loose leading for invoice text.
-  "[&_.tiptap]:text-sm [&_.tiptap]:leading-[1.55]",
-  // How to start, on the line being written and nowhere else (FF-1649). The
-  // extension marks only the node the caret is in, and the focused editor is
-  // the only one that draws it — so a document of empty blocks is empty
-  // rather than a column of repeated instructions.
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:pointer-events-none",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:float-left",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:h-0",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:text-[#878787]",
-  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:content-[attr(data-placeholder)]",
-);
+const DOCUMENT_TYPESET = "typeset typeset-quote";
 
 /**
  * A block's own title, which sits above every heading its text can hold
@@ -276,7 +280,22 @@ const BLOCK_HEADING_SIZE = {
   fontSize: px(blockHeadingSize(BODY)),
   // Heavier than a heading inside the block, and the same weight the PDF
   // already drew it at — the two had disagreed, 500 here against 600 there.
-  fontWeight: TYPESET.weight.blockHeading,
+  fontWeight: QUOTE_TYPESET.weight.blockHeading,
+  /**
+   * The room under it, which the print has always given and the screen never
+   * did (FF-1663). A title is a field of the page rather than a node of the
+   * document, so it stands outside the typeset — and a typeset trims the
+   * space above the first thing in its container, which is right for a
+   * document that starts at its own top and wrong for one with a title
+   * bolted above it. A block opening with a paragraph had the title sitting
+   * flat on the text.
+   *
+   * `flow.below` is what the PDF gives it, so this is the same room drawn
+   * the same way rather than a number chosen to look right. It collapses
+   * with whatever follows, so a block opening with a heading still takes
+   * that heading's own room and no more.
+   */
+  marginBottom: px(BODY * QUOTE_TYPESET.flow.below),
 } as const;
 
 /**
@@ -355,6 +374,9 @@ function TextBlockEditor({
       diagrams
       autoFocus={autoFocus}
       className={className}
+      // On the container itself: a typeset declares its own controls, so a
+      // value inherited from the block around it would lose to them.
+      style={TYPESET_VARS}
       onUpdate={(editor) =>
         onChange({
           body: (editor.isEmpty
@@ -450,11 +472,11 @@ function TextBlockEditor({
         </h3>
       ) : null}
 
-      <div ref={body} style={TYPESET_VARS}>
+      <div ref={body}>
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (
-          renderEditor(cn(editable && "min-h-[1.5rem]", TEXT_STYLES))
+          renderEditor(cn(editable && "min-h-[1.5rem]", DOCUMENT_TYPESET))
         )}
       </div>
 
@@ -469,13 +491,16 @@ function TextBlockEditor({
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle>{block.heading || "Text block"}</DialogTitle>
           </DialogHeader>
-          <div className="flex min-h-0 flex-1 flex-col" style={TYPESET_VARS}>
+          <div className="flex min-h-0 flex-1 flex-col">
             {/* Radix keeps the dialog mounted while it animates shut, and by
                 then the page holds the editor again: this guard is what keeps
                 it to one. */}
             {expanded
               ? renderEditor(
-                  cn("min-h-0 flex-1 overflow-y-auto px-6 py-4", TEXT_STYLES),
+                  cn(
+                    "min-h-0 flex-1 overflow-y-auto px-6 py-4",
+                    DOCUMENT_TYPESET,
+                  ),
                   true,
                 )
               : null}
