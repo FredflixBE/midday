@@ -31,29 +31,19 @@ export const emptyState = (): LifecycleState => ({
   done: new Set(),
 });
 
-type Timers = {
-  setInterval: (callback: () => void, ms: number) => IntervalHandle;
-  clearInterval: (handle: IntervalHandle) => void;
-};
-
 type Options = {
   state?: LifecycleState;
-  timers?: Timers;
 };
 
 export const createProcessLifecycle = ({
   state = emptyState(),
-  timers = {
-    setInterval: (callback, ms) => setInterval(callback, ms),
-    clearInterval: (handle) => clearInterval(handle),
-  },
 }: Options = {}) => {
   const stopInterval = (name: string) => {
     const running = state.intervals.get(name);
     if (running === undefined) return;
 
     state.intervals.delete(name);
-    timers.clearInterval(running);
+    clearInterval(running);
   };
 
   const claim = (name: string) => {
@@ -72,29 +62,15 @@ export const createProcessLifecycle = ({
       stopInterval(name);
       if (ms <= 0) return null;
 
-      const handle = timers.setInterval(callback, ms);
+      const handle = setInterval(callback, ms);
       state.intervals.set(name, handle);
       return handle;
     },
 
     stopInterval,
 
-    /**
-     * True for the first caller in this process and false for every one after.
-     *
-     * What a hot reload cannot be stopped from stacking is process listeners:
-     * registering them from here, so that an evaluation could replace the last
-     * one's, left the signal undeliverable and the server dying on Ctrl-C
-     * without closing a connection. So the listeners stay where they are and
-     * the work behind them is claimed instead — one signal, one shutdown,
-     * whatever number of listeners passed it on.
-     */
+    /** True for the first caller in this process, false for every one after. */
     claim,
-
-    /** Run `task` the first time this process asks for it, and never again. */
-    once(name: string, task: () => void) {
-      if (claim(name)) task();
-    },
   };
 };
 
@@ -102,7 +78,9 @@ export type ProcessLifecycle = ReturnType<typeof createProcessLifecycle>;
 
 const STATE = Symbol.for("@midday/api/process-lifecycle");
 
-const globals = globalThis as unknown as Record<symbol, LifecycleState>;
+const globals = globalThis as unknown as {
+  [STATE]?: LifecycleState;
+};
 
 // The state a hot reload has to find again, so it has to outlive this module.
 globals[STATE] ??= emptyState();

@@ -314,7 +314,7 @@ app.get(
 
 app.route("/", routers);
 
-const POOL_STATS_INTERVAL = "db-pool-stats";
+const POOL_STATS_TIMER = "db-pool-stats";
 
 const poolStatsIntervalMsRaw = process.env.DB_POOL_STATS_INTERVAL_MS;
 const parsedPoolStatsIntervalMs = Number.parseInt(
@@ -325,7 +325,7 @@ const poolStatsIntervalMs = Number.isFinite(parsedPoolStatsIntervalMs)
   ? parsedPoolStatsIntervalMs
   : 60000;
 processLifecycle.startInterval(
-  POOL_STATS_INTERVAL,
+  POOL_STATS_TIMER,
   () => {
     logger.info("API DB pool stats", {
       pool: getPoolStats(),
@@ -369,7 +369,7 @@ const shutdown = async (signal: string) => {
 
   const shutdownPromise = (async () => {
     try {
-      processLifecycle.stopInterval(POOL_STATS_INTERVAL);
+      processLifecycle.stopInterval(POOL_STATS_TIMER);
 
       logger.info("Closing database connections...");
       await closeDb();
@@ -416,8 +416,8 @@ process.on("unhandledRejection", (reason, promise) => {
 // every save would otherwise embed them against OpenAI again.
 import { warmToolIndex } from "./chat/tools";
 
-if (process.env.OPENAI_API_KEY) {
-  processLifecycle.once("warm-tool-index", warmToolIndex);
+if (process.env.OPENAI_API_KEY && processLifecycle.claim("warm-tool-index")) {
+  warmToolIndex();
 }
 
 export default {

@@ -4,9 +4,14 @@
   // script launched from the pane takes that terminal over and SIGTERMs
   // whatever is running in it. That is what kills the dev servers mid-session.
   //
-  // These entries match the detected tasks by script name, so the pane's play
-  // button picks them up. Each long-running one gets `isBackground` — it is
-  // never "finished" — and a dedicated terminal no other task may claim.
+  // `panel: "dedicated"` is what stops the kill — the terminal is that task's
+  // and no other task may claim it. `isBackground` is what stops the runner
+  // treating a server that never returns as a task that finished.
+  //
+  // These entries match the detected tasks by script name, and the nested ones
+  // by the package directory as well, since the pane lists every workspace's
+  // scripts and not only the root's. Anything one-shot — test, build, lint,
+  // db:* — is deliberately absent.
   "version": "2.0.0",
   "tasks": [
     {
@@ -16,12 +21,8 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "dev",
-        "reveal": "always",
-        "showReuseMessage": false,
-        "clear": true
+        "reveal": "always"
       },
-      "runOptions": { "instanceLimit": 1 },
       "detail": "Long-running. Every app and package in parallel."
     },
     {
@@ -31,12 +32,8 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "dev",
-        "reveal": "always",
-        "showReuseMessage": false,
-        "clear": true
+        "reveal": "always"
       },
-      "runOptions": { "instanceLimit": 1 },
       "detail": "Long-running. The API on :3003."
     },
     {
@@ -46,12 +43,8 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "dev",
-        "reveal": "always",
-        "showReuseMessage": false,
-        "clear": true
+        "reveal": "always"
       },
-      "runOptions": { "instanceLimit": 1 },
       "detail": "Long-running. The dashboard on :3001."
     },
     {
@@ -61,12 +54,8 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "dev",
-        "reveal": "always",
-        "showReuseMessage": false,
-        "clear": true
+        "reveal": "always"
       },
-      "runOptions": { "instanceLimit": 1 },
       "detail": "Long-running. The desktop app."
     },
     {
@@ -76,12 +65,8 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "dev",
-        "reveal": "always",
-        "showReuseMessage": false,
-        "clear": true
+        "reveal": "always"
       },
-      "runOptions": { "instanceLimit": 1 },
       "detail": "Long-running. The Trigger.dev dev worker."
     },
     {
@@ -91,13 +76,45 @@
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
-        "group": "dev",
-        "reveal": "always",
-        "showReuseMessage": false,
-        "clear": true
+        "reveal": "always"
       },
-      "runOptions": { "instanceLimit": 1 },
       "detail": "Long-running. The built dashboard, production mode."
+    },
+    {
+      "type": "npm",
+      "script": "dev",
+      "path": "apps/api/",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "detail": "Long-running. The API on :3003."
+    },
+    {
+      "type": "npm",
+      "script": "dev",
+      "path": "apps/dashboard/",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "detail": "Long-running. The dashboard on :3001."
+    },
+    {
+      "type": "npm",
+      "script": "dev",
+      "path": "packages/jobs/",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "detail": "Long-running. The Trigger.dev dev worker."
     }
   ]
 }
