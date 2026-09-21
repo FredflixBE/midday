@@ -19,6 +19,7 @@ import type { Context } from "./rest/types";
 import { createTRPCContext } from "./trpc/init";
 import { appRouter } from "./trpc/routers/_app";
 import { httpLogger } from "./utils/logger";
+import { processLifecycle } from "./utils/process-lifecycle";
 import { getRequestTrace } from "./utils/request-trace";
 
 const app = new OpenAPIHono<Context>();
@@ -313,6 +314,8 @@ app.get(
 
 app.route("/", routers);
 
+const POOL_STATS_INTERVAL = "db-pool-stats";
+
 const poolStatsIntervalMsRaw = process.env.DB_POOL_STATS_INTERVAL_MS;
 const parsedPoolStatsIntervalMs = Number.parseInt(
   poolStatsIntervalMsRaw ?? "60000",
@@ -321,14 +324,15 @@ const parsedPoolStatsIntervalMs = Number.parseInt(
 const poolStatsIntervalMs = Number.isFinite(parsedPoolStatsIntervalMs)
   ? parsedPoolStatsIntervalMs
   : 60000;
-const poolStatsInterval =
-  poolStatsIntervalMs > 0
-    ? setInterval(() => {
-        logger.info("API DB pool stats", {
-          pool: getPoolStats(),
-        });
-      }, poolStatsIntervalMs)
-    : null;
+processLifecycle.startInterval(
+  POOL_STATS_INTERVAL,
+  () => {
+    logger.info("API DB pool stats", {
+      pool: getPoolStats(),
+    });
+  },
+  poolStatsIntervalMs,
+);
 
 if (poolStatsIntervalMs <= 0) {
   logger.info("API DB pool stats logging disabled", {
@@ -360,9 +364,7 @@ const shutdown = async (signal: string) => {
 
   const shutdownPromise = (async () => {
     try {
-      if (poolStatsInterval) {
-        clearInterval(poolStatsInterval);
-      }
+      processLifecycle.stopInterval(POOL_STATS_INTERVAL);
 
       logger.info("Closing database connections...");
       await closeDb();
@@ -386,30 +388,35 @@ const shutdown = async (signal: string) => {
   process.exit(0);
 };
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
-
 /**
- * Unhandled exception and rejection handlers
+ * Signal, exception and rejection handlers. Registered through the process
+ * lifecycle so a `bun --hot` reload replaces them instead of stacking another
+ * set — otherwise one SIGTERM shuts the server down once per save.
  */
-process.on("uncaughtException", (err) => {
-  logger.error("Uncaught exception", { error: err.message, stack: err.stack });
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled rejection", {
-    reason: reason instanceof Error ? reason.message : String(reason),
-    stack: reason instanceof Error ? reason.stack : undefined,
-  });
+processLifecycle.registerHandlers({
+  shutdown,
+  uncaughtException: (err) => {
+    logger.error("Uncaught exception", {
+      error: err.message,
+      stack: err.stack,
+    });
+  },
+  unhandledRejection: (reason) => {
+    logger.error("Unhandled rejection", {
+      reason: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+    });
+  },
 });
 
 // Pre-warm the chat tool index in the background so the first request is fast.
 // It embeds the tool descriptions, so it needs OpenAI; without a key it would
-// only log a failure at every boot.
+// only log a failure at every boot. Once per process, not once per hot reload —
+// every save would otherwise embed them against OpenAI again.
 import { warmToolIndex } from "./chat/tools";
 
 if (process.env.OPENAI_API_KEY) {
-  warmToolIndex();
+  processLifecycle.once("warm-tool-index", warmToolIndex);
 }
 
 export default {
