@@ -14,6 +14,7 @@ import { formatAmount } from "@/utils/format";
 import {
   commonChartConfig,
   createCompactTickFormatter,
+  hasCompleteSeries,
   useChartMargin,
 } from "./chart-utils";
 
@@ -90,6 +91,9 @@ export function MonthlyRevenueChart({
   // Use the compact tick formatter
   const tickFormatter = createCompactTickFormatter();
 
+  // A previous year that does not cover the range is not drawn — see the helper.
+  const showLastYear = hasCompleteSeries(data, "lastYearAmount");
+
   // Calculate margin using the utility hook
   const { marginLeft } = useChartMargin(data, "amount", tickFormatter);
 
@@ -131,12 +135,14 @@ export function MonthlyRevenueChart({
               content={<CustomTooltip currency={currency} locale={locale} />}
               wrapperStyle={{ zIndex: 9999 }}
             />
-            {/* Last Year bars */}
-            <Bar
-              dataKey="lastYearAmount"
-              fill="var(--chart-bar-fill-secondary)"
-              isAnimationActive={false}
-            />
+            {/* Last Year bars — only when there is a last year to draw */}
+            {showLastYear && (
+              <Bar
+                dataKey="lastYearAmount"
+                fill="var(--chart-bar-fill-secondary)"
+                isAnimationActive={false}
+              />
+            )}
             {/* This Year bars */}
             <Bar
               dataKey="amount"

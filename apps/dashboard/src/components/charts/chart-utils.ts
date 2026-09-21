@@ -52,7 +52,8 @@ export const createCompactTickFormatter = () => {
     if (absValue >= 1000) {
       return `${sign}${(absValue / 1000).toFixed(0)}k`;
     }
-    return value.toString();
+    // Rounded, not raw: an axis label reading "32.89" is a bug, not precision.
+    return Math.round(value).toString();
   };
 };
 
@@ -86,17 +87,92 @@ export const createMonthsTickFormatter = () => {
 };
 
 /**
- * Returns a domain config that ensures zero is always included,
- * properly handling both positive and negative values.
- * Use this for charts where values can go negative (profit, cash flow, growth rate).
+ * Rounds a rough step up to the nearest 1, 2 or 5 times a power of ten.
+ *
+ * 2.5 is deliberately not in the set. A step of 2500 puts a tick at 2500,
+ * which the compact formatter prints as "3k" — a label that lies.
  */
-export const getZeroInclusiveDomain = (): [
-  (dataMin: number) => number,
-  (dataMax: number) => number,
-] => [
-  (dataMin: number) => Math.min(0, dataMin),
-  (dataMax: number) => Math.max(0, dataMax),
-];
+function niceStep(rough: number): number {
+  if (!Number.isFinite(rough) || rough <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const normalised = rough / magnitude;
+  const step =
+    normalised <= 1 ? 1 : normalised <= 2 ? 2 : normalised <= 5 ? 5 : 10;
+  return step * magnitude;
+}
+
+/**
+ * A y-axis that always includes zero and always lands on round numbers.
+ *
+ * Recharts rounds ticks for you, but only while it owns the domain. Passing
+ * it a domain — and a function domain especially — turns that off, and the
+ * ticks become evenly-spaced raw values: the midpoint of a range running
+ * from -12,760 to 12,826 is 32.89, and that is what the axis then says.
+ *
+ * So the ticks are computed here instead. Every tick is a multiple of the
+ * step, which makes zero one of them, which puts a gridline exactly where
+ * the bars turn over.
+ *
+ * Use this for charts whose values can go negative (profit, cash flow,
+ * growth rate).
+ */
+export function getZeroInclusiveAxis(
+  values: number[],
+  // Seven, not Recharts' five. Rounding outwards to a nice step costs height,
+  // and with only four intervals the step has to jump so far that the tallest
+  // bar can end up filling half the plot. Six intervals keeps the padding
+  // small while the labels stay comfortably apart on a 320px chart.
+  tickCount = 7,
+): { domain: [number, number]; ticks: number[] } {
+  const finite = values.filter((value) => Number.isFinite(value));
+  const min = Math.min(0, ...finite);
+  const max = Math.max(0, ...finite);
+
+  if (min === 0 && max === 0) return { domain: [0, 1], ticks: [0, 1] };
+
+  const intervals = Math.max(1, tickCount - 1);
+  let step = niceStep((max - min) / intervals);
+
+  // Rounding the bounds outwards can cost an interval; widen until it fits.
+  while (Math.ceil(max / step) - Math.floor(min / step) > intervals) {
+    step = niceStep(step * 1.5);
+  }
+
+  const low = Math.floor(min / step) * step;
+  const high = Math.ceil(max / step) * step;
+
+  const ticks: number[] = [];
+  for (let tick = low; tick <= high + step / 2; tick += step) {
+    ticks.push(Math.round(tick * 1e6) / 1e6);
+  }
+
+  return { domain: [low, high], ticks };
+}
+
+/**
+ * Whether a comparison series covers the whole range it is drawn against.
+ *
+ * Recharts gives every series in a category its own slot, so a second bar
+ * series takes half of every month whether or not it has anything to put
+ * there — and each visible bar then hangs off to one side of the month it
+ * belongs to. With one previous-year figure in nine, the reader sees eight
+ * misaligned bars and one grey block that looks like a rendering fault.
+ *
+ * So the test is *every* month, not any: a partial previous period is not a
+ * comparison, and it costs the whole chart its alignment to show. The query
+ * fills a month with no history as `0` (`prev?.value ?? 0`), which means a
+ * zero cannot be told from an absence here — requiring every month is the
+ * only honest reading of that. A genuinely zero month will hide the
+ * comparison, which is a fair price and self-correcting.
+ */
+export function hasCompleteSeries(data: unknown[], key: string): boolean {
+  if (data.length === 0) return false;
+
+  return data.every((row) => {
+    const value = (row as Record<string, unknown> | null)?.[key];
+    return typeof value === "number" && Number.isFinite(value) && value !== 0;
+  });
+}
 
 // Calculate Y-axis domain and ticks for forecast charts
 export const calculateYAxisDomain = <
@@ -152,7 +228,16 @@ export const useChartMargin = (
   data: any[],
   dataKey: string,
   tickFormatter: (value: number) => string,
+  ticks?: number[],
 ) => {
+  // When the caller computes its own ticks, measure those rather than guessing.
+  if (ticks?.length) {
+    const longest = ticks
+      .map(tickFormatter)
+      .reduce((a, b) => (a.length > b.length ? a : b));
+    return { marginLeft: 48 - longest.length * 5 };
+  }
+
   // Calculate both min and max values from the data
   const values = data.map((d) => d[dataKey]);
   const minValue = Math.min(...values);

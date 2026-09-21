@@ -5,6 +5,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,7 +15,8 @@ import { formatAmount } from "@/utils/format";
 import {
   commonChartConfig,
   createCompactTickFormatter,
-  getZeroInclusiveDomain,
+  getZeroInclusiveAxis,
+  hasCompleteSeries,
   useChartMargin,
 } from "./chart-utils";
 
@@ -92,8 +94,24 @@ export function ProfitChart({
   // Use the compact tick formatter
   const tickFormatter = createCompactTickFormatter();
 
+  // A previous year that does not cover the range is not drawn — see the helper.
+  const showLastYear = hasCompleteSeries(data, "lastYearProfit");
+
+  const axis = getZeroInclusiveAxis(
+    data.flatMap((item) =>
+      showLastYear
+        ? [item.profit, item.lastYearProfit, item.average]
+        : [item.profit, item.average],
+    ),
+  );
+
   // Calculate margin using the utility hook
-  const { marginLeft } = useChartMargin(data, "profit", tickFormatter);
+  const { marginLeft } = useChartMargin(
+    data,
+    "profit",
+    tickFormatter,
+    axis.ticks,
+  );
 
   const chartContent = (
     <div className="w-full">
@@ -127,18 +145,29 @@ export function ProfitChart({
                 fontFamily: commonChartConfig.fontFamily,
               }}
               tickFormatter={tickFormatter}
-              domain={getZeroInclusiveDomain()}
+              domain={axis.domain}
+              ticks={axis.ticks}
             />
             <Tooltip
               content={<CustomTooltip currency={currency} locale={locale} />}
               wrapperStyle={{ zIndex: 9999 }}
             />
+            {/* Zero, so a bar that crosses it is read as crossing it */}
+            {axis.domain[0] < 0 && (
+              <ReferenceLine
+                y={0}
+                stroke="var(--chart-reference-line-stroke)"
+                strokeWidth={1}
+              />
+            )}
             {/* Last Year bars (dark gray in dark mode with 0.3 opacity) */}
-            <Bar
-              dataKey="lastYearProfit"
-              fill="var(--chart-bar-fill-secondary)"
-              isAnimationActive={false}
-            />
+            {showLastYear && (
+              <Bar
+                dataKey="lastYearProfit"
+                fill="var(--chart-bar-fill-secondary)"
+                isAnimationActive={false}
+              />
+            )}
             {/* This Year bars (white in dark mode) */}
             <Bar
               dataKey="profit"

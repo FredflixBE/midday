@@ -3,7 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { AnimatedNumber } from "@/components/animated-number";
-import { formatChartMonth } from "@/components/charts/chart-utils";
+import {
+  formatChartMonth,
+  hasCompleteSeries,
+} from "@/components/charts/chart-utils";
 import { MonthlyRevenueChart } from "@/components/charts/monthly-revenue-chart";
 import { useTRPC } from "@/trpc/client";
 import { ChartFadeIn } from "../components/chart-loading-overlay";
@@ -62,6 +65,14 @@ export function MonthlyRevenueCard({
     return revenueData?.summary?.currentTotal ?? 0;
   }, [revenueData]);
 
+  // The chart drops the previous year unless it covers the whole range, so
+  // the key must drop with it — a swatch for a series nobody can see reads
+  // as a chart that failed to draw.
+  const showLastYear = hasCompleteSeries(
+    monthlyRevenueChartData,
+    "lastYearAmount",
+  );
+
   return (
     <div className="border bg-background border-border p-6 flex flex-col h-full relative group">
       <div className="mb-4 min-h-[140px]">
@@ -99,15 +110,17 @@ export function MonthlyRevenueCard({
             <div className="w-2 h-2 bg-foreground" />
             <span className="text-xs text-muted-foreground">Current</span>
           </div>
-          <div className="flex gap-2 items-center">
-            <div
-              className="w-2 h-2"
-              style={{
-                backgroundColor: "var(--chart-bar-fill-secondary)",
-              }}
-            />
-            <span className="text-xs text-muted-foreground">Previous</span>
-          </div>
+          {showLastYear && (
+            <div className="flex gap-2 items-center">
+              <div
+                className="w-2 h-2"
+                style={{
+                  backgroundColor: "var(--chart-bar-fill-secondary)",
+                }}
+              />
+              <span className="text-xs text-muted-foreground">Previous</span>
+            </div>
+          )}
           <div className="flex gap-2 items-center">
             <div
               className="w-4 h-0.5"
