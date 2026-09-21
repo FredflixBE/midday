@@ -1462,7 +1462,7 @@ export function TrackerSchedule() {
 
       <ScrollArea ref={scrollRef} className="h-[calc(100vh-530px)] mt-8">
         <div className="flex text-[#878787] text-xs">
-          <div className="w-20 flex-shrink-0 select-none">
+          <div className="w-20 shrink-0 select-none">
             {hours.map((hour) => (
               <div
                 key={hour}
@@ -1475,7 +1475,7 @@ export function TrackerSchedule() {
           </div>
 
           <div
-            className="relative flex-grow border border-border border-t-0 cursor-default select-none"
+            className="relative grow border border-border border-t-0 cursor-default select-none"
             onMouseMove={handleMouseMove}
             onMouseDown={(e) => {
               if (e.button === 0 && !isContextMenuOpen) {

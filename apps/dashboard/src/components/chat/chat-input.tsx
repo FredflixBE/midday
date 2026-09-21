@@ -106,7 +106,7 @@ function AppLogo({
   if (!src) {
     return (
       <span
-        className="bg-muted flex items-center justify-center text-[8px] font-medium rounded-sm shrink-0"
+        className="bg-muted flex items-center justify-center text-[8px] font-medium rounded-xs shrink-0"
         style={{ width: size, height: size }}
       >
         {name.charAt(0).toUpperCase()}
@@ -120,7 +120,7 @@ function AppLogo({
       alt={name}
       width={size}
       height={size}
-      className="rounded-sm shrink-0"
+      className="rounded-xs shrink-0"
       unoptimized
     />
   );
@@ -146,12 +146,12 @@ function createMentionSpan(app: {
     img.alt = app.name;
     img.width = 12;
     img.height = 12;
-    img.className = "rounded-sm shrink-0";
+    img.className = "rounded-xs shrink-0";
     span.appendChild(img);
   } else {
     const initial = document.createElement("span");
     initial.className =
-      "bg-muted inline-flex items-center justify-center text-[7px] font-medium rounded-sm shrink-0";
+      "bg-muted inline-flex items-center justify-center text-[7px] font-medium rounded-xs shrink-0";
     initial.style.width = "12px";
     initial.style.height = "12px";
     initial.textContent = app.name.charAt(0).toUpperCase();
@@ -231,12 +231,12 @@ function AttachmentPreview({
           >
             <Icons.Attachments
               size={13}
-              className="flex-shrink-0 text-muted-foreground/40"
+              className="shrink-0 text-muted-foreground/40"
             />
             <span className="truncate">{file.name}</span>
             <Icons.Close
               size={10}
-              className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
             />
           </motion.button>
         ))}
@@ -679,7 +679,7 @@ export function ChatInput({
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className="w-full text-sm leading-[22px] outline-none max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words"
+          className="w-full text-sm leading-[22px] outline-hidden max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words"
         />
         {!value.trim() && (
           <div className="absolute top-4 left-4 text-sm leading-[22px] text-[#878787]/60 pointer-events-none">
@@ -775,7 +775,7 @@ export function ChatInput({
               side={menuPosition === "above" ? "top" : "bottom"}
               align="start"
               sideOffset={12}
-              className="w-[180px] p-1 bg-[rgba(247,247,247,0.96)] dark:bg-[rgba(19,19,19,0.98)] backdrop-blur-lg border-border shadow-sm"
+              className="w-[180px] p-1 bg-[rgba(247,247,247,0.96)] dark:bg-[rgba(19,19,19,0.98)] backdrop-blur-lg border-border shadow-xs"
             >
               <p className="px-2 py-1 text-[10px] text-[#878787]">
                 Use Midday in
@@ -792,7 +792,7 @@ export function ChatInput({
                     setParams({ "mcp-app": id });
                   }}
                 >
-                  <span className="size-4 overflow-hidden rounded-sm flex-shrink-0 [&_img]:!w-full [&_img]:!h-full [&_svg]:!w-full [&_svg]:!h-full">
+                  <span className="size-4 overflow-hidden rounded-xs shrink-0 [&_img]:!w-full [&_img]:!h-full [&_svg]:!w-full [&_svg]:!h-full">
                     <Logo />
                   </span>
                   <span>{name}</span>

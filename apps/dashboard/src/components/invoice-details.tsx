@@ -336,7 +336,7 @@ export function InvoiceDetails() {
                             className={cn(
                               "flex items-center justify-between text-sm",
                               isCurrentScheduledInvoice &&
-                                "bg-muted/50 -mx-2 px-2 py-1 rounded",
+                                "bg-muted/50 -mx-2 px-2 py-1 rounded-sm",
                             )}
                           >
                             <div className="flex items-center gap-2">

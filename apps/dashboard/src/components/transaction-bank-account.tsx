@@ -18,7 +18,7 @@ export function TransactionBankAccount({
     <div className="flex space-x-2 mt-1 items-center">
       {logoUrl && (
         <div
-          className="rounded-full overflow-hidden flex-shrink-0"
+          className="rounded-full overflow-hidden shrink-0"
           style={{ width: size, height: size }}
         >
           <BankLogo size={size} src={logoUrl} alt={name ?? ""} />

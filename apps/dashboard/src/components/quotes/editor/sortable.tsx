@@ -116,7 +116,7 @@ export function SortableRow({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         "bg-background",
-        isDragging && "relative z-10 shadow-sm",
+        isDragging && "relative z-10 shadow-xs",
         className,
       )}
     >

@@ -24,7 +24,7 @@ export const streamdownClassName = cn(
   "[&_[data-streamdown=table-wrapper]_>div:last-child]:rounded-none",
   "[&_[data-streamdown=table]]:text-sm",
   "[&_[data-streamdown=table-wrapper]_button_svg]:!w-3 [&_[data-streamdown=table-wrapper]_button_svg]:!h-3 [&_[data-streamdown=table-wrapper]_button]:p-0.5",
-  "[&_[data-streamdown=table-wrapper]_.relative>div]:rounded-none [&_[data-streamdown=table-wrapper]_.relative>div]:shadow-sm [&_[data-streamdown=table-wrapper]_.relative>div>button]:text-xs [&_[data-streamdown=table-wrapper]_.relative>div>button]:px-2.5 [&_[data-streamdown=table-wrapper]_.relative>div>button]:py-1.5",
+  "[&_[data-streamdown=table-wrapper]_.relative>div]:rounded-none [&_[data-streamdown=table-wrapper]_.relative>div]:shadow-xs [&_[data-streamdown=table-wrapper]_.relative>div>button]:text-xs [&_[data-streamdown=table-wrapper]_.relative>div>button]:px-2.5 [&_[data-streamdown=table-wrapper]_.relative>div>button]:py-1.5",
 );
 
 export function makeStreamdownComponents(

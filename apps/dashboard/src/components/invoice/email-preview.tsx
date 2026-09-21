@@ -65,7 +65,7 @@ function EditableText({
       suppressContentEditableWarning
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      className={`outline-none cursor-text ${className ?? ""}`}
+      className={`outline-hidden cursor-text ${className ?? ""}`}
     />
   );
 }
@@ -124,7 +124,7 @@ function EditableMultilineText({
       onBlur={handleBlur}
       onInput={handleInput}
       rows={1}
-      className={`outline-none cursor-text resize-none w-full bg-transparent overflow-hidden ${className ?? ""}`}
+      className={`outline-hidden cursor-text resize-none w-full bg-transparent overflow-hidden ${className ?? ""}`}
     />
   );
 }
@@ -233,7 +233,7 @@ export function EmailPreview() {
           <div className="p-6 pb-4 shrink-0">
             {/* Sender info */}
             <div className="flex items-start gap-3">
-              <div className="size-10 rounded-full bg-white dark:bg-[#1a1a1a] border border-border flex items-center justify-center flex-shrink-0">
+              <div className="size-10 rounded-full bg-white dark:bg-[#1a1a1a] border border-border flex items-center justify-center shrink-0">
                 <img
                   src={`${getEmailUrl()}/email/logo.png`}
                   alt="Midday"

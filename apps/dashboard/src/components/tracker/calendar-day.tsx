@@ -104,9 +104,9 @@ export function CalendarDay({
         !isCurrentMonth &&
           "bg-[repeating-linear-gradient(-60deg,#DBDBDB,#DBDBDB_1px,transparent_1px,transparent_5px)] dark:bg-[repeating-linear-gradient(-60deg,#2C2C2C,#2C2C2C_1px,transparent_1px,transparent_5px)] text-[#878787]",
         selectedDate === formattedDate && "ring-1 ring-primary",
-        isInRange(date) && "ring-1 ring-primary bg-opacity-50",
-        isFirstSelectedDate(date) && "ring-1 ring-primary bg-opacity-50",
-        isLastSelectedDate(date) && "ring-1 ring-primary bg-opacity-50",
+        isInRange(date) && "ring-1 ring-primary",
+        isFirstSelectedDate(date) && "ring-1 ring-primary",
+        isLastSelectedDate(date) && "ring-1 ring-primary",
       )}
     >
       <div>{format(date, "d")}</div>

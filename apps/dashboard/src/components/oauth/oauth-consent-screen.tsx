@@ -263,7 +263,7 @@ export function OAuthConsentScreen() {
         {applicationInfo.status !== "approved" && (
           <div className="mx-4 mb-4 px-3 py-2 bg-amber-50 border border-amber-200 dark:bg-amber-900/10 dark:border-amber-800/30">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span className="text-sm text-amber-700 dark:text-amber-300">
                 This app hasn't been verified by Midday yet
               </span>
@@ -288,7 +288,7 @@ export function OAuthConsentScreen() {
                   const description = getScopeDescription(scope);
                   return (
                     <div key={scope} className="flex items-center gap-3">
-                      <div className="flex-shrink-0">
+                      <div className="shrink-0">
                         <Check className="size-3.5 text-[#878787]" />
                       </div>
                       <span className="text-sm text-[#878787]">

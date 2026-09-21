@@ -9,9 +9,13 @@
   @apply outline-none;
 }
 
-.tiptap {
-  @apply text-xs leading-loose;
-}
+/*
+ * No base size or leading here (FF-1650). It was an invoice default that a
+ * quote overrode with `[&_.tiptap]:text-sm`, and under v3 the override won
+ * on specificity. This file is `@reference`d now, so it is unlayered and
+ * beats any utility whatever its specificity — which silently dropped the
+ * quote's body text from 14px to 12px. The caller sets both.
+ */
 
 /*
  * A document's reading rhythm (FF-1651). The caller sets the four sizes and

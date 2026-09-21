@@ -432,7 +432,7 @@ export function Form() {
             <div className="flex-1 min-w-0 mr-5">
               <Meta />
             </div>
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Logo />
             </div>
           </div>

@@ -44,6 +44,26 @@
 
   --breakpoint-3xl: 1800px;
 
+  /*
+   * v3's line heights, kept on purpose (FF-1650).
+   *
+   * v4 pairs each size with a *unitless* line height, so a child at 11px
+   * inside a `text-sm` parent inherits the ratio and gets 15.7px where it
+   * used to inherit a flat 20px. That is arguably better typography and it
+   * is not what a framework upgrade should decide: measured across seven
+   * screens it moved the leading of thirty-one elements. These restore the
+   * absolute values, so the upgrade changes the framework and not the
+   * design. Dropping them later is a deliberate, separate change.
+   */
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-caret-blink: caret-blink 1.25s ease-out infinite;

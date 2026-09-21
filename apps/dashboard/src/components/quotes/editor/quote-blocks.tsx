@@ -186,7 +186,7 @@ function PricingBlock({
         <button
           type="button"
           aria-label={open ? "Collapse the pricing" : "Expand the pricing"}
-          className="shrink-0 hover:text-primary focus-visible:text-primary focus-visible:outline-none"
+          className="shrink-0 hover:text-primary focus-visible:text-primary focus-visible:outline-hidden"
           onClick={() => setOpen(!open)}
         >
           <ChevronDown

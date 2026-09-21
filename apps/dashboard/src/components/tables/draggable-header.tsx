@@ -46,7 +46,7 @@ export function DraggableHeader({
       ref={setNodeRef}
       className={cn(
         "group/header relative h-full px-4 border-t border-border flex items-center select-none",
-        "shadow-none outline-none ring-0 focus:shadow-none focus:outline-none focus:ring-0 hover:shadow-none",
+        "shadow-none outline-hidden ring-0 focus:shadow-none focus:outline-hidden focus:ring-0 hover:shadow-none",
         isDragging && "border border-border bg-background z-50",
         className,
       )}
@@ -56,7 +56,7 @@ export function DraggableHeader({
       {!disabled && (
         <GripVertical
           size={14}
-          className="ml-1 text-muted-foreground opacity-0 group-hover/header:opacity-100 flex-shrink-0 cursor-grab active:cursor-grabbing"
+          className="ml-1 text-muted-foreground opacity-0 group-hover/header:opacity-100 shrink-0 cursor-grab active:cursor-grabbing"
           {...attributes}
           {...listeners}
         />

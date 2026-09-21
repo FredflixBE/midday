@@ -190,7 +190,7 @@ function SupplierName({ supplier }: { supplier: Supplier }) {
             setEditing(false);
           }
         }}
-        className="min-w-0 flex-1 bg-transparent font-serif text-2xl outline-none border-b border-border"
+        className="min-w-0 flex-1 bg-transparent font-serif text-2xl outline-hidden border-b border-border"
       />
     );
   }

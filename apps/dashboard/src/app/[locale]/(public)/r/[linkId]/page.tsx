@@ -88,7 +88,7 @@ export default async function Page({ params }: Props) {
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 py-6">
           <div className="flex items-center justify-between">
             {/* Logo - Left */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Icons.LogoSmall className="h-6 w-auto" />
             </div>
 
@@ -98,7 +98,7 @@ export default async function Page({ params }: Props) {
             </div>
 
             {/* Login Button - Right */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <Button variant="outline" asChild>
                 <Link href="/login">Login</Link>
               </Button>

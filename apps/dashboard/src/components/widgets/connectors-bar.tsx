@@ -82,7 +82,7 @@ export function ConnectorsBar() {
               <motion.div
                 key={id}
                 variants={item}
-                className="size-4 overflow-hidden rounded-full border border-background flex-shrink-0 bg-background"
+                className="size-4 overflow-hidden rounded-full border border-background shrink-0 bg-background"
               >
                 <img
                   src={logo}

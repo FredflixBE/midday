@@ -126,7 +126,7 @@ const TagsCell = memo(
           <Badge
             key={id}
             variant="tag-rounded"
-            className="whitespace-nowrap flex-shrink-0"
+            className="whitespace-nowrap shrink-0"
           >
             {name}
           </Badge>

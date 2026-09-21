@@ -432,7 +432,7 @@ export function OAuthApplicationForm({ data }: Props) {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-4 flex flex-col">
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     <FormField
                       control={form.control}
                       name="logoUrl"

@@ -15,7 +15,7 @@ export function CategoryColor({
 }: CategoryIconProps) {
   return (
     <div
-      className={cn("flex-shrink-0", className)}
+      className={cn("shrink-0", className)}
       style={{
         backgroundColor: color,
         width: size,

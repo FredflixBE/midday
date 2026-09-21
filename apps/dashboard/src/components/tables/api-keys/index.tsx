@@ -48,7 +48,7 @@ export function DataTable() {
             browser or other client-side code.
           </p>
         </div>
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <Button onClick={() => setData(undefined, "create")}>
             Create API Key
           </Button>

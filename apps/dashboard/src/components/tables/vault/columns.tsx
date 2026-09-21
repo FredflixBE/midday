@@ -197,7 +197,7 @@ export const columns: ColumnDef<Document>[] = [
               <Badge
                 key={documentTag.id}
                 variant="tag-rounded"
-                className="whitespace-nowrap flex-shrink-0"
+                className="whitespace-nowrap shrink-0"
                 onClick={() => {
                   setFilter({ tags: [documentTag.id] });
                 }}

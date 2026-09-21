@@ -143,7 +143,7 @@ export function InlineSelectTags({ transactionId, tags = [] }: Props) {
                   <Badge
                     key={tag.id}
                     variant="tag-rounded"
-                    className="whitespace-nowrap flex-shrink-0"
+                    className="whitespace-nowrap shrink-0"
                   >
                     {tag.name}
                   </Badge>

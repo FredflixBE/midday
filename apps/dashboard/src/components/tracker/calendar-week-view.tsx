@@ -467,7 +467,7 @@ const DayEntries = memo(
               <div className="font-medium truncate leading-tight flex items-center gap-1">
                 {/* Subtle green dot indicator for running timers */}
                 {isRunningTimer && (
-                  <span className="relative flex h-1 w-1 flex-shrink-0">
+                  <span className="relative flex h-1 w-1 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
                     <span className="relative inline-flex rounded-full h-1 w-1 bg-green-500" />
                   </span>
@@ -478,7 +478,7 @@ const DayEntries = memo(
                   {entry.isContinuation && " ←"}
                 </span>
                 {height <= 40 && height > 16 && (
-                  <span className="font-normal text-[#878787] dark:text-[#606060] flex-shrink-0">
+                  <span className="font-normal text-[#878787] dark:text-[#606060] shrink-0">
                     {" ("}
                     {isRunningTimer
                       ? secondsToHoursAndMinutes(
@@ -654,7 +654,7 @@ export const CalendarWeekView = memo(
                       <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 pointer-events-none" />
 
                       {/* Time indicator on hover */}
-                      <div className="absolute left-1 top-0.5 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 pointer-events-none bg-background/80 px-1 rounded">
+                      <div className="absolute left-1 top-0.5 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 pointer-events-none bg-background/80 px-1 rounded-sm">
                         {formatHour(hour, user?.timeFormat)}
                       </div>
                     </div>

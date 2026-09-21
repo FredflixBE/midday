@@ -100,7 +100,7 @@ export function DeleteConnection({ connection }: Props) {
               </p>
               <div className="my-6 px-3 py-3 bg-amber-50 border border-amber-200 dark:bg-amber-900/10 dark:border-amber-800/30">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                   <div className="text-sm space-y-2">
                     <p className="font-medium text-amber-700 dark:text-amber-300">
                       {accounts.length > 0

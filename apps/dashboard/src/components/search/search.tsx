@@ -363,7 +363,7 @@ const SearchResultItemDisplay = ({
         );
         resultDisplay = (
           <div className="flex items-center justify-between w-full">
-            <span className="flex-grow truncate">
+            <span className="grow truncate">
               {
                 (item.data?.title ||
                   (item.data?.name as string)?.split("/").at(-1) ||
@@ -398,7 +398,7 @@ const SearchResultItemDisplay = ({
         );
         resultDisplay = (
           <div className="flex items-center w-full">
-            <div className="flex-grow truncate flex gap-2 items-center">
+            <div className="grow truncate flex gap-2 items-center">
               <span>{item.data.name as string}</span>
               <span className="text-xs text-muted-foreground">
                 {item.data.email as string}
@@ -422,7 +422,7 @@ const SearchResultItemDisplay = ({
         );
         resultDisplay = (
           <div className="flex items-center w-full">
-            <div className="flex-grow truncate flex gap-2 items-center">
+            <div className="grow truncate flex gap-2 items-center">
               <span>{item.data.invoice_number as string}</span>
               {/* @ts-expect-error - Unstructured data */}
               <InvoiceStatus status={item.data?.status} />
@@ -447,7 +447,7 @@ const SearchResultItemDisplay = ({
         );
         resultDisplay = (
           <div className="flex items-center justify-between w-full">
-            <div className="flex-grow truncate flex gap-2 items-center">
+            <div className="grow truncate flex gap-2 items-center">
               <span>
                 {
                   (item.data?.display_name ||
@@ -486,7 +486,7 @@ const SearchResultItemDisplay = ({
         icon = null; // TrackerTimer will handle its own icon
         resultDisplay = (
           <div className="flex items-center w-full">
-            <div className="flex-grow min-w-0 -ml-[6px]">
+            <div className="grow min-w-0 -ml-[6px]">
               <TrackerTimer
                 projectId={item.id}
                 projectName={item.data.name as string}
@@ -508,7 +508,7 @@ const SearchResultItemDisplay = ({
         );
         resultDisplay = (
           <div className="flex items-center justify-between w-full">
-            <div className="flex-grow truncate flex gap-2 items-center">
+            <div className="grow truncate flex gap-2 items-center">
               <span>{(item.data?.name || "") as string}</span>
               <span className="text-xs text-muted-foreground">
                 <FormatAmount

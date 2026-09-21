@@ -65,7 +65,7 @@ const TagsCell = memo(
       <div className="flex items-center space-x-2 overflow-x-auto scrollbar-hide">
         {tags?.map((tag) => (
           <Link href={`/transactions?tags=${tag.id}`} key={tag.id}>
-            <Badge variant="tag" className="whitespace-nowrap flex-shrink-0">
+            <Badge variant="tag" className="whitespace-nowrap shrink-0">
               {tag.name}
             </Badge>
           </Link>

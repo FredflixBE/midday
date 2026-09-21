@@ -56,7 +56,7 @@ export function InvoiceNo() {
 
   return (
     <div className="flex space-x-1 items-center">
-      <div className="flex items-center flex-shrink-0">
+      <div className="flex items-center shrink-0">
         <LabelInput
           name="template.invoiceNoLabel"
           onSave={(value) => {
@@ -64,7 +64,7 @@ export function InvoiceNo() {
           }}
           className="truncate"
         />
-        <span className="text-[11px] text-[#878787] flex-shrink-0">:</span>
+        <span className="text-[11px] text-[#878787] shrink-0">:</span>
       </div>
 
       <TooltipProvider delayDuration={100}>
@@ -74,7 +74,7 @@ export function InvoiceNo() {
               <Input
                 name="invoiceNumber"
                 className={cn(
-                  "w-28 flex-shrink p-0 border-none text-[11px] h-4.5 overflow-hidden",
+                  "w-28 shrink p-0 border-none text-[11px] h-4.5 overflow-hidden",
                   errors.invoiceNumber ? "text-red-500" : "",
                 )}
               />

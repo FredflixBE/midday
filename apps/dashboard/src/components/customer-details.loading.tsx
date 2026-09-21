@@ -33,7 +33,7 @@ export function CustomerDetailsSkeleton() {
         <div className="pt-6 mt-6">
           <div className="flex items-center justify-between mb-6">
             <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-6 w-6 rounded" />
+            <Skeleton className="h-6 w-6 rounded-sm" />
           </div>
 
           {/* Summary Stats Skeleton */}
@@ -69,7 +69,7 @@ export function CustomerDetailsSkeleton() {
       </div>
 
       {/* Footer Skeleton */}
-      <div className="border-t border-border pt-4 mt-auto flex-shrink-0 w-full">
+      <div className="border-t border-border pt-4 mt-auto shrink-0 w-full">
         <div className="px-6 flex justify-end">
           <Skeleton className="h-9 w-16" />
         </div>

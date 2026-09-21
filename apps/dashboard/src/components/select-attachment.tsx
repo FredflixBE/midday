@@ -149,7 +149,7 @@ export function SelectAttachment({
                 </div>
               </div>
 
-              <div className="flex flex-shrink-0 items-center gap-4 text-xs">
+              <div className="flex shrink-0 items-center gap-4 text-xs">
                 {showBestMatch && (
                   <Badge variant="outline" className="px-2 py-0">
                     Best Match
