@@ -27,9 +27,10 @@ type EditorProps = {
   onFocus?: () => void;
   className?: string;
   /**
-   * Set on the same element `className` is, which is what a typeset needs:
-   * its container declares its own three controls, so a value inherited
-   * from an ancestor would lose to them (FF-1663).
+   * Set on the same element `className` is, so a caller whose class reads a
+   * custom property can declare it on the element that class is on. Setting
+   * it on an ancestor is not the same thing: a class that declares its own
+   * default for that property would beat the inherited value.
    */
   style?: CSSProperties;
   tabIndex?: number;

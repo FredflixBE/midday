@@ -18,15 +18,19 @@
  */
 
 /*
- * What an editor draws where nothing else sets its type (FF-1663).
+ * What an editor draws where no typeset sets its headings (FF-1663).
  *
- * A quote's document is wrapped in a typeset now — a stylesheet of its own,
- * which sizes every level and spaces every block — so this must not reach
- * inside one: these rules are unlayered, and unlayered CSS beats a layer
- * whatever the specificity, so they would win every argument the typeset is
- * there to settle. What is left is the invoice's notes and details, drawn at
- * exactly what they were drawn at before there was a typeset to read
- * (FF-1651).
+ * A quote's document is wrapped in one now, and a typeset is what sizes and
+ * spaces every level there. This rule has to stand out of its way, because
+ * everything in this file is unlayered — `@reference` emits no layer — and
+ * unlayered CSS beats a layer whatever the specificity. It would win the one
+ * argument the typeset exists to settle.
+ *
+ * The rest of the file is deliberately left reaching inside: the table grid,
+ * the picture margins and the placeholder are this editor's, not a
+ * document's, and the same ones are drawn on every surface. What is left
+ * here is the invoice's notes and details, at exactly what they were drawn
+ * at before there was a typeset to read (FF-1651).
  */
 .tiptap:not(.typeset *) :is(h1, h2, h3, h4, h5, h6) {
   margin-top: 0.5rem;

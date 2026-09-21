@@ -527,7 +527,10 @@
    */
   .typeset-quote {
     /* `--font-heading` is not a token this theme defines, and an undefined
-       one makes the whole `font-family` invalid. A quote is set in one face. */
+       one makes the whole `font-family` invalid. A quote is set in one face —
+       which is also why the mono face is left alone: the theme aliases
+       `--font-mono` to the body face on purpose, so a code block here is
+       tinted rather than monospaced, the way the rest of the app is. */
     --typeset-font-heading: inherit;
 
     /* One size at every width. Upstream bumps the body 12.5% below 48rem,
@@ -544,38 +547,52 @@
 
     /* Our steps, not upstream's 1.75 / 1.25 / 1.125 at weight 600. Levels 3
        and below read alike, because past the third a document wants a new
-       section rather than a smaller heading. */
+       section rather than a smaller heading.
+
+       Every fallback here is the same ratio the variable carries, so a
+       container that somehow arrives without them degrades to the right
+       proportions rather than to flat body text. `em` is honest for a size,
+       which resolves against the parent; it would be wrong for the room
+       around a heading, which is a multiple of the *body* and not of the
+       heading's own size — so those two fall back to upstream's instead.
+
+       A heading that opens a block keeps the room above it, which is why
+       this wins over upstream's first-child reset: a block's own title sits
+       directly above it with nothing between them. Upstream still owns the
+       first-child rule for everything else, paragraphs included. */
     & :is(h1, h2, h3, h4, h5, h6) {
-      font-size: var(--typeset-h3);
-      font-weight: var(--typeset-heading-weight);
-      line-height: var(--typeset-heading-leading);
+      font-size: var(--typeset-h3, 1.2em);
+      font-weight: var(--typeset-heading-weight, 500);
+      line-height: var(--typeset-heading-leading, 1.25);
       /* Upstream draws its fifth and sixth levels as muted small caps. Ours
          are headings like the rest. */
       color: inherit;
       letter-spacing: normal;
       text-transform: none;
-      margin-block-start: var(--typeset-above);
+      margin-block-start: var(--typeset-above, var(--typeset-flow));
       margin-block-end: 0;
     }
 
     & :is(h1) {
-      font-size: var(--typeset-h1);
+      font-size: var(--typeset-h1, 1.75em);
     }
 
     & :is(h2) {
-      font-size: var(--typeset-h2);
+      font-size: var(--typeset-h2, 1.45em);
     }
 
     /* A heading belongs to what follows it, so it takes more room above than
        below (FF-1652). Upstream gives every heading a full em underneath —
        wider than its own flow — which reads the other way round. */
     & :is(h1, h2, h3, h4, h5, h6) + * {
-      margin-block-start: var(--typeset-below);
+      margin-block-start: var(--typeset-below, 1em);
     }
 
     /* A quote's tables are the grid the PDF draws, and the editor's own
-       stylesheet is what draws them (FF-1642). Upstream's table styling is
-       unlayered-beaten there; these two are the parts it does not reach. */
+       stylesheet is what draws them (FF-1642). That stylesheet is unlayered,
+       so it already beats upstream on every property it names — borders,
+       padding, alignment, the header tint. These two are the properties it
+       names nowhere, and so the only ones upstream would win. */
     & table {
       border-block-end: 0;
     }
@@ -587,6 +604,13 @@
     /* A picture prints square. */
     & :is(img, video) {
       border-radius: 0;
+    }
+
+    /* The print draws a link at the weight of the text around it, so this
+       does too. Upstream lifts one to 500, which would be a level of
+       hierarchy the page does not have. */
+    & a {
+      font-weight: inherit;
     }
   }
 }

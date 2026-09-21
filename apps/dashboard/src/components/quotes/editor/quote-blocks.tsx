@@ -241,7 +241,12 @@ const BODY = 14;
 const TYPESET_VARS = {
   "--typeset-size": `${BODY}px`,
   "--typeset-leading": `${TYPESET.leading.body}`,
-  "--typeset-flow": `${px(BODY * TYPESET.flow.paragraph)}px`,
+  // In ems, because upstream converts it into the ems of whatever block it
+  // is spacing — `calc(var(--typeset-flow) / 0.875)` above a code block, and
+  // so on — and that arithmetic only means what it says if the value it
+  // starts from is relative. The two below cannot be: the room around a
+  // heading is a multiple of the body, not of the heading's own size.
+  "--typeset-flow": `${TYPESET.flow.paragraph}em`,
   "--typeset-h1": `${px(headingSize(BODY, 1))}px`,
   "--typeset-h2": `${px(headingSize(BODY, 2))}px`,
   "--typeset-h3": `${px(headingSize(BODY, 3))}px`,
@@ -255,13 +260,16 @@ const TYPESET_VARS = {
 } as CSSProperties;
 
 /**
- * The container the typeset styles, and the preset that holds our steps
- * (FF-1663). It replaced a list of arbitrary variants that re-taught
- * Tailwind's reset what a list is — a typeset absorbs those, and reaches
- * what they never did: blockquotes, code, rules, nested lists, and the room
- * around the first thing in a block.
+ * The two classes a document is set by (FF-1663): `typeset` is the container
+ * shadcn's stylesheet styles everything inside, and `typeset-quote` is our
+ * preset on top of it — the steps and the rhythm the print also draws.
+ *
+ * Between them they replaced a list of arbitrary variants that re-taught
+ * Tailwind's reset what a list is, and they reach what those never did:
+ * blockquotes, code, rules, nested lists, and the room above the first
+ * paragraph of a block.
  */
-const TYPESET_CLASS = "typeset typeset-quote";
+const DOCUMENT_TYPESET = "typeset typeset-quote";
 
 /**
  * A block's own title, which sits above every heading its text can hold
@@ -455,7 +463,7 @@ function TextBlockEditor({
         {expanded ? (
           <div style={{ height: heldHeight }} />
         ) : (
-          renderEditor(cn(editable && "min-h-[1.5rem]", TYPESET_CLASS))
+          renderEditor(cn(editable && "min-h-[1.5rem]", DOCUMENT_TYPESET))
         )}
       </div>
 
@@ -476,7 +484,10 @@ function TextBlockEditor({
                 it to one. */}
             {expanded
               ? renderEditor(
-                  cn("min-h-0 flex-1 overflow-y-auto px-6 py-4", TYPESET_CLASS),
+                  cn(
+                    "min-h-0 flex-1 overflow-y-auto px-6 py-4",
+                    DOCUMENT_TYPESET,
+                  ),
                   true,
                 )
               : null}
