@@ -469,7 +469,7 @@ export function InboxDetails() {
       <Separator />
 
       {data?.id ? (
-        <div className="flex flex-col flex-grow min-h-0 relative">
+        <div className="flex flex-col grow min-h-0 relative">
           <div className="flex items-start p-4">
             <div className="flex items-start gap-4 text-sm relative">
               {isProcessing ? (
@@ -583,7 +583,7 @@ export function InboxDetails() {
 
           <div className="flex flex-col gap-4 overflow-y-auto flex-1 min-h-0 scrollbar-hide">
             {data?.filePath && (
-              <div className="min-h-0 flex-shrink-0 h-full">
+              <div className="min-h-0 shrink-0 h-full">
                 {/* Show skeleton while HEIC is being converted (browser can't render HEIC natively) */}
                 {data.contentType === "image/heic" && isProcessing ? (
                   <Skeleton className="h-full w-full" />
@@ -610,7 +610,7 @@ export function InboxDetails() {
                   relatedItem.filePath && (
                     <div
                       key={relatedItem.id}
-                      className="min-h-0 flex-shrink-0 h-full"
+                      className="min-h-0 shrink-0 h-full"
                     >
                       {/* Show skeleton while HEIC is being converted */}
                       {relatedItem.contentType === "image/heic" &&

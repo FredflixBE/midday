@@ -56,7 +56,7 @@ export function Logo() {
             />
             <button
               type="button"
-              className="absolute inset-0 bg-black bg-opacity-50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity flex-col gap-1"
+              className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity flex-col gap-1"
               onClick={(e) => {
                 e.preventDefault();
                 setValue("template.logoUrl", undefined, {

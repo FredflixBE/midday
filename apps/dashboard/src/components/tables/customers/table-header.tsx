@@ -210,7 +210,7 @@ function renderHeaderContent<TData>(
             canScrollRight={tableScroll.canScrollRight}
             onScrollLeft={tableScroll.scrollLeft}
             onScrollRight={tableScroll.scrollRight}
-            className="hidden md:flex flex-shrink-0"
+            className="hidden md:flex shrink-0"
           />
         )}
       </div>

@@ -6,7 +6,7 @@ import { VaultRelatedFilesSkeleton } from "./vault/vault-related-files-skeleton"
 
 export function DocumentDetailsSkeleton() {
   return (
-    <div className="flex flex-col flex-grow min-h-0 relative h-full w-full">
+    <div className="flex flex-col grow min-h-0 relative h-full w-full">
       <SheetHeader className="mb-4 flex justify-between items-center flex-row">
         <div className="min-w-0 flex-1 max-w-[50%] flex flex-row gap-2 items-end">
           <Skeleton className="h-6 w-3/4" />

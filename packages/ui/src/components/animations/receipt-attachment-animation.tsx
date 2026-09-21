@@ -77,7 +77,7 @@ export function ReceiptAttachmentAnimation({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: showLogo ? 1 : 0 }}
                     transition={{ duration: 0.25 }}
-                    className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-foreground/5 border border-border flex items-center justify-center flex-shrink-0 overflow-hidden"
+                    className="w-6 h-6 md:w-7 md:h-7 rounded-full bg-foreground/5 border border-border flex items-center justify-center shrink-0 overflow-hidden"
                   >
                     <Image
                       src="/images/supabase.png"
@@ -134,7 +134,7 @@ export function ReceiptAttachmentAnimation({
                             June 15, 2025
                           </p>
                         </div>
-                        <div className="text-right flex-shrink-0">
+                        <div className="text-right shrink-0">
                           <p className="font-sans text-[9px] md:text-[10px] text-muted-foreground">
                             Billing Period:
                           </p>
@@ -156,7 +156,7 @@ export function ReceiptAttachmentAnimation({
                                 Cloud storage & sync services
                               </p>
                             </div>
-                            <p className="font-sans text-[11px] md:text-[12px] text-foreground font-medium ml-2 flex-shrink-0">
+                            <p className="font-sans text-[11px] md:text-[12px] text-foreground font-medium ml-2 shrink-0">
                               $49.00
                             </p>
                           </div>
@@ -228,7 +228,7 @@ export function ReceiptAttachmentAnimation({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="hidden md:flex items-center justify-center h-7 md:h-8 px-2 md:px-3 bg-transparent border border-border text-[11px] md:text-[12px] text-foreground hover:bg-muted transition-colors flex-shrink-0"
+                className="hidden md:flex items-center justify-center h-7 md:h-8 px-2 md:px-3 bg-transparent border border-border text-[11px] md:text-[12px] text-foreground hover:bg-muted transition-colors shrink-0"
               >
                 Decline
               </button>

@@ -134,7 +134,7 @@ function McpAnimation() {
               stiffness: 180,
               delay,
             }}
-            className="absolute mcp-onboarding-icon overflow-hidden rounded-xl border border-border bg-background shadow-sm"
+            className="absolute mcp-onboarding-icon overflow-hidden rounded-xl border border-border bg-background shadow-xs"
             style={{
               width: size,
               height: size,

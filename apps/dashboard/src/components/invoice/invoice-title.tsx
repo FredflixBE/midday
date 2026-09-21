@@ -48,7 +48,7 @@ export function InvoiceTitle() {
             lang="en"
             rows={1}
             className={cn(
-              "block w-full min-w-0 text-[21px] leading-6 font-serif mb-2 h-6 max-h-12 bg-transparent p-0 border-0 outline-none resize-none overflow-hidden",
+              "block w-full min-w-0 text-[21px] leading-6 font-serif mb-2 h-6 max-h-12 bg-transparent p-0 border-0 outline-hidden resize-none overflow-hidden",
               isPlaceholder && "opacity-0",
             )}
             style={{

@@ -1,3 +1,40 @@
+/*
+ * The dashboard's stylesheet (FF-1650).
+ *
+ * The shared theme brings Tailwind with it; what the app adds on top is
+ * which files its classes are written in, and its own variants. Under v3
+ * both lived in `tailwind.config.ts`; v4 reads them from the stylesheet, so
+ * the config is gone and this is the one place.
+ */
+@import "@midday/ui/globals.css";
+
+@source "../";
+@source "../../../../packages/ui/src";
+@source "../../../../packages/invoice/src";
+
+/*
+ * `dark:` is a class on the html element, not the operating system's
+ * preference — the app has its own switch.
+ *
+ * `:is`, not v4's default `:where` (FF-1650). v3 compiled this variant to
+ * `:is(.dark *)`, which costs a specificity point; `:where` costs none. The
+ * sheet puts `dark:` after `hover:`, so under v3 the two tied and `dark:`
+ * won on order — with `:where` the hover rule wins outright, and sixteen
+ * class lists that set a colour on both end up with the hover colour in dark
+ * mode. This reproduces v3's selector exactly.
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * The desktop app's own variants. These were a Tailwind plugin using
+ * `modifySelectors`, an API v4 removed; a variant is a line of CSS now.
+ * Usage is unchanged: `desktop:rounded-[10px]`, `mac:hidden`.
+ */
+@custom-variant desktop (html.desktop &);
+@custom-variant mac (html.desktop-platform-darwin &);
+@custom-variant windows (html.desktop-platform-win32 &);
+@custom-variant linux (html.desktop-platform-linux &);
+
 html,
 body {
   height: 100%;
@@ -208,9 +245,21 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   height: 0;
 }
 
-.tiptap {
-  font-size: 11px;
-  line-height: 18px;
+/*
+ * The invoice editor's default size, in a layer on purpose (FF-1650).
+ *
+ * This file is the stylesheet's entry now, so its own rules are unlayered —
+ * and unlayered CSS beats anything in a layer whatever the specificity,
+ * including every Tailwind utility. Under v3 this lost to the quote's
+ * `[&_.tiptap]:text-sm` on specificity; unlayered it started winning, and
+ * silently dropped a quote's body text from 14px to 11px. In a layer, a
+ * utility overrides it again.
+ */
+@layer base {
+  .tiptap {
+    font-size: 11px;
+    line-height: 18px;
+  }
 }
 
 .dark .dotted-bg {

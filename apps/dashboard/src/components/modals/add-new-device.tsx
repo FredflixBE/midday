@@ -116,7 +116,7 @@ export function AddNewDeviceModal() {
             <div className="h-16 w-full max-w-fit flex items-center justify-center">
               {isValidating || isRedirecting ? (
                 <div className="flex items-center justify-center h-full bg-background/95 border border-input px-4">
-                  <div className="flex items-center space-x-2 bg-background px-4 py-2 rounded-md shadow-sm">
+                  <div className="flex items-center space-x-2 bg-background px-4 py-2 rounded-md shadow-xs">
                     <Spinner size={16} className="text-primary" />
                     <span className="text-sm text-foreground font-medium">
                       {isRedirecting ? "Closing..." : "Adding device..."}

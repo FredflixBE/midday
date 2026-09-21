@@ -65,7 +65,7 @@ export function ProductsSkeleton() {
 
               {/* Actions column - matches dropdown button */}
               <TableCell className="w-[50px]">
-                <Skeleton className="h-8 w-8 rounded" />
+                <Skeleton className="h-8 w-8 rounded-sm" />
               </TableCell>
             </TableRow>
           ))}

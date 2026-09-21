@@ -69,7 +69,7 @@ export function CompanyEnrichmentAnimation({
             initial={{ opacity: 0 }}
             animate={{ opacity: showLogo ? 1 : 0 }}
             transition={{ duration: 0.25 }}
-            className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-foreground/5 border border-border overflow-hidden"
+            className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 bg-foreground/5 border border-border overflow-hidden"
           >
             <Image
               src="/images/supabase.png"
@@ -216,7 +216,7 @@ export function CompanyEnrichmentAnimation({
         transition={{ duration: 0.25 }}
         className="flex-1 min-h-0 overflow-y-auto flex flex-col md:mt-2"
       >
-        <div className="pt-2 md:pt-3 pb-3 md:py-5 flex items-center justify-between px-2 md:px-3 flex-shrink-0">
+        <div className="pt-2 md:pt-3 pb-3 md:py-5 flex items-center justify-between px-2 md:px-3 shrink-0">
           <h3 className="text-[11px] md:text-[12px] text-foreground">
             Company Profile
           </h3>

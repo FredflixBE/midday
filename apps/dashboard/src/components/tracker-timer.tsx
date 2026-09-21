@@ -255,7 +255,7 @@ export function TrackerTimer({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className={`p-1 h-6 rounded transition-all text-[#666] duration-200 ease-in-out hover:bg-accent flex items-center justify-center overflow-hidden ${
+                className={`p-1 h-6 rounded-sm transition-all text-[#666] duration-200 ease-in-out hover:bg-accent flex items-center justify-center overflow-hidden ${
                   isThisProjectRunning
                     ? "w-6 mr-1 opacity-100 scale-100"
                     : alwaysShowButton

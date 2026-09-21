@@ -24,7 +24,7 @@ export function SkeletonCell({ type, width = "w-24" }: SkeletonCellProps) {
     case "avatar-text":
       return (
         <div className="flex items-center space-x-2">
-          <Skeleton className="h-6 w-6 rounded-full flex-shrink-0" />
+          <Skeleton className="h-6 w-6 rounded-full shrink-0" />
           <Skeleton className={cn("h-3.5", width)} />
         </div>
       );
@@ -32,7 +32,7 @@ export function SkeletonCell({ type, width = "w-24" }: SkeletonCellProps) {
     case "icon-text":
       return (
         <div className="flex items-center space-x-2">
-          <Skeleton className="h-[9px] w-[9px] flex-shrink-0" />
+          <Skeleton className="h-[9px] w-[9px] shrink-0" />
           <Skeleton className={cn("h-3.5", width)} />
         </div>
       );

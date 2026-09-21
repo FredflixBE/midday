@@ -360,7 +360,7 @@ export function ProductAutocomplete({
         }
         className={cn(
           "border-0 p-0 min-h-6 border-b border-transparent focus:border-border text-xs pt-1",
-          "transition-colors duration-200 bg-transparent outline-none resize-none w-full",
+          "transition-colors duration-200 bg-transparent outline-hidden resize-none w-full",
           "text-primary leading-[18px] invoice-editor overflow-hidden",
           "placeholder:font-sans placeholder:text-muted-foreground",
           showPlaceholder &&

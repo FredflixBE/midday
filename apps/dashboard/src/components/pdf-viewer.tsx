@@ -166,7 +166,7 @@ export function PdfViewer({ url, maxWidth }: PdfViewerProps) {
                   data-1p-ignore="true"
                   data-bitwarden-watching="false"
                   name="document-unlock-password"
-                  className="text-center bg-transparent focus:ring-0 focus:outline-none"
+                  className="text-center bg-transparent focus:ring-0 focus:outline-hidden"
                 />
               </form>
               {passwordError && (

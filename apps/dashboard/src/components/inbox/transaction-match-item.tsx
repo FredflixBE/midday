@@ -40,7 +40,7 @@ export function TransactionMatchItem({
     <div className="flex min-w-0 flex-1 items-center justify-between gap-2 text-sm">
       <div className="flex gap-2 items-center min-w-0 flex-1">
         <span className="truncate max-w-[70%]">{name}</span>
-        <span className="text-muted-foreground flex-shrink-0">
+        <span className="text-muted-foreground shrink-0">
           {formatDate(date, dateFormat)}
         </span>
         {isAlreadyMatched && (
@@ -59,7 +59,7 @@ export function TransactionMatchItem({
         )}
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-4">
+      <div className="flex shrink-0 items-center gap-4">
         {showBestMatch && (
           <Badge variant="outline" className="px-2 py-0">
             Best Match

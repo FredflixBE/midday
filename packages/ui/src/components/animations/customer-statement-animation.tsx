@@ -142,7 +142,7 @@ export function CustomerStatementAnimation({
             initial={{ opacity: 0 }}
             animate={{ opacity: showLogo ? 1 : 0 }}
             transition={{ duration: 0.25 }}
-            className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center flex-shrink-0 bg-foreground/5 border border-border overflow-hidden"
+            className="w-7 h-7 md:w-9 md:h-9 rounded-full flex items-center justify-center shrink-0 bg-foreground/5 border border-border overflow-hidden"
           >
             <Image
               src="/images/supabase.png"
@@ -220,7 +220,7 @@ export function CustomerStatementAnimation({
         transition={{ duration: 0.25 }}
         className="flex-1 flex flex-col min-h-0 overflow-hidden"
       >
-        <div className="py-2.5 md:py-3.5 flex items-center justify-between border-b border-border flex-shrink-0 px-2 md:px-3">
+        <div className="py-2.5 md:py-3.5 flex items-center justify-between border-b border-border shrink-0 px-2 md:px-3">
           <h3 className="text-[11px] md:text-[12px] text-foreground">
             Statement
           </h3>
@@ -232,7 +232,7 @@ export function CustomerStatementAnimation({
 
         {/* Summary Cards */}
         {showCards && (
-          <div className="grid grid-cols-2 gap-3 md:gap-4 pt-4 md:pt-6 pb-4 md:pb-6 flex-shrink-0">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 pt-4 md:pt-6 pb-4 md:pb-6 shrink-0">
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}

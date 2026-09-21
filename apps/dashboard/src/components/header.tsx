@@ -13,7 +13,7 @@ function UserMenuSkeleton() {
 export function Header() {
   return (
     <header
-      className="md:m-0 z-50 px-6 md:border-b h-[70px] flex justify-between items-center top-0 backdrop-filter backdrop-blur-xl md:backdrop-filter md:backdrop-blur-none bg-background bg-opacity-70 desktop:rounded-t-[10px] transition-transform"
+      className="md:m-0 z-50 px-6 md:border-b h-[70px] flex justify-between items-center top-0 backdrop-filter backdrop-blur-xl md:backdrop-filter md:backdrop-blur-none bg-background desktop:rounded-t-[10px] transition-transform"
       style={{
         transform: "translateY(calc(var(--header-offset, 0px) * -1))",
         transitionDuration: "var(--header-transition, 200ms)",

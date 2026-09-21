@@ -50,7 +50,7 @@ export function OAuthDataTable() {
             carefully.
           </p>
         </div>
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <Button onClick={() => setParams({ createApplication: true })}>
             Create OAuth App
           </Button>

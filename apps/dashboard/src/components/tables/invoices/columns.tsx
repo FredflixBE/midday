@@ -217,7 +217,7 @@ export const columns: ColumnDef<Invoice>[] = [
               onClick={handleCustomerClick}
               className="flex items-center space-x-2 text-left min-w-0"
             >
-              <Avatar className="size-5 flex-shrink-0">
+              <Avatar className="size-5 shrink-0">
                 {customer?.website && (
                   <AvatarImageNext
                     src={getWebsiteLogo(customer?.website)}
@@ -235,7 +235,7 @@ export const columns: ColumnDef<Invoice>[] = [
             </button>
           ) : (
             <>
-              <Avatar className="size-5 flex-shrink-0">
+              <Avatar className="size-5 shrink-0">
                 {customer?.website && (
                   <AvatarImageNext
                     src={getWebsiteLogo(customer?.website)}
@@ -256,7 +256,7 @@ export const columns: ColumnDef<Invoice>[] = [
           {viewAt && row.original.status !== "paid" && (
             <TooltipProvider delayDuration={0}>
               <Tooltip>
-                <TooltipTrigger className="flex items-center space-x-2 flex-shrink-0">
+                <TooltipTrigger className="flex items-center space-x-2 shrink-0">
                   <Icons.Visibility className="size-4 text-[#878787]" />
                 </TooltipTrigger>
                 <TooltipContent

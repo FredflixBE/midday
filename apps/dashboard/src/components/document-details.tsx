@@ -46,7 +46,7 @@ export function DocumentDetails() {
   }
 
   return (
-    <div className="flex flex-col flex-grow min-h-0 relative h-full w-full">
+    <div className="flex flex-col grow min-h-0 relative h-full w-full">
       <SheetHeader className="mb-4 flex justify-between items-center flex-row">
         <div className="min-w-0 flex-1 max-w-[70%] flex flex-row gap-2 items-end">
           <h2 className="text-lg truncate flex-0 font-serif">
@@ -62,7 +62,7 @@ export function DocumentDetails() {
       </SheetHeader>
 
       <div className="h-full max-h-[763px] p-0 pb-4 overflow-x-auto scrollbar-hide">
-        <div className="flex flex-col flex-grow min-h-0 relative h-full w-full items-center justify-center">
+        <div className="flex flex-col grow min-h-0 relative h-full w-full items-center justify-center">
           <FileViewer
             url={`${process.env.NEXT_PUBLIC_API_URL}/files/proxy?filePath=vault/${data?.pathTokens?.join("/")}`}
             // @ts-expect-error - mimetype is not typed (JSONB)

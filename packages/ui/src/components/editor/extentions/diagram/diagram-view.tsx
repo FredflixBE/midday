@@ -45,7 +45,7 @@ export function DiagramView(props: NodeViewProps) {
         <img
           src={src}
           alt="Diagram"
-          className={`max-w-full ${selected ? "outline outline-2 outline-primary" : ""}`}
+          className={`max-w-full ${selected ? "outline-solid outline-2 outline-primary" : ""}`}
         />
       ) : canEdit ? (
         // Nothing has been written yet, so the whole box is the way in. It

@@ -43,7 +43,7 @@ export function AttachmentItem({ file, onDelete }: Props) {
         type="button"
         disabled={file.isUploading || !file?.path}
       >
-        <div className="relative w-[40px] h-[40px] overflow-hidden flex-shrink-0">
+        <div className="relative w-[40px] h-[40px] overflow-hidden shrink-0">
           {file.isUploading ? (
             <Skeleton className="w-full h-full" />
           ) : (
@@ -67,7 +67,7 @@ export function AttachmentItem({ file, onDelete }: Props) {
       <Button
         variant="ghost"
         size="icon"
-        className="w-auto hover:bg-transparent flex flex-shrink-0"
+        className="w-auto hover:bg-transparent flex shrink-0"
         onClick={handleDeleteClick}
       >
         <X size={14} />

@@ -8,8 +8,8 @@ import { format, parseISO } from "date-fns";
 export const chartClasses = {
   container: "w-full h-full",
   tooltip: {
-    light: "bg-white border border-gray-200 rounded-none shadow-sm",
-    dark: "bg-[#0c0c0c] border border-[#1d1d1d] rounded-none shadow-sm",
+    light: "bg-white border border-gray-200 rounded-none shadow-xs",
+    dark: "bg-[#0c0c0c] border border-[#1d1d1d] rounded-none shadow-xs",
   },
   text: {
     light: "fill-gray-500",

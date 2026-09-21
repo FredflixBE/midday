@@ -45,7 +45,7 @@ function DroppableCell({
   return (
     <div
       ref={setNodeRef}
-      className={`${COL_SPAN_CLASS[colSpan]} rounded transition-shadow duration-150 ${
+      className={`${COL_SPAN_CLASS[colSpan]} rounded-sm transition-shadow duration-150 ${
         isOver ? "ring-2 ring-primary/40 ring-inset" : ""
       }`}
     >
@@ -139,7 +139,7 @@ export function MetricsGrid({
         <DragOverlay dropAnimation={null}>
           {activeItem ? (
             <div
-              className="pointer-events-none rounded shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
+              className="pointer-events-none rounded-sm shadow-[0_8px_30px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.4)]"
               style={{
                 width: gridRef.current
                   ? (gridRef.current.getBoundingClientRect().width *

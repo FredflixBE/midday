@@ -136,7 +136,7 @@ export function InboxMatchAnimation({
           <input
             type="text"
             placeholder="Search inbox..."
-            className="w-full bg-background border border-border px-2 md:px-3 py-1.5 md:py-2 text-[11px] md:text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-border/50 rounded-none pr-7 md:pr-8"
+            className="w-full bg-background border border-border px-2 md:px-3 py-1.5 md:py-2 text-[11px] md:text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-border/50 rounded-none pr-7 md:pr-8"
           />
           <MdSearch
             className="absolute right-2 md:right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground"
@@ -159,7 +159,7 @@ export function InboxMatchAnimation({
               className="bg-background border border-border p-2 md:p-3 transform-gpu will-change-transform"
             >
               <div className="flex items-start gap-1.5 md:gap-2">
-                <span className="inline-flex w-5 h-5 md:w-6 md:h-6 items-center justify-center bg-secondary border border-border flex-shrink-0">
+                <span className="inline-flex w-5 h-5 md:w-6 md:h-6 items-center justify-center bg-secondary border border-border shrink-0">
                   <DynamicIcon
                     name={item.icon}
                     className="text-sm text-muted-foreground"
@@ -201,7 +201,7 @@ export function InboxMatchAnimation({
               className="bg-secondary border border-border p-2 md:p-3 transform-gpu will-change-transform absolute bottom-[48px] md:bottom-[68px] left-2 md:left-3 right-2 md:right-3 z-50"
             >
               <div className="flex items-start gap-1.5 md:gap-2">
-                <span className="inline-flex w-5 h-5 md:w-6 md:h-6 items-center justify-center bg-secondary border border-border flex-shrink-0">
+                <span className="inline-flex w-5 h-5 md:w-6 md:h-6 items-center justify-center bg-secondary border border-border shrink-0">
                   <Image
                     src="/images/gmail.svg"
                     alt="Gmail"
@@ -246,7 +246,7 @@ export function InboxMatchAnimation({
         <div className="w-full bg-secondary border border-border px-2 md:px-3 py-2 md:py-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
             <MdOutlineLink
-              className="text-sm text-muted-foreground flex-shrink-0"
+              className="text-sm text-muted-foreground shrink-0"
               size={14}
             />
             <div className="min-w-0 flex-1">
@@ -260,7 +260,7 @@ export function InboxMatchAnimation({
           </div>
           <button
             type="button"
-            className="ml-2 md:ml-3 flex items-center justify-center h-7 md:h-8 px-2 md:px-3 bg-transparent border border-border text-[11px] md:text-[12px] text-foreground hover:bg-muted transition-colors flex-shrink-0"
+            className="ml-2 md:ml-3 flex items-center justify-center h-7 md:h-8 px-2 md:px-3 bg-transparent border border-border text-[11px] md:text-[12px] text-foreground hover:bg-muted transition-colors shrink-0"
           >
             Review
           </button>

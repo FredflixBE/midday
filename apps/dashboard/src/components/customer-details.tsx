@@ -340,12 +340,12 @@ export function CustomerDetails() {
           <div className="min-w-0 flex-1 flex items-center gap-3">
             {/* Logo from logo.dev */}
             {isEnriching ? (
-              <Skeleton className="size-9 rounded-full flex-shrink-0" />
+              <Skeleton className="size-9 rounded-full shrink-0" />
             ) : customer.website ? (
               <img
                 src={getWebsiteLogo(customer.website)}
                 alt={`${customer.name} logo`}
-                className="size-9 rounded-full object-cover flex-shrink-0 bg-muted"
+                className="size-9 rounded-full object-cover shrink-0 bg-muted"
                 onError={(e) => {
                   // Fallback to initials on error
                   e.currentTarget.style.display = "none";
@@ -356,7 +356,7 @@ export function CustomerDetails() {
             ) : null}
             <div
               className={cn(
-                "size-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground font-medium flex-shrink-0",
+                "size-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground font-medium shrink-0",
                 customer.website && "hidden",
               )}
             >
@@ -1031,7 +1031,7 @@ export function CustomerDetails() {
                           >
                             <Badge
                               variant="tag"
-                              className="whitespace-nowrap flex-shrink-0"
+                              className="whitespace-nowrap shrink-0"
                             >
                               {tag.name}
                             </Badge>
@@ -1352,7 +1352,7 @@ export function CustomerDetails() {
       </div>
 
       {/* Fixed Footer */}
-      <SheetFooter className="border-t border-border pt-4 mt-auto flex-shrink-0 w-full mx-0">
+      <SheetFooter className="border-t border-border pt-4 mt-auto shrink-0 w-full mx-0">
         <div className="w-full px-6 flex justify-end">
           <Button
             onClick={handleEdit}

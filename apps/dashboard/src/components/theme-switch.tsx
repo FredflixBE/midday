@@ -48,7 +48,7 @@ export const ThemeSwitch = () => {
           setTheme(value);
         }}
       >
-        <SelectTrigger className="w-full pl-6 pr-3 py-0.5 bg-transparent outline-none capitalize h-[24px] text-xs border-0 shadow-none">
+        <SelectTrigger className="w-full pl-6 pr-3 py-0.5 bg-transparent outline-hidden capitalize h-[24px] text-xs border-0 shadow-none">
           <SelectValue>
             {theme
               ? theme.charAt(0).toUpperCase() + theme.slice(1)

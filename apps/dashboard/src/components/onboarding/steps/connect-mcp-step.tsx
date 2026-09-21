@@ -53,7 +53,7 @@ function McpConnectButton({
       onClick={() => onConnect(id)}
     >
       <div className="flex items-center space-x-2">
-        <div className="size-5 overflow-hidden rounded shrink-0 mcp-step-icon">
+        <div className="size-5 overflow-hidden rounded-sm shrink-0 mcp-step-icon">
           <Logo />
         </div>
         <span>Connect {name}</span>

@@ -128,7 +128,7 @@ export function FileGridAnimation({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search files..."
-              className="w-full bg-background border border-border px-2 md:px-3 py-1.5 md:py-2 text-[11px] md:text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-border/50 rounded-none pr-7 md:pr-8"
+              className="w-full bg-background border border-border px-2 md:px-3 py-1.5 md:py-2 text-[11px] md:text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:border-border/50 rounded-none pr-7 md:pr-8"
             />
             <MdSearch
               className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"

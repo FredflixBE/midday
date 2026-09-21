@@ -52,7 +52,7 @@ export function SourcesList({ sources }: { sources: SourceUrlPart[] }) {
                       style={{ zIndex: sources.length - index }}
                     >
                       <OpenURL href={addUtmSource(source.url)}>
-                        <div className="relative size-5 rounded-full bg-background border-2 border-border overflow-hidden flex items-center justify-center shadow-sm cursor-pointer">
+                        <div className="relative size-5 rounded-full bg-background border-2 border-border overflow-hidden flex items-center justify-center shadow-xs cursor-pointer">
                           <img
                             src={getWebsiteLogo(domain)}
                             alt={domain}

@@ -319,7 +319,7 @@ export function TransactionFlowAnimation({
       {/* Main content area */}
       <div className="flex-1 relative overflow-hidden flex flex-col z-10">
         {/* SVG for account nodes and arrows */}
-        <div className="flex-shrink-0 h-[140px] md:h-[200px] relative overflow-hidden">
+        <div className="shrink-0 h-[140px] md:h-[200px] relative overflow-hidden">
           <svg
             className="w-full h-full"
             viewBox={`0 0 500 ${viewBoxHeight}`}
@@ -482,7 +482,7 @@ export function TransactionFlowAnimation({
                   <td className="w-[110px] md:w-[120px] px-1.5 md:px-2">
                     <div className="flex items-center gap-1 md:gap-1.5">
                       <div
-                        className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0"
+                        className="w-2 h-2 md:w-2.5 md:h-2.5 shrink-0"
                         style={{ backgroundColor: transaction.categoryColor }}
                       />
                       <span className="text-[10px] md:text-[11px] text-foreground truncate">

@@ -125,7 +125,7 @@ export function Summary() {
     <div className="w-[320px] flex flex-col">
       <div className="flex justify-between items-center py-1">
         <LabelInput
-          className="flex-shrink-0 min-w-6"
+          className="shrink-0 min-w-6"
           name="template.subtotalLabel"
           onSave={(value) => {
             updateTemplate({ subtotalLabel: value });
@@ -163,7 +163,7 @@ export function Summary() {
         <div className="flex justify-between items-center py-1">
           <div className="flex items-center gap-1">
             <LabelInput
-              className="flex-shrink-0 min-w-5"
+              className="shrink-0 min-w-5"
               name="template.vatLabel"
               onSave={(value) => {
                 updateTemplate({ vatLabel: value });
@@ -188,7 +188,7 @@ export function Summary() {
         <div className="flex justify-between items-center py-1">
           <div className="flex items-center gap-1">
             <LabelInput
-              className="flex-shrink-0 min-w-5"
+              className="shrink-0 min-w-5"
               name="template.taxLabel"
               onSave={(value) => {
                 updateTemplate({ taxLabel: value });
@@ -212,7 +212,7 @@ export function Summary() {
       {includeLineItemTax && totalTax > 0 && (
         <div className="flex justify-between items-center py-1">
           <LabelInput
-            className="flex-shrink-0 min-w-5"
+            className="shrink-0 min-w-5"
             name="template.taxLabel"
             onSave={(value) => {
               updateTemplate({ taxLabel: value });

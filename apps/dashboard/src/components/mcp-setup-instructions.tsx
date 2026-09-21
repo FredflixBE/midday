@@ -25,10 +25,10 @@ function CopyableUrl({ url }: { url: string }) {
     >
       <span className="font-mono text-xs flex-1 truncate">{url}</span>
       {copied ? (
-        <Icons.Check className="text-foreground flex-shrink-0" size={14} />
+        <Icons.Check className="text-foreground shrink-0" size={14} />
       ) : (
         <Icons.Copy
-          className="text-muted-foreground group-hover:text-foreground flex-shrink-0 transition-colors"
+          className="text-muted-foreground group-hover:text-foreground shrink-0 transition-colors"
           size={14}
         />
       )}
@@ -55,7 +55,7 @@ function CopyableCode({ code }: { code: string }) {
       <button
         type="button"
         onClick={handleCopy}
-        className="absolute top-2 right-2 p-1 bg-background/80 backdrop-blur-sm border border-border text-muted-foreground hover:text-foreground hover:bg-background transition-colors opacity-0 group-hover:opacity-100"
+        className="absolute top-2 right-2 p-1 bg-background/80 backdrop-blur-xs border border-border text-muted-foreground hover:text-foreground hover:bg-background transition-colors opacity-0 group-hover:opacity-100"
         aria-label="Copy code"
       >
         {copied ? (
@@ -77,7 +77,7 @@ function SetupStep({
 }) {
   return (
     <li className="flex items-start gap-2.5">
-      <span className="flex-shrink-0 w-5 h-5 bg-secondary border border-border flex items-center justify-center font-mono text-[10px] text-muted-foreground">
+      <span className="shrink-0 w-5 h-5 bg-secondary border border-border flex items-center justify-center font-mono text-[10px] text-muted-foreground">
         {number}
       </span>
       <span className="text-xs text-[#878787] pt-0.5">{children}</span>

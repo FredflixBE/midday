@@ -15,7 +15,7 @@ export function Meta({ template, invoiceNumber, issueDate, dueDate }: Props) {
 
   return (
     <div className="mb-2">
-      <h2 className="text-xl font-serif mb-1 mt-0 min-w-[100px] w-full overflow-hidden [-webkit-line-clamp:2] [-webkit-box-orient:vertical] [display:-webkit-box] break-normal [overflow-wrap:break-word] [hyphens:auto] font-normal">
+      <h2 className="text-xl font-serif mb-1 mt-0 min-w-[100px] w-full overflow-hidden [-webkit-line-clamp:2] [-webkit-box-orient:vertical] [display:-webkit-box] break-normal wrap-break-word [hyphens:auto] font-normal">
         {template.title}
       </h2>
       <div className="flex flex-col gap-0.5">
