@@ -55,7 +55,7 @@ function CopyableCode({ code }: { code: string }) {
       <button
         type="button"
         onClick={handleCopy}
-        className="absolute top-2 right-2 p-1 bg-background/80 backdrop-blur-sm border border-border text-muted-foreground hover:text-foreground hover:bg-background transition-colors opacity-0 group-hover:opacity-100"
+        className="absolute top-2 right-2 p-1 bg-background/80 backdrop-blur-xs border border-border text-muted-foreground hover:text-foreground hover:bg-background transition-colors opacity-0 group-hover:opacity-100"
         aria-label="Copy code"
       >
         {copied ? (

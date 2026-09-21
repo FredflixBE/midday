@@ -37,22 +37,22 @@ export function Meta({ template, invoiceNumber, issueDate, dueDate }: Props) {
       </h2>
       <div className="flex flex-col gap-0.5">
         <div className="flex space-x-1 items-center">
-          <div className="flex items-center flex-shrink-0 space-x-1">
+          <div className="flex items-center shrink-0 space-x-1">
             <span className="truncate text-[11px] text-[#878787]">
               {template.invoiceNoLabel ? `${template.invoiceNoLabel}:` : ""}
             </span>
-            <span className="text-[11px] flex-shrink-0">{invoiceNumber}</span>
+            <span className="text-[11px] shrink-0">{invoiceNumber}</span>
           </div>
         </div>
 
         <div>
           <div>
             <div className="flex space-x-1 items-center">
-              <div className="flex items-center flex-shrink-0 space-x-1">
+              <div className="flex items-center shrink-0 space-x-1">
                 <span className="truncate text-[11px] text-[#878787]">
                   {template.issueDateLabel ? `${template.issueDateLabel}:` : ""}
                 </span>
-                <span className="text-[11px] flex-shrink-0">
+                <span className="text-[11px] shrink-0">
                   {issueDate
                     ? format(new TZDate(issueDate, "UTC"), dateFormat)
                     : ""}
@@ -64,11 +64,11 @@ export function Meta({ template, invoiceNumber, issueDate, dueDate }: Props) {
         <div>
           <div>
             <div className="flex space-x-1 items-center">
-              <div className="flex items-center flex-shrink-0 space-x-1">
+              <div className="flex items-center shrink-0 space-x-1">
                 <span className="truncate text-[11px] text-[#878787]">
                   {template.dueDateLabel ? `${template.dueDateLabel}:` : ""}
                 </span>
-                <span className="text-[11px] flex-shrink-0">
+                <span className="text-[11px] shrink-0">
                   {dueDate
                     ? format(new TZDate(dueDate, "UTC"), dateFormat)
                     : ""}

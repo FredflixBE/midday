@@ -187,6 +187,17 @@
  * kept this codebase's 310 bare `border` utilities looking right — the
  * pseudo-elements are added here so they follow it too.
  */
+/*
+ * v4's preflight no longer gives a button the hand cursor, so every button
+ * in the product would quietly become an arrow. Restores v3's behaviour.
+ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 @layer base {
   *,
   ::after,

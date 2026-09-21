@@ -15,8 +15,15 @@
 /*
  * `dark:` is a class on the html element, not the operating system's
  * preference — the app has its own switch.
+ *
+ * `:is`, not v4's default `:where` (FF-1650). v3 compiled this variant to
+ * `:is(.dark *)`, which costs a specificity point; `:where` costs none. The
+ * sheet puts `dark:` after `hover:`, so under v3 the two tied and `dark:`
+ * won on order — with `:where` the hover rule wins outright, and sixteen
+ * class lists that set a colour on both end up with the hover colour in dark
+ * mode. This reproduces v3's selector exactly.
  */
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:is(.dark *));
 
 /*
  * The desktop app's own variants. These were a Tailwind plugin using

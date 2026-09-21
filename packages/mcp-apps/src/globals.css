@@ -5,7 +5,16 @@
 
 @plugin "tailwindcss-animate";
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/*
+ * Where the classes are written (FF-1650). The deleted config listed
+ * `packages/ui/src` here too — these apps render shared components, and
+ * without it their utilities are simply never emitted.
+ */
+@source "./";
+@source "../../ui/src";
+
+/* `:is`, not `:where` — see the dashboard's stylesheet for why. */
+@custom-variant dark (&:is([data-theme="dark"] *));
 
 @theme {
   --font-sans: var(--font-sans);
