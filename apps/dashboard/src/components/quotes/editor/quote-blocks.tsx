@@ -12,8 +12,8 @@ import {
 } from "@midday/ui/dialog";
 import { Editor } from "@midday/ui/editor";
 import { Input } from "@midday/ui/input";
-import { ChevronDown, Maximize2, Trash2 } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import { ChevronDown, Heading1, Maximize2, Trash2 } from "lucide-react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { DraftChange } from "../use-quote-draft";
 import { useQuoteImages } from "../use-quote-images";
 import { PricingPreview } from "./pricing-preview";
@@ -216,14 +216,15 @@ const TEXT_STYLES = cn(
   "[&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:mt-2 [&_.tiptap_h3]:text-base [&_.tiptap_h3]:font-medium",
   // The editor sets its own size and a loose leading for invoice text.
   "[&_.tiptap]:text-sm [&_.tiptap]:leading-[1.55]",
-  // An empty block says how to start, whether or not it holds the caret
-  // (FF-1638). Only the first line of an empty one: a blank line left for
-  // air in the middle of a written block has nothing to say.
-  "[&_.tiptap_p.is-editor-empty:first-child]:before:pointer-events-none",
-  "[&_.tiptap_p.is-editor-empty:first-child]:before:float-left",
-  "[&_.tiptap_p.is-editor-empty:first-child]:before:h-0",
-  "[&_.tiptap_p.is-editor-empty:first-child]:before:text-[#878787]",
-  "[&_.tiptap_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
+  // How to start, on the line being written and nowhere else (FF-1649). The
+  // extension marks only the node the caret is in, and the focused editor is
+  // the only one that draws it — so a document of empty blocks is empty
+  // rather than a column of repeated instructions.
+  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:pointer-events-none",
+  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:float-left",
+  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:h-0",
+  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:text-[#878787]",
+  "[&_.tiptap.ProseMirror-focused_p.is-empty]:before:content-[attr(data-placeholder)]",
 );
 
 /** A block's own heading, which the PDF sets at the size of an h1. */
@@ -263,6 +264,16 @@ function TextBlockEditor({
   onRemove: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // A heading asked for but not yet typed. An empty heading is not part of
+  // the document, so this is not saved — it only decides whether the line is
+  // on screen waiting to be typed into (FF-1649).
+  const [headingWanted, setHeadingWanted] = useState(false);
+  const headingBox = useRef<HTMLInputElement>(null);
+  // After the line is on screen, not before: the ref is only attached once
+  // React has committed, so focusing on the click itself finds nothing.
+  useEffect(() => {
+    if (headingWanted) headingBox.current?.focus();
+  }, [headingWanted]);
   const images = useQuoteImages();
   const body = useRef<HTMLDivElement>(null);
   // What the block stood at when it was expanded, so the page behind the
@@ -316,6 +327,23 @@ function TextBlockEditor({
     <div className="group quote-block relative">
       <div className={cn(CONTROLS, "flex items-center gap-1 px-1 py-0.5")}>
         {editable ? handle : null}
+        {editable && !block.heading ? (
+          // The way to give a block a heading, now that an empty one keeps
+          // no line of its own (FF-1649). It lives with the block's other
+          // controls, which float — so asking for a heading is the only
+          // thing that moves the text, and that is a deliberate act rather
+          // than something the pointer does on its way past.
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="Add heading"
+            onClick={() => setHeadingWanted(true)}
+          >
+            <Heading1 size={14} />
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -345,8 +373,9 @@ function TextBlockEditor({
 
       {/* The heading is part of the document, not a labelled field above it:
           the same type the PDF sets it in, still typed in place. */}
-      {editable ? (
+      {editable && (block.heading !== null || headingWanted) ? (
         <Input
+          ref={headingBox}
           aria-label="Heading"
           placeholder="Heading"
           value={block.heading ?? ""}
@@ -356,16 +385,14 @@ function TextBlockEditor({
           className={cn(
             HEADING_STYLES,
             "h-auto border-0 bg-transparent p-0 focus-visible:ring-0",
-            // A heading is content and always shows; an empty one is a
-            // field, and waits out of sight with the block's other chrome
-            // (FF-1644). It keeps its line rather than collapsing, so
-            // nothing below it moves when it appears.
-            !block.heading &&
-              "opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
           )}
           onChange={(event) =>
             onChange({ heading: event.target.value || null })
           }
+          // Asked for and then left empty: the line goes again rather than
+          // staying as a band of space above a block with no title
+          // (FF-1649).
+          onBlur={() => setHeadingWanted(false)}
         />
       ) : block.heading ? (
         <h3 className={HEADING_STYLES}>{block.heading}</h3>

@@ -20,7 +20,10 @@
   @apply flex gap-2;
 }
 
-.tiptap p.is-empty::before {
+/* Only while this editor holds the caret (FF-1649). The extension marks the
+   node the caret is in; this is what keeps an editor that was merely clicked
+   away from still showing an instruction. */
+.tiptap.ProseMirror-focused p.is-empty::before {
   color: #404040;
   content: attr(data-placeholder);
   float: left;
