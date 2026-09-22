@@ -51,6 +51,21 @@ describe("businessIdentityDoc", () => {
     ]);
   });
 
+  // The FOD Economie guideline: "met landencode BE: de vermelding «BTW BE»
+  // gaat het ondernemingsnummer vooraf". A number with the code is a VAT
+  // number; one without is the bare KBO number and gets no label (FF-1679).
+  test("labels a number with the BE country code BTW, and a bare one not", () => {
+    expect(
+      lines({ legalName: "Fredflix", enterpriseNumber: "BE0747902860" }),
+    ).toEqual(["Fredflix", "BTW BE0747902860"]);
+    expect(
+      lines({ legalName: "Fredflix", enterpriseNumber: "BE 0747.902.860" }),
+    ).toEqual(["Fredflix", "BTW BE 0747.902.860"]);
+    expect(
+      lines({ legalName: "Fredflix", enterpriseNumber: "0747.902.860" }),
+    ).toEqual(["Fredflix", "0747.902.860"]);
+  });
+
   test("leaves out a line nothing was said for", () => {
     expect(
       lines({ legalName: "Fredflix", enterpriseNumber: "0123.456.789" }),

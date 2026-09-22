@@ -420,6 +420,192 @@ describe("one scenario", () => {
     });
   });
 
+  // The From and To blocks arrive as one paragraph per line, and each
+  // paragraph is its own box on the page: 23.1pt a line against 17 for one
+  // paragraph broken by hardBreak. They are folded at this seam so a block
+  // stored on a sent version long ago is set as tightly as one made today
+  // (FF-1679). Only a block that is nothing but single lines is touched.
+  describe("an address is one block", () => {
+    const line = (text: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    });
+    const shape = (doc: unknown) => {
+      const d = doc as {
+        content?: {
+          type: string;
+          content?: { type: string; text?: string }[];
+        }[];
+      } | null;
+      return (d?.content ?? []).map((n) => [
+        n.type,
+        (n.content ?? [])
+          .map((c) => (c.type === "hardBreak" ? "|" : c.text))
+          .join(""),
+      ]);
+    };
+
+    test("folds single-line paragraphs into one paragraph with breaks", () => {
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          customerDetails: {
+            type: "doc",
+            content: [
+              line("DPG Media NV"),
+              line("Belgium"),
+              line("frederik@fredflix.be"),
+            ],
+          },
+        }),
+      );
+      expect(shape(doc.customerDetails)).toEqual([
+        ["paragraph", "DPG Media NV|Belgium|frederik@fredflix.be"],
+      ]);
+    });
+
+    test("drops an empty paragraph, which is a blank line nobody meant", () => {
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          customerDetails: {
+            type: "doc",
+            content: [line("A"), { type: "paragraph" }, line("B")],
+          },
+        }),
+      );
+      expect(shape(doc.customerDetails)).toEqual([["paragraph", "A|B"]]);
+    });
+
+    test("leaves a document that is more than lines alone", () => {
+      const withHeading = {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 2 },
+            content: [{ type: "text", text: "Payment" }],
+          },
+          line("Within 30 days"),
+        ],
+      };
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          paymentDetails: withHeading,
+        }),
+      );
+      expect(shape(doc.paymentDetails)).toEqual([
+        ["heading", "Payment"],
+        ["paragraph", "Within 30 days"],
+      ]);
+    });
+
+    // The letterhead is set line by line, so the document says what the
+    // lines are — and says nothing when the block is more than lines.
+    test("exposes the sender as lines, or not at all", () => {
+      const asLines = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          fromDetails: {
+            type: "doc",
+            content: [
+              line("Fredflix BV"),
+              line("Bosstraat 59"),
+              line("BTW BE0747902860"),
+            ],
+          },
+        }),
+      );
+      expect(asLines.fromLines).toEqual([
+        "Fredflix BV",
+        "Bosstraat 59",
+        "BTW BE0747902860",
+      ]);
+      const asDocument = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          fromDetails: {
+            type: "doc",
+            content: [
+              {
+                type: "heading",
+                attrs: { level: 2 },
+                content: [{ type: "text", text: "Fredflix" }],
+              },
+              line("Bosstraat 59"),
+            ],
+          },
+        }),
+      );
+      expect(asDocument.fromLines).toBeNull();
+      expect(asDocument.fromDetails?.content).toHaveLength(2);
+    });
+
+    // A business document names countries when it crosses a border, and
+    // not when it does not (FF-1679): the same `abroad` that adds the
+    // reverse-charge note. Both blocks, or neither.
+    describe("the country, at home and abroad", () => {
+      const customer = {
+        type: "doc",
+        content: [line("Customer NV"), line("Netherlands"), line("x@y.nl")],
+      };
+      const c = content([scenario([item(DEVELOPMENT, 8)])]);
+
+      test("at home, neither block names one", () => {
+        const doc = quoteDocument(
+          input(c, {
+            customerDetails: {
+              type: "doc",
+              content: [line("Customer NV"), line("Belgium"), line("x@y.be")],
+            },
+            customerCountry: "Belgium",
+          }),
+        );
+        expect(shape(doc.customerDetails)).toEqual([
+          ["paragraph", "Customer NV|x@y.be"],
+        ]);
+        expect(doc.fromLines).toEqual(["Sender BV"]);
+      });
+
+      test("abroad, both do — the sender's in the document's language", () => {
+        const en = quoteDocument(
+          input(c, {
+            customerDetails: customer,
+            customerCountry: "Netherlands",
+            customerCountryCode: "NL",
+          }),
+        );
+        expect(shape(en.customerDetails)).toEqual([
+          ["paragraph", "Customer NV|Netherlands|x@y.nl"],
+        ]);
+        expect(en.fromLines).toEqual(["Sender BV", "Belgium"]);
+        const nl = quoteDocument(
+          input(c, {
+            customerDetails: customer,
+            customerCountry: "Netherlands",
+            customerCountryCode: "NL",
+            language: "nl",
+          }),
+        );
+        expect(nl.fromLines).toEqual(["Sender BV", "België"]);
+      });
+
+      test("a country the block does not name is not invented at home", () => {
+        const doc = quoteDocument(input(c, { customerCountry: "Belgium" }));
+        expect(shape(doc.customerDetails)).toEqual([
+          ["paragraph", "Customer NV"],
+        ]);
+      });
+    });
+
+    test("leaves a single line as it is", () => {
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          customerDetails: { type: "doc", content: [line("DPG Media NV")] },
+        }),
+      );
+      expect(shape(doc.customerDetails)).toEqual([
+        ["paragraph", "DPG Media NV"],
+      ]);
+    });
+  });
+
   // The other half of FF-1675: dropping the cents from a whole amount must
   // not drop them from an amount that has some. Half an hour at €185 does.
   test("an amount that has cents keeps them, while the whole ones do not", () => {

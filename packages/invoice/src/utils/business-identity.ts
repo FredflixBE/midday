@@ -72,15 +72,29 @@ export function businessIdentityDoc(
     return text ? `${label} ${text}` : null;
   };
 
+  /**
+   * The number, and the one label the law does ask for (FF-1679).
+   *
+   * Not "Ondernemingsnummer": the FOD Economie guideline says the law never
+   * required that word (FF-1677 dropped it). But it does say a VAT-liable
+   * business writes "BTW BE" before its number — and a number that carries
+   * the BE country code *is* a VAT identification number; the KBO number
+   * itself has none. So a `BE…` number is labelled BTW, and a bare number
+   * stays bare. That reads the form the team stored, not the team's tax
+   * status, which is FF-1678's to record properly.
+   */
+  const vatLabelled = (value?: string | null) => {
+    const text = said(value);
+    if (!text) return null;
+    return /^BE\s?\d/i.test(text) ? `BTW ${text}` : text;
+  };
+
   const lines = [
     name || null,
     said(identity.addressLine1),
     said(identity.addressLine2),
     town || null,
-    // No label: the FOD Economie guideline says the law does not ask for the
-    // word "ondernemingsnummer" before the number (FF-1677). What a
-    // VAT-liable business must put there instead is FF-1678.
-    said(identity.enterpriseNumber),
+    vatLabelled(identity.enterpriseNumber),
     labelled("RPR", identity.rprCourt),
     labelled("IBAN", identity.bankIban),
     labelled("BIC", identity.bankBic),
