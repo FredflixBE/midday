@@ -121,15 +121,32 @@ export function QuoteScenarios({
       {/* No heading: the tab it is on is called Pricing (FF-1639). */}
       {selected ? (
         <>
+          {/* One line, always (FF-1670). Wrapping to a second row put the
+              Add button beside a ragged block of tabs and grew the strip
+              every time a scenario was added. Each tab takes an equal share
+              of what is left and clips its own name instead.
+
+              A scenario is known by the start of its name — "Optie 1",
+              "Optie 2" — so the end is the safe thing to lose. The whole
+              name is on the tab's tooltip for when it is not. */}
           <div className="flex items-center gap-2">
-            <Tabs value={selected.id} onValueChange={onSelect}>
-              <TabsList className="h-auto flex-wrap justify-start">
+            <Tabs
+              value={selected.id}
+              onValueChange={onSelect}
+              className="min-w-0 flex-1"
+            >
+              <TabsList className="flex w-full justify-start">
                 {content.scenarios.map((s) => (
-                  <TabsTrigger key={s.id} value={s.id} className="gap-1.5">
+                  <TabsTrigger
+                    key={s.id}
+                    value={s.id}
+                    title={scenarioName(s)}
+                    className="min-w-0 flex-1 gap-1.5"
+                  >
                     {s.recommended ? (
-                      <Star size={12} className="fill-current" />
+                      <Star size={12} className="shrink-0 fill-current" />
                     ) : null}
-                    {scenarioName(s)}
+                    <span className="truncate">{scenarioName(s)}</span>
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -140,6 +157,7 @@ export function QuoteScenarios({
                 variant="ghost"
                 size="icon"
                 aria-label="Add scenario"
+                className="shrink-0"
                 onClick={add}
               >
                 <Plus size={16} />
