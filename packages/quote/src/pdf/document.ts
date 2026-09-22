@@ -129,6 +129,8 @@ export type ComparisonView = {
 
 export type DocumentBlock =
   | { type: "text"; id: string; heading: string | null; body: EditorDoc }
+  /** Where the list of sections is drawn (FF-1668). */
+  | { type: "contents"; id: string }
   | {
       type: "pricing";
       id: string;
@@ -285,16 +287,21 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   const { labels, date } = viewContext(input);
   const { comparison, scenarios: views } = pricingView(input);
 
-  const blocks: DocumentBlock[] = input.content.blocks.map((block) =>
-    block.type === "text"
-      ? {
+  const blocks: DocumentBlock[] = input.content.blocks.map((block) => {
+    switch (block.type) {
+      case "text":
+        return {
           type: "text",
           id: block.id,
           heading: block.heading,
           body: block.body,
-        }
-      : { type: "pricing", id: block.id, comparison, scenarios: views },
-  );
+        };
+      case "contents":
+        return { type: "contents", id: block.id };
+      default:
+        return { type: "pricing", id: block.id, comparison, scenarios: views };
+    }
+  });
 
   const teamCountry = (input.teamCountryCode || HOME_COUNTRY).toUpperCase();
   const customerCountry = input.customerCountryCode?.toUpperCase();

@@ -110,6 +110,23 @@ export function QuoteBlocks({
                   />
                 )}
               </SortableRow>
+            ) : block.type === "contents" ? (
+              <SortableRow key={block.id} id={block.id} label="Contents">
+                {(handle) => (
+                  <ContentsBlock
+                    handle={editable ? handle : null}
+                    blocks={content.blocks}
+                    onRemove={
+                      editable
+                        ? () =>
+                            setBlocks((blocks) =>
+                              blocks.filter((b) => b.id !== block.id),
+                            )
+                        : null
+                    }
+                  />
+                )}
+              </SortableRow>
             ) : (
               <SortableRow
                 key={block.id}
@@ -136,24 +153,44 @@ export function QuoteBlocks({
       </SortableList>
 
       {editable ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            setBlocks((blocks) => [
-              ...blocks,
-              {
-                id: crypto.randomUUID(),
-                type: "text",
-                heading: null,
-                body: EMPTY_DOC,
-              },
-            ])
-          }
-        >
-          Add text block
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setBlocks((blocks) => [
+                ...blocks,
+                {
+                  id: crypto.randomUUID(),
+                  type: "text",
+                  heading: null,
+                  body: EMPTY_DOC,
+                },
+              ])
+            }
+          >
+            Add text block
+          </Button>
+          {/* A document lists its sections once, so this goes when there is
+              one. A quote written before there was such a block has none
+              until it is added here (FF-1668). */}
+          {content.blocks.some((b) => b.type === "contents") ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setBlocks((blocks) => [
+                  { id: crypto.randomUUID(), type: "contents" },
+                  ...blocks,
+                ])
+              }
+            >
+              Add contents
+            </Button>
+          )}
+        </div>
       ) : null}
     </section>
   );
@@ -169,6 +206,69 @@ export function QuoteBlocks({
  * Nothing is edited or reached from here: the Pricing tab is where the
  * numbers are changed, and the tab strip is the way to it.
  */
+/**
+ * Where the list of sections prints (FF-1668).
+ *
+ * The same shape as the pricing block: it holds nothing of its own, it marks
+ * a place, and what is drawn there is worked out from the blocks around it.
+ * So it shows those sections rather than a label promising them — a marker
+ * whose effect the author cannot see is one they cannot place well.
+ *
+ * Titles only, no page numbers. The print carries none either: react-pdf
+ * lays out in one pass, so nothing knows which page a section lands on.
+ */
+function ContentsBlock({
+  handle,
+  blocks,
+  onRemove,
+}: {
+  handle: ReactNode;
+  blocks: Block[];
+  onRemove: (() => void) | null;
+}) {
+  const listed = blocks.filter(
+    (block): block is TextBlock => block.type === "text" && !!block.heading,
+  );
+
+  return (
+    <div className="border border-dashed border-border">
+      <div className="flex items-center gap-3 px-3 py-2 text-sm text-[#878787]">
+        {handle}
+        <span className="flex-1">Contents</span>
+        {onRemove ? (
+          <button
+            type="button"
+            aria-label="Remove contents"
+            className="shrink-0 hover:text-primary focus-visible:text-primary focus-visible:outline-hidden"
+            onClick={onRemove}
+          >
+            <Trash2 size={14} />
+          </button>
+        ) : null}
+      </div>
+      <div className="border-t border-dashed border-border px-3 py-3">
+        {listed.length < 3 ? (
+          // The print leaves it out below three: a list of two is furniture.
+          <p className="text-sm text-[#878787]">
+            Nothing is listed until the document has three titled sections.
+          </p>
+        ) : (
+          <ol className="space-y-1">
+            {listed.map((block, index) => (
+              <li key={block.id} className="flex gap-3 text-sm">
+                <span className="w-6 shrink-0 text-[#878787] tabular-nums">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span>{block.heading}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PricingBlock({
   handle,
   pricing,
