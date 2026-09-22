@@ -146,7 +146,7 @@ function SectionHead({ number, title }: { number?: string; title: string }) {
     // `minPresenceAhead` keeps them with the text they introduce.
     <View
       wrap={false}
-      minPresenceAhead={90}
+      minPresenceAhead={PRINT_BODY * QUOTE_TYPESET.leading.body * 3}
       style={{ marginBottom: PRINT_BODY * QUOTE_TYPESET.flow.below }}
     >
       <View
@@ -726,9 +726,15 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
 
         <Contents doc={doc} sections={sections} />
 
-        {doc.blocks.map((block) =>
+        {doc.blocks.map((block, index) =>
           block.type === "text" ? (
-            <View key={block.id} style={{ marginBottom: 20 }}>
+            <View
+              key={block.id}
+              // From above, like everything else in the document (FF-1665).
+              // A trailing margin on the last block is height past the end
+              // of the text, and react-pdf will open a page to hold it.
+              style={index === 0 ? undefined : { marginTop: 20 }}
+            >
               {block.heading ? (
                 <SectionHead
                   number={sections.get(block.id)}
@@ -742,7 +748,17 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
               </View>
             </View>
           ) : (
-            <View key={block.id}>
+            // The money starts a clean page (FF-1666). It is the page a
+            // client flips to, forwards to whoever approves it, and reads
+            // out of order, and it used to begin wherever the prose above
+            // it happened to run out. This is the only break in the
+            // document argued from content rather than from taste — which
+            // is why every section does not get one.
+            <View
+              key={block.id}
+              break={index !== 0}
+              style={index === 0 ? undefined : { marginTop: 20 }}
+            >
               {block.comparison ? (
                 <Options comparison={block.comparison} doc={doc} />
               ) : null}

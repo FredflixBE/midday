@@ -21,6 +21,23 @@ type PDFTextStyle = Style & {
  * prints larger; it passes its own through `body` (FF-1666).
  */
 const BODY = 9;
+
+/**
+ * How many lines of what follows a heading has to keep on its own page
+ * (FF-1666). Two is enough to prove there is text; three is enough to read.
+ *
+ * Paragraph widows and orphans are not set here on purpose: react-pdf keeps
+ * two lines of each by default, which is the right answer, and naming it
+ * would only invite someone to change it.
+ */
+const KEEP_WITH_NEXT = 3;
+
+/**
+ * Up to this many items, a list moves to the next page whole rather than
+ * splitting. Beyond it a list can be longer than a page, so it has to be
+ * allowed to break — between items, never inside one.
+ */
+const UNSPLITTABLE_LIST = 6;
 // No leading here: this is shared with an invoice's address blocks, where
 // the caller sets it. The quote's own wrapper sets the document's.
 const bodyText: PDFTextStyle = { fontSize: BODY, fontFamily: "Inter" };
@@ -209,7 +226,14 @@ function renderBlock(
           // follows it rather than floating between two things equally. The
           // room below is the next block's to take (FF-1665).
           style={{ alignItems: "flex-start", ...room }}
-          minPresenceAhead={24}
+          // Three lines of what follows, on the same page, or the heading
+          // moves down with them (FF-1666). A heading alone at the foot of a
+          // page introduces nothing. This was a flat 24pt, chosen when a
+          // document printed at 9pt — at 11 that is a line and a quarter,
+          // which almost anything satisfies, so headings started stranding.
+          minPresenceAhead={
+            (options?.body ?? BODY) * scale.leading.body * KEEP_WITH_NEXT
+          }
         >
           <Text>
             {renderInline(node, path, {
@@ -235,7 +259,13 @@ function renderBlock(
           : bulletWidth + digitWidth * (markerOf(items.length - 1).length - 2);
 
       return (
-        <View key={`list-${path}`} style={room}>
+        <View
+          key={`list-${path}`}
+          style={room}
+          // A list of four broken one-and-three across a page reads as two
+          // lists, and the reader has to work out that it is not.
+          wrap={items.length > UNSPLITTABLE_LIST}
+        >
           {items.map((item, index) => (
             <View
               key={`list-item-${path}-${index.toString()}`}
