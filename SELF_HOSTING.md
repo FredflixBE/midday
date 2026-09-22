@@ -143,8 +143,9 @@ One example file per deployable, containing only variables that still exist:
 
 Copy the example to `.env` next to it for local development. In Dokploy, paste
 the API values as environment, and split the dashboard file: every
-`NEXT_PUBLIC_*` line is a build argument, the rest is environment. In
-Trigger.dev, set the jobs values on the project.
+`NEXT_PUBLIC_*` line is a build argument, the rest is environment — see
+[Deploying on Dokploy](#deploying-on-dokploy), which gives both forms field by
+field. In Trigger.dev, set the jobs values on the project.
 
 ### URLs
 
@@ -274,6 +275,209 @@ Runtime environment:
 | `SUPABASE_URL` | The project's API URL. With the next one, lets `supabase-keepalive.yml` touch the API twice a week so a free project never pauses. When either is unset the job skips with a notice. |
 | `SUPABASE_SECRET_KEY` | The project's secret (service role) key, so the keepalive call does not depend on what RLS allows anonymously. |
 | `TRIGGER_ACCESS_TOKEN` | Lets `trigger-deploy.yml` ship `packages/jobs` on push to `main`. When unset the job skips with a notice. A Personal Access Token from the Trigger.dev account; the project itself is named in `trigger.config.ts`. |
+
+## Deploying on Dokploy
+
+Two applications on one VPS, both built by Dokploy from this repository on
+every push to `main`. Everything either form needs is on this page; you should
+not have to open a Dockerfile to fill one in.
+
+### What both applications share
+
+| Field | Value |
+| --- | --- |
+| Provider | GitHub, `FredflixBE/midday`, branch `main` |
+| Build type | Dockerfile |
+| **Build context** | `.` — the repository **root**, for both |
+| Auto deploy | on: a push to `main` rebuilds |
+
+The build context is the repository root, not the application directory. Both
+Dockerfiles copy the whole repository and then `turbo prune` the workspace they
+need, so a context of `apps/api` or `apps/dashboard` fails at the first copy.
+
+Neither image needs `.git-commit-sha`: Dokploy builds from a plain checkout,
+and the optional `GIT_COMMIT_SHA` build argument covers the stamp.
+
+### API application
+
+| Field | Value |
+| --- | --- |
+| Dockerfile path | `apps/api/Dockerfile` |
+| Port | `8080` |
+| Health path | `/health` |
+| Domain | `api.midday.fredflix.be` |
+| Build arguments | none (only the optional `GIT_COMMIT_SHA`) |
+
+Everything else is runtime environment. Paste `apps/api/.env.example` and fill
+it in — every value's origin is in [API (`apps/api`)](#api-appsapi) above —
+changing these four lines from their local-development defaults:
+
+```
+NODE_ENV=production
+LOG_LEVEL=info
+LOG_PRETTY=false
+PORT=8080
+```
+
+and these, which are localhost in the example and must be the public domains:
+
+```
+DASHBOARD_URL=https://midday.fredflix.be
+ALLOWED_API_ORIGINS=https://midday.fredflix.be
+API_URL=https://api.midday.fredflix.be
+GMAIL_REDIRECT_URI=https://api.midday.fredflix.be/apps/gmail/oauth-callback
+OUTLOOK_REDIRECT_URI=https://api.midday.fredflix.be/apps/outlook/oauth-callback
+```
+
+`ENABLEBANKING_REDIRECT_URL` is the exception in that list: it points at the
+**dashboard**, because the dashboard handles the callback.
+
+```
+ENABLEBANKING_REDIRECT_URL=https://midday.fredflix.be/api/enablebanking/session
+```
+
+The API refuses to start in production with `DASHBOARD_URL` or `API_URL` unset,
+and refuses to start at all without the three `ENABLEBANKING_*` values. Those
+are the two failures to expect from an incomplete paste, and both are loud.
+
+### Dashboard application
+
+| Field | Value |
+| --- | --- |
+| Dockerfile path | `apps/dashboard/Dockerfile` |
+| Port | `3000` |
+| Health path | `/api/health` |
+| Domain | `midday.fredflix.be` |
+
+**Build arguments.** This is the whole list; anything not here is runtime.
+
+```
+NEXT_PUBLIC_URL=https://midday.fredflix.be
+NEXT_PUBLIC_API_URL=https://api.midday.fredflix.be
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
+NEXT_PUBLIC_GOOGLE_API_KEY=<Maps key, or omit>
+NEXT_PUBLIC_DESKTOP_SCHEME=midday
+NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<openssl rand -base64 32>
+```
+
+`NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN` is an eighth, needed only if you run
+inbound email; give it the same value as the API's `INBOX_FORWARDING_DOMAIN`.
+
+**Runtime environment.** `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` appears in both
+lists, with the same value in each — see below.
+
+```
+SUPABASE_SECRET_KEY=<secret (service role) key>
+INVOICE_JWT_SECRET=<same as the API>
+FILE_KEY_SECRET=<same as the API>
+WEBHOOK_SECRET_KEY=<shared secret>
+MIDDAY_CACHE_API_SECRET=<shared secret>
+NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<the same value as the build argument>
+OPENAI_API_KEY=<key>
+GMAIL_CLIENT_ID=<same client as the API>
+GMAIL_CLIENT_SECRET=<same client as the API>
+GMAIL_REDIRECT_URI=https://api.midday.fredflix.be/apps/gmail/oauth-callback
+```
+
+Optional on top of that: `API_INTERNAL_URL` (the API's private address, which
+skips the public hop for server-side requests), the two
+`AZURE_DOCUMENT_INTELLIGENCE_*` values, `PLAIN_API_KEY`, and the three
+`OUTLOOK_*` values.
+
+### The split that fails silently
+
+Next inlines every `NEXT_PUBLIC_*` value at `next build`. Supplied as runtime
+environment instead of as a build argument, it is simply absent from the
+bundle, and **the build succeeds anyway** — an unset build argument is an
+empty string, not an error, so nothing warns.
+
+What you get is a dashboard that loads and then fails on every request. The
+value is interpolated into a URL, so `NEXT_PUBLIC_API_URL` missing produces
+requests to `https://midday.fredflix.be/undefined/trpc` — the literal word
+`undefined`, resolved against the dashboard's own origin. If a deployed
+dashboard renders but nothing in it works, look at a failing request's URL
+before anything else.
+
+The same split is why changing one of these values needs a rebuild, not a
+restart.
+
+`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` is the one variable that is genuinely
+both. Next encrypts server-action arguments with it at build and decrypts with
+it at runtime, so the two copies have to hold the same value; supplied only at
+runtime, the dashboard throws on its first server action.
+
+## Rolling back
+
+Three things deploy from a push to `main`, and they roll back separately —
+or not at all.
+
+| What | How it deploys | How it comes back |
+| --- | --- | --- |
+| API and dashboard | Dokploy, on the push | Redeploy a previous deployment, or push a revert |
+| Background jobs | `trigger-deploy.yml` → Trigger.dev | Roll back in Trigger.dev, or push a revert |
+| Database schema | `migrate` job in `ci.yml` | **It does not.** See below |
+
+### Rolling back the application
+
+Redeploy the previous deployment in Dokploy, or push a revert commit and let
+the normal path rebuild. A revert is slower but leaves `main` telling the
+truth, which matters when the next person looks.
+
+Two things a redeploy does **not** undo:
+
+- **Configuration.** Dokploy rebuilds the old commit with the environment and
+  build arguments currently in the form. Rolling the code back does not roll
+  back a value you changed since — and for the dashboard, a build argument you
+  changed is baked into the new image.
+- **The jobs.** `packages/jobs` is not part of either Dokploy application. A
+  push that changed anything under `packages/` deployed new task code to
+  Trigger.dev as well, and redeploying the API does not recall it. Roll that
+  back in Trigger.dev, on its own.
+
+### Rolling back the database
+
+It does not roll back with the application, and on this plan it barely rolls
+back at all. Supabase Free has daily backups and no point-in-time recovery, so
+restoring one means discarding every transaction, receipt and invoice recorded
+since it was taken. Against a book of account in daily use that is not a deploy
+step; it is a decision with a cost measured in a day of bookkeeping.
+
+So the honest rule is that **a destructive migration is a decision, not a
+deploy.** A migration that drops or renames has to be reviewed on the way in,
+because there is no way back out. `bun run db:generate` writes the SQL for you
+to read before you commit it — that reading is the safety mechanism, and it is
+the only one.
+
+### The interaction, which is the part that bites
+
+The `migrate` job and Dokploy's build both start from the same push. The job
+runs `bun run db:migrate` immediately and takes about a minute; a dashboard
+image takes several. In practice the schema lands first, which is the intent —
+but they are two systems reacting to the same event with no ordering between
+them, so it is a race that usually goes the right way rather than a guarantee.
+
+What follows from that:
+
+- **Rolling the code back does not roll back the schema it already applied.**
+  Old code then runs against a newer database. An additive migration — a new
+  table, a new nullable column — survives that fine. A rename or a drop does
+  not, and there is no redeploy that fixes it.
+- Write migrations so the previous release can still run against them. That
+  is what makes a rollback a rollback rather than an outage.
+
+### When a deploy goes bad
+
+1. **Look at what actually changed in the push.** If it touched
+   `packages/db/migrations`, you are in the paragraph above and a redeploy
+   alone will not do it.
+2. **Roll the application back** in Dokploy, both applications if both
+   deployed.
+3. **Roll the jobs back** in Trigger.dev if the push touched `packages/`.
+4. **Leave the schema alone** unless it is the actual fault. Restoring a
+   backup costs more than almost any bug.
+5. **Push the revert** once the deployment is stable, so `main` and the
+   running system agree again.
 
 ## Local development
 
