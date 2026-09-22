@@ -59,17 +59,25 @@ export function RailSections({ children }: { children: ReactNode }) {
  */
 export function RailCard({
   title,
+  action,
   children,
 }: {
   title?: string;
+  /** A control that belongs to the card's subject, beside its name. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     // Sticky only where the rail is itself a scrolling column; stacked under
     // the document it is just the first thing in the rail.
     <div className="hidden bg-background pb-5 xl:sticky xl:top-0 xl:z-10 xl:block xl:max-h-[40vh] xl:overflow-y-auto">
-      {title ? (
-        <div className="truncate pb-2 text-[12px] text-[#606060]">{title}</div>
+      {title || action ? (
+        <div className="flex items-center justify-between gap-2 pb-2 text-[12px] text-[#606060]">
+          <span className="truncate" title={title}>
+            {title}
+          </span>
+          {action}
+        </div>
       ) : null}
       {children}
     </div>

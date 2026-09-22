@@ -45,7 +45,11 @@ import { QuoteComparison } from "./quote-comparison";
 import { QuoteHeaderFields, QuoteTitleField } from "./quote-header-fields";
 import { QuoteRail, RailCard, RailSections, STRIP_HEIGHT } from "./quote-rail";
 import { QuoteRates } from "./quote-rates";
-import { QuoteScenarios, ScenarioTotals } from "./quote-scenarios";
+import {
+  QuoteScenarios,
+  ScenarioStepper,
+  ScenarioTotals,
+} from "./quote-scenarios";
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
 
 type Quote = RouterOutputs["quotes"]["get"];
@@ -353,11 +357,21 @@ function VersionEditor({
           <QuoteRail>
             {scenario && scenarioPricing ? (
               <RailCard
-                // Named only when there is more than one to tell apart.
+                // Named, and steerable, only when there is more than one to
+                // tell apart (FF-1673).
                 title={
                   draft.content.scenarios.length > 1
                     ? scenarioName(scenario)
                     : undefined
+                }
+                action={
+                  draft.content.scenarios.length > 1 ? (
+                    <ScenarioStepper
+                      scenarios={draft.content.scenarios}
+                      selectedId={scenario.id}
+                      onSelect={setScenarioId}
+                    />
+                  ) : null
                 }
               >
                 <ScenarioTotals
