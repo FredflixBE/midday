@@ -49,8 +49,8 @@ type Product = RouterOutputs["productRates"]["products"][number];
  * follow one that is pieced together.
  */
 const COLUMNS = {
-  fixed: "grid-cols-[20px_minmax(160px,1fr)_140px_64px_150px_32px]",
-  range: "grid-cols-[20px_minmax(160px,1fr)_140px_116px_150px_32px]",
+  fixed: "grid-cols-[20px_minmax(160px,1fr)_140px_64px_112px_32px]",
+  range: "grid-cols-[20px_minmax(160px,1fr)_140px_92px_112px_32px]",
 } as const;
 
 const columns = (range: boolean) => COLUMNS[range ? "range" : "fixed"];
@@ -146,18 +146,16 @@ export function ScenarioLines({
             <span />
             <span className="px-3">Item</span>
             <span className="px-3">Product</span>
-            {/* A heading sits over its own figures, so it follows how the
-                column is laid out (FF-1671). A single figure is right-aligned
-                against the cell edge — with the input's own px-3 where the
-                value is typed into one. A range is anchored on its dash,
-                which falls at the centre of the cell in both columns, so the
-                heading is centred too. */}
-            <span className={range ? "text-center" : "px-3 text-right"}>
+            {/* A heading sits over the left edge of its own figures, the way
+                Item and Product do (FF-1671). A range starts its minimum at
+                the left of the cell, so the heading starts there too — past
+                the hours control's border and padding, which the figures sit
+                inside. A single figure is right-aligned, as one number in a
+                column should be, and its heading follows it to that edge. */}
+            <span className={range ? "pl-[5px]" : "px-3 text-right"}>
               {UNIT_LABELS[unit.displayUnit]}
             </span>
-            <span className={range ? "text-center" : "text-right"}>
-              Amount ({symbol})
-            </span>
+            <span className={range ? "" : "text-right"}>Amount ({symbol})</span>
             <span />
           </div>
 
@@ -341,9 +339,9 @@ function Money({
   const spread = max !== null && max !== undefined && max !== min;
   return (
     <div className={cn(body, "grid grid-cols-[1fr_auto_1fr] gap-1")}>
-      <span className="text-right">{figure(min)}</span>
+      <span>{figure(min)}</span>
       <span className="text-[#878787]">{spread ? "–" : ""}</span>
-      <span className="text-left">{spread ? figure(max) : ""}</span>
+      <span>{spread ? figure(max) : ""}</span>
     </div>
   );
 }
@@ -508,7 +506,7 @@ function ItemFields({
         // a maximum are one quantity (FF-1671).
         <div
           className={cn(
-            "flex h-9 items-center border",
+            "grid h-9 grid-cols-[1fr_auto_1fr] items-center gap-1 border",
             "border-transparent hover:border-border focus-within:border-border",
           )}
         >
@@ -527,9 +525,9 @@ function ItemFields({
               });
             }}
             max={shown(1_000_000)}
-            className="border-transparent px-1"
+            className="border-transparent px-1 text-left"
           />
-          <span className="text-[#878787]">–</span>
+          <span className="text-center text-[#878787]">–</span>
           <NumberInput
             aria-label={`Maximum ${noun}`}
             commitOnBlur
@@ -540,8 +538,6 @@ function ItemFields({
               onChange({ hoursMax: value === null ? null : stored(value) })
             }
             max={shown(1_000_000)}
-            // Left, against the dash. Right-aligned it sat at the far edge
-            // of its half and "24 –      32" read as two numbers.
             className="border-transparent px-1 text-left"
           />
         </div>
