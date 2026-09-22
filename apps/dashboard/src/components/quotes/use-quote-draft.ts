@@ -5,6 +5,7 @@ import type { QuoteContent, QuoteKind } from "@midday/quote";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTRPC } from "@/trpc/client";
+import { planRetry } from "./save-retry";
 import { useErrorToast } from "./use-error-toast";
 
 type Quote = RouterOutputs["quotes"]["get"];
@@ -56,8 +57,17 @@ export function useQuoteDraft(quote: Quote, version: Version) {
   const current = useRef(draft);
   const pending = useRef<Partial<QuoteDraft>>({});
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refusals in a row. A save that lands clears it, and so does giving up, so
+  // the next edit starts a fresh run of attempts rather than one more.
+  const failures = useRef(0);
+  // False once the editor is gone, so a refusal on the way out is not retried.
+  const alive = useRef(true);
   // The last save sent; saves run one at a time, so it settles last.
   const lastSave = useRef<Promise<boolean>>(Promise.resolve(true));
+
+  // Read when a retry is due, which is after any render that changed them.
+  const notSaved = useRef(errorToast("Not saved"));
+  const retry = useRef<() => void>(() => {});
 
   const save = useMutation({
     ...trpc.quotes.updateDraft.mutationOptions({
@@ -71,7 +81,8 @@ export function useQuoteDraft(quote: Quote, version: Version) {
           queryKey: trpc.quotes.list.queryKey(),
         });
       },
-      onError: errorToast("Not saved"),
+      // No toast here: a blip is sent again on its own, and only having
+      // given up is worth interrupting someone who is still typing.
     }),
     // One save at a time, in the order the changes were made.
     scope: { id: `quote-draft-${version.id}` },
@@ -90,15 +101,37 @@ export function useQuoteDraft(quote: Quote, version: Version) {
         customerId: changes.customerId ?? undefined,
       })
       .then(
-        () => true,
         () => {
+          failures.current = 0;
+          return true;
+        },
+        (error) => {
           // Refused changes wait for the next save, under anything newer, so
           // a header field is not lost while the screen still shows it.
           pending.current = { ...changes, ...pending.current };
+          failures.current += 1;
+
+          const decision = planRetry(error, failures.current);
+          if (decision.retry && alive.current) {
+            // Send them again on a timer rather than waiting for a keystroke
+            // that may never come — the silence is what FF-1648 is about.
+            if (timer.current) clearTimeout(timer.current);
+            timer.current = setTimeout(() => retry.current(), decision.delayMs);
+          } else {
+            // Out of attempts, or refused for a reason the same payload will
+            // earn again. Say so, and let the next edit start over.
+            failures.current = 0;
+            notSaved.current(error as { message: string });
+          }
           return false;
         },
       );
   }, [save.mutateAsync, version.id]);
+
+  useEffect(() => {
+    notSaved.current = errorToast("Not saved");
+    retry.current = flush;
+  });
 
   /**
    * Saves what is waiting and resolves once every save has landed: true when
@@ -125,6 +158,7 @@ export function useQuoteDraft(quote: Quote, version: Version) {
 
   // Leaving the page saves what is waiting; closing the tab asks first.
   useEffect(() => {
+    alive.current = true;
     const warn = (event: BeforeUnloadEvent) => {
       if (Object.keys(pending.current).length > 0) {
         flush();
@@ -133,6 +167,7 @@ export function useQuoteDraft(quote: Quote, version: Version) {
     };
     window.addEventListener("beforeunload", warn);
     return () => {
+      alive.current = false;
       window.removeEventListener("beforeunload", warn);
       flush();
     };
