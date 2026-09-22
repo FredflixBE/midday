@@ -34,10 +34,15 @@ const KEEP_WITH_NEXT = 3;
 
 /**
  * Up to this many items, a list moves to the next page whole rather than
- * splitting. Beyond it a list can be longer than a page, so it has to be
- * allowed to break — between items, never inside one.
+ * splitting. Beyond it a list has to be allowed to break — between items,
+ * never inside one.
+ *
+ * Four, not six. The room left at the foot of a page is the height of the
+ * tallest thing that would not fit there, so every group that refuses to
+ * split is a hole it can leave. Six items that each wrap to two lines is a
+ * third of a page of nothing; four that do is a seventh.
  */
-const UNSPLITTABLE_LIST = 6;
+const UNSPLITTABLE_LIST = 4;
 // No leading here: this is shared with an invoice's address blocks, where
 // the caller sets it. The quote's own wrapper sets the document's.
 const bodyText: PDFTextStyle = { fontSize: BODY, fontFamily: "Inter" };

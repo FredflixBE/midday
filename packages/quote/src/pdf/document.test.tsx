@@ -3,6 +3,7 @@
  * are neutral and figures illustrative: the repository is public.
  */
 import { describe, expect, test } from "bun:test";
+import { isValidElement, type ReactNode } from "react";
 import type {
   ItemLine,
   Line,
@@ -17,6 +18,7 @@ import {
   type ScenarioRow,
   scenarioParts,
 } from "./document";
+import { QuotePdf } from "./template";
 
 const DEVELOPMENT = "p-development";
 const MAINTENANCE = "p-maintenance";
@@ -552,5 +554,40 @@ describe("a recurring comparison with a one-off", () => {
       label: "One-off",
       values: ["€740.00", "–"],
     });
+  });
+});
+
+/**
+ * The room left at the foot of a page is the height of the tallest thing
+ * that would not fit there (FF-1666). Every group in this document that
+ * refuses to split is small, so that room is bounded — except a forced
+ * break, which leaves whatever happened to be left on the page.
+ *
+ * One was tried, before the pricing, so the money would start a clean
+ * sheet. On a real quote whose preceding section ran three lines it left
+ * 60% of a page empty. The rule is not "it looked fine on this quote": it
+ * is that nothing may leave an unbounded hole, on any quote.
+ *
+ * This lives here rather than in a file of its own because the fixtures a
+ * printable document needs are here.
+ */
+describe("nothing in the printed document forces a page break", () => {
+  const nodes = (node: ReactNode): { props: Record<string, unknown> }[] => {
+    if (!isValidElement(node)) {
+      return Array.isArray(node) ? node.flatMap(nodes) : [];
+    }
+    const props = node.props as { children?: ReactNode } & Record<
+      string,
+      unknown
+    >;
+    return [{ props }, ...nodes(props.children)];
+  };
+
+  test("no element asks for one", () => {
+    const doc = quoteDocument(
+      input(content([scenario([item(DEVELOPMENT, 8, { hoursMax: 12 })])])),
+    );
+    const forced = nodes(QuotePdf({ doc })).filter((n) => n.props.break);
+    expect(forced).toEqual([]);
   });
 });

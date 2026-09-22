@@ -116,7 +116,9 @@ function Contents({
   }
 
   return (
-    <View wrap={false} style={{ width: COLUMN, marginBottom: 24 }}>
+    // Whole while it is short enough that moving it leaves a small hole.
+    // A quote with many sections gets a list that may break instead.
+    <View wrap={listed.length > 8} style={{ width: COLUMN, marginBottom: 24 }}>
       <Text style={{ ...small, marginBottom: 4 }}>{doc.labels.contents}</Text>
       {listed.map((block) => (
         <View
@@ -748,15 +750,18 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
               </View>
             </View>
           ) : (
-            // The money starts a clean page (FF-1666). It is the page a
-            // client flips to, forwards to whoever approves it, and reads
-            // out of order, and it used to begin wherever the prose above
-            // it happened to run out. This is the only break in the
-            // document argued from content rather than from taste — which
-            // is why every section does not get one.
+            // No forced break before the money, though it was tried
+            // (FF-1666). Starting it on a clean page reads well when the
+            // prose above happens to fill its page and leaves most of a
+            // sheet empty when it does not — on OFF-0004, three lines of
+            // section 05 and then 60% of a page of nothing.
+            //
+            // The whitespace at the foot of a page is the height of the
+            // tallest thing that would not fit there. Everything else in
+            // this document is a group small enough to bound that; a forced
+            // break is the one thing with no bound at all, so there is none.
             <View
               key={block.id}
-              break={index !== 0}
               style={index === 0 ? undefined : { marginTop: 20 }}
             >
               {block.comparison ? (
