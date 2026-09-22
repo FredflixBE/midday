@@ -420,6 +420,96 @@ describe("one scenario", () => {
     });
   });
 
+  // The From and To blocks arrive as one paragraph per line, and each
+  // paragraph is its own box on the page: 23.1pt a line against 17 for one
+  // paragraph broken by hardBreak. They are folded at this seam so a block
+  // stored on a sent version long ago is set as tightly as one made today
+  // (FF-1679). Only a block that is nothing but single lines is touched.
+  describe("an address is one block", () => {
+    const line = (text: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    });
+    const shape = (doc: unknown) => {
+      const d = doc as {
+        content?: {
+          type: string;
+          content?: { type: string; text?: string }[];
+        }[];
+      } | null;
+      return (d?.content ?? []).map((n) => [
+        n.type,
+        (n.content ?? [])
+          .map((c) => (c.type === "hardBreak" ? "|" : c.text))
+          .join(""),
+      ]);
+    };
+
+    test("folds single-line paragraphs into one paragraph with breaks", () => {
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          customerDetails: {
+            type: "doc",
+            content: [
+              line("DPG Media NV"),
+              line("Belgium"),
+              line("frederik@fredflix.be"),
+            ],
+          },
+        }),
+      );
+      expect(shape(doc.customerDetails)).toEqual([
+        ["paragraph", "DPG Media NV|Belgium|frederik@fredflix.be"],
+      ]);
+    });
+
+    test("drops an empty paragraph, which is a blank line nobody meant", () => {
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          customerDetails: {
+            type: "doc",
+            content: [line("A"), { type: "paragraph" }, line("B")],
+          },
+        }),
+      );
+      expect(shape(doc.customerDetails)).toEqual([["paragraph", "A|B"]]);
+    });
+
+    test("leaves a document that is more than lines alone", () => {
+      const withHeading = {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 2 },
+            content: [{ type: "text", text: "Payment" }],
+          },
+          line("Within 30 days"),
+        ],
+      };
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          paymentDetails: withHeading,
+        }),
+      );
+      expect(shape(doc.paymentDetails)).toEqual([
+        ["heading", "Payment"],
+        ["paragraph", "Within 30 days"],
+      ]);
+    });
+
+    test("leaves a single line as it is", () => {
+      const doc = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          customerDetails: { type: "doc", content: [line("DPG Media NV")] },
+        }),
+      );
+      expect(shape(doc.customerDetails)).toEqual([
+        ["paragraph", "DPG Media NV"],
+      ]);
+    });
+  });
+
   // The other half of FF-1675: dropping the cents from a whole amount must
   // not drop them from an amount that has some. Half an hour at €185 does.
   test("an amount that has cents keeps them, while the whole ones do not", () => {

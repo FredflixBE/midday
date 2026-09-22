@@ -1,4 +1,5 @@
 import type { ImageSource } from "@midday/invoice/templates/pdf/format";
+import type { EditorNode } from "@midday/invoice/types";
 import { compareScenarios } from "../compare";
 import type {
   EditorDoc,
@@ -179,6 +180,50 @@ const LOCALES: Record<QuoteLanguage, string> = { nl: "nl-BE", en: "en-GB" };
 
 /** Where a team with no country set sends from. */
 const HOME_COUNTRY = "BE";
+
+/**
+ * An address as one block (FF-1679).
+ *
+ * The From and To blocks arrive as one paragraph per line — the customer
+ * snapshot writes them that way, and so did the business identity until
+ * FF-1677. The renderer already treats an address as a list of lines and
+ * gives its paragraphs no room above, but each paragraph is still its own
+ * box, and the boxes come to 23.1pt a line where one paragraph broken by
+ * `hardBreak` comes to 17. So a block that is nothing but single-line
+ * paragraphs is folded into one paragraph here, at the seam every version
+ * old or new passes through — a block already stored on a sent version is
+ * set as tightly as one made today.
+ *
+ * Only that shape is touched. A heading, a list, a paragraph that already
+ * runs to more than one line: that is a document, and stays one.
+ */
+function asAddress(doc: EditorDoc | null): EditorDoc | null {
+  if (!doc?.content?.length) return doc;
+  // The schema keeps a node loose (`Record<string, unknown>`); its children
+  // are editor nodes when there are any, which is the one thing read here.
+  const children = (node: Record<string, unknown>): EditorNode[] =>
+    Array.isArray(node.content) ? (node.content as EditorNode[]) : [];
+  const lines: EditorNode[][] = [];
+  for (const node of doc.content) {
+    if (node.type !== "paragraph") return doc;
+    const inline = children(node);
+    if (inline.some((n) => n.type !== "text")) return doc;
+    if (inline.length === 0) continue; // an empty paragraph is a blank line nobody meant
+    lines.push(inline);
+  }
+  if (lines.length < 2) return doc;
+  return {
+    ...doc,
+    content: [
+      {
+        type: "paragraph",
+        content: lines.flatMap((inline, i) =>
+          i === 0 ? inline : [{ type: "hardBreak" }, ...inline],
+        ),
+      },
+    ],
+  };
+}
 
 function asDoc(value: unknown): EditorDoc | null {
   const doc = value as EditorDoc | null | undefined;
@@ -364,9 +409,9 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
     labels,
     logoUrl: input.logoUrl ?? null,
     images: input.images ?? {},
-    fromDetails: asDoc(input.fromDetails),
-    customerDetails: asDoc(input.customerDetails),
-    paymentDetails: asDoc(input.paymentDetails),
+    fromDetails: asAddress(asDoc(input.fromDetails)),
+    customerDetails: asAddress(asDoc(input.customerDetails)),
+    paymentDetails: asAddress(asDoc(input.paymentDetails)),
     title: input.title,
     number: formatQuoteVersion(input.quoteNumber, input.version),
     meta: [

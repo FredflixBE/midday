@@ -119,8 +119,15 @@ export const QUOTE_TYPESET = {
   /**
    * The quote's own name, above every title a block can carry. It is the
    * one thing on the page that names the whole document. Ours as well.
+   *
+   * 2.1, not the 2.4 it was (FF-1679). At 2.4 the print set it at 26.4pt,
+   * where a 34-character title wrapped to two lines and outweighed the page
+   * it named; Frederik asked for it "a bit smaller". The floor is the block
+   * heading at 1.95 — the document's name has to stay the largest thing on
+   * the page, or the hierarchy the rest of this scale builds falls over.
+   * One number for screen and print, as ever.
    */
-  documentTitle: 2.4,
+  documentTitle: 2.1,
   /**
    * How wide a line of running text runs on a **page**, as a multiple of
    * the body size (FF-1662). 42 is about 80 characters, where the PDF's
