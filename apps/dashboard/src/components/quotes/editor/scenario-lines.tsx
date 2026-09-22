@@ -146,10 +146,18 @@ export function ScenarioLines({
             <span />
             <span className="px-3">Item</span>
             <span className="px-3">Product</span>
-            <span className="px-3 text-right">
+            {/* A heading sits over its own figures, so it follows how the
+                column is laid out (FF-1671). A single figure is right-aligned
+                against the cell edge — with the input's own px-3 where the
+                value is typed into one. A range is anchored on its dash,
+                which falls at the centre of the cell in both columns, so the
+                heading is centred too. */}
+            <span className={range ? "text-center" : "px-3 text-right"}>
               {UNIT_LABELS[unit.displayUnit]}
             </span>
-            <span className="text-right">Amount ({symbol})</span>
+            <span className={range ? "text-center" : "text-right"}>
+              Amount ({symbol})
+            </span>
             <span />
           </div>
 
