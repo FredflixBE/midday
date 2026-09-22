@@ -15,6 +15,11 @@ type PDFTextStyle = Style & {
 };
 
 /** What the printed document reads at; every other size follows from it. */
+/**
+ * What an invoice's rich text reads at, and what everything here falls back
+ * to. A quote is a document rather than a note at the foot of a page and
+ * prints larger; it passes its own through `body` (FF-1666).
+ */
 const BODY = 9;
 // No leading here: this is shared with an invoice's address blocks, where
 // the caller sets it. The quote's own wrapper sets the document's.
@@ -84,6 +89,12 @@ export type FormatOptions = {
    * because a quote is a document and outgrew that rhythm.
    */
   scale?: Typeset;
+  /**
+   * What the body text of this document reads at, in points. Left alone it
+   * is an invoice's 9 (FF-1666). Every other size here is a multiple of it,
+   * so this is the one number a surface states for itself.
+   */
+  body?: number;
 };
 
 export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
@@ -91,10 +102,16 @@ export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
     return null;
   }
 
+  // react-pdf inherits a font size from a View, so the caller's size has to
+  // reach the Text elements; this is where it enters the tree.
+  const base: PDFTextStyle = options?.body
+    ? { ...bodyText, fontSize: options.body }
+    : bodyText;
+
   return (
     <>
       {doc.content.map((node, index) =>
-        renderBlock(node, `${index}`, options, bodyText, {
+        renderBlock(node, `${index}`, options, base, {
           first: index === 0,
           afterHeading: doc.content?.[index - 1]?.type === "heading",
         }),
@@ -133,14 +150,15 @@ function roomAbove(
     return 0;
   }
   const scale = options?.scale ?? TYPESET;
+  const body = options?.body ?? BODY;
   if (at.afterHeading) {
-    return BODY * scale.flow.below;
+    return body * scale.flow.below;
   }
   if (node.type === "heading") {
-    return BODY * scale.flow.above;
+    return body * scale.flow.above;
   }
   // Only a document spaces its paragraphs; an address is a list of lines.
-  return options?.spacedParagraphs ? BODY * scale.flow.paragraph : 0;
+  return options?.spacedParagraphs ? body * scale.flow.paragraph : 0;
 }
 
 /** Omitted entirely when it is nothing, so a block's style reads as it did. */
@@ -179,7 +197,11 @@ function renderBlock(
 
     case "heading": {
       const scale = options?.scale ?? TYPESET;
-      const size = headingSize(BODY, node.attrs?.level ?? 1, scale);
+      const size = headingSize(
+        options?.body ?? BODY,
+        node.attrs?.level ?? 1,
+        scale,
+      );
       return (
         <View
           key={`heading-${path}`}
@@ -225,7 +247,8 @@ function renderBlock(
                 ...above(
                   index === 0
                     ? 0
-                    : BODY * (options?.scale ?? TYPESET).flow.item,
+                    : (options?.body ?? BODY) *
+                        (options?.scale ?? TYPESET).flow.item,
                 ),
               }}
               // An item is a thought; it does not straddle two pages.

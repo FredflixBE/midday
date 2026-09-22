@@ -31,33 +31,139 @@ import { fill } from "./labels";
  * line and its totals are kept on one page.
  */
 
+/**
+ * What a quote reads at in print (FF-1666).
+ *
+ * 11, not the invoice's 9. FF-1662 found a line running 120 characters and
+ * narrowed the column to fix it, which was half the answer: the other half
+ * is that 9pt is the size of a note at the foot of an invoice, not of a
+ * document someone is asked to read and approve. Narrowing alone left three
+ * of five pages as a thin column with an empty third beside it.
+ *
+ * At 11pt the same column of page holds about 68 characters instead of 120,
+ * and the page is full. Everything else here is a multiple of it.
+ */
+const PRINT_BODY = 11;
+const COLUMN = measureWidth(PRINT_BODY);
+
 const GREY = "#606060";
 const RULE = "#DCDAD2";
+/* The same tint a table header is drawn on, here and in the editor and the
+   web view alike — a quote has one, and this is it (FF-1642). */
+const TINT = "#F6F6F3";
 
-const small: Style = { fontSize: 8, color: GREY };
-const body: Style = { fontSize: 9 };
+/* The proportion it always had to the body: 8 against 9. */
+const small: Style = { fontSize: PRINT_BODY * 0.89, color: GREY };
+const body: Style = { fontSize: PRINT_BODY };
 
 /**
- * The page's two columns (FF-1666).
+ * The page (FF-1666).
  *
- * A quote used to set its text at 42em hard against the left margin, which
- * left 126pt — a fifth of every page — unused on the right. It read as a
- * document with a piece missing rather than as one that had been laid out.
+ * Everything starts at the same left edge. Running text stops at the
+ * measure; a section's rule and its pricing tables run to the right edge of
+ * the page. That is the whole layout: one edge to read down, and the rule
+ * holding the other side so a narrower column of prose reads as a measure
+ * rather than as a page with a piece missing.
  *
- * So the page has a spine: a section's number and its title stand in a
- * column of their own, and the text runs beside them. The width is not a
- * taste: "Projectbeschrijving" is one unbreakable word 165pt wide, and a
- * Dutch compound is the thing most likely to run past the edge of a narrow
- * sidehead.
- *
- * The text column is what the measure says, so the two cannot drift: the
- * sidehead is the rest of the page.
+ * The sidehead this replaced put titles in a column of their own, and the
+ * boundary it drew was in the margin while the text beside it just kept
+ * flowing — so a section began on the left and did not begin on the right.
  */
-const PAGE_MARGIN = 40;
-const CONTENT = 595.28 - PAGE_MARGIN * 2;
-const COLUMN = measureWidth(9);
-const GUTTER = 25;
-const SIDEHEAD = CONTENT - COLUMN - GUTTER;
+
+/**
+ * Where a section starts (FF-1666).
+ *
+ * Its number and a rule to the edge of the page, and the title under them.
+ * The rule is the part that matters: it is the only thing that says a
+ * section has ended and another has begun, and it says it across the whole
+ * width rather than only where the prose happens to reach.
+ */
+/**
+ * The sections, listed once at the top (FF-1666).
+ *
+ * A quote is not read start to finish. It is read once, then flipped back
+ * through while someone decides, and the numbers are how they say which
+ * part they mean. This is eight lines that turn five pages into something
+ * navigable.
+ *
+ * No page numbers against them: react-pdf lays out in one pass, so nothing
+ * knows which page a section will land on until it is too late to print it.
+ * The numbers are what a reader points at anyway.
+ *
+ * Left out below three sections, where a list of two is furniture.
+ */
+function Contents({
+  doc,
+  sections,
+}: {
+  doc: QuoteDocument;
+  sections: Map<string, string>;
+}) {
+  const listed = doc.blocks.filter(
+    (block) => block.type === "text" && block.heading,
+  );
+  if (listed.length < 3) {
+    return null;
+  }
+
+  return (
+    <View wrap={false} style={{ width: COLUMN, marginBottom: 24 }}>
+      <Text style={{ ...small, marginBottom: 4 }}>{doc.labels.contents}</Text>
+      {listed.map((block) => (
+        <View
+          key={block.id}
+          style={{
+            flexDirection: "row",
+            paddingVertical: 3,
+            borderTopWidth: 0.5,
+            borderTopColor: RULE,
+          }}
+        >
+          <Text style={{ ...small, width: 22 }}>{sections.get(block.id)}</Text>
+          <Text style={body}>
+            {block.type === "text" ? block.heading : null}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SectionHead({ number, title }: { number?: string; title: string }) {
+  return (
+    // Never split, and never the last thing on a page: a rule at the foot
+    // of one page with its title at the head of the next is worse than no
+    // rule at all. `wrap` keeps the three lines together and
+    // `minPresenceAhead` keeps them with the text they introduce.
+    <View
+      wrap={false}
+      minPresenceAhead={90}
+      style={{ marginBottom: PRINT_BODY * QUOTE_TYPESET.flow.below }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          marginBottom: 5,
+        }}
+      >
+        {number ? (
+          <Text style={{ ...small, marginRight: 8 }}>{number}</Text>
+        ) : null}
+        <View style={{ flex: 1, borderTopWidth: 0.5, borderTopColor: RULE }} />
+      </View>
+      <Text
+        style={{
+          fontSize: blockHeadingSize(PRINT_BODY),
+          fontWeight: QUOTE_TYPESET.weight.blockHeading,
+          lineHeight: QUOTE_TYPESET.leading.heading,
+        }}
+      >
+        {title}
+      </Text>
+    </View>
+  );
+}
 
 /**
  * What each titled section is called by its number (FF-1666).
@@ -79,12 +185,19 @@ function sectionNumbers(doc: QuoteDocument): Map<string, string> {
   }
   return numbers;
 }
-const strong: Style = { fontSize: 9, fontWeight: 600 };
+const strong: Style = { fontSize: PRINT_BODY, fontWeight: 600 };
 
 // Line columns: description, quantity, rate, amount.
-const QUANTITY_WIDTH = 64;
-const RATE_WIDTH = 84;
-const AMOUNT_WIDTH = 124;
+/**
+ * A priced table's fixed columns, as multiples of the body size (FF-1666).
+ *
+ * They were 64, 84 and 124pt, which fitted "€ 20.808,00" at 9pt and did not
+ * at 11 — the rate ran straight into the amount. A column holding a number
+ * has to be measured in the type it holds, not in points someone chose once.
+ */
+const QUANTITY_WIDTH = PRINT_BODY * 7;
+const RATE_WIDTH = PRINT_BODY * 9.5;
+const AMOUNT_WIDTH = PRINT_BODY * 14;
 
 function Rich({
   doc,
@@ -115,9 +228,9 @@ function Rich({
     // (FF-1662) — the tables below take the page, the prose takes a measure.
     <View
       style={{
-        fontSize: 9,
+        fontSize: PRINT_BODY,
         lineHeight: scale.leading.body,
-        maxWidth: measureWidth(9),
+        maxWidth: measureWidth(PRINT_BODY),
       }}
     >
       {/* The same Tiptap shape, typed loosely on this side. */}
@@ -127,6 +240,7 @@ function Rich({
         // lines is a question this change does not open.
         spacedParagraphs: true,
         scale,
+        body: PRINT_BODY,
         headingWeight: scale.weight.heading,
       })}
     </View>
@@ -209,7 +323,24 @@ function Row({ row, oneOff }: { row: ScenarioRow; oneOff: string }) {
   }
 }
 
-function Comparison({
+/**
+ * The choice, as two panels (FF-1666).
+ *
+ * This document exists so that someone picks one option or the other, and
+ * until now that choice was a row of figures in a comparison table two
+ * pages before the detail — the one thing the reader came for, drawn as the
+ * quietest thing on the page.
+ *
+ * A panel each, side by side, holding exactly what the decision turns on:
+ * what the option is called, what it costs, how long it takes, and which
+ * one is being recommended. The line items still follow underneath for
+ * whoever wants to check the arithmetic.
+ *
+ * The recommended one is drawn on a tint rather than in a second colour.
+ * The same pair is drawn by the editor and the web view, and a quote that
+ * suddenly grew a brand colour would look like it came from someone else.
+ */
+function Options({
   comparison,
   doc,
 }: {
@@ -218,57 +349,52 @@ function Comparison({
 }) {
   return (
     <View wrap={false} style={{ marginBottom: 20 }}>
-      <Text
-        style={{
-          fontSize: headingSize(9, 2, QUOTE_TYPESET),
-          fontWeight: 600,
-          lineHeight: QUOTE_TYPESET.leading.heading,
-          marginBottom: 6,
-        }}
-      >
-        {doc.labels.comparison}
-      </Text>
-      <View
-        style={{
-          flexDirection: "row",
-          borderBottomWidth: 0.5,
-          borderBottomColor: RULE,
-          paddingBottom: 4,
-        }}
-      >
-        <View style={{ flex: 1.2 }} />
+      <View style={{ flexDirection: "row" }}>
         {comparison.columns.map((column, index) => (
-          <View key={index.toString()} style={{ flex: 1, paddingLeft: 8 }}>
-            <Text style={{ ...strong, textAlign: "right" }}>{column.name}</Text>
-            {column.recommended ? (
-              <Text style={{ ...small, textAlign: "right" }}>
-                {doc.labels.recommended}
-              </Text>
-            ) : null}
+          <View
+            key={index.toString()}
+            style={{
+              flex: 1,
+              padding: 10,
+              borderWidth: 0.5,
+              borderColor: column.recommended ? "#000" : RULE,
+              backgroundColor: column.recommended ? TINT : "#fff",
+              marginLeft: index === 0 ? 0 : 8,
+            }}
+          >
+            <Text style={{ ...small, marginBottom: 3 }}>
+              {column.recommended ? doc.labels.recommended : " "}
+            </Text>
+            <Text
+              style={{
+                ...strong,
+                fontSize: headingSize(PRINT_BODY, 3, QUOTE_TYPESET),
+                lineHeight: QUOTE_TYPESET.leading.heading,
+                marginBottom: 6,
+              }}
+            >
+              {column.name}
+            </Text>
+            {comparison.rows.map((row) => (
+              <View
+                key={row.label}
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingVertical: 2,
+                  borderTopWidth: 0.5,
+                  borderTopColor: RULE,
+                }}
+              >
+                <Text style={{ ...small, marginRight: 8 }}>{row.label}</Text>
+                <Text style={{ ...body, textAlign: "right" }}>
+                  {row.values[index]}
+                </Text>
+              </View>
+            ))}
           </View>
         ))}
       </View>
-      {comparison.rows.map((row) => (
-        <View
-          key={row.label}
-          style={{
-            flexDirection: "row",
-            paddingVertical: 3,
-            borderBottomWidth: 0.5,
-            borderBottomColor: RULE,
-          }}
-        >
-          <Text style={{ ...body, flex: 1.2, color: GREY }}>{row.label}</Text>
-          {row.values.map((value, index) => (
-            <Text
-              key={index.toString()}
-              style={{ ...body, flex: 1, paddingLeft: 8, textAlign: "right" }}
-            >
-              {value}
-            </Text>
-          ))}
-        </View>
-      ))}
     </View>
   );
 }
@@ -358,7 +484,7 @@ function Scenario({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text
             style={{
-              fontSize: headingSize(9, 2, QUOTE_TYPESET),
+              fontSize: headingSize(PRINT_BODY, 2, QUOTE_TYPESET),
               fontWeight: 600,
               lineHeight: QUOTE_TYPESET.leading.heading,
             }}
@@ -508,7 +634,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             </Text>
             <Text
               style={{
-                fontSize: documentTitleSize(9),
+                fontSize: documentTitleSize(PRINT_BODY),
                 fontWeight: QUOTE_TYPESET.weight.documentTitle,
                 lineHeight: QUOTE_TYPESET.leading.heading,
                 marginTop: 2,
@@ -538,7 +664,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             text column. Before this the page had three different left edges
             down it. */}
         <View style={{ flexDirection: "row", marginBottom: 20 }}>
-          <View style={{ width: SIDEHEAD, marginRight: GUTTER }}>
+          <View style={{ flex: 1, marginRight: 10 }}>
             <Text style={{ ...small, marginBottom: 2 }}>{labels.from}</Text>
             <Rich doc={doc.fromDetails} />
             {/* The bank account belongs with the sender's legal details. */}
@@ -551,7 +677,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
               </View>
             ) : null}
           </View>
-          <View style={{ width: COLUMN }}>
+          <View style={{ flex: 1, marginLeft: 10 }}>
             <Text style={{ ...small, marginBottom: 2 }}>{labels.to}</Text>
             <Rich doc={doc.customerDetails} />
           </View>
@@ -564,45 +690,26 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             paddingLeft: 8,
             borderLeftWidth: 2,
             borderLeftColor: "#000",
-            // Running text, so it stands in the text column with the rest
-            // of it rather than out on its own to the left (FF-1666).
-            marginLeft: SIDEHEAD + GUTTER,
+            // Running text, so it takes the measure like the rest of it.
             width: COLUMN,
           }}
         >
           {doc.statement}
         </Text>
 
+        <Contents doc={doc} sections={sections} />
+
         {doc.blocks.map((block) =>
           block.type === "text" ? (
-            // Title beside its text, not above it (FF-1666).
-            <View
-              key={block.id}
-              style={{ flexDirection: "row", marginBottom: 16 }}
-            >
-              <View style={{ width: SIDEHEAD, marginRight: GUTTER }}>
-                {block.heading ? (
-                  <Text style={{ ...small, marginBottom: 3 }}>
-                    {sections.get(block.id)}
-                  </Text>
-                ) : null}
-                {block.heading ? (
-                  <Text
-                    minPresenceAhead={40}
-                    // A block's title names the section its text belongs to
-                    // (FF-1651). In the sidehead it is also the only thing
-                    // on that side of the page, so it reads as a heading
-                    // without having to be large enough to shout.
-                    style={{
-                      fontSize: blockHeadingSize(9),
-                      fontWeight: QUOTE_TYPESET.weight.blockHeading,
-                      lineHeight: QUOTE_TYPESET.leading.heading,
-                    }}
-                  >
-                    {block.heading}
-                  </Text>
-                ) : null}
-              </View>
+            <View key={block.id} style={{ marginBottom: 20 }}>
+              {block.heading ? (
+                <SectionHead
+                  number={sections.get(block.id)}
+                  title={block.heading}
+                />
+              ) : null}
+              {/* Running text stops at the measure; the rule above it and
+                  the tables below take the page (FF-1666). */}
               <View style={{ width: COLUMN }}>
                 <Rich doc={block.body} images={doc.images} prose />
               </View>
@@ -610,7 +717,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
           ) : (
             <View key={block.id}>
               {block.comparison ? (
-                <Comparison comparison={block.comparison} doc={doc} />
+                <Options comparison={block.comparison} doc={doc} />
               ) : null}
               {block.scenarios.map((scenario) => (
                 <Scenario key={scenario.id} scenario={scenario} doc={doc} />
