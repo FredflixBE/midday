@@ -48,12 +48,21 @@ export function QuoteComparison({
   const money = (value: Amount) => formatQuoteAmount(value, currency, locale);
   const number = (value: number) =>
     new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
-  const signed = (cents: number, percent: number | null) => {
-    const sign = cents > 0 ? "+" : cents < 0 ? "−" : "";
+  /**
+   * The difference in words rather than in a sign (FF-1670).
+   *
+   * It was "−€ 17.612 (−100%)", which needs someone to tell you that minus
+   * means the fixed price is the cheaper one — and Frederik asked exactly
+   * that: how do I read this. A cell that says "lower" needs no convention
+   * and no line of help under the table.
+   */
+  const against = (cents: number, percent: number | null) => {
+    if (cents === 0) return "Same";
+    const word = cents > 0 ? "higher" : "lower";
     const amount = money({ amount: Math.abs(cents), max: null });
     return percent === null
-      ? `${sign}${amount}`
-      : `${sign}${amount} (${sign}${number(Math.abs(percent))}%)`;
+      ? `${amount} ${word}`
+      : `${amount} ${word} (${number(Math.abs(percent))}%)`;
   };
 
   // A premium belongs to a pair, not to a scenario: it is what one fixed
@@ -140,8 +149,12 @@ export function QuoteComparison({
 
       {pairs.length > 0 ? (
         <section className="space-y-4">
+          {/* Not "asks over": that promises a premium, and a fixed price
+              under the range is just as common — every figure on OFF-0004
+              is. The heading says what the table holds, the cells say which
+              way each one goes. */}
           <h2 className="text-sm font-medium">
-            What a fixed price asks over a range
+            Fixed prices against the ranges
           </h2>
           {/* Its own table, because it is its own thing: a premium is a
               relationship between two scenarios, and it only exists where a
@@ -155,12 +168,12 @@ export function QuoteComparison({
                   <th className="py-2 pr-4 text-left font-normal">
                     Fixed price
                   </th>
-                  <th className="py-2 pl-4 text-left font-normal">Against</th>
+                  <th className="py-2 pl-4 text-left font-normal">Range</th>
                   <th className="py-2 pl-4 text-right font-normal">
-                    vs midpoint
+                    At the midpoint
                   </th>
                   <th className="py-2 pl-4 text-right font-normal">
-                    vs maximum
+                    At the maximum
                   </th>
                 </tr>
               </thead>
@@ -177,13 +190,13 @@ export function QuoteComparison({
                       {nameOf(premium.rangeScenarioId)}
                     </td>
                     <td className="py-2 pl-4 text-right tabular-nums whitespace-nowrap">
-                      {signed(
+                      {against(
                         premium.overMidpoint,
                         premium.overMidpointPercent,
                       )}
                     </td>
                     <td className="py-2 pl-4 text-right tabular-nums whitespace-nowrap">
-                      {signed(premium.overMax, premium.overMaxPercent)}
+                      {against(premium.overMax, premium.overMaxPercent)}
                     </td>
                   </tr>
                 ))}
