@@ -12,9 +12,9 @@
  *
  * - Every script prints what it is about to act on, before it acts.
  * - A script is assumed to **write**, and refuses against production unless
- *   `CONFIRM_DATABASE_PROD=true`. A script that only reads says so itself, by
- *   calling {@link readOnlyScript} — so a script added later is guarded
- *   without its author having to remember anything.
+ *   `CONFIRM_DATABASE_PROD=true`. A script that only reads says so where it
+ *   opens the connection, with `{ readOnly: true }` — so a script added later
+ *   is guarded without its author having to remember anything.
  * - The refusal names what it saw, so a misconfiguration is one line rather
  *   than a mystery.
  *
@@ -32,6 +32,8 @@
  * which closes the hole that would otherwise make the cheaper option the
  * weaker one.
  */
+
+import { resolve } from "node:path";
 
 export type DatabaseEnvironment =
   | "production"
@@ -69,13 +71,16 @@ export const CONFIRM_VARIABLE = "CONFIRM_DATABASE_PROD";
  */
 export function isLocalDatabase(connectionString: string): boolean {
   try {
-    const { hostname } = new URL(connectionString);
-    return hostname === "localhost" || hostname === "127.0.0.1";
+    return isLocalHostname(new URL(connectionString).hostname);
   } catch {
     // Not parseable is not local. Whatever it is, nothing here should act on
     // it.
     return false;
   }
+}
+
+function isLocalHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
 /**
@@ -133,20 +138,28 @@ export function describeTarget(
     };
   }
 
-  const local = isLocalDatabase(connectionString);
-
+  let url: URL;
   try {
-    const url = new URL(connectionString);
+    url = new URL(connectionString);
+  } catch {
+    // Not parseable is not local. Whatever it is, nothing here should act on
+    // it unconfirmed.
     return {
       environment,
-      project: projectRef(url),
-      host: url.hostname || null,
-      database: url.pathname.replace(/^\//, "") || null,
-      local,
+      project: null,
+      host: null,
+      database: null,
+      local: false,
     };
-  } catch {
-    return { environment, project: null, host: null, database: null, local };
   }
+
+  return {
+    environment,
+    project: projectRef(url),
+    host: url.hostname || null,
+    database: url.pathname.replace(/^\//, "") || null,
+    local: isLocalHostname(url.hostname),
+  };
 }
 
 /**
@@ -166,25 +179,17 @@ export function needsConfirmation(target: ScriptTarget): boolean {
   );
 }
 
-let declaredReadOnly = false;
-let announced = false;
-
 /**
- * Declare that this script only reads. Call it at the top of the file, before
- * anything opens a connection.
- *
- * The default is the other way round on purpose: a script nobody has thought
- * about is treated as a script that writes, so the one added next week is
- * guarded by the fact that its author did nothing.
+ * Targets already named out loud, so a script that opens two connections does
+ * not repeat itself — and does still announce the second one when it differs.
+ * A single flag would have named one database while the process acted on
+ * another.
  */
-export function readOnlyScript(): void {
-  declaredReadOnly = true;
-}
+const announced = new Set<string>();
 
-/** Test seam. Resets what a process would otherwise only set once. */
+/** Test seam. Forgets what a process would otherwise only say once. */
 export function resetScriptGuard(): void {
-  declaredReadOnly = false;
-  announced = false;
+  announced.clear();
 }
 
 /**
@@ -196,7 +201,13 @@ export function resetScriptGuard(): void {
  * new file dropped into either directory is guarded the moment it exists.
  */
 export function isScriptEntry(argv: string[] = process.argv): boolean {
-  return /(^|\/)scripts\/[^/]+$/.test(argv[1] ?? "");
+  const entry = argv[1];
+  if (!entry) return false;
+
+  // Resolved, because `bun link-suppliers.ts` from inside the directory passes
+  // a bare filename, and a guard that switches itself off depending on which
+  // directory you were standing in is worse than no guard.
+  return /(^|\/)scripts\/[^/]+$/.test(resolve(entry));
 }
 
 function describeEnvironment(target: ScriptTarget): string {
@@ -246,9 +257,22 @@ export function refusal(target: ScriptTarget): string {
     headline,
     targetLines(target),
     remedy,
-    "If this script only reads, call readOnlyScript() at the top of it.",
+    "If this connection only reads, open it with { readOnly: true }.",
   ].join("\n");
 }
+
+export type ScriptConnectionOptions = {
+  /**
+   * Set only by a connection that provably reads and never writes. It is a
+   * property of the call, not of the process: a module-wide flag would be
+   * disarmed for a whole run the day a writing script imports a helper out of
+   * a read-only one, which is exactly the silent failure this file exists to
+   * prevent.
+   */
+  readOnly?: boolean;
+  argv?: string[];
+  env?: NodeJS.ProcessEnv;
+};
 
 /**
  * Say what this script is about to act on, and stop it if it may write to
@@ -260,20 +284,21 @@ export function refusal(target: ScriptTarget): string {
  */
 export function guardScriptConnection(
   connectionString: string | undefined = process.env.DATABASE_URL,
-  options: { argv?: string[]; env?: NodeJS.ProcessEnv } = {},
+  options: ScriptConnectionOptions = {},
 ): void {
-  const { argv = process.argv, env = process.env } = options;
+  const { readOnly = false, argv = process.argv, env = process.env } = options;
 
   if (!isScriptEntry(argv)) return;
 
   const target = describeTarget(connectionString, env);
+  const key = `${target.environment}:${target.host}:${target.database}:${readOnly}`;
 
-  if (!announced) {
-    announced = true;
-    console.error(announcement(target, declaredReadOnly));
+  if (!announced.has(key)) {
+    announced.add(key);
+    console.error(announcement(target, readOnly));
   }
 
-  if (declaredReadOnly) return;
+  if (readOnly) return;
   if (!needsConfirmation(target)) return;
   if (env[CONFIRM_VARIABLE] === "true") return;
 

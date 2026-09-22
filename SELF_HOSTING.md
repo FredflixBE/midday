@@ -275,8 +275,9 @@ Runtime environment:
 
 ## What a script may do to a database
 
-There are 28 maintenance scripts under `packages/db/src/scripts` and
-`packages/jobs/scripts`, and several of them write. `bun run` loads a `.env`
+There are maintenance scripts in four places — `packages/db/src/scripts`,
+`packages/jobs/scripts`, `packages/banking/scripts` and
+`packages/yuki/scripts` — and several of them write. `bun run` loads a `.env`
 from the directory it runs in, so which database a script reaches is decided by
 a file nobody looks at, and two Supabase projects differ by one opaque ref.
 Remembering which shell is pointed where is not a mitigation; this is.
@@ -304,12 +305,18 @@ Then, whenever a script runs:
   A database on `localhost` is the exception, so the test database and CI are
   untouched.
 
-A script that only reads says so, by calling `readOnlyScript()` at the top of
-itself, and then runs anywhere without a confirmation. The default is the other
-way round on purpose: a script written next month is guarded by its author
-having done nothing. The guard sits inside `connectDb` and `createJobDb`, and a
-test fails the build if a script opens a connection by any other route without
-calling it.
+A connection that only reads says so where it is opened —
+`connectDb({ readOnly: true })` — and then runs anywhere without a
+confirmation. It is a property of that call rather than of the process, so a
+writing script cannot inherit the exemption by importing a helper out of a
+read-only one.
+
+The default is the other way round on purpose: a script written next month is
+guarded by its author having done nothing. The guard sits inside `connectDb`
+and `createJobDb`, which is how most scripts reach a database. A script that
+opens its own `pg` client, or imports the module-scope `db`, has to call
+`guardScriptConnection()` by hand — and a test reads every script in all four
+directories and fails the build if one of them does not.
 
 None of this affects the API, the jobs or the tests — the guard is inert unless
 the process was started from a file under a `scripts/` directory.

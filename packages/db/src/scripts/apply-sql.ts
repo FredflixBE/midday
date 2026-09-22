@@ -29,16 +29,6 @@ export function resolveTestConnection(): string {
   return process.env.TEST_DATABASE_URL ?? LOCAL_TEST_DATABASE_URL;
 }
 
-/**
- * Whether a connection string names a database on this machine.
- *
- * Lives in `script-guard.ts`, which decides on the same answer when it works
- * out whether a script is about to write to production. Re-exported here
- * because the scripts that drop databases have always imported it from this
- * file, and one definition is the whole point.
- */
-export { isLocalDatabase };
-
 /** The same connection string, pointed at another database on that server. */
 export function pointAt(connectionString: string, database: string): string {
   const url = new URL(connectionString);

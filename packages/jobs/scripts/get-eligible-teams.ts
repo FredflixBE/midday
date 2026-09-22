@@ -1,10 +1,5 @@
 #!/usr/bin/env bun
 import { createJobDb } from "@midday/db/job-client";
-import { readOnlyScript } from "@midday/db/script-guard";
-
-// This script reads and prints; it writes nothing. Declared here so the guard
-// lets it run against any environment without a confirmation.
-readOnlyScript();
 
 type EligibleTeam = {
   id: string;
@@ -18,7 +13,8 @@ type EligibleTeam = {
 };
 
 async function getEligibleTeamIds() {
-  const { db, disconnect } = createJobDb();
+  // Reads and prints; writes nothing.
+  const { db, disconnect } = createJobDb({ readOnly: true });
 
   try {
     // Calculate date 15 days ago

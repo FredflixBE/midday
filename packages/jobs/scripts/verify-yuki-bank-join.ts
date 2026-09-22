@@ -33,7 +33,6 @@
 import { connectDb } from "@midday/db/client";
 import { getTeamIdsWithApp } from "@midday/db/queries";
 import { bankAccounts, transactions } from "@midday/db/schema";
-import { readOnlyScript } from "@midday/db/script-guard";
 import {
   fetchGLAccountScheme,
   fetchLedgerLines,
@@ -43,10 +42,6 @@ import {
 } from "@midday/yuki";
 import { YUKI_APP_ID, yukiClientForTeam } from "@midday/yuki/team";
 import { and, eq, gte, lte } from "drizzle-orm";
-
-// This script reads and prints; it writes nothing. Declared here so the guard
-// lets it run against any environment without a confirmation.
-readOnlyScript();
 
 const short = (id: string) => `${id.slice(0, 8)}…`;
 
@@ -135,7 +130,8 @@ function histogram(label: string, values: number[]) {
 }
 
 async function main() {
-  const db = await connectDb();
+  // Reads and prints; writes nothing.
+  const db = await connectDb({ readOnly: true });
 
   const teamIds = await getTeamIdsWithApp(db, YUKI_APP_ID);
   if (teamIds.length === 0) {

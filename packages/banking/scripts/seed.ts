@@ -12,8 +12,12 @@
 import { fetchAllInstitutions } from "@midday/banking";
 import { db } from "@midday/db/client";
 import { upsertInstitutions } from "@midday/db/queries";
+import { guardScriptConnection } from "@midday/db/script-guard";
 
 async function main() {
+  // This one upserts. `db` is built at module scope, so nothing else asks.
+  guardScriptConnection();
+
   // 1. Fetch institutions from all providers
   console.log("Fetching institutions from providers...");
   const { institutions, errors } = await fetchAllInstitutions();

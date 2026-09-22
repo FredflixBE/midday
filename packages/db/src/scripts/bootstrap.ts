@@ -319,8 +319,14 @@ async function main(): Promise<number> {
   }
 
   // This one pushes with --force. Say where it is, and stop if that is
-  // production without anybody having said so.
-  guardScriptConnection(url);
+  // production without anybody having said so. Reported the way everything
+  // else here reports a misconfiguration: a message and an exit code.
+  try {
+    guardScriptConnection(url);
+  } catch (error) {
+    console.error((error as Error).message);
+    return 2;
+  }
 
   const client = new Client({ connectionString: url, ssl: sslFor(url) });
   await client.connect();

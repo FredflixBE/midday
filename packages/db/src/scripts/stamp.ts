@@ -44,7 +44,12 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  guardScriptConnection(url);
+  try {
+    guardScriptConnection(url);
+  } catch (error) {
+    console.error((error as Error).message);
+    return 2;
+  }
 
   const client = new Client({ connectionString: url, ssl: sslFor(url) });
   await client.connect();

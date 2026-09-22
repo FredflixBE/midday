@@ -20,7 +20,6 @@ import {
   guardScriptConnection,
   isScriptEntry,
   needsConfirmation,
-  readOnlyScript,
   resetScriptGuard,
 } from "../script-guard";
 
@@ -142,9 +141,28 @@ describe("the guard itself", () => {
     expect(guard(PROD, {})).toThrow(/DATABASE_ENVIRONMENT/);
   });
 
-  test("lets a declared read-only script through against production", () => {
-    readOnlyScript();
-    expect(guard(PROD, { DATABASE_ENVIRONMENT: "production" })).not.toThrow();
+  test("lets a connection opened read-only through against production", () => {
+    expect(() =>
+      guardScriptConnection(PROD, {
+        readOnly: true,
+        argv: SCRIPT,
+        env: { DATABASE_ENVIRONMENT: "production" },
+      }),
+    ).not.toThrow();
+  });
+
+  test("read-only is a property of the call, not of the process", () => {
+    // A writing script that imports a helper out of a read-only one must not
+    // inherit its exemption. This is the whole reason it is an argument.
+    guardScriptConnection(PROD, {
+      readOnly: true,
+      argv: SCRIPT,
+      env: { DATABASE_ENVIRONMENT: "production" },
+    });
+
+    expect(guard(PROD, { DATABASE_ENVIRONMENT: "production" })).toThrow(
+      /Refusing/,
+    );
   });
 
   test("lets a confirmed write through, and only on exactly true", () => {
@@ -175,6 +193,24 @@ describe("the guard itself", () => {
     ).not.toThrow();
   });
 
+  test("announces a second, different target rather than only the first", () => {
+    const said: string[] = [];
+    const original = console.error;
+    console.error = (line: string) => said.push(line);
+
+    try {
+      const env = { DATABASE_ENVIRONMENT: "development" };
+      guardScriptConnection(PROD, { argv: SCRIPT, env });
+      guardScriptConnection(PROD, { argv: SCRIPT, env });
+      guardScriptConnection(LOCAL, { argv: SCRIPT, env });
+    } finally {
+      console.error = original;
+    }
+
+    expect(said).toHaveLength(2);
+    expect(said[1]).toContain("localhost");
+  });
+
   test("recognises a script entry point by where the file lives", () => {
     expect(isScriptEntry(SCRIPT)).toBe(true);
     expect(
@@ -182,6 +218,17 @@ describe("the guard itself", () => {
     ).toBe(true);
     expect(isScriptEntry(NOT_A_SCRIPT)).toBe(false);
     expect(isScriptEntry(["bun"])).toBe(false);
+  });
+
+  test("still recognises one run by a bare filename from inside the directory", () => {
+    const cwd = process.cwd();
+    process.chdir(join(repositoryRoot(), "packages/jobs/scripts"));
+
+    try {
+      expect(isScriptEntry(["bun", "link-suppliers.ts"])).toBe(true);
+    } finally {
+      process.chdir(cwd);
+    }
   });
 });
 
@@ -191,7 +238,7 @@ function repositoryRoot(): string {
 
   while (!existsSync(join(dir, "turbo.json"))) {
     const parent = dirname(dir);
-    if (parent === dir) throw new Error("No turbo.json above " + process.cwd());
+    if (parent === dir) throw new Error(`No turbo.json above ${process.cwd()}`);
     dir = parent;
   }
 
@@ -200,44 +247,73 @@ function repositoryRoot(): string {
 
 describe("no script can reach a database around the guard", () => {
   const root = repositoryRoot();
-  const directories = [
-    join(root, "packages/db/src/scripts"),
-    join(root, "packages/jobs/scripts"),
-  ];
 
   /**
-   * `connectDb` and `createJobDb` call the guard themselves, so a script that
-   * uses either is covered by doing nothing. A script that opens its own
-   * connection is not, and has to call the guard by hand — this is what makes
-   * forgetting a failing test rather than a silent write to the real books.
+   * Every `scripts/` directory in the repository, because `isScriptEntry`
+   * fires on all of them and the guard is only as good as its coverage. The
+   * first version of this test knew about two, and the two it did not know
+   * about held a script that upserts institutions.
    */
-  const files = directories.flatMap((dir) =>
-    readdirSync(dir)
-      .filter((name) => name.endsWith(".ts"))
-      .map((name) => ({ name, path: join(dir, name) })),
-  );
+  const directories = [
+    "packages/db/src/scripts",
+    "packages/jobs/scripts",
+    "packages/banking/scripts",
+    "packages/yuki/scripts",
+  ].map((relative) => join(root, relative));
 
-  test("there are scripts to check", () => {
-    expect(files.length).toBeGreaterThan(20);
-  });
-
-  for (const { name, path } of files) {
-    const source = readFileSync(path, "utf8");
-    const opensItsOwn = /new (Client|Pool)\s*\(/.test(source);
-
-    if (!opensItsOwn) continue;
-
-    test(`${name} opens its own connection and calls the guard`, () => {
-      // The test-database scripts are the exception the guard does not cover
-      // and does not need to: they refuse anything that is not localhost
-      // before they connect, which is a stricter rule than this one.
-      const testDatabaseOnly = /resolveTestConnection|TEST_DATABASE_URL/.test(
+  /**
+   * Scripts that reach a database only through `connectDb` or `createJobDb`
+   * are covered by their author doing nothing — those call the guard. These
+   * two routes are not:
+   *
+   * - opening a `pg` client or pool directly;
+   * - importing the module-scope `db` or `pool` out of `@midday/db/client`,
+   *   which is built at import time and asks nobody anything.
+   *
+   * Either one has to call `guardScriptConnection` by hand, and this is what
+   * makes forgetting a failing test rather than a silent write to the books.
+   */
+  function reachesDatabaseUnguarded(source: string): boolean {
+    const ownConnection = /new (Client|Pool)\s*\(/.test(source);
+    const moduleScopeDb =
+      /import\s*\{[^}]*\b(db|pool)\b[^}]*\}\s*from\s*["'][^"']*db\/client["']/.test(
         source,
       );
 
-      expect(
-        testDatabaseOnly || source.includes("guardScriptConnection("),
-      ).toBe(true);
+    return ownConnection || moduleScopeDb;
+  }
+
+  /**
+   * The test-database scripts, named rather than pattern-matched. They refuse
+   * anything that is not `localhost` before they connect, which is a stricter
+   * rule than this one — and a list of filenames cannot be tripped by a
+   * comment the way a regex over the source could.
+   */
+  const EXEMPT = new Set([
+    "apply-sql.ts",
+    "apply-policies.ts",
+    "setup-test-db.ts",
+    "verify-migrations.ts",
+  ]);
+
+  const files = directories.flatMap((dir) =>
+    readdirSync(dir)
+      .filter((name) => name.endsWith(".ts"))
+      .map((name) => ({ name, source: readFileSync(join(dir, name), "utf8") })),
+  );
+
+  test("there are scripts to check, in every directory", () => {
+    expect(files.length).toBeGreaterThan(30);
+    for (const dir of directories)
+      expect(readdirSync(dir).length).toBeGreaterThan(0);
+  });
+
+  for (const { name, source } of files) {
+    if (EXEMPT.has(name)) continue;
+    if (!reachesDatabaseUnguarded(source)) continue;
+
+    test(`${name} opens its own connection and calls the guard`, () => {
+      expect(source).toContain("guardScriptConnection(");
     });
   }
 });

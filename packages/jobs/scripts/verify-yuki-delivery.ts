@@ -21,22 +21,18 @@
  */
 import { closeDb, connectDb } from "@midday/db/client";
 import { getTeamIdsWithApp } from "@midday/db/queries";
-import { readOnlyScript } from "@midday/db/script-guard";
 import { extractTextFromPdf } from "@midday/documents/pdf-text";
 import { createClient } from "@midday/supabase/job";
 import { YukiNotConnectedError } from "@midday/yuki";
 import { YUKI_APP_ID, yukiClientForTeam } from "@midday/yuki/team";
 import { reportYukiDelivery } from "../src/utils/yuki-delivery";
 
-// This script reads and prints; it writes nothing. Declared here so the guard
-// lets it run against any environment without a confirmation.
-readOnlyScript();
-
 const short = (id: string) => `${id.slice(0, 8)}…`;
 const SIGNED_URL_TTL_SECONDS = 600;
 
 async function main() {
-  const db = await connectDb();
+  // Reads and prints; delivers nothing.
+  const db = await connectDb({ readOnly: true });
   const supabase = createClient();
 
   const teamIds = await getTeamIdsWithApp(db, YUKI_APP_ID);
