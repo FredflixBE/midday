@@ -20,81 +20,92 @@ export function PricingPreview({
 }) {
   if (scenarios.length === 0) return null;
 
+  // One scenario is a document that reads straight through: there is no
+  // choice to offer and nothing to pick between (FF-1670).
+  if (scenarios.length === 1 || !comparison) {
+    return (
+      <div className="space-y-8 text-sm">
+        {scenarios.map((scenario) => (
+          <Scenario key={scenario.id} scenario={scenario} />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8 text-sm">
-      {comparison ? <Options comparison={comparison} /> : null}
-      {/* One scenario is a document that reads straight through; several are
-          alternatives, and a reader looks at one at a time (FF-1670). Four
-          stacked line-item tables is not a document pane, it is a scroll. */}
-      {scenarios.length === 1 ? (
-        <Scenario scenario={scenarios[0]!} />
-      ) : (
-        <Tabs defaultValue={scenarios[0]!.id}>
-          <TabsList className="mb-4 flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-            {scenarios.map((scenario) => (
-              <TabsTrigger
-                key={scenario.id}
-                value={scenario.id}
-                className="gap-1.5 border border-border data-[state=active]:bg-accent"
-              >
-                {scenario.recommended ? (
-                  <Star size={12} className="fill-current" />
-                ) : null}
-                {scenario.name}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {scenarios.map((scenario) => (
-            <TabsContent key={scenario.id} value={scenario.id}>
-              <Scenario scenario={scenario} />
-            </TabsContent>
-          ))}
-        </Tabs>
-      )}
-    </div>
+    <Tabs defaultValue={scenarios[0]!.id} className="space-y-8 text-sm">
+      <Options comparison={comparison} scenarios={scenarios} />
+      {scenarios.map((scenario) => (
+        <TabsContent key={scenario.id} value={scenario.id} className="mt-0">
+          <Scenario scenario={scenario} />
+        </TabsContent>
+      ))}
+    </Tabs>
   );
 }
 
 /**
- * The choice, as the print draws it (FF-1670).
+ * The choice, as the print draws it — and the way to read each option
+ * (FF-1670).
  *
- * This used to be a table with a column per scenario, which held together at
- * two and squeezed at three — and it had stopped showing what it previews:
- * FF-1666 made the PDF draw a panel per option with the total set large, and
- * this was still drawing the old table.
+ * The panels used to sit above a strip of buttons naming the same four
+ * options again, one directly under the other. The panel *is* the option, so
+ * it is the control: clicking one opens its line items underneath. That
+ * removes an element rather than restyling one.
  *
- * Two to a row, so a fourth scenario wraps instead of narrowing the other
+ * Browser-style tabs on a single line were the alternative and do not
+ * survive this content: four of them sharing the measure gives each about
+ * 175px, and "Optie 2 · Branding + widgets via de Marketplace" truncates to
+ * nothing useful.
+ *
+ * Two to a row, so a fourth option wraps instead of narrowing the other
  * three. Wrapping is why this is a grid and the print is a row: a page
  * cannot wrap, and a screen has no reason not to.
+ *
+ * Recommended and selected are said on different channels — a rule above,
+ * a tint behind — because an option can be both, or either.
  */
-function Options({ comparison }: { comparison: ComparisonView }) {
+function Options({
+  comparison,
+  scenarios,
+}: {
+  comparison: ComparisonView;
+  scenarios: ScenarioView[];
+}) {
   const lead = comparison.rows.find((row) => row.lead);
   const rest = comparison.rows.filter((row) => !row.lead);
 
   return (
-    <div className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
+    <TabsList className="grid h-auto w-full gap-x-5 gap-y-6 bg-transparent p-0 sm:grid-cols-2">
       {comparison.columns.map((column, index) => (
-        <div
+        <TabsTrigger
           key={column.name}
+          value={scenarios[index]?.id ?? column.name}
           className={cn(
-            "pt-2",
-            // One signal, not three: the recommended option is the one with
-            // weight on it, the same as in print.
+            "flex h-auto w-full flex-col items-start gap-0 rounded-none px-3 pb-3 pt-2 text-left",
+            // Recommended is a rule above; chosen is a rule below, pointing
+            // at the line items it opens. Two channels, because an option
+            // can be both or either — and a tint alone cannot say which,
+            // since hovering one card while another is chosen would show
+            // two tinted cards.
             column.recommended
-              ? "border-t-2 border-primary"
-              : "border-t border-border",
+              ? "border-t-2 border-t-primary"
+              : "border-t border-t-border",
+            "border-b-2 border-b-transparent",
+            "data-[state=active]:border-b-primary data-[state=active]:bg-accent data-[state=active]:shadow-none",
+            "hover:bg-accent/30",
           )}
         >
-          <div className="pb-1 text-[11px] uppercase tracking-wider text-[#606060]">
+          <span className="pb-1 text-[11px] uppercase tracking-wider text-[#606060]">
             {column.recommended ? "Recommended" : "\u00a0"}
-          </div>
-          <div className="font-medium">{column.name}</div>
+          </span>
+          <span className="font-medium">{column.name}</span>
           {lead ? (
-            <div className="pt-2 text-lg tabular-nums">
+            <span className="pt-2 text-lg tabular-nums">
               {lead.values[index]}
-            </div>
+            </span>
           ) : null}
-          <div className="text-[12px] text-[#606060]">
+          <span className="text-[12px] text-[#606060]">
             {rest
               .map((row) =>
                 row.unit
@@ -102,10 +113,10 @@ function Options({ comparison }: { comparison: ComparisonView }) {
                   : row.values[index],
               )
               .join(" \u00b7 ")}
-          </div>
-        </div>
+          </span>
+        </TabsTrigger>
       ))}
-    </div>
+    </TabsList>
   );
 }
 
