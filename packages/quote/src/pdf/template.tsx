@@ -534,13 +534,13 @@ function Scenario({
         <Cells
           cells={[
             <Text key="h" style={eyebrow}>
-              {labels.description}
+              {scenario.descriptionLabel}
             </Text>,
             <Text key="q" style={eyebrow}>
               {scenario.quantityLabel}
             </Text>,
             <Text key="r" style={eyebrow}>
-              {labels.rate}
+              {scenario.rateLabel}
             </Text>,
             <Text key="a" style={eyebrow}>
               {scenario.amountLabel}

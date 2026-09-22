@@ -148,9 +148,10 @@ function Scenario({ scenario }: { scenario: ScenarioView }) {
           "border-b border-border pb-1 text-[12px] text-[#606060]",
         )}
       >
-        <span />
+        {/* The same four headings the PDF prints (FF-1675). */}
+        <span className="truncate">{scenario.descriptionLabel}</span>
         <span className="text-right">{scenario.quantityLabel}</span>
-        <span />
+        <span className="truncate text-right">{scenario.rateLabel}</span>
         <span className="text-right">{scenario.amountLabel}</span>
       </div>
 

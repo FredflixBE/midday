@@ -400,6 +400,26 @@ describe("one scenario", () => {
     });
   });
 
+  // The preview draws its header from these, so a heading that lives only in
+  // the PDF template is a heading the preview cannot set (FF-1675).
+  test("a scenario carries all four column headings", () => {
+    const doc = plain(
+      quoteDocument(input(content([scenario([item(DEVELOPMENT, 8)])]))),
+    ) as ReturnType<typeof quoteDocument>;
+    const view = pricingBlock(doc).scenarios[0]!;
+    expect({
+      descriptionLabel: view.descriptionLabel,
+      quantityLabel: view.quantityLabel,
+      rateLabel: view.rateLabel,
+      amountLabel: view.amountLabel,
+    }).toEqual({
+      descriptionLabel: "Description",
+      quantityLabel: "Hours",
+      rateLabel: "Rate",
+      amountLabel: "Amount",
+    });
+  });
+
   // The other half of FF-1675: dropping the cents from a whole amount must
   // not drop them from an amount that has some. Half an hour at €185 does.
   test("an amount that has cents keeps them, while the whole ones do not", () => {

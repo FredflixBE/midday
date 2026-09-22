@@ -89,8 +89,15 @@ export type ScenarioView = {
   recommended: boolean;
   /** A recurring scenario's term, billing, renewal and notice. */
   conditions: string | null;
-  /** Column headings. */
+  /**
+   * Column headings — all four, so the preview can set the same table the
+   * PDF prints (FF-1675). Two of them used to live only in the PDF template,
+   * and the preview drew empty spans in their place: the rate column stood
+   * under nothing and the two headings that were there read as unplaced.
+   */
+  descriptionLabel: string;
   quantityLabel: string;
+  rateLabel: string;
   amountLabel: string;
   rows: ScenarioRow[];
   /** Per product, when there is more than one. */
@@ -564,7 +571,9 @@ function scenarioView(
     name: scenario.name,
     recommended: scenario.recommended,
     conditions: recurrence ? conditions(recurrence, labels) : null,
+    descriptionLabel: labels.description,
     quantityLabel: ctx.unitLabel,
+    rateLabel: labels.rate,
     amountLabel: recurrence
       ? labels[PERIOD_LABELS[recurrence.period]]
       : labels.amount,
