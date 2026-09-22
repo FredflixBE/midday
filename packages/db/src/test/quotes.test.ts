@@ -34,6 +34,7 @@ import {
   reviseQuote,
   type StoreQuotePdf,
   setQuoteOutcome,
+  undoQuoteAcceptance,
   updateQuoteDraft,
   updateQuoteSettings,
 } from "../queries/quotes";
@@ -1953,7 +1954,10 @@ describe.skipIf(SKIP)("quotes", () => {
       };
     }
 
-    async function accepted(optionalLineIds: string[] = []) {
+    async function accepted(
+      optionalLineIds: string[] = [],
+      storePdf?: StoreQuotePdf,
+    ) {
       const product = await createInvoiceProduct(db, {
         teamId: TEAM_USD_ID,
         createdBy: TEST_USER_ID,
@@ -1972,6 +1976,7 @@ describe.skipIf(SKIP)("quotes", () => {
       await markQuoteVersionSent(db, {
         teamId: TEAM_USD_ID,
         versionId: draft.id,
+        storePdf,
       });
       const after = await acceptQuoteVersion(db, {
         teamId: TEAM_USD_ID,
@@ -2045,6 +2050,128 @@ describe.skipIf(SKIP)("quotes", () => {
           .where(eq(trackerProjects.description, "OFF-0001")),
       ).toHaveLength(1);
       expect(await projectOf(first)).toMatchObject({ estimate: 15 });
+    });
+
+    // FF-1636: a quote won by mistake had no route back — a won quote hides
+    // both Revise and the Outcome menu, so only what was *recorded* could be
+    // corrected, never the win itself.
+    describe("taking an acceptance back", () => {
+      async function versionOf(id: string) {
+        const [row] = await db
+          .select()
+          .from(quoteVersions)
+          .where(eq(quoteVersions.id, id));
+        return row!;
+      }
+
+      test("puts the version back to sent and the quote back to open", async () => {
+        const { versionId } = await accepted(["extra"]);
+
+        const after = await undoQuoteAcceptance(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          today: TODAY,
+        });
+
+        expect(after).toMatchObject({ outcome: "open", outcomeAt: null });
+        expect(await versionOf(versionId)).toMatchObject({
+          status: "sent",
+          acceptedScenarioId: null,
+          acceptedOptionalLineIds: null,
+          acceptedAt: null,
+          acceptedByName: null,
+          poNumber: null,
+          acceptanceFilePath: null,
+        });
+      });
+
+      // Time may already be booked against it, which would be worse to lose
+      // than the wrong answer is to keep.
+      test("leaves the tracker project standing, and still linked", async () => {
+        const { quote, versionId } = await accepted();
+        const project = quote.trackerProjectId!;
+
+        const after = await undoQuoteAcceptance(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          today: TODAY,
+        });
+
+        expect(after!.trackerProjectId).toBe(project);
+        expect(await projectOf(project)).toMatchObject({ estimate: 10 });
+      });
+
+      // Because the link survives, the second answer corrects the first
+      // project rather than leaving a stray one behind.
+      test("accepting again moves that same project", async () => {
+        const { quote, versionId } = await accepted();
+        const project = quote.trackerProjectId!;
+
+        await undoQuoteAcceptance(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          today: TODAY,
+        });
+        const again = await acceptQuoteVersion(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          scenarioId: "s1",
+          optionalLineIds: ["extra"],
+          today: TODAY,
+        });
+
+        expect(again).toMatchObject({ outcome: "won" });
+        expect(again!.trackerProjectId).toBe(project);
+        expect(
+          await db
+            .select()
+            .from(trackerProjects)
+            .where(eq(trackerProjects.description, "OFF-0001")),
+        ).toHaveLength(1);
+      });
+
+      // The client holds it; withdrawing the answer does not unsend it.
+      test("keeps the PDF that was stored when it was sent", async () => {
+        const { versionId } = await accepted([], async () => [
+          TEAM_USD_ID,
+          "quotes",
+          "kept.pdf",
+        ]);
+        const before = await versionOf(versionId);
+        expect(before.pdfPath).toEqual([TEAM_USD_ID, "quotes", "kept.pdf"]);
+
+        await undoQuoteAcceptance(db, {
+          teamId: TEAM_USD_ID,
+          versionId,
+          today: TODAY,
+        });
+
+        expect((await versionOf(versionId)).pdfPath).toEqual(before.pdfPath);
+      });
+
+      test("refuses a version nobody has accepted", async () => {
+        const quote = await create();
+
+        expect(
+          undoQuoteAcceptance(db, {
+            teamId: TEAM_USD_ID,
+            versionId: draftOf(quote).id,
+            today: TODAY,
+          }),
+        ).rejects.toThrow(QuoteInputError);
+      });
+
+      test("is null for a version of another team", async () => {
+        const { versionId } = await accepted();
+
+        expect(
+          await undoQuoteAcceptance(db, {
+            teamId: TEAM_EUR_ID,
+            versionId,
+            today: TODAY,
+          }),
+        ).toBeNull();
+      });
     });
   });
 

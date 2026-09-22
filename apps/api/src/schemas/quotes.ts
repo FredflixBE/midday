@@ -71,6 +71,14 @@ export const acceptQuoteSchema = z.object({
     .optional(),
 });
 
+/**
+ * Taking a recorded acceptance back (FF-1636). Nothing to say but which
+ * version: what was recorded is cleared whole, never in part.
+ */
+export const undoQuoteAcceptanceSchema = z.object({
+  versionId: z.string().uuid(),
+});
+
 /** Won is recorded by accepting a version (FF-1615), not here. */
 export const setQuoteOutcomeSchema = z.object({
   quoteId: z.string().uuid(),

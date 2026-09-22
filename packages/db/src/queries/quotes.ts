@@ -1062,6 +1062,73 @@ export async function acceptQuoteVersion(
 }
 
 /**
+ * Takes back a recorded acceptance (FF-1636). The version goes back to
+ * `sent` and the quote to `open`, so a quote won by mistake has a route out
+ * — until now, a won quote hid both Revise and the Outcome menu and only
+ * what had been *recorded* could be corrected, never the win itself.
+ *
+ * Three things are deliberately left standing:
+ *
+ * - **The tracker project.** Someone may already have booked time against
+ *   it, and deleting that would be worse than the problem. `trackerProjectId`
+ *   stays on the quote too, so accepting again moves that project rather
+ *   than adding a second one.
+ * - **The stored PDF.** It is the file the client holds, kept at sending
+ *   (FF-1615); the answer being withdrawn does not change what went out.
+ * - **The order form in the vault.** Only the version's reference to it is
+ *   cleared, because the record must read as not accepted. The file itself
+ *   is someone's upload, and this is not the place to delete it.
+ *
+ * Null when the version is not the team's.
+ */
+export async function undoQuoteAcceptance(
+  db: Database,
+  params: { teamId: string; versionId: string; today?: string },
+) {
+  const today = params.today ?? todayUtc();
+
+  const quoteId = await db.transaction(async (tx) => {
+    const row = await lockVersion(tx, params.teamId, params.versionId);
+    if (!row) return null;
+    const { version, quote } = row;
+
+    if (version.status !== "accepted") {
+      throw new QuoteInputError("Only an accepted version can be taken back");
+    }
+
+    await tx
+      .update(quoteVersions)
+      .set({
+        status: "sent",
+        acceptedScenarioId: null,
+        acceptedOptionalLineIds: null,
+        acceptedAt: null,
+        acceptedByName: null,
+        poNumber: null,
+        acceptanceFilePath: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(quoteVersions.id, version.id));
+
+    await tx
+      .update(quotes)
+      .set({
+        outcome: "open",
+        outcomeReason: null,
+        outcomeAt: null,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(quotes.id, quote.id));
+
+    return quote.id;
+  });
+
+  return quoteId
+    ? getQuote(db, { id: quoteId, teamId: params.teamId, today })
+    : null;
+}
+
+/**
  * A version's name and the PDF kept for it, when one was (FF-1615). The
  * download serves that file rather than drawing the quote again, which is
  * the whole point of keeping it. Null when the version is not the team's.

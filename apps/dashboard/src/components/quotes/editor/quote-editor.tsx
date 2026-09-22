@@ -115,7 +115,13 @@ export function QuoteEditor({ id }: { id: string }) {
               </SelectContent>
             </Select>
           ) : null}
-          <OutcomeMenu quoteId={quote.id} outcome={quote.outcome} />
+          <OutcomeMenu
+            quoteId={quote.id}
+            outcome={quote.outcome}
+            acceptedVersionId={
+              quote.versions.find((v) => v.status === "accepted")?.id
+            }
+          />
           {canAccept ? (
             <RecordAcceptance quoteId={quote.id} version={version} />
           ) : null}

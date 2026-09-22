@@ -119,19 +119,26 @@ const OUTCOME_TITLES = { lost: "Lost", no_decision: "No decision" };
 
 /**
  * The answer, when it is not a yes (FF-1614): lost, or no decision, with the
- * reason; Reopen takes it back. Won comes from recording acceptance (FF-1615).
+ * reason; Reopen takes it back. Won comes from recording acceptance (FF-1615),
+ * and Undo acceptance is the way out of one recorded by mistake (FF-1636) —
+ * which is why the menu is still here on a won quote, where it used to
+ * vanish and leave the row looking like it had lost its actions.
  */
 export function OutcomeMenu({
   quoteId,
   outcome,
+  acceptedVersionId,
 }: {
   quoteId: string;
   outcome: RouterOutputs["quotes"]["get"]["outcome"];
+  /** The version the acceptance was recorded on, when there is one. */
+  acceptedVersionId?: string;
 }) {
   const trpc = useTRPC();
   const errorToast = useErrorToast();
   const refresh = useRefreshQuote(quoteId);
   const [choice, setChoice] = useState<"lost" | "no_decision" | null>(null);
+  const [undoing, setUndoing] = useState(false);
   const [reason, setReason] = useState("");
 
   const setOutcome = useMutation(
@@ -145,7 +152,19 @@ export function OutcomeMenu({
     }),
   );
 
-  if (outcome === "won") return null;
+  const undoAcceptance = useMutation(
+    trpc.quotes.undoAcceptance.mutationOptions({
+      onSuccess: async () => {
+        await refresh();
+        setUndoing(false);
+      },
+      onError: errorToast("Not taken back"),
+    }),
+  );
+
+  const won = outcome === "won";
+  // Nothing to offer: won, but the accepted version is not this quote's.
+  if (won && !acceptedVersionId) return null;
 
   return (
     <>
@@ -156,23 +175,68 @@ export function OutcomeMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setChoice("lost")}>
-            Lost
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setChoice("no_decision")}>
-            No decision
-          </DropdownMenuItem>
-          {outcome !== "open" ? (
-            <DropdownMenuItem
-              onClick={() =>
-                setOutcome.mutate({ quoteId, outcome: "open", reason: null })
-              }
-            >
-              Reopen
+          {won ? (
+            <DropdownMenuItem onClick={() => setUndoing(true)}>
+              Undo acceptance
             </DropdownMenuItem>
-          ) : null}
+          ) : (
+            <>
+              <DropdownMenuItem onClick={() => setChoice("lost")}>
+                Lost
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setChoice("no_decision")}>
+                No decision
+              </DropdownMenuItem>
+              {outcome !== "open" ? (
+                <DropdownMenuItem
+                  onClick={() =>
+                    setOutcome.mutate({
+                      quoteId,
+                      outcome: "open",
+                      reason: null,
+                    })
+                  }
+                >
+                  Reopen
+                </DropdownMenuItem>
+              ) : null}
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={undoing} onOpenChange={setUndoing}>
+        <DialogContent className="max-w-[420px]">
+          <div className="space-y-6 p-4">
+            <DialogHeader>
+              <DialogTitle>Undo acceptance</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-[#878787]">
+              The quote goes back to open and the version back to sent. The
+              project in the tracker is left as it is.
+            </p>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUndoing(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={undoAcceptance.isPending}
+                onClick={() =>
+                  acceptedVersionId &&
+                  undoAcceptance.mutate({ versionId: acceptedVersionId })
+                }
+              >
+                Undo acceptance
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={choice !== null}
