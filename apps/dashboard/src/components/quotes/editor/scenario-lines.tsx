@@ -551,6 +551,7 @@ function ItemFields({
         >
           <NumberInput
             aria-label={`Minimum ${noun}`}
+            pad={2}
             value={shown(line.hours)}
             onChange={(value) => {
               const hours = stored(value);
@@ -569,10 +570,11 @@ function ItemFields({
           <span className="text-center text-[#878787]">–</span>
           <NumberInput
             aria-label={`Maximum ${noun}`}
+            pad={2}
             commitOnBlur
             min={shown(line.hours)}
             value={line.hoursMax === null ? null : shown(line.hoursMax)}
-            placeholder={String(shown(line.hours))}
+            placeholder={String(shown(line.hours)).padStart(2, "0")}
             onChange={(value) =>
               onChange({ hoursMax: value === null ? null : stored(value) })
             }

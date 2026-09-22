@@ -106,6 +106,7 @@ export function NumberInput({
   max,
   integer = false,
   commitOnBlur = false,
+  pad,
   className,
   ...props
 }: {
@@ -116,11 +117,19 @@ export function NumberInput({
   integer?: boolean;
   /** Report only when the field is left, for a value checked against another. */
   commitOnBlur?: boolean;
+  /**
+   * Show the value in at least this many digits, `8` as `08` (FF-1671). A
+   * column of durations reads as one shape that way, the way a clock does.
+   * It is how the number is shown and not what it is: the field drops the
+   * padding while you are typing in it, and reports the number either way.
+   */
+  pad?: number;
   className?: string;
   placeholder?: string;
   "aria-label"?: string;
 }) {
   const [text, setText] = useState(value === null ? "" : String(value));
+  const [typing, setTyping] = useState(false);
 
   // Follow a change made elsewhere, not the one being typed; an emptied
   // field that reported 0 stays empty until it is left.
@@ -141,13 +150,15 @@ export function NumberInput({
     <Input
       {...props}
       inputMode={integer ? "numeric" : "decimal"}
-      value={text}
+      value={pad && !typing && text ? text.padStart(pad, "0") : text}
+      onFocus={() => setTyping(true)}
       onChange={(event) => {
         setText(event.target.value);
         const next = parse(event.target.value);
         if (!commitOnBlur && accept(next)) onChange(next);
       }}
       onBlur={() => {
+        setTyping(false);
         const next = parse(text);
         if (commitOnBlur && next !== value && accept(next)) onChange(next);
         else setText(value === null ? "" : String(value));
