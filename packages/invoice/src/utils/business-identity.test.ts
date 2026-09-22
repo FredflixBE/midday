@@ -19,11 +19,20 @@ const FULL: BusinessIdentity = {
   bankBic: "GKCCBEBB",
 };
 
-/** The lines of the block, in order, as someone reading the PDF sees them. */
-const lines = (identity: BusinessIdentity) =>
-  (businessIdentityDoc(identity)?.content ?? []).map((node) =>
-    (node.content ?? []).map((child) => child.text ?? "").join(""),
-  );
+/**
+ * The lines of the block, in order, as someone reading the PDF sees them.
+ * It is one paragraph broken by `hardBreak`, not a paragraph each (FF-1677).
+ */
+const lines = (identity: BusinessIdentity) => {
+  const doc = businessIdentityDoc(identity);
+  if (!doc) return [];
+  const read: string[] = [""];
+  for (const node of doc.content?.[0]?.content ?? []) {
+    if (node.type === "hardBreak") read.push("");
+    else read[read.length - 1] += node.text ?? "";
+  }
+  return read;
+};
 
 describe("businessIdentityDoc", () => {
   // WVV art. 2:20 asks for the name, legal form, registered office,
@@ -35,7 +44,7 @@ describe("businessIdentityDoc", () => {
       "Voorbeeldstraat 1",
       "bus 3",
       "2000 Antwerpen",
-      "Ondernemingsnummer 0123.456.789",
+      "0123.456.789",
       "RPR Antwerpen, afdeling Antwerpen",
       "IBAN BE68 5390 0754 7034",
       "BIC GKCCBEBB",
@@ -45,7 +54,7 @@ describe("businessIdentityDoc", () => {
   test("leaves out a line nothing was said for", () => {
     expect(
       lines({ legalName: "Fredflix", enterpriseNumber: "0123.456.789" }),
-    ).toEqual(["Fredflix", "Ondernemingsnummer 0123.456.789"]);
+    ).toEqual(["Fredflix", "0123.456.789"]);
   });
 
   test("puts the postcode and the town on one line, either alone", () => {
@@ -66,6 +75,18 @@ describe("businessIdentityDoc", () => {
   // defect, and the country is not among the things WVV art. 2:20 asks for.
   test("does not print the country code", () => {
     expect(lines({ legalName: "X", countryCode: "BE" })).toEqual(["X"]);
+  });
+
+  // An address is one thing said on several lines. A paragraph each gave
+  // every line paragraph spacing, which made the tightest block on the page
+  // the loosest (FF-1677).
+  test("is one paragraph, its lines separated by breaks", () => {
+    const doc = businessIdentityDoc(FULL);
+    expect(doc?.content).toHaveLength(1);
+    const kinds = (doc?.content?.[0]?.content ?? []).map((n) => n.type);
+    expect(new Set(kinds)).toEqual(new Set(["text", "hardBreak"]));
+    // eight lines, so seven breaks between them
+    expect(kinds.filter((k) => k === "hardBreak")).toHaveLength(7);
   });
 
   test("is null when nothing at all has been said", () => {

@@ -77,7 +77,10 @@ export function businessIdentityDoc(
     said(identity.addressLine1),
     said(identity.addressLine2),
     town || null,
-    labelled("Ondernemingsnummer", identity.enterpriseNumber),
+    // No label: the FOD Economie guideline says the law does not ask for the
+    // word "ondernemingsnummer" before the number (FF-1677). What a
+    // VAT-liable business must put there instead is FF-1678.
+    said(identity.enterpriseNumber),
     labelled("RPR", identity.rprCourt),
     labelled("IBAN", identity.bankIban),
     labelled("BIC", identity.bankBic),
@@ -85,11 +88,24 @@ export function businessIdentityDoc(
 
   if (lines.length === 0) return null;
 
+  /**
+   * One paragraph, its lines separated by breaks (FF-1677).
+   *
+   * A paragraph each gave every address line paragraph spacing — 23.1pt
+   * against the 19.2pt between two lines of body text, so the block that
+   * should be the tightest thing on the page was the loosest. An address is
+   * one thing said on several lines, and that is what a break is for.
+   */
   return {
     type: "doc",
-    content: lines.map((text) => ({
-      type: "paragraph",
-      content: [{ type: "text", text }],
-    })),
+    content: [
+      {
+        type: "paragraph",
+        content: lines.flatMap((text, i) => [
+          ...(i === 0 ? [] : [{ type: "hardBreak" as const }]),
+          { type: "text" as const, text },
+        ]),
+      },
+    ],
   };
 }

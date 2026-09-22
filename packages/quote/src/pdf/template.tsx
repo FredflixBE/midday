@@ -168,11 +168,29 @@ function Contents({
  * reason this is written rather than an uploaded PDF stapled to the back:
  * one document, one measure, one scale.
  */
-/** Every page of the document is set the same (FF-1666). */
+/**
+ * Every page of the document is set the same (FF-1666), in the margins a
+ * business document is expected to have (FF-1677).
+ *
+ * It was 36pt at the head and 40 at the sides, so the text began 12.7mm from
+ * the paper edge and ran to the foot: cramped down the page while 159pt of
+ * the width stood empty. DIN 5008 asks 25mm at the left of an A4 business
+ * document, and the classical canon asks more at the foot than the head and
+ * more at the outside than the inside — which is what the empty right of
+ * this page already is.
+ *
+ * The right stays at 40. The empty column is deliberate: a section's rule
+ * and its pricing tables run to it, and pulling it in to the measure would
+ * both shorten those rules and take 48pt off the description column of every
+ * priced table.
+ */
+const FRAME = { top: 71, bottom: 85, left: 71, right: 40 } as const;
+
 const PAGE = {
-  paddingTop: 36,
-  paddingBottom: 48,
-  paddingHorizontal: 40,
+  paddingTop: FRAME.top,
+  paddingBottom: FRAME.bottom,
+  paddingLeft: FRAME.left,
+  paddingRight: FRAME.right,
   fontFamily: "Inter",
   fontWeight: 400,
   color: "#000",
@@ -206,8 +224,11 @@ function Footer({ doc }: { doc: QuoteDocument }) {
       style={{
         position: "absolute",
         bottom: 20,
-        left: 40,
-        right: 40,
+        // The page's own edges, not numbers that happen to match them: the
+        // footer hung 31pt left of every other line the moment the frame
+        // moved (FF-1677).
+        left: FRAME.left,
+        right: FRAME.right,
         flexDirection: "row",
         justifyContent: "space-between",
       }}
@@ -302,10 +323,16 @@ const strong: Style = { fontSize: PRINT_BODY, fontWeight: 600 };
  * They were 64, 84 and 124pt, which fitted "€ 20.808,00" at 9pt and did not
  * at 11 — the rate ran straight into the amount. A column holding a number
  * has to be measured in the type it holds, not in points someone chose once.
+ *
+ * Measured again once the page took a proper left margin (FF-1677): 7, 9.5
+ * and 14 left 37, 49 and 46pt of slack against the widest thing each column
+ * holds, 133pt in all, which the description column needed. They were sized
+ * when an amount still carried its cents. What is left is 15 to 24pt over
+ * the widest ink — a digit's room in each half of a range.
  */
-const QUANTITY_WIDTH = PRINT_BODY * 7;
-const RATE_WIDTH = PRINT_BODY * 9.5;
-const AMOUNT_WIDTH = PRINT_BODY * 14;
+const QUANTITY_WIDTH = PRINT_BODY * 5.5;
+const RATE_WIDTH = PRINT_BODY * 7;
+const AMOUNT_WIDTH = PRINT_BODY * 12;
 
 function Rich({
   doc,
