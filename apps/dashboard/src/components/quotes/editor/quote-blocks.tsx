@@ -127,7 +127,7 @@ export function QuoteBlocks({
                   />
                 )}
               </SortableRow>
-            ) : (
+            ) : block.type === "text" ? (
               <SortableRow
                 key={block.id}
                 id={block.id}
@@ -147,7 +147,14 @@ export function QuoteBlocks({
                   />
                 )}
               </SortableRow>
-            ),
+            ) : // A block of a kind this build does not know — content saved by
+            // a newer one. It is shown as nothing rather than crashing the
+            // page, and it is not touched, so saving does not delete it.
+            //
+            // This is not hypothetical: a `contents` block reached a build
+            // that predated it and every quote holding one failed to open
+            // (FF-1668).
+            null,
           )}
         </div>
       </SortableList>

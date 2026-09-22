@@ -287,7 +287,7 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   const { labels, date } = viewContext(input);
   const { comparison, scenarios: views } = pricingView(input);
 
-  const blocks: DocumentBlock[] = input.content.blocks.map((block) => {
+  const blocks: DocumentBlock[] = input.content.blocks.flatMap((block) => {
     switch (block.type) {
       case "text":
         return {
@@ -298,8 +298,13 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
         };
       case "contents":
         return { type: "contents", id: block.id };
-      default:
+      case "pricing":
         return { type: "pricing", id: block.id, comparison, scenarios: views };
+      default:
+        // A kind this build does not know, saved by a newer one. Printing
+        // nothing is wrong; printing it as the pricing, which is what a
+        // `default` arm would have done, is worse (FF-1668).
+        return [];
     }
   });
 

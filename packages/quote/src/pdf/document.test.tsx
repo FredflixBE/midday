@@ -558,6 +558,36 @@ describe("a recurring comparison with a one-off", () => {
 });
 
 /**
+ * Content saved by a newer build than the one reading it (FF-1668).
+ *
+ * A quote's blocks are stored JSON, and a deploy that adds a kind of block
+ * puts that kind into records that older builds still open. The editor
+ * crashed on exactly this — a `contents` block reached a build that predated
+ * it and every quote holding one failed to open.
+ *
+ * Printing nothing for a block this build cannot understand is wrong.
+ * Printing it as the pricing, which a `default` arm quietly did, is worse.
+ */
+describe("a block kind this build does not know", () => {
+  test("is left out rather than printed as something else", () => {
+    const base = content([scenario([item(DEVELOPMENT, 8)])]);
+    const doc = quoteDocument(
+      input({
+        ...base,
+        blocks: [
+          ...base.blocks,
+          { id: "from-the-future", type: "timeline" } as never,
+        ],
+      }),
+    );
+    expect(doc.blocks.map((b) => b.type)).toEqual(
+      base.blocks.map((b) => b.type),
+    );
+    expect(doc.blocks.filter((b) => b.type === "pricing")).toHaveLength(1);
+  });
+});
+
+/**
  * The room left at the foot of a page is the height of the tallest thing
  * that would not fit there (FF-1666). Every group in this document that
  * refuses to split is small, so that room is bounded — except a forced
