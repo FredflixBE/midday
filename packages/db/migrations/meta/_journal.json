@@ -176,6 +176,13 @@
       "when": 1790088403423,
       "tag": "0024_business_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790094595229,
+      "tag": "0025_written_quote_terms",
+      "breakpoints": true
     }
   ]
 }

@@ -140,6 +140,31 @@ function Contents({
   );
 }
 
+/**
+ * The general terms, set as the quote's closing annex (FF-1674).
+ *
+ * They start a page of their own — the one forced break in the document.
+ * Everything else here deliberately flows (see the pricing note below),
+ * because a break mid-proposal leaves a half-empty sheet for no gain. The
+ * terms are not part of the proposal's argument: they are what is appended
+ * after it, and running them on from the last line of the offer would read
+ * as though the offer continued.
+ *
+ * They go through `Rich` in prose like every text block, which is the whole
+ * reason this is written rather than an uploaded PDF stapled to the back:
+ * one document, one measure, one scale.
+ */
+function Terms({ terms }: { terms: NonNullable<QuoteDocument["terms"]> }) {
+  return (
+    <View break>
+      <SectionHead title={terms.heading} />
+      <View style={{ width: COLUMN }}>
+        <Rich doc={terms.body} prose />
+      </View>
+    </View>
+  );
+}
+
 function SectionHead({ number, title }: { number?: string; title: string }) {
   return (
     // Never split, and never the last thing on a page: a rule at the foot
@@ -781,6 +806,8 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
         )}
 
         {hasPricing ? null : <Notes doc={doc} />}
+
+        {doc.terms ? <Terms terms={doc.terms} /> : null}
 
         <View
           fixed

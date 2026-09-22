@@ -740,22 +740,26 @@ async function latestQuoteTerms(
   return row?.id ?? null;
 }
 
-/** A new version of the terms, the file already stored in the vault. */
+/**
+ * A new version of the terms, written in Midday (FF-1674). The text is the
+ * same Tiptap document a quote's text blocks hold, and the quote PDF prints
+ * it as its closing annex.
+ *
+ * Versions uploaded as a PDF under FF-1616 are still read, but no more can
+ * be made: a file stapled to the back of the quote would carry its own
+ * typography into a document three tickets went into setting.
+ */
 export async function addQuoteTerms(
   db: Database,
   params: {
     teamId: string;
     label: string;
     language: QuoteLanguage;
-    filePath: string[];
-    fileName: string;
+    content: unknown;
   },
 ) {
   const label = params.label.trim();
   if (!label) throw new QuoteInputError("A version needs a label");
-  if (params.filePath[0] !== params.teamId || params.filePath.length < 2) {
-    throw new QuoteInputError("The file is stored outside this team");
-  }
 
   const [row] = await db
     .insert(quoteTerms)
@@ -768,6 +772,50 @@ export async function addQuoteTerms(
     throw new QuoteInputError("That version already exists in this language");
   }
   return row;
+}
+
+/**
+ * Rewrites a version's text — while nobody has been sent it.
+ *
+ * Terms only bind if the client could know them before agreeing (Civil Code
+ * art. 5.23), which is the whole reason this table is versioned. Editing a
+ * version a quote already went out with would change, after the fact, what
+ * that client could have known. So it is refused, and a new version is the
+ * way forward: the same rule `deleteQuoteTerms` holds, for the same reason.
+ *
+ * Null when the version is not the team's.
+ */
+export async function updateQuoteTerms(
+  db: Database,
+  params: { teamId: string; id: string; content: unknown },
+) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ id: quoteTerms.id })
+      .from(quoteTerms)
+      .where(
+        and(eq(quoteTerms.id, params.id), eq(quoteTerms.teamId, params.teamId)),
+      );
+    if (!row) return null;
+
+    const [used] = await tx
+      .select({ id: quoteVersions.id })
+      .from(quoteVersions)
+      .where(eq(quoteVersions.termsVersionId, params.id))
+      .limit(1);
+    if (used) {
+      throw new QuoteInputError(
+        "A quote was sent with these terms; add a new version instead",
+      );
+    }
+
+    const [updated] = await tx
+      .update(quoteTerms)
+      .set({ content: params.content })
+      .where(eq(quoteTerms.id, params.id))
+      .returning();
+    return updated ?? null;
+  });
 }
 
 /**
@@ -1318,7 +1366,7 @@ export async function getQuotePdfInput(
       : null);
   const [terms] = termsId
     ? await db
-        .select({ label: quoteTerms.label })
+        .select({ label: quoteTerms.label, content: quoteTerms.content })
         .from(quoteTerms)
         .where(eq(quoteTerms.id, termsId))
     : [];
@@ -1353,6 +1401,9 @@ export async function getQuotePdfInput(
     logoUrl: template?.logoUrl ?? null,
     paymentDetails: template?.paymentDetails ?? null,
     termsLabel: terms?.label ?? null,
+    // Only a written version is printed (FF-1674); one uploaded as a PDF
+    // under FF-1616 has no text and stays a reference in the notes.
+    termsContent: terms?.content ?? null,
   };
 }
 
