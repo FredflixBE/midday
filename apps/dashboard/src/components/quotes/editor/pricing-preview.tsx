@@ -2,6 +2,7 @@
 
 import type { ComparisonView, ScenarioView } from "@midday/quote/view";
 import { cn } from "@midday/ui/cn";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { Star } from "lucide-react";
 
 /**
@@ -21,54 +22,90 @@ export function PricingPreview({
 
   return (
     <div className="space-y-8 text-sm">
-      {comparison ? <Comparison comparison={comparison} /> : null}
-      {scenarios.map((scenario) => (
-        <Scenario key={scenario.id} scenario={scenario} />
-      ))}
+      {comparison ? <Options comparison={comparison} /> : null}
+      {/* One scenario is a document that reads straight through; several are
+          alternatives, and a reader looks at one at a time (FF-1670). Four
+          stacked line-item tables is not a document pane, it is a scroll. */}
+      {scenarios.length === 1 ? (
+        <Scenario scenario={scenarios[0]!} />
+      ) : (
+        <Tabs defaultValue={scenarios[0]!.id}>
+          <TabsList className="mb-4 flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+            {scenarios.map((scenario) => (
+              <TabsTrigger
+                key={scenario.id}
+                value={scenario.id}
+                className="gap-1.5 border border-border data-[state=active]:bg-accent"
+              >
+                {scenario.recommended ? (
+                  <Star size={12} className="fill-current" />
+                ) : null}
+                {scenario.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {scenarios.map((scenario) => (
+            <TabsContent key={scenario.id} value={scenario.id}>
+              <Scenario scenario={scenario} />
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </div>
   );
 }
 
-function Comparison({ comparison }: { comparison: ComparisonView }) {
+/**
+ * The choice, as the print draws it (FF-1670).
+ *
+ * This used to be a table with a column per scenario, which held together at
+ * two and squeezed at three — and it had stopped showing what it previews:
+ * FF-1666 made the PDF draw a panel per option with the total set large, and
+ * this was still drawing the old table.
+ *
+ * Two to a row, so a fourth scenario wraps instead of narrowing the other
+ * three. Wrapping is why this is a grid and the print is a row: a page
+ * cannot wrap, and a screen has no reason not to.
+ */
+function Options({ comparison }: { comparison: ComparisonView }) {
+  const lead = comparison.rows.find((row) => row.lead);
+  const rest = comparison.rows.filter((row) => !row.lead);
+
   return (
-    <table className="w-full">
-      <thead>
-        <tr className="border-b border-border">
-          <th />
-          {comparison.columns.map((column) => (
-            <th
-              key={column.name}
-              className="py-2 pl-4 text-right font-medium align-bottom"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                {column.recommended ? (
-                  <Star size={12} className="fill-current" />
-                ) : null}
-                {column.name}
-              </span>
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {comparison.rows.map((row) => (
-          <tr key={row.label} className="border-b border-border last:border-0">
-            <th className="py-2 pr-4 text-left font-normal text-[#606060]">
-              {row.label}
-            </th>
-            {row.values.map((value, index) => (
-              <td
-                // A column is a scenario, and its name is what names it.
-                key={comparison.columns[index]?.name ?? index}
-                className="py-2 pl-4 text-right tabular-nums"
-              >
-                {value}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
+      {comparison.columns.map((column, index) => (
+        <div
+          key={column.name}
+          className={cn(
+            "pt-2",
+            // One signal, not three: the recommended option is the one with
+            // weight on it, the same as in print.
+            column.recommended
+              ? "border-t-2 border-primary"
+              : "border-t border-border",
+          )}
+        >
+          <div className="pb-1 text-[11px] uppercase tracking-wider text-[#606060]">
+            {column.recommended ? "Recommended" : "\u00a0"}
+          </div>
+          <div className="font-medium">{column.name}</div>
+          {lead ? (
+            <div className="pt-2 text-lg tabular-nums">
+              {lead.values[index]}
+            </div>
+          ) : null}
+          <div className="text-[12px] text-[#606060]">
+            {rest
+              .map((row) =>
+                row.unit
+                  ? `${row.values[index]} ${row.label.toLowerCase()}`
+                  : row.values[index],
+              )
+              .join(" \u00b7 ")}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

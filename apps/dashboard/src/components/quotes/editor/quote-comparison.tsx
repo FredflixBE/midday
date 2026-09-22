@@ -55,9 +55,15 @@ export function QuoteComparison({
       : `${sign}${amount} (${sign}${number(Math.abs(percent))}%)`;
   };
 
-  const row = (label: string, cell: (id: string) => ReactNode) => (
-    <tr key={label} className="border-b border-border last:border-0">
-      <th className="py-2 pr-4 text-left font-normal text-[#606060]">
+  // The key is given rather than taken from the label: two ranges both have
+  // a "vs midpoint" row, and only the range they belong to tells them apart
+  // (FF-1670).
+  const row = (key: string, label: string, cell: (id: string) => ReactNode) => (
+    <tr key={key} className="border-b border-border last:border-0">
+      {/* Fixed while the scenarios scroll past it. Four of them is wider
+          than the tab, and a row whose name has scrolled off is a row of
+          numbers you cannot read (FF-1670). */}
+      <th className="sticky left-0 z-10 bg-background py-2 pr-4 text-left font-normal text-[#606060] whitespace-nowrap">
         {label}
       </th>
       {scenarios.map((s) => (
@@ -75,7 +81,7 @@ export function QuoteComparison({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              <th />
+              <th className="sticky left-0 z-10 bg-background" />
               {scenarios.map((s) => (
                 <th
                   key={s.id}
@@ -92,42 +98,63 @@ export function QuoteComparison({
             </tr>
           </thead>
           <tbody>
-            {row("Pricing", (id) => PRICING_LABELS[byId.get(id)!.pricing])}
             {row(
+              "Pricing",
+              "Pricing",
+              (id) => PRICING_LABELS[byId.get(id)!.pricing],
+            )}
+            {row(
+              "quantity",
               kind === "recurring"
                 ? `${UNIT_LABELS[content.displayUnit]} per year`
                 : UNIT_LABELS[content.displayUnit],
               (id) => formatQuantity(byId.get(id)!.hours, content, locale),
             )}
-            {row("Adjustment", (id) => {
+            {row("Adjustment", "Adjustment", (id) => {
               const adjustment = byId.get(id)!.adjustment;
               return adjustment === 0
                 ? "–"
                 : formatAdjustment(adjustment, locale);
             })}
-            {row(kind === "recurring" ? "Per year" : "Total", (id) =>
+            {row("total", kind === "recurring" ? "Per year" : "Total", (id) =>
               money(byId.get(id)!.total),
             )}
             {kind === "recurring"
-              ? row("Contract value", (id) =>
+              ? row("Contract value", "Contract value", (id) =>
                   money(byId.get(id)!.contractValue),
                 )
               : null}
+            {/* A premium is what a fixed price asks over a range, so it
+                belongs to that range. Naming the range in every row put 45
+                characters in the label column and wrapped it to six lines
+                (FF-1670); it is said once, above the two rows it governs. */}
             {hasFixed
               ? ranges.flatMap((range) => {
-                  const name = scenarioName(range);
                   const premium = (id: string) =>
                     byId
                       .get(id)!
                       .premiums.find((p) => p.rangeScenarioId === range.id);
                   return [
-                    row(`Over the midpoint of ${name}`, (id) => {
+                    <tr key={`over-${range.id}`}>
+                      {/* The cell spans the table, so pinning it pins
+                          nothing — it is already as wide as the scroll. The
+                          text inside is what has to stay put. */}
+                      <th
+                        colSpan={scenarios.length + 1}
+                        className="pt-4 pb-1 text-left font-medium"
+                      >
+                        <span className="sticky left-0 inline-block bg-background whitespace-nowrap">
+                          Over {scenarioName(range)}
+                        </span>
+                      </th>
+                    </tr>,
+                    row(`${range.id}-midpoint`, "vs midpoint", (id) => {
                       const p = premium(id);
                       return p
                         ? signed(p.overMidpoint, p.overMidpointPercent)
                         : "–";
                     }),
-                    row(`Over the maximum of ${name}`, (id) => {
+                    row(`${range.id}-maximum`, "vs maximum", (id) => {
                       const p = premium(id);
                       return p ? signed(p.overMax, p.overMaxPercent) : "–";
                     }),
