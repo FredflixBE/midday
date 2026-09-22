@@ -1,3 +1,4 @@
+import { businessIdentityDoc } from "@midday/invoice/business-identity";
 import { transformCustomerToContent } from "@midday/invoice/utils";
 import { createLoggerWithContext } from "@midday/logger";
 import {
@@ -209,8 +210,42 @@ async function customerSnapshot(
   return customer ? transformCustomerToContent(customer) : null;
 }
 
-/** The sender as the default invoice template has it. */
+/**
+ * The sender, as the business's own identity has it (FF-1641) — falling back
+ * to the free text of the default invoice template's From box for a team
+ * that has not filled the identity in.
+ *
+ * This is read at sending, not at creation. A draft reads it live, which is
+ * the same rule the general terms are on (FF-1616) and the stored PDF
+ * (FF-1615): what the client holds must not change retroactively because the
+ * business moved office, but a draft should show what it would go out with.
+ * It used to be snapshotted when the quote was created, so a quote started
+ * before the details were typed in kept an empty From for good — and
+ * revising it copied that emptiness rather than putting it right.
+ */
 async function senderSnapshot(db: DatabaseOrTransaction, teamId: string) {
+  const [team] = await db
+    .select({
+      legalName: teams.legalName,
+      legalForm: teams.legalForm,
+      addressLine1: teams.addressLine1,
+      addressLine2: teams.addressLine2,
+      zip: teams.zip,
+      city: teams.city,
+      countryCode: teams.countryCode,
+      enterpriseNumber: teams.enterpriseNumber,
+      rprCourt: teams.rprCourt,
+      bankIban: teams.bankIban,
+      bankBic: teams.bankBic,
+    })
+    .from(teams)
+    .where(eq(teams.id, teamId));
+
+  if (team) {
+    const identity = businessIdentityDoc(team);
+    if (identity) return identity;
+  }
+
   const [template] = await db
     .select({ fromDetails: invoiceTemplates.fromDetails })
     .from(invoiceTemplates)
@@ -327,7 +362,10 @@ export async function createQuote(
       issueDate: today,
       validUntil: addDays(today, settings.defaultValidDays),
       customerDetails,
-      fromDetails: await senderSnapshot(tx, params.teamId),
+      // No sender is snapshotted on a draft (FF-1641): it is read live until
+      // the version is sent, so filling the details in afterwards puts every
+      // draft right rather than none of them.
+      fromDetails: null,
       content: checkContent(content, params.kind),
     });
 
@@ -652,7 +690,10 @@ export async function reviseQuote(
       issueDate: today,
       validUntil: addDays(today, settings.defaultValidDays),
       customerDetails: latest.customerDetails,
-      fromDetails: latest.fromDetails,
+      // Not copied from the version before it (FF-1641). A revision is a
+      // draft, and a draft reads the sender live — copying is what kept a
+      // quote's empty From empty however often it was revised.
+      fromDetails: null,
       content: latest.content,
       internalNote: latest.internalNote,
     });
@@ -839,6 +880,11 @@ export async function markQuoteVersionSent(
         sentAt: params.sentAt ?? sql`now()`,
         sentTo: params.sentTo ?? null,
         pricing,
+        // The sender is frozen here, not when the quote was started
+        // (FF-1641): what the client holds must not change because the
+        // business later moved office, but a draft must still show the
+        // details as they stand today.
+        fromDetails: await senderSnapshot(tx, params.teamId),
         // The terms in force for this language, recorded before the PDF is
         // drawn so the file names them (FF-1616). None on file, none named.
         termsVersionId: await latestQuoteTerms(
@@ -1287,7 +1333,14 @@ export async function getQuotePdfInput(
     mode: version.mode,
     issueDate: version.issueDate,
     validUntil: version.validUntil,
-    fromDetails: version.fromDetails,
+    // A draft has no sender frozen on it yet, so it is drawn with the one it
+    // would be sent with (FF-1641) — the same reading the terms above get,
+    // and what keeps a downloaded draft from showing an empty From.
+    fromDetails:
+      version.fromDetails ??
+      (version.status === "draft"
+        ? await senderSnapshot(db, params.teamId)
+        : null),
     customerDetails: version.customerDetails,
     content,
     pricing,

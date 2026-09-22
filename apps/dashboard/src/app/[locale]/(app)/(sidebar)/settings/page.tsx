@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BaseCurrency } from "@/components/base-currency/base-currency";
+import { BusinessIdentity } from "@/components/business-identity";
 import { CompanyCountry } from "@/components/company-country";
 import { CompanyEmail } from "@/components/company-email";
 import { CompanyFiscalYear } from "@/components/company-fiscal-year";
@@ -24,6 +25,7 @@ export default async function Account() {
         <CompanyName />
         <CompanyEmail />
         <CompanyCountry />
+        <BusinessIdentity />
         <BaseCurrency />
         <CompanyFiscalYear />
         <TeamIdSection />

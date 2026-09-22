@@ -70,6 +70,16 @@ export const getTeamByIdSchema = z.object({
     }),
 });
 
+/** One field of the business identity: optional, nullable, and trimmed. */
+const identityField = (description: string, example: string) =>
+  z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .optional()
+    .openapi({ description, example });
+
 export const updateTeamByIdSchema = z.object({
   name: z.string().min(2).max(32).optional().openapi({
     description:
@@ -114,6 +124,28 @@ export const updateTeamByIdSchema = z.object({
         "Month when the fiscal year starts (1-12). Null for trailing 12 months. Defaults based on country if not specified.",
       example: 4,
     }),
+  // The business's own identity (FF-1641). Every field is optional and
+  // nullable: a team fills this in over time, and a half-filled identity
+  // still reads better on a quote than an empty From block.
+  legalName: identityField("Registered name of the company", "Fredflix BV"),
+  legalForm: identityField("Legal form (WVV art. 2:20)", "BV"),
+  addressLine1: identityField(
+    "Street and number of the registered office",
+    "Voorbeeldstraat 1",
+  ),
+  addressLine2: identityField("Second address line", "bus 3"),
+  zip: identityField("Postcode of the registered office", "2000"),
+  city: identityField("Town of the registered office", "Antwerpen"),
+  enterpriseNumber: identityField("Enterprise number", "0123.456.789"),
+  rprCourt: identityField(
+    "Court of the company's registered office (RPR)",
+    "Antwerpen, afdeling Antwerpen",
+  ),
+  bankIban: identityField(
+    "Bank account the business is paid on (WER art. III.25)",
+    "BE68 5390 0754 7034",
+  ),
+  bankBic: identityField("BIC of that account", "GKCCBEBB"),
   exportSettings: z
     .object({
       csvDelimiter: z.string(),

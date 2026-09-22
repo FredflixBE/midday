@@ -1,6 +1,7 @@
+import { businessIdentityDoc } from "@midday/invoice/business-identity";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Database } from "../client";
-import { invoiceTemplates } from "../schema";
+import { invoiceTemplates, teams } from "../schema";
 
 type InvoiceTemplateParams = {
   customerLabel?: string;
@@ -141,6 +142,33 @@ export async function getInvoiceTemplateById(
 /**
  * Get the default invoice template for a team, or the first template if no default exists
  */
+/**
+ * The team's From box, when the template has not overridden it (FF-1641).
+ *
+ * The business's own identity is the default now; `from_details` stays a
+ * per-template override, so nothing on an existing invoice changes and a
+ * team that has only ever typed into the From box keeps what it typed.
+ */
+async function fromDetailsDefault(db: Database, teamId: string) {
+  const [team] = await db
+    .select({
+      legalName: teams.legalName,
+      legalForm: teams.legalForm,
+      addressLine1: teams.addressLine1,
+      addressLine2: teams.addressLine2,
+      zip: teams.zip,
+      city: teams.city,
+      countryCode: teams.countryCode,
+      enterpriseNumber: teams.enterpriseNumber,
+      rprCourt: teams.rprCourt,
+      bankIban: teams.bankIban,
+      bankBic: teams.bankBic,
+    })
+    .from(teams)
+    .where(eq(teams.id, teamId));
+  return team ? businessIdentityDoc(team) : null;
+}
+
 export async function getInvoiceTemplate(db: Database, teamId: string) {
   // First try to get the default template
   const [defaultTemplate] = await db
@@ -154,19 +182,23 @@ export async function getInvoiceTemplate(db: Database, teamId: string) {
     )
     .limit(1);
 
-  if (defaultTemplate) {
-    return defaultTemplate;
-  }
+  const template =
+    defaultTemplate ??
+    // Fall back to first template
+    (
+      await db
+        .select(templateSelectFields)
+        .from(invoiceTemplates)
+        .where(eq(invoiceTemplates.teamId, teamId))
+        .orderBy(invoiceTemplates.createdAt)
+        .limit(1)
+    )[0];
 
-  // Fall back to first template
-  const [firstTemplate] = await db
-    .select(templateSelectFields)
-    .from(invoiceTemplates)
-    .where(eq(invoiceTemplates.teamId, teamId))
-    .orderBy(invoiceTemplates.createdAt)
-    .limit(1);
+  if (!template) return template;
 
-  return firstTemplate;
+  return template.fromDetails
+    ? template
+    : { ...template, fromDetails: await fromDetailsDefault(db, teamId) };
 }
 
 /**
