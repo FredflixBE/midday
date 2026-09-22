@@ -28,11 +28,16 @@ import { Input } from "@midday/ui/input";
 import { Label } from "@midday/ui/label";
 import { Switch } from "@midday/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
-import { MoreHorizontal, Plus, Star, Trash2 } from "lucide-react";
-import { formatUnitRate } from "../hourly-rate";
+import {
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Plus,
+  Star,
+  Trash2,
+} from "lucide-react";
 import {
   formatAdjustment,
-  formatQuantity,
   formatQuantityWithUnit,
   formatQuoteAmount,
   scenarioName,
@@ -568,20 +573,21 @@ export function ScenarioTotals({
   const optional = pricing.optional.reduce((a, l) => a + l.amount, 0);
 
   // The last money row a person reads as the price is the one in bold.
-  type Row = { label: string; value: string; strong?: boolean };
-  const rows: Row[] = [];
-  // Per type of work, with the rate it is charged at (use cases A and B).
-  const names = new Map(products.map((w) => [w.id, w.name]));
-  const rate = (productId: string) => {
-    const cents = pricing.rates[productId]?.rate;
-    return cents === undefined
-      ? ""
-      : ` × ${formatUnitRate(cents / 100, currency, unit)}`;
+  type Row = {
+    label: string;
+    value: string;
+    strong?: boolean;
+    /** How much work it is, not what it costs: said under the headline. */
+    quantity?: boolean;
   };
+  const rows: Row[] = [];
+  // Per type of work. What it is charged at is the Rates section's to say.
+  const names = new Map(products.map((w) => [w.id, w.name]));
   if (totals.kind === "project") {
     rows.push({
       label: UNIT_LABELS[unit.displayUnit],
-      value: formatQuantity(totals.hours, unit, locale),
+      value: formatQuantityWithUnit(totals.hours, unit, locale),
+      quantity: true,
     });
     rows.push({
       label: totals.capped ? "Total (capped)" : "Total",
@@ -609,42 +615,120 @@ export function ScenarioTotals({
     }
   }
 
+  // One figure is what the card is about; everything else supports it
+  // (FF-1673). Every row was the same size before, so the number being
+  // watched while the lines are edited read no louder than a breakdown line.
+  const headline = rows.find((row) => row.strong) ?? rows.at(-1);
+  const supporting = rows.filter((row) => row !== headline && !row.quantity);
+  const quantity = rows.find((row) => row.quantity);
+
   return (
-    <div className="space-y-1 text-sm">
-      {pricing.adjustment !== 0 ? (
-        <Total
-          label="Adjustment"
-          value={formatAdjustment(pricing.adjustment, locale)}
-          muted
-        />
+    <div className="min-w-0">
+      {headline ? (
+        <>
+          <div className="truncate text-[22px] font-medium tabular-nums leading-tight">
+            {headline.value}
+          </div>
+          <div className="truncate pt-0.5 text-[12px] text-[#878787]">
+            {[headline.label, quantity?.value].filter(Boolean).join(" · ")}
+          </div>
+        </>
       ) : null}
-      {/* A line whose product has not been picked yet has no name to break
-          down under, and reading "Unknown" told nobody anything. Its hours
-          still count towards the scenario's own total, which is right: they
-          are quoted, they are just not priced. */}
-      {pricing.products.flatMap((w) => {
-        const name = names.get(w.productId);
-        return name
-          ? [
-              <Total
-                key={w.productId}
-                label={`${name} · ${formatQuantityWithUnit(w.hours, unit, locale)}${rate(w.productId)}`}
-                value={money(w.amount)}
-                muted
-              />,
-            ]
-          : [];
-      })}
-      {optional > 0 ? (
-        <Total
-          label="Optional"
-          value={money({ amount: optional, max: null })}
-          muted
-        />
-      ) : null}
-      {rows.map((row) => (
-        <Total key={row.label} {...row} />
-      ))}
+
+      {/* What makes it up, quiet and one line each. The rate each type of
+          work is charged at is not repeated here — the Rates section is
+          directly below and states it. */}
+      <div className="mt-3 space-y-1 border-t border-border pt-3 text-[13px]">
+        {pricing.adjustment !== 0 ? (
+          <Total
+            label="Adjustment"
+            value={formatAdjustment(pricing.adjustment, locale)}
+            muted
+          />
+        ) : null}
+        {/* A line whose product has not been picked yet has no name to break
+            down under, and reading "Unknown" told nobody anything. Its hours
+            still count towards the scenario's own total, which is right: they
+            are quoted, they are just not priced. */}
+        {pricing.products.flatMap((w) => {
+          const name = names.get(w.productId);
+          return name
+            ? [
+                <Total
+                  key={w.productId}
+                  label={`${name} · ${formatQuantityWithUnit(w.hours, unit, locale)}`}
+                  value={money(w.amount)}
+                  muted
+                />,
+              ]
+            : [];
+        })}
+        {optional > 0 ? (
+          <Total
+            label="Optional"
+            value={money({ amount: optional, max: null })}
+            muted
+          />
+        ) : null}
+        {supporting.map((row) => (
+          <Total key={row.label} {...row} muted />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Step through a quote's scenarios from the rail (FF-1673).
+ *
+ * The rail shows whichever scenario the Pricing tab last selected, and drives
+ * the same state, so this steers both — and it is the only way to change it
+ * at all while the Document tab is open. It wraps, because with two or three
+ * to compare, stepping past the end and being stopped is the wrong answer.
+ */
+export function ScenarioStepper({
+  scenarios,
+  selectedId,
+  onSelect,
+}: {
+  scenarios: Scenario[];
+  selectedId: string | undefined;
+  onSelect: (id: string) => void;
+}) {
+  const at = Math.max(
+    0,
+    scenarios.findIndex((s) => s.id === selectedId),
+  );
+  const step = (by: number) => {
+    const next = scenarios[(at + by + scenarios.length) % scenarios.length];
+    if (next) onSelect(next.id);
+  };
+
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6"
+        aria-label="Previous scenario"
+        onClick={() => step(-1)}
+      >
+        <ChevronLeft size={14} />
+      </Button>
+      <span className="tabular-nums" aria-live="polite">
+        {at + 1} of {scenarios.length}
+      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6"
+        aria-label="Next scenario"
+        onClick={() => step(1)}
+      >
+        <ChevronRight size={14} />
+      </Button>
     </div>
   );
 }
@@ -663,13 +747,18 @@ function Total({
   return (
     <div
       className={cn(
-        "flex justify-between gap-4 tabular-nums",
-        strong && "border-t border-border pt-2 font-medium",
+        "flex justify-between gap-3 tabular-nums",
+        strong && "font-medium",
         muted && "text-[#878787]",
       )}
     >
-      <span>{label}</span>
-      <span>{value}</span>
+      {/* The figure is the row; the label gives way to it. Without this the
+          flex shrank the value and "€ 18.020 – € 26.010" broke after the
+          dash, which is what read as bad alignment (FF-1673). */}
+      <span className="min-w-0 truncate" title={label}>
+        {label}
+      </span>
+      <span className="shrink-0 whitespace-nowrap">{value}</span>
     </div>
   );
 }
