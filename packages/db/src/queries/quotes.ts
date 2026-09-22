@@ -712,13 +712,37 @@ export async function reviseQuote(
  * contract was concluded (Civil Code art. 5.23), so each version is kept as
  * its own file and a sent quote records which one went with it.
  */
+/**
+ * Every version of the team's terms, newest first, each saying whether a
+ * quote has gone out with it (FF-1674). That flag is what lets the screen
+ * show a sent version as read-only rather than letting someone write into it
+ * and only learn on Save that it is frozen.
+ */
 export async function listQuoteTerms(
   db: DatabaseOrTransaction,
   params: { teamId: string },
 ) {
+  const sent = db
+    .selectDistinct({ id: quoteVersions.termsVersionId })
+    .from(quoteVersions)
+    .where(eq(quoteVersions.teamId, params.teamId))
+    .as("sent");
+
   return db
-    .select()
+    .select({
+      id: quoteTerms.id,
+      createdAt: quoteTerms.createdAt,
+      teamId: quoteTerms.teamId,
+      label: quoteTerms.label,
+      language: quoteTerms.language,
+      content: quoteTerms.content,
+      filePath: quoteTerms.filePath,
+      fileName: quoteTerms.fileName,
+      /** A quote went out with it, so it can no longer be changed. */
+      inUse: sql<boolean>`${sent.id} is not null`,
+    })
     .from(quoteTerms)
+    .leftJoin(sent, eq(sent.id, quoteTerms.id))
     .where(eq(quoteTerms.teamId, params.teamId))
     .orderBy(desc(quoteTerms.createdAt));
 }

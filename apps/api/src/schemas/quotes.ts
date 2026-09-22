@@ -1,5 +1,9 @@
 import { z } from "@hono/zod-openapi";
-import { blockSchema, quoteContentSchema } from "@midday/quote";
+import {
+  blockSchema,
+  editorDocSchema,
+  quoteContentSchema,
+} from "@midday/quote";
 
 export const quoteKindSchema = z.enum(["project", "recurring"]);
 export const quoteLanguageSchema = z.enum(["nl", "en"]);
@@ -93,11 +97,17 @@ export const setQuoteOutcomeSchema = z.object({
 export const addQuoteTermsSchema = z.object({
   label: z.string().trim().min(1).max(50),
   language: quoteLanguageSchema,
-  filePath: z.array(z.string().min(1).max(300)).min(2).max(10),
-  fileName: z.string().trim().min(1).max(300),
+  /** The terms as written, printed as the quote's annex (FF-1674). */
+  content: editorDocSchema,
 });
 
 export const quoteTermsIdSchema = z.object({ id: z.string().uuid() });
+
+/** Rewriting a version, which only a version nobody was sent allows. */
+export const updateQuoteTermsSchema = z.object({
+  id: z.string().uuid(),
+  content: editorDocSchema,
+});
 
 export const updateQuoteSettingsSchema = z.object({
   numberPrefix: z.string().trim().min(1).max(20).optional(),

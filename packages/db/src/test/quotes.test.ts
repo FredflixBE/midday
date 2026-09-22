@@ -1933,6 +1933,24 @@ describe.skipIf(SKIP)("quotes", () => {
       ).toEqual(["2026-01 nl", "2026-01 en", "2025-01 en"]);
     });
 
+    // FF-1674: the screen reads this to show a sent version as read-only,
+    // rather than letting someone write into it and learn on Save.
+    test("says which versions a quote has already gone out with", async () => {
+      const used = await add("2026-01", "en");
+      await add("2026-06", "en");
+      const quote = await create({ language: "en" });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+      });
+
+      const rows = await listQuoteTerms(db, { teamId: TEAM_USD_ID });
+      expect(
+        Object.fromEntries(rows.map((row) => [row.label, row.inUse])),
+      ).toEqual({ "2026-01": false, "2026-06": true });
+      expect(rows.find((row) => row.id === used.id)?.inUse).toBe(false);
+    });
+
     test("the same version twice in one language is refused", async () => {
       await add("2026-01", "en");
       await expect(add("2026-01", "en", "again")).rejects.toBeInstanceOf(

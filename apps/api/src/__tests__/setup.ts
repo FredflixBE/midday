@@ -294,6 +294,7 @@ export const mocks = {
   // General terms versions (FF-1616)
   listQuoteTerms: mock(() => []) as MockFn,
   addQuoteTerms: mock(() => ({})) as MockFn,
+  updateQuoteTerms: mock(() => ({})) as MockFn,
   deleteQuoteTerms: mock(() => ({})) as MockFn,
   getQuoteVersionFile: mock(() => null) as MockFn,
   // Quotes through MCP (FF-1618)
@@ -998,6 +999,7 @@ const dbQueriesMock = new Proxy(
     undoQuoteAcceptance: mocks.undoQuoteAcceptance,
     listQuoteTerms: mocks.listQuoteTerms,
     addQuoteTerms: mocks.addQuoteTerms,
+    updateQuoteTerms: mocks.updateQuoteTerms,
     deleteQuoteTerms: mocks.deleteQuoteTerms,
     getQuoteVersionFile: mocks.getQuoteVersionFile,
     getPricedQuote: mocks.getPricedQuote,
