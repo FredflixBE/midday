@@ -726,10 +726,15 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
           {doc.statement}
         </Text>
 
-        <Contents doc={doc} sections={sections} />
-
         {doc.blocks.map((block, index) =>
-          block.type === "text" ? (
+          block.type === "contents" ? (
+            <View
+              key={block.id}
+              style={index === 0 ? undefined : { marginTop: 20 }}
+            >
+              <Contents doc={doc} sections={sections} />
+            </View>
+          ) : block.type === "text" ? (
             <View
               key={block.id}
               // From above, like everything else in the document (FF-1665).

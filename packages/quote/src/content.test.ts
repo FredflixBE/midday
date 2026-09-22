@@ -130,6 +130,18 @@ describe("quote content", () => {
     expect(quoteContentSchema.safeParse(twice).success).toBe(false);
   });
 
+  test("a document lists its sections once", () => {
+    const twice = content({
+      blocks: [
+        { id: "b1", type: "contents" },
+        { id: "b2", type: "contents" },
+      ],
+    });
+    expect(quoteContentSchema.safeParse(twice).success).toBe(false);
+    const once = content({ blocks: [{ id: "b1", type: "contents" }] });
+    expect(quoteContentSchema.safeParse(once).success).toBe(true);
+  });
+
   test("negative hours and a discount of 100% or more are refused", () => {
     const negative = scenario({
       lines: [
@@ -169,7 +181,7 @@ describe("quote content", () => {
     let n = 0;
     const newId = () => `id-${++n}`;
 
-    test("copies the team's blocks with fresh ids, and adds where the pricing goes", () => {
+    test("copies the team's blocks with fresh ids, and adds where the pricing and the contents go", () => {
       const result = initialQuoteContent({
         defaultBlocks: [
           {
@@ -183,8 +195,14 @@ describe("quote content", () => {
         newId,
       });
 
-      expect(result.blocks.map((b) => b.type)).toEqual(["text", "pricing"]);
-      expect(result.blocks[0]?.id).not.toBe("template");
+      // The contents at the top, where a reader looks for it; the pricing
+      // at the end, after the text that argues for it (FF-1668).
+      expect(result.blocks.map((b) => b.type)).toEqual([
+        "contents",
+        "text",
+        "pricing",
+      ]);
+      expect(result.blocks[1]?.id).not.toBe("template");
       expect(result.hoursPerDay).toBe(7.5);
       expect(result.scenarios).toEqual([]);
       expect(() => parseQuoteContent(result, "project")).not.toThrow();
@@ -204,7 +222,32 @@ describe("quote content", () => {
         hoursPerDay: 8,
         newId,
       });
-      expect(result.blocks.map((b) => b.type)).toEqual(["pricing", "text"]);
+      expect(result.blocks.map((b) => b.type)).toEqual([
+        "contents",
+        "pricing",
+        "text",
+      ]);
+    });
+
+    test("leaves the team's own contents block where the team put it", () => {
+      const result = initialQuoteContent({
+        defaultBlocks: [
+          {
+            id: "t",
+            type: "text",
+            heading: null,
+            body: { type: "doc", content: [] },
+          },
+          { id: "c", type: "contents" },
+        ],
+        hoursPerDay: 8,
+        newId,
+      });
+      expect(result.blocks.map((b) => b.type)).toEqual([
+        "text",
+        "contents",
+        "pricing",
+      ]);
     });
   });
 });

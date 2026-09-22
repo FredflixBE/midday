@@ -179,7 +179,14 @@ describe.skipIf(SKIP)("quotes", () => {
       expect(quote.quoteNumber).toBe("Q-0001");
       expect(draft.validUntil).toBe("2026-10-03");
       expect(content.hoursPerDay).toBe(7.5);
-      expect(content.blocks.map((b) => b.type)).toEqual(["text", "pricing"]);
+      // The team's own blocks, with the two a document cannot be written
+      // without added around them: the contents at the top and the pricing
+      // at the end (FF-1668).
+      expect(content.blocks.map((b) => b.type)).toEqual([
+        "contents",
+        "text",
+        "pricing",
+      ]);
     });
 
     test("a prefix may end in digits, and a new prefix starts again at 0001", async () => {

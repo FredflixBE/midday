@@ -129,6 +129,8 @@ export type ComparisonView = {
 
 export type DocumentBlock =
   | { type: "text"; id: string; heading: string | null; body: EditorDoc }
+  /** Where the list of sections is drawn (FF-1668). */
+  | { type: "contents"; id: string }
   | {
       type: "pricing";
       id: string;
@@ -285,16 +287,26 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   const { labels, date } = viewContext(input);
   const { comparison, scenarios: views } = pricingView(input);
 
-  const blocks: DocumentBlock[] = input.content.blocks.map((block) =>
-    block.type === "text"
-      ? {
+  const blocks: DocumentBlock[] = input.content.blocks.flatMap((block) => {
+    switch (block.type) {
+      case "text":
+        return {
           type: "text",
           id: block.id,
           heading: block.heading,
           body: block.body,
-        }
-      : { type: "pricing", id: block.id, comparison, scenarios: views },
-  );
+        };
+      case "contents":
+        return { type: "contents", id: block.id };
+      case "pricing":
+        return { type: "pricing", id: block.id, comparison, scenarios: views };
+      default:
+        // A kind this build does not know, saved by a newer one. Printing
+        // nothing is wrong; printing it as the pricing, which is what a
+        // `default` arm would have done, is worse (FF-1668).
+        return [];
+    }
+  });
 
   const teamCountry = (input.teamCountryCode || HOME_COUNTRY).toUpperCase();
   const customerCountry = input.customerCountryCode?.toUpperCase();

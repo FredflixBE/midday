@@ -35,6 +35,12 @@ export const blockSchema = z.discriminatedUnion("type", [
   }),
   /** Where the scenarios appear among the text. */
   z.object({ id, type: z.literal("pricing") }),
+  /**
+   * Where the list of sections appears (FF-1668). Like the pricing, it holds
+   * nothing of its own: it marks a place, and what is drawn there is worked
+   * out from the blocks around it.
+   */
+  z.object({ id, type: z.literal("contents") }),
 ]);
 
 export const lineSchema = z.discriminatedUnion("type", [
@@ -128,6 +134,14 @@ export const quoteContentSchema = z
         path: ["blocks"],
       });
     }
+
+    if (content.blocks.filter((b) => b.type === "contents").length > 1) {
+      ctx.addIssue({
+        code: "custom",
+        message: "A document lists its sections once",
+        path: ["blocks"],
+      });
+    }
   });
 
 export type EditorDoc = z.infer<typeof editorDocSchema>;
@@ -188,6 +202,12 @@ export function initialQuoteContent(params: {
   }));
   if (!blocks.some((b) => b.type === "pricing")) {
     blocks.push({ id: params.newId(), type: "pricing" });
+  }
+  // At the top, where a reader looks for it — and only on a new quote. A
+  // quote written before there was such a block keeps the document it has;
+  // its author adds one if they want it (FF-1668).
+  if (!blocks.some((b) => b.type === "contents")) {
+    blocks.unshift({ id: params.newId(), type: "contents" });
   }
 
   return {
