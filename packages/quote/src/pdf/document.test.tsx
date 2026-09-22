@@ -213,7 +213,7 @@ describe("use case A: support in days, two scenarios, an optional one-off", () =
       title: "First-line support",
       quantity: "1",
       rate: "€1,200.00/day",
-      amount: "€1,200.00",
+      amount: "€1,200",
     });
   });
 
@@ -228,7 +228,7 @@ describe("use case A: support in days, two scenarios, an optional one-off", () =
         title: "Monitoring setup",
         description: null,
         quantity: "2",
-        amount: "+€2,960.00",
+        amount: "+€2,960",
         oneOff: true,
       },
     ]);
@@ -240,22 +240,22 @@ describe("use case A: support in days, two scenarios, an optional one-off", () =
         name: "Maintenance",
         quantity: "1",
         rate: "€1,200.00/day",
-        amount: "€1,200.00",
+        amount: "€1,200",
       },
       {
         name: "Development",
         quantity: "1",
         rate: "€1,480.00/day",
-        amount: "€1,480.00",
+        amount: "€1,480",
       },
     ]);
   });
 
   test("totals per quarter, per year and over the term, and no contract value", () => {
     expect(block.scenarios[0]!.totals).toEqual([
-      { label: "Per quarter", value: "€2,680.00", strong: false },
-      { label: "Per year", value: "€10,720.00", strong: false },
-      { label: "Over the term", value: "€21,440.00", strong: true },
+      { label: "Per quarter", value: "€2,680", strong: false },
+      { label: "Per year", value: "€10,720", strong: false },
+      { label: "Over the term", value: "€21,440", strong: true },
     ]);
   });
 
@@ -288,9 +288,9 @@ describe("use case A: support in days, two scenarios, an optional one-off", () =
         {
           label: "Per year",
           lead: true,
-          values: ["€10,720.00", "€21,440.00"],
+          values: ["€10,720", "€21,440"],
         },
-        { label: "Over the term", values: ["€21,440.00", "€42,880.00"] },
+        { label: "Over the term", values: ["€21,440", "€42,880"] },
       ],
     });
   });
@@ -335,13 +335,13 @@ describe("use case C: work packages, fixed against a capped range", () => {
       ),
     ).toEqual([
       "# Package 1",
-      "40 h €7,400.00",
-      "8 h €1,200.00",
+      "40 h €7,400",
+      "8 h €1,200",
       "> Includes a review",
-      "= €8,600.00",
+      "= €8,600",
       "# Package 2",
-      "80 h €14,800.00",
-      "= €14,800.00",
+      "80 h €14,800",
+      "= €14,800",
     ]);
     expect(items(f!.rows)[0]!.rate).toBe("€185.00/h");
   });
@@ -349,10 +349,10 @@ describe("use case C: work packages, fixed against a capped range", () => {
   test("a range reads minimum to maximum, with the ceiling said", () => {
     expect(items(r!.rows)[0]).toMatchObject({
       quantity: "40 – 60",
-      amount: "€7,400.00 – €11,100.00",
+      amount: "€7,400 – €11,100",
     });
     expect(r!.totals).toEqual([
-      { label: "Total", value: "€23,400.00 – €35,100.00", strong: true },
+      { label: "Total", value: "€23,400 – €35,100", strong: true },
     ]);
     expect(r!.cappedNote).toBe(
       "The maximum is a ceiling and will not be exceeded.",
@@ -362,8 +362,8 @@ describe("use case C: work packages, fixed against a capped range", () => {
 
   test("the payment schedule is in amounts and shares", () => {
     expect(f!.paymentSchedule).toEqual([
-      { label: "Start", percent: "30%", amount: "€7,020.00" },
-      { label: "Delivery", percent: "70%", amount: "€16,380.00" },
+      { label: "Start", percent: "30%", amount: "€7,020" },
+      { label: "Delivery", percent: "70%", amount: "€16,380" },
     ]);
   });
 
@@ -374,7 +374,7 @@ describe("use case C: work packages, fixed against a capped range", () => {
       {
         label: "Total",
         lead: true,
-        values: ["€23,400.00", "€23,400.00 – €35,100.00"],
+        values: ["€23,400", "€23,400 – €35,100"],
       },
     ]);
   });
@@ -396,8 +396,44 @@ describe("one scenario", () => {
     ) as ReturnType<typeof quoteDocument>;
     expect(items(pricingBlock(doc).scenarios[0]!.rows)[0]).toMatchObject({
       rate: "–",
-      amount: "€0.00",
+      amount: "€0",
     });
+  });
+
+  // The preview draws its header from these, so a heading that lives only in
+  // the PDF template is a heading the preview cannot set (FF-1675).
+  test("a scenario carries all four column headings", () => {
+    const doc = plain(
+      quoteDocument(input(content([scenario([item(DEVELOPMENT, 8)])]))),
+    ) as ReturnType<typeof quoteDocument>;
+    const view = pricingBlock(doc).scenarios[0]!;
+    expect({
+      descriptionLabel: view.descriptionLabel,
+      quantityLabel: view.quantityLabel,
+      rateLabel: view.rateLabel,
+      amountLabel: view.amountLabel,
+    }).toEqual({
+      descriptionLabel: "Description",
+      quantityLabel: "Hours",
+      rateLabel: "Rate",
+      amountLabel: "Amount",
+    });
+  });
+
+  // The other half of FF-1675: dropping the cents from a whole amount must
+  // not drop them from an amount that has some. Half an hour at €185 does.
+  test("an amount that has cents keeps them, while the whole ones do not", () => {
+    const doc = plain(
+      quoteDocument(
+        input(
+          content([scenario([item(DEVELOPMENT, 0.5), item(DEVELOPMENT, 8)])]),
+        ),
+      ),
+    ) as ReturnType<typeof quoteDocument>;
+    const rows = items(pricingBlock(doc).scenarios[0]!.rows);
+    expect(rows.map((row) => row.amount)).toEqual(["€92.50", "€1,480"]);
+    // A rate is a unit price and keeps its cents either way.
+    expect(rows[1]!.rate).toBe("€185.00/h");
   });
 });
 
@@ -473,7 +509,7 @@ describe("page breaks", () => {
     description: null,
     quantity: "1",
     rate: "€1.00/h",
-    amount: "€1.00",
+    amount: "€1",
     oneOff: false,
   });
   const sub: ScenarioRow = {
@@ -552,7 +588,7 @@ describe("a recurring comparison with a one-off", () => {
     >;
     expect(pricingBlock(doc).comparison?.rows.at(-1)).toEqual({
       label: "One-off",
-      values: ["€740.00", "–"],
+      values: ["€740", "–"],
     });
   });
 });

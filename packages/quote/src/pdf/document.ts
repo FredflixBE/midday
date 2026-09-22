@@ -89,8 +89,15 @@ export type ScenarioView = {
   recommended: boolean;
   /** A recurring scenario's term, billing, renewal and notice. */
   conditions: string | null;
-  /** Column headings. */
+  /**
+   * Column headings — all four, so the preview can set the same table the
+   * PDF prints (FF-1675). Two of them used to live only in the PDF template,
+   * and the preview drew empty spans in their place: the rate column stood
+   * under nothing and the two headings that were there read as unplaced.
+   */
+  descriptionLabel: string;
   quantityLabel: string;
+  rateLabel: string;
   amountLabel: string;
   rows: ScenarioRow[];
   /** Per product, when there is more than one. */
@@ -208,13 +215,20 @@ function viewContext(input: {
     }).format(new Date(`${value}T00:00:00Z`));
   const number = (value: number) =>
     new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
-  const cents = (value: number) =>
+  const currency = (value: number, decimals: number) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
       currency: input.currency,
-      minimumFractionDigits: 2,
+      minimumFractionDigits: decimals,
       maximumFractionDigits: 2,
     }).format(value / 100);
+  /**
+   * A whole amount is written without its cents (FF-1675). Two decimals on
+   * every figure cost six characters apiece, twice over in a range, which is
+   * what pushed `€ 1.360,00 – € 2.040,00` past its column and broke it after
+   * the dash. An amount that has cents still shows them.
+   */
+  const cents = (value: number) => currency(value, value % 100 === 0 ? 0 : 2);
   const range = (value: Amount, format: (n: number) => string) =>
     value.max === null || value.max === value.amount
       ? format(value.amount)
@@ -226,7 +240,7 @@ function viewContext(input: {
     rate: (hourlyCents: number | null | undefined) =>
       hourlyCents === null || hourlyCents === undefined
         ? "–"
-        : `${cents(rateInUnit(hourlyCents, unit))}${
+        : `${currency(rateInUnit(hourlyCents, unit), 2)}${
             unit.displayUnit === "days" ? labels.perDay : labels.perHour
           }`,
     percent: (value: number) => `${number(value)}%`,
@@ -557,7 +571,9 @@ function scenarioView(
     name: scenario.name,
     recommended: scenario.recommended,
     conditions: recurrence ? conditions(recurrence, labels) : null,
+    descriptionLabel: labels.description,
     quantityLabel: ctx.unitLabel,
+    rateLabel: labels.rate,
     amountLabel: recurrence
       ? labels[PERIOD_LABELS[recurrence.period]]
       : labels.amount,
