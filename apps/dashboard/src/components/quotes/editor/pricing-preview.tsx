@@ -2,6 +2,7 @@
 
 import type { ComparisonView, ScenarioView } from "@midday/quote/view";
 import { cn } from "@midday/ui/cn";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { Star } from "lucide-react";
 
 /**
@@ -19,56 +20,103 @@ export function PricingPreview({
 }) {
   if (scenarios.length === 0) return null;
 
+  // One scenario is a document that reads straight through: there is no
+  // choice to offer and nothing to pick between (FF-1670).
+  if (scenarios.length === 1 || !comparison) {
+    return (
+      <div className="space-y-8 text-sm">
+        {scenarios.map((scenario) => (
+          <Scenario key={scenario.id} scenario={scenario} />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8 text-sm">
-      {comparison ? <Comparison comparison={comparison} /> : null}
+    <Tabs defaultValue={scenarios[0]!.id} className="space-y-8 text-sm">
+      <Options comparison={comparison} scenarios={scenarios} />
       {scenarios.map((scenario) => (
-        <Scenario key={scenario.id} scenario={scenario} />
+        <TabsContent key={scenario.id} value={scenario.id} className="mt-0">
+          <Scenario scenario={scenario} />
+        </TabsContent>
       ))}
-    </div>
+    </Tabs>
   );
 }
 
-function Comparison({ comparison }: { comparison: ComparisonView }) {
+/**
+ * The choice, as the print draws it — and the way to read each option
+ * (FF-1670).
+ *
+ * The panels used to sit above a strip of buttons naming the same four
+ * options again, one directly under the other. The panel *is* the option, so
+ * it is the control: clicking one opens its line items underneath. That
+ * removes an element rather than restyling one.
+ *
+ * Browser-style tabs on a single line were the alternative and do not
+ * survive this content: four of them sharing the measure gives each about
+ * 175px, and "Optie 2 · Branding + widgets via de Marketplace" truncates to
+ * nothing useful.
+ *
+ * Two to a row, so a fourth option wraps instead of narrowing the other
+ * three. Wrapping is why this is a grid and the print is a row: a page
+ * cannot wrap, and a screen has no reason not to.
+ *
+ * Recommended and selected are said on different channels — a rule above,
+ * a tint behind — because an option can be both, or either.
+ */
+function Options({
+  comparison,
+  scenarios,
+}: {
+  comparison: ComparisonView;
+  scenarios: ScenarioView[];
+}) {
+  const lead = comparison.rows.find((row) => row.lead);
+  const rest = comparison.rows.filter((row) => !row.lead);
+
   return (
-    <table className="w-full">
-      <thead>
-        <tr className="border-b border-border">
-          <th />
-          {comparison.columns.map((column) => (
-            <th
-              key={column.name}
-              className="py-2 pl-4 text-right font-medium align-bottom"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                {column.recommended ? (
-                  <Star size={12} className="fill-current" />
-                ) : null}
-                {column.name}
-              </span>
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {comparison.rows.map((row) => (
-          <tr key={row.label} className="border-b border-border last:border-0">
-            <th className="py-2 pr-4 text-left font-normal text-[#606060]">
-              {row.label}
-            </th>
-            {row.values.map((value, index) => (
-              <td
-                // A column is a scenario, and its name is what names it.
-                key={comparison.columns[index]?.name ?? index}
-                className="py-2 pl-4 text-right tabular-nums"
-              >
-                {value}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <TabsList className="grid h-auto w-full gap-x-5 gap-y-6 bg-transparent p-0 sm:grid-cols-2">
+      {comparison.columns.map((column, index) => (
+        <TabsTrigger
+          key={column.name}
+          value={scenarios[index]?.id ?? column.name}
+          className={cn(
+            "flex h-auto w-full flex-col items-start gap-0 rounded-none px-3 pb-3 pt-2 text-left",
+            // Recommended is a rule above; chosen is a rule below, pointing
+            // at the line items it opens. Two channels, because an option
+            // can be both or either — and a tint alone cannot say which,
+            // since hovering one card while another is chosen would show
+            // two tinted cards.
+            column.recommended
+              ? "border-t-2 border-t-primary"
+              : "border-t border-t-border",
+            "border-b-2 border-b-transparent",
+            "data-[state=active]:border-b-primary data-[state=active]:bg-accent data-[state=active]:shadow-none",
+            "hover:bg-accent/30",
+          )}
+        >
+          <span className="pb-1 text-[11px] uppercase tracking-wider text-[#606060]">
+            {column.recommended ? "Recommended" : "\u00a0"}
+          </span>
+          <span className="font-medium">{column.name}</span>
+          {lead ? (
+            <span className="pt-2 text-lg tabular-nums">
+              {lead.values[index]}
+            </span>
+          ) : null}
+          <span className="text-[12px] text-[#606060]">
+            {rest
+              .map((row) =>
+                row.unit
+                  ? `${row.values[index]} ${row.label.toLowerCase()}`
+                  : row.values[index],
+              )
+              .join(" \u00b7 ")}
+          </span>
+        </TabsTrigger>
+      ))}
+    </TabsList>
   );
 }
 
