@@ -179,12 +179,18 @@ function Contents({
  * more at the outside than the inside — which is what the empty right of
  * this page already is.
  *
- * The right stays at 40. The empty column is deliberate: a section's rule
- * and its pricing tables run to it, and pulling it in to the measure would
- * both shorten those rules and take 48pt off the description column of every
- * priced table.
+ * Both sides 25mm. The right was left at 40 first, to keep width for the
+ * priced tables — but everything that runs to the content edge (the section
+ * rules, the tables, the option cards) then sat 71pt from the left of the
+ * page and 40 from the right, and Frederik saw it. What made the wider right
+ * affordable was measuring the priced columns: 133pt of slack, cut to 66,
+ * more than the 31pt this costs. The description column ends up 183.5pt,
+ * four points wider than before any of this.
+ *
+ * The prose keeps its 396pt measure, and the rules run 57pt past it rather
+ * than 88: the effect FF-1666 wanted, a little less exaggerated.
  */
-const FRAME = { top: 71, bottom: 85, left: 71, right: 40 } as const;
+const FRAME = { top: 71, bottom: 85, left: 71, right: 71 } as const;
 
 const PAGE = {
   paddingTop: FRAME.top,
