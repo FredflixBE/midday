@@ -15,7 +15,34 @@ type PDFTextStyle = Style & {
 };
 
 /** What the printed document reads at; every other size follows from it. */
+/**
+ * What an invoice's rich text reads at, and what everything here falls back
+ * to. A quote is a document rather than a note at the foot of a page and
+ * prints larger; it passes its own through `body` (FF-1666).
+ */
 const BODY = 9;
+
+/**
+ * How many lines of what follows a heading has to keep on its own page
+ * (FF-1666). Two is enough to prove there is text; three is enough to read.
+ *
+ * Paragraph widows and orphans are not set here on purpose: react-pdf keeps
+ * two lines of each by default, which is the right answer, and naming it
+ * would only invite someone to change it.
+ */
+const KEEP_WITH_NEXT = 3;
+
+/**
+ * Up to this many items, a list moves to the next page whole rather than
+ * splitting. Beyond it a list has to be allowed to break — between items,
+ * never inside one.
+ *
+ * Four, not six. The room left at the foot of a page is the height of the
+ * tallest thing that would not fit there, so every group that refuses to
+ * split is a hole it can leave. Six items that each wrap to two lines is a
+ * third of a page of nothing; four that do is a seventh.
+ */
+const UNSPLITTABLE_LIST = 4;
 // No leading here: this is shared with an invoice's address blocks, where
 // the caller sets it. The quote's own wrapper sets the document's.
 const bodyText: PDFTextStyle = { fontSize: BODY, fontFamily: "Inter" };
@@ -84,6 +111,12 @@ export type FormatOptions = {
    * because a quote is a document and outgrew that rhythm.
    */
   scale?: Typeset;
+  /**
+   * What the body text of this document reads at, in points. Left alone it
+   * is an invoice's 9 (FF-1666). Every other size here is a multiple of it,
+   * so this is the one number a surface states for itself.
+   */
+  body?: number;
 };
 
 export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
@@ -91,10 +124,16 @@ export function formatEditorContent(doc?: EditorDoc, options?: FormatOptions) {
     return null;
   }
 
+  // react-pdf inherits a font size from a View, so the caller's size has to
+  // reach the Text elements; this is where it enters the tree.
+  const base: PDFTextStyle = options?.body
+    ? { ...bodyText, fontSize: options.body }
+    : bodyText;
+
   return (
     <>
       {doc.content.map((node, index) =>
-        renderBlock(node, `${index}`, options, bodyText, {
+        renderBlock(node, `${index}`, options, base, {
           first: index === 0,
           afterHeading: doc.content?.[index - 1]?.type === "heading",
         }),
@@ -133,14 +172,15 @@ function roomAbove(
     return 0;
   }
   const scale = options?.scale ?? TYPESET;
+  const body = options?.body ?? BODY;
   if (at.afterHeading) {
-    return BODY * scale.flow.below;
+    return body * scale.flow.below;
   }
   if (node.type === "heading") {
-    return BODY * scale.flow.above;
+    return body * scale.flow.above;
   }
   // Only a document spaces its paragraphs; an address is a list of lines.
-  return options?.spacedParagraphs ? BODY * scale.flow.paragraph : 0;
+  return options?.spacedParagraphs ? body * scale.flow.paragraph : 0;
 }
 
 /** Omitted entirely when it is nothing, so a block's style reads as it did. */
@@ -179,7 +219,11 @@ function renderBlock(
 
     case "heading": {
       const scale = options?.scale ?? TYPESET;
-      const size = headingSize(BODY, node.attrs?.level ?? 1, scale);
+      const size = headingSize(
+        options?.body ?? BODY,
+        node.attrs?.level ?? 1,
+        scale,
+      );
       return (
         <View
           key={`heading-${path}`}
@@ -187,7 +231,14 @@ function renderBlock(
           // follows it rather than floating between two things equally. The
           // room below is the next block's to take (FF-1665).
           style={{ alignItems: "flex-start", ...room }}
-          minPresenceAhead={24}
+          // Three lines of what follows, on the same page, or the heading
+          // moves down with them (FF-1666). A heading alone at the foot of a
+          // page introduces nothing. This was a flat 24pt, chosen when a
+          // document printed at 9pt — at 11 that is a line and a quarter,
+          // which almost anything satisfies, so headings started stranding.
+          minPresenceAhead={
+            (options?.body ?? BODY) * scale.leading.body * KEEP_WITH_NEXT
+          }
         >
           <Text>
             {renderInline(node, path, {
@@ -213,7 +264,13 @@ function renderBlock(
           : bulletWidth + digitWidth * (markerOf(items.length - 1).length - 2);
 
       return (
-        <View key={`list-${path}`} style={room}>
+        <View
+          key={`list-${path}`}
+          style={room}
+          // A list of four broken one-and-three across a page reads as two
+          // lists, and the reader has to work out that it is not.
+          wrap={items.length > UNSPLITTABLE_LIST}
+        >
           {items.map((item, index) => (
             <View
               key={`list-item-${path}-${index.toString()}`}
@@ -225,7 +282,8 @@ function renderBlock(
                 ...above(
                   index === 0
                     ? 0
-                    : BODY * (options?.scale ?? TYPESET).flow.item,
+                    : (options?.body ?? BODY) *
+                        (options?.scale ?? TYPESET).flow.item,
                 ),
               }}
               // An item is a thought; it does not straddle two pages.

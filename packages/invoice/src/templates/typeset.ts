@@ -138,8 +138,15 @@ export const QUOTE_TYPESET = {
    *
    * Upstream leaves measure to the layout for the same reason, so this is
    * ours by their design as much as by ours.
+   *
+   * 36, not the 42 FF-1662 set. That ticket found a line running about 120
+   * characters and narrowed the column, which was half the answer — the
+   * other half was that the print reads at 9pt, the size of a note at the
+   * foot of an invoice. A quote prints at 11 now, so the same measure in
+   * ems is a shorter line in characters: about 68, in the middle of the
+   * comfortable band, on a column that still fills its page.
    */
-  measure: 42,
+  measure: 36,
 } as const;
 
 /** A heading's size at this body size, for the level given. */

@@ -109,7 +109,22 @@ export type ScenarioView = {
 
 export type ComparisonView = {
   columns: { name: string; recommended: boolean }[];
-  rows: { label: string; values: string[] }[];
+  /**
+   * `lead` marks the one figure the reader came for — the total, or what a
+   * recurring quote comes to over its term. A surface may draw it larger
+   * than the rest instead of as one more row (FF-1666).
+   */
+  rows: {
+    label: string;
+    values: string[];
+    lead?: boolean;
+    /**
+     * The label names the unit of the value — "Uren", "106 – 153" — so a
+     * surface that has no room for a column of labels can write the two
+     * together and still be read (FF-1666).
+     */
+    unit?: boolean;
+  }[];
 };
 
 export type DocumentBlock =
@@ -577,6 +592,7 @@ function comparisonView(
       ),
     },
     {
+      unit: true,
       label: ctx.recurring
         ? `${ctx.unitLabel} ${labels.perYear.toLowerCase()}`
         : ctx.unitLabel,
@@ -589,6 +605,9 @@ function comparisonView(
 
   if (ctx.recurring) {
     rows.push({
+      // Always populated on a recurring quote, where `overTerm` is a dash
+      // unless the quote has a term.
+      lead: true,
       label: labels.perYear,
       values: each(({ priced }) =>
         priced.totals.kind === "recurring"
@@ -622,6 +641,7 @@ function comparisonView(
     }
   } else {
     rows.push({
+      lead: true,
       label: labels.total,
       values: each(({ priced }) =>
         priced.totals.kind === "project"

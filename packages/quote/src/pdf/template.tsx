@@ -31,17 +31,184 @@ import { fill } from "./labels";
  * line and its totals are kept on one page.
  */
 
+/**
+ * What a quote reads at in print (FF-1666).
+ *
+ * 11, not the invoice's 9. FF-1662 found a line running 120 characters and
+ * narrowed the column to fix it, which was half the answer: the other half
+ * is that 9pt is the size of a note at the foot of an invoice, not of a
+ * document someone is asked to read and approve. Narrowing alone left three
+ * of five pages as a thin column with an empty third beside it.
+ *
+ * At 11pt the same column of page holds about 68 characters instead of 120,
+ * and the page is full. Everything else here is a multiple of it.
+ */
+const PRINT_BODY = 11;
+const COLUMN = measureWidth(PRINT_BODY);
+
 const GREY = "#606060";
 const RULE = "#DCDAD2";
+/* The proportion it always had to the body: 8 against 9. */
+const small: Style = { fontSize: PRINT_BODY * 0.89, color: GREY };
+/**
+ * A micro-label: uppercase, letterspaced, small and grey (FF-1666).
+ *
+ * The thing that reads as a technical document rather than a letter. It is
+ * shadcn/typeset's own treatment for its smallest heading, and it is what
+ * marks a word as a label rather than as something to read.
+ */
+const eyebrow: Style = {
+  fontSize: PRINT_BODY * 0.68,
+  color: GREY,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+};
+const body: Style = { fontSize: PRINT_BODY };
 
-const small: Style = { fontSize: 8, color: GREY };
-const body: Style = { fontSize: 9 };
-const strong: Style = { fontSize: 9, fontWeight: 600 };
+/**
+ * The page (FF-1666).
+ *
+ * Everything starts at the same left edge. Running text stops at the
+ * measure; a section's rule and its pricing tables run to the right edge of
+ * the page. That is the whole layout: one edge to read down, and the rule
+ * holding the other side so a narrower column of prose reads as a measure
+ * rather than as a page with a piece missing.
+ *
+ * The sidehead this replaced put titles in a column of their own, and the
+ * boundary it drew was in the margin while the text beside it just kept
+ * flowing — so a section began on the left and did not begin on the right.
+ */
+
+/**
+ * Where a section starts (FF-1666).
+ *
+ * Its number and a rule to the edge of the page, and the title under them.
+ * The rule is the part that matters: it is the only thing that says a
+ * section has ended and another has begun, and it says it across the whole
+ * width rather than only where the prose happens to reach.
+ */
+/**
+ * The sections, listed once at the top (FF-1666).
+ *
+ * A quote is not read start to finish. It is read once, then flipped back
+ * through while someone decides, and the numbers are how they say which
+ * part they mean. This is eight lines that turn five pages into something
+ * navigable.
+ *
+ * No page numbers against them: react-pdf lays out in one pass, so nothing
+ * knows which page a section will land on until it is too late to print it.
+ * The numbers are what a reader points at anyway.
+ *
+ * Left out below three sections, where a list of two is furniture.
+ */
+function Contents({
+  doc,
+  sections,
+}: {
+  doc: QuoteDocument;
+  sections: Map<string, string>;
+}) {
+  const listed = doc.blocks.filter(
+    (block) => block.type === "text" && block.heading,
+  );
+  if (listed.length < 3) {
+    return null;
+  }
+
+  return (
+    // Whole while it is short enough that moving it leaves a small hole.
+    // A quote with many sections gets a list that may break instead.
+    <View wrap={listed.length > 8} style={{ width: COLUMN, marginBottom: 24 }}>
+      <Text style={{ ...small, marginBottom: 4 }}>{doc.labels.contents}</Text>
+      {listed.map((block) => (
+        <View
+          key={block.id}
+          style={{
+            flexDirection: "row",
+            paddingVertical: 3,
+            borderTopWidth: 0.5,
+            borderTopColor: RULE,
+          }}
+        >
+          <Text style={{ ...small, width: 22 }}>{sections.get(block.id)}</Text>
+          <Text style={body}>
+            {block.type === "text" ? block.heading : null}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SectionHead({ number, title }: { number?: string; title: string }) {
+  return (
+    // Never split, and never the last thing on a page: a rule at the foot
+    // of one page with its title at the head of the next is worse than no
+    // rule at all. `wrap` keeps the three lines together and
+    // `minPresenceAhead` keeps them with the text they introduce.
+    <View
+      wrap={false}
+      minPresenceAhead={PRINT_BODY * QUOTE_TYPESET.leading.body * 3}
+      style={{ marginBottom: PRINT_BODY * QUOTE_TYPESET.flow.below }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          marginBottom: 5,
+        }}
+      >
+        {number ? (
+          <Text style={{ ...small, marginRight: 8 }}>{number}</Text>
+        ) : null}
+        <View style={{ flex: 1, borderTopWidth: 0.5, borderTopColor: RULE }} />
+      </View>
+      <Text
+        style={{
+          fontSize: blockHeadingSize(PRINT_BODY),
+          fontWeight: QUOTE_TYPESET.weight.blockHeading,
+          lineHeight: QUOTE_TYPESET.leading.heading,
+        }}
+      >
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * What each titled section is called by its number (FF-1666).
+ *
+ * A client answers a quote section by section — "over punt 3 heb ik een
+ * vraag" needs a 3 to point at — which is the whole reason these are drawn.
+ * So only a section a reader can name is counted: a block with no title is
+ * a continuation of the one above it, and the pricing is reached by its own
+ * tables rather than by number.
+ */
+function sectionNumbers(doc: QuoteDocument): Map<string, string> {
+  const numbers = new Map<string, string>();
+  let n = 0;
+  for (const block of doc.blocks) {
+    if (block.type === "text" && block.heading) {
+      n += 1;
+      numbers.set(block.id, String(n).padStart(2, "0"));
+    }
+  }
+  return numbers;
+}
+const strong: Style = { fontSize: PRINT_BODY, fontWeight: 600 };
 
 // Line columns: description, quantity, rate, amount.
-const QUANTITY_WIDTH = 64;
-const RATE_WIDTH = 84;
-const AMOUNT_WIDTH = 124;
+/**
+ * A priced table's fixed columns, as multiples of the body size (FF-1666).
+ *
+ * They were 64, 84 and 124pt, which fitted "€ 20.808,00" at 9pt and did not
+ * at 11 — the rate ran straight into the amount. A column holding a number
+ * has to be measured in the type it holds, not in points someone chose once.
+ */
+const QUANTITY_WIDTH = PRINT_BODY * 7;
+const RATE_WIDTH = PRINT_BODY * 9.5;
+const AMOUNT_WIDTH = PRINT_BODY * 14;
 
 function Rich({
   doc,
@@ -72,9 +239,9 @@ function Rich({
     // (FF-1662) — the tables below take the page, the prose takes a measure.
     <View
       style={{
-        fontSize: 9,
+        fontSize: PRINT_BODY,
         lineHeight: scale.leading.body,
-        maxWidth: measureWidth(9),
+        maxWidth: measureWidth(PRINT_BODY),
       }}
     >
       {/* The same Tiptap shape, typed loosely on this side. */}
@@ -84,6 +251,7 @@ function Rich({
         // lines is a question this change does not open.
         spacedParagraphs: true,
         scale,
+        body: PRINT_BODY,
         headingWeight: scale.weight.heading,
       })}
     </View>
@@ -166,64 +334,93 @@ function Row({ row, oneOff }: { row: ScenarioRow; oneOff: string }) {
   }
 }
 
-function Comparison({
+/**
+ * The choice (FF-1666).
+ *
+ * This document exists so that someone picks one option or the other, and
+ * that choice used to be a row of figures in a comparison table two pages
+ * before the detail — the one thing the reader came for, drawn as the
+ * quietest thing on the page.
+ *
+ * Not boxes. A bordered panel with a fill inside it is the idiom of an
+ * options dialog, and two of them side by side, each sized to its own
+ * content, is why the figures in the first version did not line up with
+ * each other. These are columns: a rule across the top, a label, a name,
+ * and then the figure at a size that admits it is the point.
+ *
+ * The recommended one is said once — a heavier rule — rather than three
+ * times over in a border, a fill and a word. Nothing here is coloured: the
+ * same pair is drawn by the editor and the web view, and a quote that
+ * suddenly grew a brand colour would look like it came from someone else.
+ */
+function Options({
   comparison,
   doc,
 }: {
   comparison: ComparisonView;
   doc: QuoteDocument;
 }) {
+  const lead = comparison.rows.find((row) => row.lead);
+  const rest = comparison.rows.filter((row) => !row.lead);
+
   return (
-    <View wrap={false} style={{ marginBottom: 20 }}>
-      <Text
-        style={{
-          fontSize: headingSize(9, 2, QUOTE_TYPESET),
-          fontWeight: 600,
-          lineHeight: QUOTE_TYPESET.leading.heading,
-          marginBottom: 6,
-        }}
-      >
-        {doc.labels.comparison}
-      </Text>
-      <View
-        style={{
-          flexDirection: "row",
-          borderBottomWidth: 0.5,
-          borderBottomColor: RULE,
-          paddingBottom: 4,
-        }}
-      >
-        <View style={{ flex: 1.2 }} />
-        {comparison.columns.map((column, index) => (
-          <View key={index.toString()} style={{ flex: 1, paddingLeft: 8 }}>
-            <Text style={{ ...strong, textAlign: "right" }}>{column.name}</Text>
-            {column.recommended ? (
-              <Text style={{ ...small, textAlign: "right" }}>
-                {doc.labels.recommended}
-              </Text>
-            ) : null}
-          </View>
-        ))}
-      </View>
-      {comparison.rows.map((row) => (
+    <View wrap={false} style={{ flexDirection: "row", marginBottom: 24 }}>
+      {comparison.columns.map((column, index) => (
         <View
-          key={row.label}
+          key={index.toString()}
           style={{
-            flexDirection: "row",
-            paddingVertical: 3,
-            borderBottomWidth: 0.5,
-            borderBottomColor: RULE,
+            flex: 1,
+            marginLeft: index === 0 ? 0 : 20,
+            // One signal, not three: the recommended option is the one with
+            // weight on it.
+            borderTopWidth: column.recommended ? 2 : 0.5,
+            borderTopColor: column.recommended ? "#000" : RULE,
+            paddingTop: 8,
           }}
         >
-          <Text style={{ ...body, flex: 1.2, color: GREY }}>{row.label}</Text>
-          {row.values.map((value, index) => (
+          {/* A scenario is named by its author and they already number it
+              — "Optie 1 · …" — so this says only the one thing the name
+              cannot. The line is kept whether it is used or not, so both
+              columns start their name on the same line. */}
+          <Text style={{ ...eyebrow, marginBottom: 4 }}>
+            {column.recommended ? doc.labels.recommended : " "}
+          </Text>
+          {/* Two lines of room whether the name needs them or not, so the
+              figures below land on the same line in both columns. A
+              comparison whose halves do not align is not one. */}
+          <View style={{ height: PRINT_BODY * 2.9, marginBottom: 10 }}>
             <Text
-              key={index.toString()}
-              style={{ ...body, flex: 1, paddingLeft: 8, textAlign: "right" }}
+              style={{
+                ...strong,
+                lineHeight: QUOTE_TYPESET.leading.heading,
+              }}
             >
-              {value}
+              {column.name}
             </Text>
-          ))}
+          </View>
+          {lead ? (
+            <Text
+              style={{
+                fontSize: headingSize(PRINT_BODY, 2, QUOTE_TYPESET),
+                lineHeight: QUOTE_TYPESET.leading.heading,
+                marginBottom: 2,
+              }}
+            >
+              {lead.values[index]}
+            </Text>
+          ) : null}
+          {/* A bare "106 – 153" says nothing, so a row whose label names
+              the unit of its value is written as the two together. A row
+              whose value speaks for itself — "Vork met plafond" — is not. */}
+          <Text style={small}>
+            {rest
+              .map((row) =>
+                row.unit
+                  ? `${row.values[index]} ${row.label.toLowerCase()}`
+                  : row.values[index],
+              )
+              .join(" · ")}
+          </Text>
         </View>
       ))}
     </View>
@@ -315,23 +512,16 @@ function Scenario({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text
             style={{
-              fontSize: headingSize(9, 2, QUOTE_TYPESET),
+              fontSize: headingSize(PRINT_BODY, 2, QUOTE_TYPESET),
               fontWeight: 600,
               lineHeight: QUOTE_TYPESET.leading.heading,
             }}
           >
             {scenario.name}
           </Text>
+          {/* A label, not a box drawn round a word (FF-1666). */}
           {scenario.recommended ? (
-            <Text
-              style={{
-                ...small,
-                borderWidth: 0.5,
-                borderColor: GREY,
-                paddingHorizontal: 4,
-                paddingVertical: 1,
-              }}
-            >
+            <Text style={{ ...eyebrow, marginLeft: 8 }}>
               {labels.recommended}
             </Text>
           ) : null}
@@ -339,14 +529,22 @@ function Scenario({
         {scenario.conditions ? (
           <Text style={{ ...small, marginTop: 2 }}>{scenario.conditions}</Text>
         ) : null}
+        {/* A column heading is a label, not a cell of data — all four of
+            them (FF-1666). */}
         <Cells
           cells={[
-            <Text key="h" style={small}>
+            <Text key="h" style={eyebrow}>
               {labels.description}
             </Text>,
-            scenario.quantityLabel,
-            labels.rate,
-            scenario.amountLabel,
+            <Text key="q" style={eyebrow}>
+              {scenario.quantityLabel}
+            </Text>,
+            <Text key="r" style={eyebrow}>
+              {labels.rate}
+            </Text>,
+            <Text key="a" style={eyebrow}>
+              {scenario.amountLabel}
+            </Text>,
           ]}
           style={{
             marginTop: 8,
@@ -428,6 +626,7 @@ function Notes({ doc }: { doc: QuoteDocument }) {
 export function QuotePdf({ doc }: { doc: QuoteDocument }) {
   const { labels } = doc;
   const hasPricing = doc.blocks.some((b) => b.type === "pricing");
+  const sections = sectionNumbers(doc);
 
   return (
     <Document title={`${labels.quote} ${doc.number}`}>
@@ -464,7 +663,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             </Text>
             <Text
               style={{
-                fontSize: documentTitleSize(9),
+                fontSize: documentTitleSize(PRINT_BODY),
                 fontWeight: QUOTE_TYPESET.weight.documentTitle,
                 lineHeight: QUOTE_TYPESET.leading.heading,
                 marginTop: 2,
@@ -489,6 +688,10 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
           ) : null}
         </View>
 
+        {/* On the same two columns the document below stands on (FF-1666):
+            who it is from in the sidehead, who it is for at the head of the
+            text column. Before this the page had three different left edges
+            down it. */}
         <View style={{ flexDirection: "row", marginBottom: 20 }}>
           <View style={{ flex: 1, marginRight: 10 }}>
             <Text style={{ ...small, marginBottom: 2 }}>{labels.from}</Text>
@@ -517,44 +720,52 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
             borderLeftWidth: 2,
             borderLeftColor: "#000",
             // Running text, so it takes the measure like the rest of it.
-            maxWidth: measureWidth(9),
+            width: COLUMN,
           }}
         >
           {doc.statement}
         </Text>
 
-        {doc.blocks.map((block) =>
+        <Contents doc={doc} sections={sections} />
+
+        {doc.blocks.map((block, index) =>
           block.type === "text" ? (
-            <View key={block.id} style={{ marginBottom: 16 }}>
+            <View
+              key={block.id}
+              // From above, like everything else in the document (FF-1665).
+              // A trailing margin on the last block is height past the end
+              // of the text, and react-pdf will open a page to hold it.
+              style={index === 0 ? undefined : { marginTop: 20 }}
+            >
               {block.heading ? (
-                <Text
-                  minPresenceAhead={40}
-                  // A block's title sits above every heading its text can
-                  // hold (FF-1651). It used to be drawn at exactly an h1's
-                  // size, so a section's title and a heading inside it were
-                  // the same thing to look at.
-                  style={{
-                    fontSize: blockHeadingSize(9),
-                    fontWeight: QUOTE_TYPESET.weight.blockHeading,
-                    lineHeight: QUOTE_TYPESET.leading.heading,
-                    // The one bottom margin in the document, and it is
-                    // safe to be one: a title stands outside the text, and
-                    // the first block of that text takes no room above it,
-                    // so nothing meets this (FF-1665).
-                    marginBottom: 9 * QUOTE_TYPESET.flow.below,
-                    // The title sits over its own text, not over the page.
-                    maxWidth: measureWidth(9),
-                  }}
-                >
-                  {block.heading}
-                </Text>
+                <SectionHead
+                  number={sections.get(block.id)}
+                  title={block.heading}
+                />
               ) : null}
-              <Rich doc={block.body} images={doc.images} prose />
+              {/* Running text stops at the measure; the rule above it and
+                  the tables below take the page (FF-1666). */}
+              <View style={{ width: COLUMN }}>
+                <Rich doc={block.body} images={doc.images} prose />
+              </View>
             </View>
           ) : (
-            <View key={block.id}>
+            // No forced break before the money, though it was tried
+            // (FF-1666). Starting it on a clean page reads well when the
+            // prose above happens to fill its page and leaves most of a
+            // sheet empty when it does not — on OFF-0004, three lines of
+            // section 05 and then 60% of a page of nothing.
+            //
+            // The whitespace at the foot of a page is the height of the
+            // tallest thing that would not fit there. Everything else in
+            // this document is a group small enough to bound that; a forced
+            // break is the one thing with no bound at all, so there is none.
+            <View
+              key={block.id}
+              style={index === 0 ? undefined : { marginTop: 20 }}
+            >
               {block.comparison ? (
-                <Comparison comparison={block.comparison} doc={doc} />
+                <Options comparison={block.comparison} doc={doc} />
               ) : null}
               {block.scenarios.map((scenario) => (
                 <Scenario key={scenario.id} scenario={scenario} doc={doc} />
