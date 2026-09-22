@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { QuoteContent } from "./content";
-import { imagePathsIn } from "./images";
+import { imagePathsIn, replaceImagePaths } from "./images";
 
 const contentWith = (blocks: unknown[]) =>
   ({
@@ -88,5 +88,70 @@ describe("imagePathsIn", () => {
       text("a", [{ type: "image", attrs: {} }, { type: "image" }]),
     ]);
     expect(imagePathsIn(content)).toEqual([]);
+  });
+});
+
+describe("replaceImagePaths", () => {
+  // A picture is held in the browser until the draft that names it is saved
+  // (FF-1634), so what the editor carries is a stand-in and this is what puts
+  // the stored path in its place, on the way to the server.
+  test("puts the stored path in a picture's and a diagram's place", () => {
+    const content = contentWith([
+      text("a", [image("pending:one"), diagram("pending:two")]),
+    ]);
+
+    const next = replaceImagePaths(content, {
+      "pending:one": "team/quotes/images/one.png",
+      "pending:two": "team/quotes/images/two.png",
+    });
+
+    expect(imagePathsIn(next)).toEqual([
+      "team/quotes/images/one.png",
+      "team/quotes/images/two.png",
+    ]);
+  });
+
+  test("keeps a diagram's source while replacing its path", () => {
+    const content = contentWith([text("a", [diagram("pending:one")])]);
+    const next = replaceImagePaths(content, { "pending:one": "team/q/d.png" });
+    const node = (
+      next.blocks[0] as unknown as { body: { content: { attrs: unknown }[] } }
+    ).body.content[0];
+
+    expect(node?.attrs).toEqual({
+      source: "flowchart LR\n A --> B",
+      path: "team/q/d.png",
+    });
+  });
+
+  test("reaches one nested in a list, and every repeat of it", () => {
+    const content = contentWith([
+      text("a", [
+        {
+          type: "bulletList",
+          content: [{ type: "listItem", content: [image("pending:one")] }],
+        },
+        image("pending:one"),
+      ]),
+    ]);
+
+    const next = replaceImagePaths(content, { "pending:one": "team/q/1.png" });
+    expect(JSON.stringify(next)).not.toContain("pending:one");
+    expect(imagePathsIn(next)).toEqual(["team/q/1.png"]);
+  });
+
+  test("leaves a path nothing was stored for exactly as it was", () => {
+    const content = contentWith([
+      text("a", [image("team/quotes/kept.png"), diagram(null)]),
+    ]);
+
+    expect(
+      replaceImagePaths(content, { "pending:gone": "team/q/x.png" }),
+    ).toEqual(content);
+  });
+
+  test("gives back what it was given when nothing was stored", () => {
+    const content = contentWith([text("a", [image("pending:one")])]);
+    expect(replaceImagePaths(content, {})).toBe(content);
   });
 });

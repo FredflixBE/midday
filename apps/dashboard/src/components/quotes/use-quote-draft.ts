@@ -4,7 +4,9 @@ import type { RouterOutputs } from "@api/trpc/routers/_app";
 import type { QuoteContent, QuoteKind } from "@midday/quote";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
+import { storeHeldImages } from "./pending-images";
 import { planRetry } from "./save-retry";
 import { useErrorToast } from "./use-error-toast";
 
@@ -41,6 +43,9 @@ export function useQuoteDraft(quote: Quote, version: Version) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const errorToast = useErrorToast();
+  const { data: user } = useUserQuery();
+  const teamId = useRef<string | null | undefined>(user?.teamId);
+  teamId.current = user?.teamId;
 
   const initial = (): QuoteDraft => ({
     title: quote.title,
@@ -88,18 +93,34 @@ export function useQuoteDraft(quote: Quote, version: Version) {
     scope: { id: `quote-draft-${version.id}` },
   });
 
+  /**
+   * The changes as the server may have them: any picture the browser was
+   * still holding is stored first, so the text names a path anything can
+   * read (FF-1634). Refused here, the save is refused — and retried.
+   */
+  const stored = useCallback(async (changes: Partial<QuoteDraft>) => {
+    if (!changes.content) return changes;
+    if (!teamId.current) throw new Error("Your team is still loading.");
+    return {
+      ...changes,
+      content: await storeHeldImages(teamId.current, changes.content),
+    };
+  }, []);
+
   const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     const changes = pending.current;
     pending.current = {};
     if (Object.keys(changes).length === 0) return;
-    lastSave.current = save
-      .mutateAsync({
-        versionId: version.id,
-        ...changes,
-        customerId: changes.customerId ?? undefined,
-      })
+    lastSave.current = stored(changes)
+      .then((ready) =>
+        save.mutateAsync({
+          versionId: version.id,
+          ...ready,
+          customerId: ready.customerId ?? undefined,
+        }),
+      )
       .then(
         () => {
           failures.current = 0;
@@ -126,7 +147,7 @@ export function useQuoteDraft(quote: Quote, version: Version) {
           return false;
         },
       );
-  }, [save.mutateAsync, version.id]);
+  }, [save.mutateAsync, stored, version.id]);
 
   useEffect(() => {
     notSaved.current = errorToast("Not saved");

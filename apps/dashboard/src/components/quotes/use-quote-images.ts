@@ -1,9 +1,10 @@
 "use client";
 
+import { isPendingImage } from "@midday/quote";
 import type { StoredImages } from "@midday/ui/editor";
 import { useCallback, useMemo, useRef } from "react";
 import { useUserQuery } from "@/hooks/use-user";
-import { uploadToQuotes } from "./upload-to-quotes";
+import { heldImageUrl, holdImage } from "./pending-images";
 
 /** Big enough for a screenshot or a mock-up, small enough to send. */
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -24,8 +25,10 @@ const TYPES: Record<string, string | undefined> = {
  * they were stored under — never a public address, so a picture is only
  * reachable with the team's own file key.
  *
- * `uploadToQuotes` gives each upload a name of its own, which is what keeps
- * two screenshots of the same name from replacing one another.
+ * A picked picture is held in this browser until the draft that names it is
+ * saved (FF-1634), so one abandoned before that is never stored at all.
+ * `uploadToQuotes` then gives it a name of its own, which is what keeps two
+ * screenshots of the same name from replacing one another.
  *
  * What this returns never changes and is never absent, which matters more
  * than it looks: the editor builds its schema from it once, and a schema
@@ -39,6 +42,10 @@ export function useQuoteImages(): StoredImages & { ready: boolean } {
   team.current = { teamId: user?.teamId, fileKey: user?.fileKey };
 
   const srcOf = useCallback((path: string) => {
+    // Still in memory, so it is shown from there rather than from the vault,
+    // which does not hold it yet and may never (FF-1634).
+    if (isPendingImage(path)) return heldImageUrl(path);
+
     const { fileKey } = team.current;
     if (!fileKey) return null;
 
@@ -64,7 +71,9 @@ export function useQuoteImages(): StoredImages & { ready: boolean } {
       throw new Error("A quote holds PNG and JPEG pictures.");
     }
 
-    return (await uploadToQuotes(teamId, file)).join("/");
+    // Held, not stored: the draft save is what puts it in the vault, so a
+    // picture picked and then abandoned never gets there (FF-1634).
+    return holdImage(file);
   }, []);
 
   const images = useMemo(() => ({ srcOf, upload }), [srcOf, upload]);
