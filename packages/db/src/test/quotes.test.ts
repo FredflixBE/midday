@@ -37,12 +37,14 @@ import {
   undoQuoteAcceptance,
   updateQuoteDraft,
   updateQuoteSettings,
+  updateQuoteTerms,
 } from "../queries/quotes";
 import {
   customers,
   invoiceProducts,
   invoiceTemplates,
   quotes,
+  quoteTerms,
   quoteVersions,
   teams,
   trackerProjects,
@@ -524,13 +526,20 @@ describe.skipIf(SKIP)("quotes", () => {
             `${first.id}.pdf`,
           ]) as StoreQuotePdf,
         });
-        const terms = await addQuoteTerms(db, {
-          teamId: TEAM_USD_ID,
-          label: "2026-01",
-          language: "en",
-          filePath: [TEAM_USD_ID, "quotes", "terms.pdf"],
-          fileName: "terms.pdf",
-        });
+        // A version uploaded under FF-1616, inserted the only way one can
+        // be now: written terms carry no file, so `addQuoteTerms` no longer
+        // takes one (FF-1674). The rows already on file still have to be
+        // kept out of reach of the picture cleanup.
+        const [terms] = await db
+          .insert(quoteTerms)
+          .values({
+            teamId: TEAM_USD_ID,
+            label: "2026-01",
+            language: "en",
+            filePath: [TEAM_USD_ID, "quotes", "terms.pdf"],
+            fileName: "terms.pdf",
+          })
+          .returning();
         const revised = await reviseQuote(db, {
           teamId: TEAM_USD_ID,
           quoteId: first.quoteId,
@@ -1897,9 +1906,10 @@ describe.skipIf(SKIP)("quotes", () => {
    * records which version went with it, and the PDF names it.
    */
   describe("general terms", () => {
-    const file = (name: string) => ({
-      filePath: [TEAM_USD_ID, "quotes", name],
-      fileName: "terms.pdf",
+    /** Terms as they are written in Midday (FF-1674). */
+    const written = (text: string) => ({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text }] }],
     });
 
     async function add(label: string, language: "nl" | "en", name = label) {
@@ -1907,7 +1917,7 @@ describe.skipIf(SKIP)("quotes", () => {
         teamId: TEAM_USD_ID,
         label,
         language,
-        ...file(name),
+        content: written(`Artikel 1 of ${name}.`),
       });
     }
 
@@ -1923,6 +1933,24 @@ describe.skipIf(SKIP)("quotes", () => {
       ).toEqual(["2026-01 nl", "2026-01 en", "2025-01 en"]);
     });
 
+    // FF-1674: the screen reads this to show a sent version as read-only,
+    // rather than letting someone write into it and learn on Save.
+    test("says which versions a quote has already gone out with", async () => {
+      const used = await add("2026-01", "en");
+      await add("2026-06", "en");
+      const quote = await create({ language: "en" });
+      await markQuoteVersionSent(db, {
+        teamId: TEAM_USD_ID,
+        versionId: draftOf(quote).id,
+      });
+
+      const rows = await listQuoteTerms(db, { teamId: TEAM_USD_ID });
+      expect(
+        Object.fromEntries(rows.map((row) => [row.label, row.inUse])),
+      ).toEqual({ "2026-01": false, "2026-06": true });
+      expect(rows.find((row) => row.id === used.id)?.inUse).toBe(false);
+    });
+
     test("the same version twice in one language is refused", async () => {
       await add("2026-01", "en");
       await expect(add("2026-01", "en", "again")).rejects.toBeInstanceOf(
@@ -1930,16 +1958,84 @@ describe.skipIf(SKIP)("quotes", () => {
       );
     });
 
-    test("a file stored outside the team is refused", async () => {
+    test("a version with no label is refused", async () => {
       await expect(
         addQuoteTerms(db, {
           teamId: TEAM_USD_ID,
-          label: "2026-01",
+          label: "   ",
           language: "en",
-          filePath: [TEAM_EUR_ID, "quotes", "terms.pdf"],
-          fileName: "terms.pdf",
+          content: written("Artikel 1."),
         }),
       ).rejects.toBeInstanceOf(QuoteInputError);
+    });
+
+    // FF-1674. Terms only bind if the client could know them beforehand
+    // (Civil Code art. 5.23), so a version somebody has been sent is the
+    // record of what they could know — and rewriting it changes that after
+    // the fact. The same rule deletion has held since FF-1616.
+    describe("rewriting a version", () => {
+      test("is allowed while nobody has been sent it", async () => {
+        const terms = await add("2026-01", "en");
+
+        const updated = await updateQuoteTerms(db, {
+          teamId: TEAM_USD_ID,
+          id: terms.id,
+          content: written("Artikel 1, herschreven."),
+        });
+
+        expect(JSON.stringify(updated!.content)).toContain("herschreven");
+      });
+
+      test("is refused once a quote has gone out with it", async () => {
+        const terms = await add("2026-01", "en");
+        const quote = await create({ language: "en" });
+        await markQuoteVersionSent(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draftOf(quote).id,
+        });
+
+        await expect(
+          updateQuoteTerms(db, {
+            teamId: TEAM_USD_ID,
+            id: terms.id,
+            content: written("Stilletjes veranderd."),
+          }),
+        ).rejects.toBeInstanceOf(QuoteInputError);
+
+        // And what was sent is untouched.
+        const [row] = await db
+          .select()
+          .from(quoteTerms)
+          .where(eq(quoteTerms.id, terms.id));
+        expect(JSON.stringify(row!.content)).toContain("Artikel 1 of 2026-01");
+      });
+
+      test("is null for another team's version", async () => {
+        const terms = await add("2026-01", "en");
+        expect(
+          await updateQuoteTerms(db, {
+            teamId: TEAM_EUR_ID,
+            id: terms.id,
+            content: written("Niet van hen."),
+          }),
+        ).toBeNull();
+      });
+    });
+
+    test("the PDF is given the text of the version that went out", async () => {
+      await add("2026-01", "en");
+      const quote = await create({ language: "en" });
+      const versionId = draftOf(quote).id;
+      await markQuoteVersionSent(db, { teamId: TEAM_USD_ID, versionId });
+
+      const input = await getQuotePdfInput(db, {
+        teamId: TEAM_USD_ID,
+        versionId,
+      });
+      expect(input!.termsLabel).toBe("2026-01");
+      expect(JSON.stringify(input!.termsContent)).toContain(
+        "Artikel 1 of 2026-01",
+      );
     });
 
     test("sending records the newest version in the quote's language", async () => {

@@ -482,6 +482,50 @@ describe("general terms", () => {
   test("no terms on file, no note about terms", () => {
     expect(quoteDocument(input(c)).notes).toEqual(["All amounts exclude VAT."]);
   });
+
+  // FF-1674: a version written in Midday is printed as the quote's closing
+  // annex, so the client holds the terms rather than a line naming a file
+  // they were sent separately.
+  test("written terms are carried as an annex, headed in the quote's language", () => {
+    const doc = quoteDocument(
+      input(c, {
+        termsLabel: "2026-01",
+        termsContent: paragraph("Artikel 1. Toepassing."),
+      }),
+    );
+
+    expect(doc.terms).toEqual({
+      heading: "General terms",
+      body: paragraph("Artikel 1. Toepassing."),
+    });
+  });
+
+  test("the heading follows the quote's language", () => {
+    expect(
+      quoteDocument(
+        input(c, { language: "nl", termsContent: paragraph("Artikel 1.") }),
+      ).terms?.heading,
+    ).toBe("Algemene voorwaarden");
+  });
+
+  // The two rows uploaded under FF-1616 have a file and no written text.
+  // They keep behaving as they did: named in the notes, sent by hand.
+  test("a version uploaded as a file is named but not printed", () => {
+    const doc = quoteDocument(input(c, { termsLabel: "browser-test" }));
+
+    expect(doc.terms).toBeNull();
+    expect(doc.notes).toContain(
+      "Our general terms, version browser-test, apply to this quote.",
+    );
+  });
+
+  test("text that is empty is not an annex", () => {
+    expect(
+      quoteDocument(input(c, { termsContent: { type: "doc", content: [] } }))
+        .terms,
+    ).toBeNull();
+    expect(quoteDocument(input(c, { termsContent: null })).terms).toBeNull();
+  });
 });
 
 describe("labels", () => {
@@ -620,6 +664,49 @@ describe("a block kind this build does not know", () => {
       base.blocks.map((b) => b.type),
     );
     expect(doc.blocks.filter((b) => b.type === "pricing")).toHaveLength(1);
+  });
+});
+
+/**
+ * An empty block prints nothing but is not nothing: the room above it, and
+ * the height react-pdf gives an empty document, were enough to open a page
+ * and leave no ink on it. OFF-0004 ended on exactly that blank sheet, and
+ * the editor puts a trailing empty block in every quote to type into.
+ */
+describe("a text block with nothing in it", () => {
+  const base = content([scenario([item(DEVELOPMENT, 8)])]);
+  const withBlocks = (blocks: unknown[]) =>
+    quoteDocument(input({ ...base, blocks: blocks as typeof base.blocks }));
+
+  const empty = {
+    id: "trailing",
+    type: "text",
+    heading: null,
+    body: { type: "doc", content: [] },
+  };
+
+  test("is left out of the document", () => {
+    const doc = withBlocks([...base.blocks, empty]);
+    expect(doc.blocks.map((b) => b.id)).not.toContain("trailing");
+    expect(doc.blocks).toHaveLength(base.blocks.length);
+  });
+
+  test("is kept when it carries a heading, which does print", () => {
+    const doc = withBlocks([...base.blocks, { ...empty, heading: "Bijlage" }]);
+    expect(doc.blocks.map((b) => b.id)).toContain("trailing");
+  });
+
+  test("a block with text is never dropped, heading or not", () => {
+    const doc = withBlocks([
+      ...base.blocks,
+      { ...empty, body: paragraph("One line.") },
+    ]);
+    expect(doc.blocks.map((b) => b.id)).toContain("trailing");
+  });
+
+  test("a heading of only spaces is not a heading", () => {
+    const doc = withBlocks([...base.blocks, { ...empty, heading: "   " }]);
+    expect(doc.blocks.map((b) => b.id)).not.toContain("trailing");
   });
 });
 

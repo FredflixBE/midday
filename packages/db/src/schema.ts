@@ -1679,9 +1679,23 @@ export const quoteTerms = pgTable(
     /** What this version is called, e.g. `2026-01`. */
     label: text().notNull(),
     language: text().notNull(), // 'nl' | 'en'
-    /** Path tokens in the `vault` bucket, and the name to download it as. */
-    filePath: text("file_path").array().notNull(),
-    fileName: text("file_name").notNull(),
+    /**
+     * The terms as they are written in Midday (FF-1674), the same Tiptap
+     * document a quote's text blocks hold. This is what the quote PDF prints
+     * as its closing annex.
+     */
+    content: jsonb(),
+    /**
+     * Path tokens in the `vault` bucket, and the name to download it as.
+     *
+     * Legacy, and nullable since FF-1674: a version uploaded as a PDF under
+     * FF-1616 keeps its file and keeps behaving as it did — it is referenced
+     * by name in the quote's closing notes and sent by hand. A PDF cannot be
+     * turned into rich text, so nothing was migrated. New versions are
+     * written, not uploaded, and carry `content` instead.
+     */
+    filePath: text("file_path").array(),
+    fileName: text("file_name"),
   },
   (table) => [
     index("quote_terms_team_id_idx").on(table.teamId),

@@ -235,8 +235,15 @@ describe("tRPC: quotes", () => {
     await caller.addTerms({
       label: " 2026-01 ",
       language: "nl",
-      filePath: ["team", "quotes", "terms.pdf"],
-      fileName: "terms.pdf",
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Artikel 1." }],
+          },
+        ],
+      },
     });
 
     expect(asMock(addQuoteTerms).mock.calls[0]?.[1]).toMatchObject({

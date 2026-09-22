@@ -11,6 +11,7 @@ import {
   undoQuoteAcceptanceSchema,
   updateQuoteDraftSchema,
   updateQuoteSettingsSchema,
+  updateQuoteTermsSchema,
 } from "@api/schemas/quotes";
 import { dropQuoteImages } from "@api/services/quote-images";
 import { storeQuotePdf } from "@api/services/quote-pdf";
@@ -31,6 +32,7 @@ import {
   undoQuoteAcceptance,
   updateQuoteDraft,
   updateQuoteSettings,
+  updateQuoteTerms,
 } from "@midday/db/queries";
 import { TRPCError } from "@trpc/server";
 
@@ -192,7 +194,21 @@ export const quotesRouter = createTRPCRouter({
       );
     }),
 
-  /** A wrong upload, before a quote was sent with it. */
+  /**
+   * Rewrites a version's text (FF-1674). Refused once a quote has gone out
+   * with it: what the client could know beforehand cannot change afterwards.
+   */
+  updateTerms: protectedProcedure
+    .input(updateQuoteTermsSchema)
+    .mutation(async ({ input, ctx: { db, teamId } }) => {
+      return found(
+        await updateQuoteTerms(db, { ...input, teamId: teamId! }).catch(
+          asUserError,
+        ),
+      );
+    }),
+
+  /** A version written by mistake, before a quote was sent with it. */
   deleteTerms: protectedProcedure
     .input(quoteTermsIdSchema)
     .mutation(async ({ input, ctx: { db, teamId } }) => {

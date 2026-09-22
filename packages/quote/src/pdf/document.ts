@@ -62,6 +62,13 @@ export type QuotePdfInput = {
    */
   termsLabel?: string | null;
   /**
+   * The terms themselves, when the version was written in Midday rather than
+   * uploaded (FF-1674). Printed as the quote's closing annex, so the client
+   * holds them instead of being sent a second file. Null for a version that
+   * is a file: those keep being named in the notes and nothing else.
+   */
+  termsContent?: unknown;
+  /**
    * The bytes behind each picture the text holds, by its stored path. What
    * is missing is left out of the PDF rather than failing it.
    */
@@ -160,6 +167,12 @@ export type QuoteDocument = {
   statement: string;
   blocks: DocumentBlock[];
   notes: string[];
+  /**
+   * The general terms, set as the last pages of the document (FF-1674).
+   * Null when the version on file is an uploaded PDF, or when none is
+   * recorded at all — an empty heading over nothing is worse than no annex.
+   */
+  terms: { heading: string; body: EditorDoc } | null;
 };
 
 const LOCALES: Record<QuoteLanguage, string> = { nl: "nl-BE", en: "en-GB" };
@@ -170,6 +183,16 @@ const HOME_COUNTRY = "BE";
 function asDoc(value: unknown): EditorDoc | null {
   const doc = value as EditorDoc | null | undefined;
   return doc?.type === "doc" && Array.isArray(doc.content) ? doc : null;
+}
+
+/**
+ * The same, but a document with nothing in it is nothing (FF-1674). A terms
+ * version created and never written into would otherwise open a page and
+ * head it "Algemene voorwaarden" over an empty sheet.
+ */
+function asWrittenDoc(value: unknown): EditorDoc | null {
+  const doc = asDoc(value);
+  return doc && doc.content.length > 0 ? doc : null;
 }
 
 /** What the pricing of a version says, apart from the rest of the document. */
@@ -304,6 +327,16 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   const blocks: DocumentBlock[] = input.content.blocks.flatMap((block) => {
     switch (block.type) {
       case "text":
+        // A block with no heading and nothing written in it prints nothing
+        // — but it is not nothing: its own room above it, plus the height
+        // react-pdf gives an empty document, is enough to open a page and
+        // then put no ink on it. That is the blank sheet OFF-0004 ended on.
+        //
+        // The editor keeps a trailing empty block to type into, which is
+        // right on screen and has no business in the printed document.
+        if (!block.heading?.trim() && block.body.content.length === 0) {
+          return [];
+        }
         return {
           type: "text",
           id: block.id,
@@ -325,6 +358,7 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   const teamCountry = (input.teamCountryCode || HOME_COUNTRY).toUpperCase();
   const customerCountry = input.customerCountryCode?.toUpperCase();
   const abroad = Boolean(customerCountry) && customerCountry !== teamCountry;
+  const termsBody = asWrittenDoc(input.termsContent);
 
   return {
     labels,
@@ -351,6 +385,7 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
         ? [fill(labels.terms, { version: input.termsLabel })]
         : []),
     ],
+    terms: termsBody ? { heading: labels.termsHeading, body: termsBody } : null,
   };
 }
 
