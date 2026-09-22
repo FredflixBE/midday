@@ -143,24 +143,67 @@ function Contents({
 /**
  * The general terms, set as the quote's closing annex (FF-1674).
  *
- * They start a page of their own — the one forced break in the document.
- * Everything else here deliberately flows (see the pricing note below),
- * because a break mid-proposal leaves a half-empty sheet for no gain. The
- * terms are not part of the proposal's argument: they are what is appended
- * after it, and running them on from the last line of the offer would read
- * as though the offer continued.
+ * A `Page` of their own rather than a `View break`. Both start a new sheet,
+ * but `break` on an element that would have begun a page anyway forces a
+ * second one: on OFF-0004 that left page 7 empty but for its footer, with
+ * the terms on page 8. A page is also what these are — the offer ends, and
+ * this is what is appended after it. Running them on from the last line of
+ * the offer would read as though the offer continued.
  *
- * They go through `Rich` in prose like every text block, which is the whole
+ * The text goes through `Rich` in prose like every block, which is the whole
  * reason this is written rather than an uploaded PDF stapled to the back:
  * one document, one measure, one scale.
  */
-function Terms({ terms }: { terms: NonNullable<QuoteDocument["terms"]> }) {
+/** Every page of the document is set the same (FF-1666). */
+const PAGE = {
+  paddingTop: 36,
+  paddingBottom: 48,
+  paddingHorizontal: 40,
+  fontFamily: "Inter",
+  fontWeight: 400,
+  color: "#000",
+  backgroundColor: "#fff",
+} as const;
+
+function TermsPage({
+  terms,
+  doc,
+}: {
+  terms: NonNullable<QuoteDocument["terms"]>;
+  doc: QuoteDocument;
+}) {
   return (
-    <View break>
+    <Page size="A4" wrap style={PAGE}>
       <SectionHead title={terms.heading} />
       <View style={{ width: COLUMN }}>
         <Rich doc={terms.body} prose />
       </View>
+      <Footer doc={doc} />
+    </Page>
+  );
+}
+
+/** The number and the page count, repeated at the foot of every page. */
+function Footer({ doc }: { doc: QuoteDocument }) {
+  return (
+    <View
+      fixed
+      style={{
+        position: "absolute",
+        bottom: 20,
+        left: 40,
+        right: 40,
+        flexDirection: "row",
+        justifyContent: "space-between",
+      }}
+    >
+      <Text style={small}>{doc.number}</Text>
+      <Text
+        style={small}
+        render={({ pageNumber, totalPages }) =>
+          fill(doc.labels.page, { page: pageNumber, pages: totalPages })
+        }
+      />
     </View>
   );
 }
@@ -655,19 +698,7 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
 
   return (
     <Document title={`${labels.quote} ${doc.number}`}>
-      <Page
-        size="A4"
-        wrap
-        style={{
-          paddingTop: 36,
-          paddingBottom: 48,
-          paddingHorizontal: 40,
-          fontFamily: "Inter",
-          fontWeight: 400,
-          color: "#000",
-          backgroundColor: "#fff",
-        }}
-      >
+      <Page size="A4" wrap style={PAGE}>
         <View
           style={{
             flexDirection: "row",
@@ -807,28 +838,10 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
 
         {hasPricing ? null : <Notes doc={doc} />}
 
-        {doc.terms ? <Terms terms={doc.terms} /> : null}
-
-        <View
-          fixed
-          style={{
-            position: "absolute",
-            bottom: 20,
-            left: 40,
-            right: 40,
-            flexDirection: "row",
-            justifyContent: "space-between",
-          }}
-        >
-          <Text style={small}>{doc.number}</Text>
-          <Text
-            style={small}
-            render={({ pageNumber, totalPages }) =>
-              fill(labels.page, { page: pageNumber, pages: totalPages })
-            }
-          />
-        </View>
+        <Footer doc={doc} />
       </Page>
+
+      {doc.terms ? <TermsPage terms={doc.terms} doc={doc} /> : null}
     </Document>
   );
 }
