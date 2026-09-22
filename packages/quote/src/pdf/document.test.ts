@@ -277,8 +277,17 @@ describe("use case A: support in days, two scenarios, an optional one-off", () =
       ],
       rows: [
         { label: "Pricing", values: ["Fixed price", "Fixed price"] },
-        { label: "Days per year", values: ["8", "16"] },
-        { label: "Per year", values: ["€10,720.00", "€21,440.00"] },
+        // `unit` says the label names the unit of the value, so a surface
+        // with no room for a column of labels can write "8 days a year".
+        { label: "Days per year", unit: true, values: ["8", "16"] },
+        // `lead` is the one figure the reader came for. On a recurring
+        // quote that is the per-year, not the term — the term is a dash
+        // unless the quote has one.
+        {
+          label: "Per year",
+          lead: true,
+          values: ["€10,720.00", "€21,440.00"],
+        },
         { label: "Over the term", values: ["€21,440.00", "€42,880.00"] },
       ],
     });
@@ -359,8 +368,12 @@ describe("use case C: work packages, fixed against a capped range", () => {
   test("compares the totals", () => {
     expect(pricingBlock(doc).comparison?.rows).toEqual([
       { label: "Pricing", values: ["Fixed price", "Range with a ceiling"] },
-      { label: "Hours", values: ["128", "128 – 192"] },
-      { label: "Total", values: ["€23,400.00", "€23,400.00 – €35,100.00"] },
+      { label: "Hours", unit: true, values: ["128", "128 – 192"] },
+      {
+        label: "Total",
+        lead: true,
+        values: ["€23,400.00", "€23,400.00 – €35,100.00"],
+      },
     ]);
   });
 });

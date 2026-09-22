@@ -48,12 +48,21 @@ const COLUMN = measureWidth(PRINT_BODY);
 
 const GREY = "#606060";
 const RULE = "#DCDAD2";
-/* The same tint a table header is drawn on, here and in the editor and the
-   web view alike — a quote has one, and this is it (FF-1642). */
-const TINT = "#F6F6F3";
-
 /* The proportion it always had to the body: 8 against 9. */
 const small: Style = { fontSize: PRINT_BODY * 0.89, color: GREY };
+/**
+ * A micro-label: uppercase, letterspaced, small and grey (FF-1666).
+ *
+ * The thing that reads as a technical document rather than a letter. It is
+ * shadcn/typeset's own treatment for its smallest heading, and it is what
+ * marks a word as a label rather than as something to read.
+ */
+const eyebrow: Style = {
+  fontSize: PRINT_BODY * 0.68,
+  color: GREY,
+  textTransform: "uppercase",
+  letterSpacing: 0.8,
+};
 const body: Style = { fontSize: PRINT_BODY };
 
 /**
@@ -324,20 +333,22 @@ function Row({ row, oneOff }: { row: ScenarioRow; oneOff: string }) {
 }
 
 /**
- * The choice, as two panels (FF-1666).
+ * The choice (FF-1666).
  *
  * This document exists so that someone picks one option or the other, and
- * until now that choice was a row of figures in a comparison table two
- * pages before the detail — the one thing the reader came for, drawn as the
+ * that choice used to be a row of figures in a comparison table two pages
+ * before the detail — the one thing the reader came for, drawn as the
  * quietest thing on the page.
  *
- * A panel each, side by side, holding exactly what the decision turns on:
- * what the option is called, what it costs, how long it takes, and which
- * one is being recommended. The line items still follow underneath for
- * whoever wants to check the arithmetic.
+ * Not boxes. A bordered panel with a fill inside it is the idiom of an
+ * options dialog, and two of them side by side, each sized to its own
+ * content, is why the figures in the first version did not line up with
+ * each other. These are columns: a rule across the top, a label, a name,
+ * and then the figure at a size that admits it is the point.
  *
- * The recommended one is drawn on a tint rather than in a second colour.
- * The same pair is drawn by the editor and the web view, and a quote that
+ * The recommended one is said once — a heavier rule — rather than three
+ * times over in a border, a fill and a word. Nothing here is coloured: the
+ * same pair is drawn by the editor and the web view, and a quote that
  * suddenly grew a brand colour would look like it came from someone else.
  */
 function Options({
@@ -347,54 +358,69 @@ function Options({
   comparison: ComparisonView;
   doc: QuoteDocument;
 }) {
+  const lead = comparison.rows.find((row) => row.lead);
+  const rest = comparison.rows.filter((row) => !row.lead);
+
   return (
-    <View wrap={false} style={{ marginBottom: 20 }}>
-      <View style={{ flexDirection: "row" }}>
-        {comparison.columns.map((column, index) => (
-          <View
-            key={index.toString()}
-            style={{
-              flex: 1,
-              padding: 10,
-              borderWidth: 0.5,
-              borderColor: column.recommended ? "#000" : RULE,
-              backgroundColor: column.recommended ? TINT : "#fff",
-              marginLeft: index === 0 ? 0 : 8,
-            }}
-          >
-            <Text style={{ ...small, marginBottom: 3 }}>
-              {column.recommended ? doc.labels.recommended : " "}
-            </Text>
+    <View wrap={false} style={{ flexDirection: "row", marginBottom: 24 }}>
+      {comparison.columns.map((column, index) => (
+        <View
+          key={index.toString()}
+          style={{
+            flex: 1,
+            marginLeft: index === 0 ? 0 : 20,
+            // One signal, not three: the recommended option is the one with
+            // weight on it.
+            borderTopWidth: column.recommended ? 2 : 0.5,
+            borderTopColor: column.recommended ? "#000" : RULE,
+            paddingTop: 8,
+          }}
+        >
+          {/* A scenario is named by its author and they already number it
+              — "Optie 1 · …" — so this says only the one thing the name
+              cannot. The line is kept whether it is used or not, so both
+              columns start their name on the same line. */}
+          <Text style={{ ...eyebrow, marginBottom: 4 }}>
+            {column.recommended ? doc.labels.recommended : " "}
+          </Text>
+          {/* Two lines of room whether the name needs them or not, so the
+              figures below land on the same line in both columns. A
+              comparison whose halves do not align is not one. */}
+          <View style={{ height: PRINT_BODY * 2.9, marginBottom: 10 }}>
             <Text
               style={{
                 ...strong,
-                fontSize: headingSize(PRINT_BODY, 3, QUOTE_TYPESET),
                 lineHeight: QUOTE_TYPESET.leading.heading,
-                marginBottom: 6,
               }}
             >
               {column.name}
             </Text>
-            {comparison.rows.map((row) => (
-              <View
-                key={row.label}
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  paddingVertical: 2,
-                  borderTopWidth: 0.5,
-                  borderTopColor: RULE,
-                }}
-              >
-                <Text style={{ ...small, marginRight: 8 }}>{row.label}</Text>
-                <Text style={{ ...body, textAlign: "right" }}>
-                  {row.values[index]}
-                </Text>
-              </View>
-            ))}
           </View>
-        ))}
-      </View>
+          {lead ? (
+            <Text
+              style={{
+                fontSize: headingSize(PRINT_BODY, 2, QUOTE_TYPESET),
+                lineHeight: QUOTE_TYPESET.leading.heading,
+                marginBottom: 2,
+              }}
+            >
+              {lead.values[index]}
+            </Text>
+          ) : null}
+          {/* A bare "106 – 153" says nothing, so a row whose label names
+              the unit of its value is written as the two together. A row
+              whose value speaks for itself — "Vork met plafond" — is not. */}
+          <Text style={small}>
+            {rest
+              .map((row) =>
+                row.unit
+                  ? `${row.values[index]} ${row.label.toLowerCase()}`
+                  : row.values[index],
+              )
+              .join(" · ")}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -491,16 +517,9 @@ function Scenario({
           >
             {scenario.name}
           </Text>
+          {/* A label, not a box drawn round a word (FF-1666). */}
           {scenario.recommended ? (
-            <Text
-              style={{
-                ...small,
-                borderWidth: 0.5,
-                borderColor: GREY,
-                paddingHorizontal: 4,
-                paddingVertical: 1,
-              }}
-            >
+            <Text style={{ ...eyebrow, marginLeft: 8 }}>
               {labels.recommended}
             </Text>
           ) : null}
@@ -508,14 +527,22 @@ function Scenario({
         {scenario.conditions ? (
           <Text style={{ ...small, marginTop: 2 }}>{scenario.conditions}</Text>
         ) : null}
+        {/* A column heading is a label, not a cell of data — all four of
+            them (FF-1666). */}
         <Cells
           cells={[
-            <Text key="h" style={small}>
+            <Text key="h" style={eyebrow}>
               {labels.description}
             </Text>,
-            scenario.quantityLabel,
-            labels.rate,
-            scenario.amountLabel,
+            <Text key="q" style={eyebrow}>
+              {scenario.quantityLabel}
+            </Text>,
+            <Text key="r" style={eyebrow}>
+              {labels.rate}
+            </Text>,
+            <Text key="a" style={eyebrow}>
+              {scenario.amountLabel}
+            </Text>,
           ]}
           style={{
             marginTop: 8,
