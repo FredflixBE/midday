@@ -10,6 +10,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Client } from "pg";
+import { isLocalDatabase } from "../script-guard";
 
 const LOCAL_TEST_DATABASE_URL =
   "postgres://postgres:postgres@localhost:5433/midday_test";
@@ -26,29 +27,6 @@ const LOCAL_TEST_DATABASE_URL =
  */
 export function resolveTestConnection(): string {
   return process.env.TEST_DATABASE_URL ?? LOCAL_TEST_DATABASE_URL;
-}
-
-/**
- * Whether a connection string names a database on this machine.
- *
- * The host is compared exactly, and read with a URL parser rather than matched
- * in the string. Matching on `@localhost` is what this used to do, and it is
- * wrong in both directions: userinfo ends at the *last* `@`, so
- * `postgres://u:pw@localhost:@prod.example.com/proddb` contains `@localhost:`
- * while pointing at prod.example.com — and a credential-free
- * `postgres://localhost:5433/midday_test` contains no `@` at all and was
- * refused. Scripts that drop databases decide on this answer, so it is one
- * function and not a regex in three files.
- */
-export function isLocalDatabase(connectionString: string): boolean {
-  try {
-    const { hostname } = new URL(connectionString);
-    return hostname === "localhost" || hostname === "127.0.0.1";
-  } catch {
-    // Not parseable is not local. Whatever it is, nothing here should act on
-    // it.
-    return false;
-  }
 }
 
 /** The same connection string, pointed at another database on that server. */

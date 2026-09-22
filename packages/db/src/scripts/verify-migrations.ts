@@ -24,9 +24,9 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Client } from "pg";
+import { isLocalDatabase } from "../script-guard";
 import {
   applySqlFile,
-  isLocalDatabase,
   pointAt,
   resolveTestConnection,
   sslFor,

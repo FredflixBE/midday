@@ -31,7 +31,8 @@ const short = (id: string) => `${id.slice(0, 8)}…`;
 const SIGNED_URL_TTL_SECONDS = 600;
 
 async function main() {
-  const db = await connectDb();
+  // Reads and prints; delivers nothing.
+  const db = await connectDb({ readOnly: true });
   const supabase = createClient();
 
   const teamIds = await getTeamIdsWithApp(db, YUKI_APP_ID);

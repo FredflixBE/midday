@@ -13,7 +13,8 @@ type EligibleTeam = {
 };
 
 async function getEligibleTeamIds() {
-  const { db, disconnect } = createJobDb();
+  // Reads and prints; writes nothing.
+  const { db, disconnect } = createJobDb({ readOnly: true });
 
   try {
     // Calculate date 15 days ago

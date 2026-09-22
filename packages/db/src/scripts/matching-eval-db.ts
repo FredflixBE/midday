@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { guardScriptConnection } from "../script-guard";
 import {
   calculateAmountScore,
   calculateCurrencyScore,
@@ -551,6 +552,9 @@ async function main() {
   if (!dbUrl) {
     throw new Error("DATABASE_URL is required");
   }
+
+  // Reads and prints; writes nothing.
+  guardScriptConnection(dbUrl, { readOnly: true });
 
   const pool = new Pool({
     connectionString: dbUrl,

@@ -18,6 +18,7 @@
  */
 
 import { Client } from "pg";
+import { guardScriptConnection } from "../script-guard";
 import { sslFor } from "./apply-sql";
 import { readJournal, stampMigrations } from "./migrations";
 
@@ -40,6 +41,13 @@ async function main(): Promise<number> {
 
   if (through && !journal.some((entry) => entry.tag === through)) {
     console.error(`No migration named ${through} in the journal.`);
+    return 2;
+  }
+
+  try {
+    guardScriptConnection(url);
+  } catch (error) {
+    console.error((error as Error).message);
     return 2;
   }
 

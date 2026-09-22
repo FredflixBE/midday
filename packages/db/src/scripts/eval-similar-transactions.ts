@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { guardScriptConnection } from "../script-guard";
 import { calculateNameScore } from "../utils/transaction-matching";
 
 const MIN_SIMILARITY_THRESHOLD = 0.6;
@@ -369,6 +370,9 @@ async function main() {
     console.error("Error: DATABASE_URL is required");
     process.exit(1);
   }
+
+  // Reads and prints; writes nothing.
+  guardScriptConnection(dbUrl, { readOnly: true });
 
   const pool = new Pool({
     connectionString: dbUrl,

@@ -195,6 +195,7 @@ same value everywhere the name appears.
 | `SUPABASE_JWT_SECRET` | no | Legacy HS256 fallback; drop once the legacy JWT secret is revoked. |
 | `DATABASE_URL` | yes | Supabase > Database > session pooler, port 5432. |
 | `DATABASE_SESSION_POOLER` | yes | Same value; used by drizzle-kit and the CI migrate job (as a repository secret). |
+| `DATABASE_ENVIRONMENT` | yes | `production` here, `development` in a `.env` on your machine. Nothing else reads it; the maintenance scripts do, and refuse to act unlabelled. See [What a script may do to a database](#what-a-script-may-do-to-a-database). |
 | `DB_POOL_MAX` | no | Pool size outside development (default 10). |
 | `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel. The redirect URL points at the **dashboard**, not the API — the callback is handled by `apps/dashboard/src/app/api/enablebanking/session/route.ts`, so the value is `<DASHBOARD_URL>/api/enablebanking/session`. Register that exact URL with Enable Banking too. The API does not start without these three. |
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
@@ -278,9 +279,58 @@ Runtime environment:
 bun install
 cp apps/api/.env.example apps/api/.env
 cp apps/dashboard/.env.example apps/dashboard/.env
+cp packages/db/.env.example packages/db/.env
 # fill both in, then
 bun run dev:api
 bun run dev:dashboard
 ```
 
 `bun run typecheck`, `bun run lint` and `bun run test` are what CI runs.
+
+## What a script may do to a database
+
+There are maintenance scripts in four places — `packages/db/src/scripts`,
+`packages/jobs/scripts`, `packages/banking/scripts` and
+`packages/yuki/scripts` — and several of them write. `bun run` loads a `.env`
+from the directory it runs in, so which database a script reaches is decided by
+a file nobody looks at, and two Supabase projects differ by one opaque ref.
+Remembering which shell is pointed where is not a mitigation; this is.
+
+**Label the connection.** `DATABASE_ENVIRONMENT` goes beside every connection
+string, in every `.env` and in both deployed environments:
+
+```
+DATABASE_ENVIRONMENT=development   # or production, or test
+```
+
+Then, whenever a script runs:
+
+- It **prints what it is about to act on** before it acts — the environment,
+  the Supabase project ref, the host and the database. Never the password.
+- It **refuses to write to production** unless you say so:
+
+  ```
+  CONFIRM_DATABASE_PROD=true bun run --cwd packages/jobs <script>
+  ```
+
+  which is the same shape as `CONFIRM_TRIGGER_PROD` for the Trigger scripts.
+- It **refuses an unlabelled remote database** too. Unset does not mean safe —
+  it means nobody has said, and an unlabelled database might be the real one.
+  A database on `localhost` is the exception, so the test database and CI are
+  untouched.
+
+A connection that only reads says so where it is opened —
+`connectDb({ readOnly: true })` — and then runs anywhere without a
+confirmation. It is a property of that call rather than of the process, so a
+writing script cannot inherit the exemption by importing a helper out of a
+read-only one.
+
+The default is the other way round on purpose: a script written next month is
+guarded by its author having done nothing. The guard sits inside `connectDb`
+and `createJobDb`, which is how most scripts reach a database. A script that
+opens its own `pg` client, or imports the module-scope `db`, has to call
+`guardScriptConnection()` by hand — and a test reads every script in all four
+directories and fails the build if one of them does not.
+
+None of this affects the API, the jobs or the tests — the guard is inert unless
+the process was started from a file under a `scripts/` directory.

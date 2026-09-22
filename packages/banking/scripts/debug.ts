@@ -19,6 +19,7 @@ import {
   bankConnections,
   transactions as transactionsTable,
 } from "@midday/db/schema";
+import { guardScriptConnection } from "@midday/db/script-guard";
 import { setLogLevel } from "@midday/logger";
 import {
   type ApiAccount,
@@ -1100,6 +1101,10 @@ Usage:
 
 async function main() {
   setLogLevel("error");
+
+  // Inspects and prints; writes nothing. `db` is built at module scope, so
+  // nothing else asks where it points.
+  guardScriptConnection(undefined, { readOnly: true });
 
   const args = process.argv.slice(2);
   const command = args[0];

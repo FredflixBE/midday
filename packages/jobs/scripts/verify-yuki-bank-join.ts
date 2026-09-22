@@ -130,7 +130,8 @@ function histogram(label: string, values: number[]) {
 }
 
 async function main() {
-  const db = await connectDb();
+  // Reads and prints; writes nothing.
+  const db = await connectDb({ readOnly: true });
 
   const teamIds = await getTeamIdsWithApp(db, YUKI_APP_ID);
   if (teamIds.length === 0) {

@@ -34,7 +34,8 @@ const short = (id: string) => `${id.slice(0, 8)}…`;
 const CUTOFFS = ["2026-01-01", DEFAULT_YUKI_PULL_CUTOFF, "2000-01-01"];
 
 async function main() {
-  const db = await connectDb();
+  // Reads and prints; delivers and pulls nothing.
+  const db = await connectDb({ readOnly: true });
 
   const teamIds = await getTeamIdsWithApp(db, YUKI_APP_ID);
   if (teamIds.length === 0) {

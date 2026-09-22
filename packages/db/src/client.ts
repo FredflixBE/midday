@@ -6,6 +6,10 @@ import type { PgTransaction } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import { createDrizzleLogger, instrumentPool } from "./instrument";
 import * as schema from "./schema";
+import {
+  guardScriptConnection,
+  type ScriptConnectionOptions,
+} from "./script-guard";
 
 const logger = createLoggerWithContext("db");
 
@@ -100,7 +104,11 @@ export const db = drizzle(pool, {
   logger: drizzleLogger,
 });
 
-export const connectDb = async () => {
+export const connectDb = async (
+  options: Pick<ScriptConnectionOptions, "readOnly"> = {},
+) => {
+  // Inert unless the process was started from a script; see script-guard.ts.
+  guardScriptConnection(process.env.DATABASE_URL, options);
   return db;
 };
 

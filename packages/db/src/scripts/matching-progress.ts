@@ -20,6 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
+import { guardScriptConnection } from "../script-guard";
 import {
   calculateAmountScore,
   calculateCurrencyScore,
@@ -1421,6 +1422,9 @@ Env:
     console.error("Set DATABASE_URL");
     process.exit(1);
   }
+
+  // Reads and prints; writes nothing.
+  guardScriptConnection(dbUrl, { readOnly: true });
 
   const pool = new Pool({
     connectionString: dbUrl,
