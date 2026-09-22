@@ -35,7 +35,6 @@ describe("businessIdentityDoc", () => {
       "Voorbeeldstraat 1",
       "bus 3",
       "2000 Antwerpen",
-      "BE",
       "Ondernemingsnummer 0123.456.789",
       "RPR Antwerpen, afdeling Antwerpen",
       "IBAN BE68 5390 0754 7034",
@@ -61,6 +60,12 @@ describe("businessIdentityDoc", () => {
     expect(
       lines({ legalName: " Fredflix ", legalForm: "  ", city: "" }),
     ).toEqual(["Fredflix"]);
+  });
+
+  // The customer block beside it says "Belgium"; a raw "BE" there read as a
+  // defect, and the country is not among the things WVV art. 2:20 asks for.
+  test("does not print the country code", () => {
+    expect(lines({ legalName: "X", countryCode: "BE" })).toEqual(["X"]);
   });
 
   test("is null when nothing at all has been said", () => {

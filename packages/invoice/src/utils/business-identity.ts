@@ -21,6 +21,12 @@ export type BusinessIdentity = {
   addressLine2?: string | null;
   zip?: string | null;
   city?: string | null;
+  /**
+   * Kept for callers that pass a whole team row, but deliberately not
+   * printed: the block would show the raw `BE` beside the customer's
+   * `Belgium` in the same header, and the country is not among the things
+   * WVV art. 2:20 asks a company to state.
+   */
   countryCode?: string | null;
   /** The enterprise number, as the KBO writes it. */
   enterpriseNumber?: string | null;
@@ -71,7 +77,6 @@ export function businessIdentityDoc(
     said(identity.addressLine1),
     said(identity.addressLine2),
     town || null,
-    said(identity.countryCode),
     labelled("Ondernemingsnummer", identity.enterpriseNumber),
     labelled("RPR", identity.rprCourt),
     labelled("IBAN", identity.bankIban),

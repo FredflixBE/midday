@@ -1055,6 +1055,32 @@ describe.skipIf(SKIP)("quotes", () => {
         expect(sender).toContain("IBAN BE68 5390 0754 7034");
       });
 
+      // The case that actually bit: OFF-0004 was started before any of this
+      // and carries the copy taken at creation. If that copy won, filling the
+      // details in would still leave the quote reading "Frederik Noels".
+      test("a draft carrying the old creation-time copy reads past it", async () => {
+        const { draft } = await draftWith((await productAt(100)).id);
+        await db
+          .update(quoteVersions)
+          .set({
+            fromDetails: {
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "Stale" }],
+                },
+              ],
+            },
+          })
+          .where(eq(quoteVersions.id, draft.id));
+        await db.update(teams).set(identity).where(eq(teams.id, TEAM_USD_ID));
+
+        const sender = await senderOf(draft.id);
+        expect(sender).toContain("Fredflix BV");
+        expect(sender).not.toContain("Stale");
+      });
+
       test("sending freezes it, and moving office afterwards does not reach it", async () => {
         const { draft } = await draftWith((await productAt(100)).id);
         await db.update(teams).set(identity).where(eq(teams.id, TEAM_USD_ID));

@@ -1333,14 +1333,16 @@ export async function getQuotePdfInput(
     mode: version.mode,
     issueDate: version.issueDate,
     validUntil: version.validUntil,
-    // A draft has no sender frozen on it yet, so it is drawn with the one it
-    // would be sent with (FF-1641) — the same reading the terms above get,
-    // and what keeps a downloaded draft from showing an empty From.
+    // A draft is drawn with the sender it would be sent with; only a version
+    // the client holds keeps the one frozen onto it (FF-1641). The draft's
+    // own column is ignored rather than preferred, because a quote started
+    // before this changed still carries the copy taken at creation — which
+    // is the stale block this ticket is about, and no amount of filling the
+    // details in would displace it if that copy won.
     fromDetails:
-      version.fromDetails ??
-      (version.status === "draft"
+      version.status === "draft"
         ? await senderSnapshot(db, params.teamId)
-        : null),
+        : version.fromDetails,
     customerDetails: version.customerDetails,
     content,
     pricing,
