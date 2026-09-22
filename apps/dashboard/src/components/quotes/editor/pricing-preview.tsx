@@ -120,8 +120,14 @@ function Options({
   );
 }
 
-// Quantity, rate, amount: the columns the PDF sets them in.
-const FIGURES = "grid grid-cols-[minmax(0,1fr)_72px_96px_120px] gap-3";
+/**
+ * Quantity, rate, amount: the columns the PDF sets them in.
+ *
+ * The amount was 120px and the widest range needed 200 — 22 of 28 figures on
+ * OFF-0004 wrapped, breaking after the dash, which is what read as a badly
+ * presented range (FF-1675). Without their cents the widest needs 152.
+ */
+const FIGURES = "grid grid-cols-[minmax(0,1fr)_72px_96px_152px] gap-3";
 
 function Scenario({ scenario }: { scenario: ScenarioView }) {
   return (

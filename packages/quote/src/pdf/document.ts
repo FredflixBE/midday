@@ -208,13 +208,20 @@ function viewContext(input: {
     }).format(new Date(`${value}T00:00:00Z`));
   const number = (value: number) =>
     new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value);
-  const cents = (value: number) =>
+  const currency = (value: number, decimals: number) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
       currency: input.currency,
-      minimumFractionDigits: 2,
+      minimumFractionDigits: decimals,
       maximumFractionDigits: 2,
     }).format(value / 100);
+  /**
+   * A whole amount is written without its cents (FF-1675). Two decimals on
+   * every figure cost six characters apiece, twice over in a range, which is
+   * what pushed `€ 1.360,00 – € 2.040,00` past its column and broke it after
+   * the dash. An amount that has cents still shows them.
+   */
+  const cents = (value: number) => currency(value, value % 100 === 0 ? 0 : 2);
   const range = (value: Amount, format: (n: number) => string) =>
     value.max === null || value.max === value.amount
       ? format(value.amount)
@@ -226,7 +233,7 @@ function viewContext(input: {
     rate: (hourlyCents: number | null | undefined) =>
       hourlyCents === null || hourlyCents === undefined
         ? "–"
-        : `${cents(rateInUnit(hourlyCents, unit))}${
+        : `${currency(rateInUnit(hourlyCents, unit), 2)}${
             unit.displayUnit === "days" ? labels.perDay : labels.perHour
           }`,
     percent: (value: number) => `${number(value)}%`,
