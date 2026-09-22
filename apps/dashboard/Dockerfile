@@ -43,13 +43,16 @@ RUN bun install --frozen-lockfile
 # Copy full source from pruned workspace
 COPY --from=builder /app/out/full/ .
 
-# Build-time NEXT_PUBLIC_ env vars (passed as build args; see apps/dashboard/.env.example)
+# Build-time NEXT_PUBLIC_ env vars (passed as build args; see apps/dashboard/.env.example).
+# Next inlines these at `next build`, so an arg nobody passes is an empty string
+# in the bundle rather than an error. Declare one only for a feature this fork
+# actually ships; Stripe Connect payments do not (FF-1418), so the publishable
+# key is not declared here — re-add it with the rest of that feature.
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_URL
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN
-ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_GOOGLE_API_KEY
 ARG NEXT_PUBLIC_DESKTOP_SCHEME
 
