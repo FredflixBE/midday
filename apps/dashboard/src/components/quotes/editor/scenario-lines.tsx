@@ -25,7 +25,7 @@ import {
 import { Input } from "@midday/ui/input";
 import { Textarea } from "@midday/ui/textarea";
 import { MoreHorizontal } from "lucide-react";
-import { type ReactNode, useContext } from "react";
+import { type CSSProperties, type ReactNode, useContext } from "react";
 import { NumberInput, ReadOnlyContext, UNIT_LABELS } from "./fields";
 import { SortableList, SortableRow } from "./sortable";
 
@@ -50,7 +50,8 @@ type Product = RouterOutputs["productRates"]["products"][number];
  */
 const COLUMNS = {
   fixed: "grid-cols-[20px_minmax(160px,1fr)_140px_64px_112px_32px]",
-  range: "grid-cols-[20px_minmax(160px,1fr)_140px_92px_112px_32px]",
+  range:
+    "grid-cols-[20px_minmax(160px,1fr)_140px_calc(var(--figure)*2+2.375rem)_112px_32px]",
 } as const;
 
 const columns = (range: boolean) => COLUMNS[range ? "range" : "fixed"];
@@ -134,28 +135,68 @@ export function ScenarioLines({
       .formatToParts(0)
       .find((part) => part.type === "currency")?.value ?? currency;
 
+  /**
+   * The widest figure the hours column holds, in digits (FF-1671).
+   *
+   * The two fields used to take half the cell each, so a column sized for
+   * three digits drew "8" with two digits of air before the dash. They are
+   * `ch` wide instead — with `tabular-nums` a digit is exactly 1ch — and the
+   * whole column shares the one width, so the dashes still line up while the
+   * control is only as big as what is in it. Two is the floor: a field that
+   * fits one digit is not a field you can aim at.
+   */
+  const figureWidth = Math.max(
+    2,
+    ...scenario.lines.flatMap((line) =>
+      line.type === "item"
+        ? [
+            String(hoursToUnit(line.hours, unit)).length,
+            line.hoursMax === null
+              ? 0
+              : String(hoursToUnit(line.hoursMax, unit)).length,
+          ]
+        : [],
+    ),
+  );
+
   return (
     <div className="space-y-3">
       {scenario.lines.length > 0 ? (
         // Narrower than the columns can go, the table scrolls rather than
         // squeezing the item out of existence.
-        <div className="overflow-x-auto border border-border">
+        <div
+          className="overflow-x-auto border border-border"
+          style={
+            { "--figure": `calc(${figureWidth}ch + 2px)` } as CSSProperties
+          }
+        >
           <div
-            className={`grid ${columns(range)} min-w-[600px] items-center gap-2 border-b border-border px-3 py-2 text-[12px] text-[#606060]`}
+            // `--figure` is in `ch`, which resolves against whatever font the
+            // element is set in — so this grid has to be set in the same size
+            // as the rows or its hours track comes out narrower. The heading's
+            // own size lives on the labels (FF-1671).
+            className={`grid ${columns(range)} min-w-[600px] items-center gap-2 border-b border-border px-3 py-2 text-sm text-[#606060]`}
           >
             <span />
-            <span className="px-3">Item</span>
-            <span className="px-3">Product</span>
+            <span className="px-3 text-[12px]">Item</span>
+            <span className="px-3 text-[12px]">Product</span>
             {/* A heading sits over the left edge of its own figures, the way
                 Item and Product do (FF-1671). A range starts its minimum at
                 the left of the cell, so the heading starts there too — past
                 the hours control's border and padding, which the figures sit
                 inside. A single figure is right-aligned, as one number in a
                 column should be, and its heading follows it to that edge. */}
-            <span className={range ? "pl-[5px]" : "px-3 text-right"}>
+            <span
+              className={cn(
+                "text-[12px]",
+                range ? "pl-[9px]" : "px-3 text-right",
+              )}
+            >
               {UNIT_LABELS[unit.displayUnit]}
             </span>
-            <span className={range ? "" : "text-right"}>Amount ({symbol})</span>
+            <span className={cn("text-[12px]", !range && "text-right")}>
+              Amount ({symbol})
+            </span>
             <span />
           </div>
 
@@ -293,7 +334,7 @@ function Row({
   return (
     <div
       className={cn(
-        "group grid min-w-[600px] items-start gap-2 px-3 py-1",
+        "group grid min-w-[600px] items-start gap-2 px-3 py-1 text-sm",
         grid,
         section && "pt-5",
       )}
@@ -504,7 +545,7 @@ function ItemFields({
         // a maximum are one quantity (FF-1671).
         <div
           className={cn(
-            "grid h-9 grid-cols-[1fr_auto_1fr] items-center gap-1 border",
+            "grid h-9 w-fit grid-cols-[var(--figure)_auto_var(--figure)] items-center gap-1.5 border px-2",
             "border-transparent hover:border-border focus-within:border-border",
           )}
         >
@@ -523,7 +564,7 @@ function ItemFields({
               });
             }}
             max={shown(1_000_000)}
-            className="border-transparent px-1 text-left"
+            className="border-0 px-0 text-left"
           />
           <span className="text-center text-[#878787]">–</span>
           <NumberInput
@@ -536,7 +577,7 @@ function ItemFields({
               onChange({ hoursMax: value === null ? null : stored(value) })
             }
             max={shown(1_000_000)}
-            className="border-transparent px-1 text-left"
+            className="border-0 px-0 text-left"
           />
         </div>
       ) : (
