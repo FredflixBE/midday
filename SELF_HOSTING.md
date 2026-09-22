@@ -273,6 +273,20 @@ Runtime environment:
 | `SUPABASE_SECRET_KEY` | The project's secret (service role) key, so the keepalive call does not depend on what RLS allows anonymously. |
 | `TRIGGER_ACCESS_TOKEN` | Lets `trigger-deploy.yml` ship `packages/jobs` on push to `main`. When unset the job skips with a notice. A Personal Access Token from the Trigger.dev account; the project itself is named in `trigger.config.ts`. |
 
+## Local development
+
+```bash
+bun install
+cp apps/api/.env.example apps/api/.env
+cp apps/dashboard/.env.example apps/dashboard/.env
+cp packages/db/.env.example packages/db/.env
+# fill both in, then
+bun run dev:api
+bun run dev:dashboard
+```
+
+`bun run typecheck`, `bun run lint` and `bun run test` are what CI runs.
+
 ## What a script may do to a database
 
 There are maintenance scripts in four places — `packages/db/src/scripts`,
@@ -320,16 +334,3 @@ directories and fails the build if one of them does not.
 
 None of this affects the API, the jobs or the tests — the guard is inert unless
 the process was started from a file under a `scripts/` directory.
-
-## Local development
-
-```bash
-bun install
-cp apps/api/.env.example apps/api/.env
-cp apps/dashboard/.env.example apps/dashboard/.env
-# fill both in, then
-bun run dev:api
-bun run dev:dashboard
-```
-
-`bun run typecheck`, `bun run lint` and `bun run test` are what CI runs.
