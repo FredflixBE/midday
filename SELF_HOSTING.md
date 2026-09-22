@@ -204,6 +204,9 @@ same value everywhere the name appears.
 | `ALLOWED_ASSET_HOSTS` | no | Extra hostnames the renderer may fetch a logo or avatar from, comma-separated. The Supabase storage host and your own `CDN_URL`, `DASHBOARD_URL` and `API_URL` are always allowed. |
 | `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY` | yes / yes / no | The assistant, embeddings, and document OCR. |
 | `COMPOSIO_API_KEY` | no | AI tool connectors. |
+| `EXA_API_KEY` | no | Exa web search. Only the health probe reads it; unset means that probe reports the integration as unconfigured. |
+| `COMPANY_ENRICH_API_KEY` | no | CompanyEnrich customer enrichment. Leave unset — the service refuses registration from Belgium, and every entry point is gated behind the key, so unset hides the feature rather than offering a button that only errors. |
+| `API_RATE_LIMIT`, `CHAT_RATE_LIMIT`, `MCP_API_RATE_LIMIT` | no | Requests per signed-in user per 10-minute window: the REST routes (default 1000), the AI chat route (default 100), and the MCP route (falls back to `API_RATE_LIMIT`). Worth setting deliberately once the API answers on a public domain. |
 | `PLAIN_API_KEY` | no | Plain support tickets; the API only probes it for health. |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI` | yes for Gmail inbox | The internal Google OAuth client with Gmail scopes (FF-1407); same values as the dashboard. |
 | `TRIGGER_SECRET_KEY` | yes | Trigger.dev project, production environment. |
@@ -255,6 +258,7 @@ Runtime environment:
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Jobs run unless set to `false`. They used to run only in Midday's own production environment. `SYNC_INSTITUTIONS_ENABLED` now gates a task with no cron, started from Settings → Admin, and `BANK_SYNC_SCHEDULER_ENABLED` gates one of each; `packages/jobs/README.md` lists what is scheduled and what is not. |
+| `MATCH_AUTO_ENABLED` | for automatic matching | Off unless exactly `true`. Attaches an invoice to its payment without asking when the match clears the team's calibrated threshold. Unset is **silent**: `resolveMatchType` never returns `auto_matched`, so every pair waits for a click and nothing says why. The matcher runs in the jobs, so this belongs in the Trigger.dev environment — setting it on the API changes nothing. |
 | `INVOICE_JOBS_DRY_RUN` | no | Off unless set. Makes the two recurring-invoice jobs log which invoices they would generate and who they would email, and send nothing. Worth one run before letting invoicing send for real. |
 | `INSIGHTS_ENABLED` | no | Weekly insight emails, off unless exactly `true`. No schedule is registered for the dispatcher, so this alone starts nothing. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
