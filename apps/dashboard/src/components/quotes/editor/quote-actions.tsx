@@ -5,6 +5,7 @@ import { Button } from "@midday/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -210,11 +211,11 @@ export function OutcomeMenu({
           <div className="space-y-6 p-4">
             <DialogHeader>
               <DialogTitle>Undo acceptance</DialogTitle>
+              <DialogDescription>
+                The quote goes back to open and the version back to sent. The
+                project in the tracker is left as it is.
+              </DialogDescription>
             </DialogHeader>
-            <p className="text-sm text-[#878787]">
-              The quote goes back to open and the version back to sent. The
-              project in the tracker is left as it is.
-            </p>
             <DialogFooter>
               <Button
                 type="button"
