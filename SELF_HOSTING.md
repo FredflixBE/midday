@@ -196,7 +196,7 @@ same value everywhere the name appears.
 | `DATABASE_URL` | yes | Supabase > Database > session pooler, port 5432. |
 | `DATABASE_SESSION_POOLER` | yes | Same value; used by drizzle-kit and the CI migrate job (as a repository secret). |
 | `DB_POOL_MAX` | no | Pool size outside development (default 10). |
-| `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel; the redirect URL points at the API. The API does not start without these. |
+| `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel. The redirect URL points at the **dashboard**, not the API — the callback is handled by `apps/dashboard/src/app/api/enablebanking/session/route.ts`, so the value is `<DASHBOARD_URL>/api/enablebanking/session`. Register that exact URL with Enable Banking too. The API does not start without these three. |
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | The address email is sent from, e.g. `Midday <midday@fredflix.be>`. Its domain must be verified with Resend or every message fails DKIM. Invoices go out under the team's name from this address. |
