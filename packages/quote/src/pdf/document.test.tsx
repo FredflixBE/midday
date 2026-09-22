@@ -498,6 +498,102 @@ describe("one scenario", () => {
       ]);
     });
 
+    // The letterhead is set line by line, so the document says what the
+    // lines are — and says nothing when the block is more than lines.
+    test("exposes the sender as lines, or not at all", () => {
+      const asLines = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          fromDetails: {
+            type: "doc",
+            content: [
+              line("Fredflix BV"),
+              line("Bosstraat 59"),
+              line("BTW BE0747902860"),
+            ],
+          },
+        }),
+      );
+      expect(asLines.fromLines).toEqual([
+        "Fredflix BV",
+        "Bosstraat 59",
+        "BTW BE0747902860",
+      ]);
+      const asDocument = quoteDocument(
+        input(content([scenario([item(DEVELOPMENT, 8)])]), {
+          fromDetails: {
+            type: "doc",
+            content: [
+              {
+                type: "heading",
+                attrs: { level: 2 },
+                content: [{ type: "text", text: "Fredflix" }],
+              },
+              line("Bosstraat 59"),
+            ],
+          },
+        }),
+      );
+      expect(asDocument.fromLines).toBeNull();
+      expect(asDocument.fromDetails?.content).toHaveLength(2);
+    });
+
+    // A business document names countries when it crosses a border, and
+    // not when it does not (FF-1679): the same `abroad` that adds the
+    // reverse-charge note. Both blocks, or neither.
+    describe("the country, at home and abroad", () => {
+      const customer = {
+        type: "doc",
+        content: [line("Customer NV"), line("Netherlands"), line("x@y.nl")],
+      };
+      const c = content([scenario([item(DEVELOPMENT, 8)])]);
+
+      test("at home, neither block names one", () => {
+        const doc = quoteDocument(
+          input(c, {
+            customerDetails: {
+              type: "doc",
+              content: [line("Customer NV"), line("Belgium"), line("x@y.be")],
+            },
+            customerCountry: "Belgium",
+          }),
+        );
+        expect(shape(doc.customerDetails)).toEqual([
+          ["paragraph", "Customer NV|x@y.be"],
+        ]);
+        expect(doc.fromLines).toEqual(["Sender BV"]);
+      });
+
+      test("abroad, both do — the sender's in the document's language", () => {
+        const en = quoteDocument(
+          input(c, {
+            customerDetails: customer,
+            customerCountry: "Netherlands",
+            customerCountryCode: "NL",
+          }),
+        );
+        expect(shape(en.customerDetails)).toEqual([
+          ["paragraph", "Customer NV|Netherlands|x@y.nl"],
+        ]);
+        expect(en.fromLines).toEqual(["Sender BV", "Belgium"]);
+        const nl = quoteDocument(
+          input(c, {
+            customerDetails: customer,
+            customerCountry: "Netherlands",
+            customerCountryCode: "NL",
+            language: "nl",
+          }),
+        );
+        expect(nl.fromLines).toEqual(["Sender BV", "België"]);
+      });
+
+      test("a country the block does not name is not invented at home", () => {
+        const doc = quoteDocument(input(c, { customerCountry: "Belgium" }));
+        expect(shape(doc.customerDetails)).toEqual([
+          ["paragraph", "Customer NV"],
+        ]);
+      });
+    });
+
     test("leaves a single line as it is", () => {
       const doc = quoteDocument(
         input(content([scenario([item(DEVELOPMENT, 8)])]), {
