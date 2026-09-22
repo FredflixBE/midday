@@ -289,6 +289,8 @@ export const mocks = {
   getQuotePdfInput: mock(() => null) as MockFn,
   // Acceptance and the PDF kept when a version is sent (FF-1615)
   acceptQuoteVersion: mock(() => ({})) as MockFn,
+  // Taking a recorded acceptance back (FF-1636)
+  undoQuoteAcceptance: mock(() => ({})) as MockFn,
   // General terms versions (FF-1616)
   listQuoteTerms: mock(() => []) as MockFn,
   addQuoteTerms: mock(() => ({})) as MockFn,
@@ -993,6 +995,7 @@ const dbQueriesMock = new Proxy(
     setQuoteOutcome: mocks.setQuoteOutcome,
     getQuotePdfInput: mocks.getQuotePdfInput,
     acceptQuoteVersion: mocks.acceptQuoteVersion,
+    undoQuoteAcceptance: mocks.undoQuoteAcceptance,
     listQuoteTerms: mocks.listQuoteTerms,
     addQuoteTerms: mocks.addQuoteTerms,
     deleteQuoteTerms: mocks.deleteQuoteTerms,

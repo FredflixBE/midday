@@ -8,6 +8,7 @@ import {
   quoteTermsIdSchema,
   reviseQuoteSchema,
   setQuoteOutcomeSchema,
+  undoQuoteAcceptanceSchema,
   updateQuoteDraftSchema,
   updateQuoteSettingsSchema,
 } from "@api/schemas/quotes";
@@ -27,6 +28,7 @@ import {
   QuoteInputError,
   reviseQuote,
   setQuoteOutcome,
+  undoQuoteAcceptance,
   updateQuoteDraft,
   updateQuoteSettings,
 } from "@midday/db/queries";
@@ -147,6 +149,21 @@ export const quotesRouter = createTRPCRouter({
           teamId: teamId!,
           storePdf: storeQuotePdf(teamId!, input.versionId),
         }).catch(asUserError),
+      );
+    }),
+
+  /**
+   * The answer was not theirs to give, or was recorded by mistake (FF-1636):
+   * the version goes back to sent and the quote to open. The tracker project
+   * and the stored PDF are left standing.
+   */
+  undoAcceptance: protectedProcedure
+    .input(undoQuoteAcceptanceSchema)
+    .mutation(async ({ input, ctx: { db, teamId } }) => {
+      return found(
+        await undoQuoteAcceptance(db, { ...input, teamId: teamId! }).catch(
+          asUserError,
+        ),
       );
     }),
 
