@@ -58,6 +58,18 @@ export const getTeamById = async (db: Database, id: string) => {
       exportSettings: teams.exportSettings,
       stripeAccountId: teams.stripeAccountId,
       stripeConnectStatus: teams.stripeConnectStatus,
+      // The business's own identity (FF-1641), which invoices and quotes
+      // both print. Held on the team so there is one of it.
+      legalName: teams.legalName,
+      legalForm: teams.legalForm,
+      addressLine1: teams.addressLine1,
+      addressLine2: teams.addressLine2,
+      zip: teams.zip,
+      city: teams.city,
+      enterpriseNumber: teams.enterpriseNumber,
+      rprCourt: teams.rprCourt,
+      bankIban: teams.bankIban,
+      bankBic: teams.bankBic,
     })
     .from(teams)
     .where(eq(teams.id, id));
@@ -131,6 +143,18 @@ export const updateTeamById = async (
       baseCurrency: teams.baseCurrency,
       countryCode: teams.countryCode,
       fiscalYearStartMonth: teams.fiscalYearStartMonth,
+      // The business's own identity (FF-1641), which invoices and quotes
+      // both print. Held on the team so there is one of it.
+      legalName: teams.legalName,
+      legalForm: teams.legalForm,
+      addressLine1: teams.addressLine1,
+      addressLine2: teams.addressLine2,
+      zip: teams.zip,
+      city: teams.city,
+      enterpriseNumber: teams.enterpriseNumber,
+      rprCourt: teams.rprCourt,
+      bankIban: teams.bankIban,
+      bankBic: teams.bankBic,
     });
 
   return result;

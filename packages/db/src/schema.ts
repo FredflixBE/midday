@@ -2379,6 +2379,23 @@ export const teams = pgTable(
     stripeConnectStatus: text("stripe_connect_status"),
     companyType: text("company_type"),
     heardAbout: text("heard_about"),
+    // The business's own identity (FF-1641), as fields rather than the free
+    // text of an invoice template's From box. Everything a Belgian company
+    // must state on what it sends out — WVV art. 2:20 for the name, legal
+    // form, registered office, enterprise number and the court of the RPR,
+    // and WER art. III.25 for a bank account — so that quotes and invoices
+    // read it from one place instead of each remembering to type it.
+    // `name` stays the display name; `legalName` is the registered one.
+    legalName: text("legal_name"),
+    legalForm: text("legal_form"),
+    addressLine1: text("address_line_1"),
+    addressLine2: text("address_line_2"),
+    city: text(),
+    zip: text(),
+    enterpriseNumber: text("enterprise_number"),
+    rprCourt: text("rpr_court"),
+    bankIban: text("bank_iban"),
+    bankBic: text("bank_bic"),
   },
   (table) => [
     unique("teams_inbox_id_key").on(table.inboxId),

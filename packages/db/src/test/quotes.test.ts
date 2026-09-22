@@ -44,6 +44,7 @@ import {
   invoiceTemplates,
   quotes,
   quoteVersions,
+  teams,
   trackerProjects,
 } from "../schema";
 import {
@@ -208,7 +209,7 @@ describe.skipIf(SKIP)("quotes", () => {
       );
     });
 
-    test("the customer and the sender are snapshotted", async () => {
+    test("the customer is snapshotted, and the sender is not yet", async () => {
       await db.insert(invoiceTemplates).values({
         teamId: TEAM_USD_ID,
         isDefault: true,
@@ -227,7 +228,10 @@ describe.skipIf(SKIP)("quotes", () => {
         "Example Customer",
       );
       expect(JSON.stringify(draft.customerDetails)).toContain("9000 Ghent");
-      expect(JSON.stringify(draft.fromDetails)).toContain("Us");
+      // FF-1641: the sender is frozen at sending, not here. Snapshotting it
+      // at creation is what left a quote started before the details were
+      // filled in with an empty From that revising could not put right.
+      expect(draft.fromDetails).toBeNull();
     });
 
     test("another team's customer is not found", async () => {
@@ -968,7 +972,6 @@ describe.skipIf(SKIP)("quotes", () => {
         paymentDetails: { type: "doc", content: [] },
       });
       expect(input!.customerDetails).toEqual(draft.customerDetails);
-      expect(input!.fromDetails).toEqual(draft.fromDetails);
       expect(total(input)).toBe(100000);
     });
 
@@ -1014,6 +1017,123 @@ describe.skipIf(SKIP)("quotes", () => {
           versionId: draft.id,
         }),
       ).toBeNull();
+    });
+
+    // FF-1641. The From block used to be snapshotted when the quote was
+    // created, so OFF-0004 read "Frederik Noels" and nothing else — no
+    // address, no legal form, no enterprise number, no RPR, no bank account
+    // — and filling any of it in afterwards changed neither that quote nor a
+    // revision of it. A draft now reads it live; sending is what freezes it.
+    describe("the sender on a quote", () => {
+      const identity = {
+        legalName: "Fredflix",
+        legalForm: "BV",
+        addressLine1: "Voorbeeldstraat 1",
+        zip: "2000",
+        city: "Antwerpen",
+        enterpriseNumber: "0123.456.789",
+        rprCourt: "Antwerpen, afdeling Antwerpen",
+        bankIban: "BE68 5390 0754 7034",
+      };
+
+      const senderOf = async (versionId: string) =>
+        JSON.stringify(
+          (await getQuotePdfInput(db, { teamId: TEAM_USD_ID, versionId }))
+            ?.fromDetails,
+        );
+
+      test("a draft started before the details were filled in still shows them", async () => {
+        const { draft } = await draftWith((await productAt(100)).id);
+        expect(await senderOf(draft.id)).toBe("null");
+
+        await db.update(teams).set(identity).where(eq(teams.id, TEAM_USD_ID));
+
+        const sender = await senderOf(draft.id);
+        expect(sender).toContain("Fredflix BV");
+        expect(sender).toContain("Ondernemingsnummer 0123.456.789");
+        expect(sender).toContain("RPR Antwerpen, afdeling Antwerpen");
+        expect(sender).toContain("IBAN BE68 5390 0754 7034");
+      });
+
+      // The case that actually bit: OFF-0004 was started before any of this
+      // and carries the copy taken at creation. If that copy won, filling the
+      // details in would still leave the quote reading "Frederik Noels".
+      test("a draft carrying the old creation-time copy reads past it", async () => {
+        const { draft } = await draftWith((await productAt(100)).id);
+        await db
+          .update(quoteVersions)
+          .set({
+            fromDetails: {
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "Stale" }],
+                },
+              ],
+            },
+          })
+          .where(eq(quoteVersions.id, draft.id));
+        await db.update(teams).set(identity).where(eq(teams.id, TEAM_USD_ID));
+
+        const sender = await senderOf(draft.id);
+        expect(sender).toContain("Fredflix BV");
+        expect(sender).not.toContain("Stale");
+      });
+
+      test("sending freezes it, and moving office afterwards does not reach it", async () => {
+        const { draft } = await draftWith((await productAt(100)).id);
+        await db.update(teams).set(identity).where(eq(teams.id, TEAM_USD_ID));
+
+        await markQuoteVersionSent(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+        });
+        expect(await senderOf(draft.id)).toContain("Voorbeeldstraat 1");
+
+        await db
+          .update(teams)
+          .set({ addressLine1: "Nieuwe straat 9" })
+          .where(eq(teams.id, TEAM_USD_ID));
+
+        // What the client holds does not change under them.
+        expect(await senderOf(draft.id)).toContain("Voorbeeldstraat 1");
+      });
+
+      test("falls back to the invoice template's From box when nothing is filled in", async () => {
+        await db.insert(invoiceTemplates).values({
+          teamId: TEAM_USD_ID,
+          isDefault: true,
+          fromDetails: {
+            type: "doc",
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "Us" }] },
+            ],
+          },
+        });
+        const { draft } = await draftWith((await productAt(100)).id);
+
+        expect(await senderOf(draft.id)).toContain("Us");
+      });
+
+      test("the identity wins over the old From box once it is filled in", async () => {
+        await db.insert(invoiceTemplates).values({
+          teamId: TEAM_USD_ID,
+          isDefault: true,
+          fromDetails: {
+            type: "doc",
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "Us" }] },
+            ],
+          },
+        });
+        await db.update(teams).set(identity).where(eq(teams.id, TEAM_USD_ID));
+        const { draft } = await draftWith((await productAt(100)).id);
+
+        const sender = await senderOf(draft.id);
+        expect(sender).toContain("Fredflix BV");
+        expect(sender).not.toContain("Us");
+      });
     });
   });
 

@@ -23,6 +23,7 @@
     "./calculate": "./src/utils/calculate.ts",
     "./format-to-html": "./src/templates/html/format.tsx",
     "./content": "./src/utils/content.ts",
+    "./business-identity": "./src/utils/business-identity.ts",
     "./types": "./src/types.ts",
     "./utils": "./src/utils/transform.ts",
     "./currency": "./src/utils/currency.ts",
