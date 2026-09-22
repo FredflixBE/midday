@@ -632,6 +632,49 @@ describe("a block kind this build does not know", () => {
 });
 
 /**
+ * An empty block prints nothing but is not nothing: the room above it, and
+ * the height react-pdf gives an empty document, were enough to open a page
+ * and leave no ink on it. OFF-0004 ended on exactly that blank sheet, and
+ * the editor puts a trailing empty block in every quote to type into.
+ */
+describe("a text block with nothing in it", () => {
+  const base = content([scenario([item(DEVELOPMENT, 8)])]);
+  const withBlocks = (blocks: unknown[]) =>
+    quoteDocument(input({ ...base, blocks: blocks as typeof base.blocks }));
+
+  const empty = {
+    id: "trailing",
+    type: "text",
+    heading: null,
+    body: { type: "doc", content: [] },
+  };
+
+  test("is left out of the document", () => {
+    const doc = withBlocks([...base.blocks, empty]);
+    expect(doc.blocks.map((b) => b.id)).not.toContain("trailing");
+    expect(doc.blocks).toHaveLength(base.blocks.length);
+  });
+
+  test("is kept when it carries a heading, which does print", () => {
+    const doc = withBlocks([...base.blocks, { ...empty, heading: "Bijlage" }]);
+    expect(doc.blocks.map((b) => b.id)).toContain("trailing");
+  });
+
+  test("a block with text is never dropped, heading or not", () => {
+    const doc = withBlocks([
+      ...base.blocks,
+      { ...empty, body: paragraph("One line.") },
+    ]);
+    expect(doc.blocks.map((b) => b.id)).toContain("trailing");
+  });
+
+  test("a heading of only spaces is not a heading", () => {
+    const doc = withBlocks([...base.blocks, { ...empty, heading: "   " }]);
+    expect(doc.blocks.map((b) => b.id)).not.toContain("trailing");
+  });
+});
+
+/**
  * The room left at the foot of a page is the height of the tallest thing
  * that would not fit there (FF-1666). Every group in this document that
  * refuses to split is small, so that room is bounded — except a forced

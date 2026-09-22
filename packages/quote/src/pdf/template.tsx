@@ -44,6 +44,20 @@ import { fill } from "./labels";
  * and the page is full. Everything else here is a multiple of it.
  */
 const PRINT_BODY = 11;
+/**
+ * The general terms (FF-1674). Small print, as terms are set on the back of
+ * every contract: they are there to be complete and consulted, not read
+ * through, and at the document's own size they outrun the offer they belong
+ * to.
+ */
+const PRINT_FINE = 6.5;
+/**
+ * Tighter than the tight scale's 1.55, because there is a lot of it and it
+ * is set the width of the page. Measured on the real terms: at 7.5/1.55 they
+ * run to three pages, at 6.5/1.35 to two, and going smaller still buys no
+ * third page — so this is the smallest step that is worth taking.
+ */
+const FINE_LEADING = 1.35;
 const COLUMN = measureWidth(PRINT_BODY);
 
 const GREY = "#606060";
@@ -174,10 +188,11 @@ function TermsPage({
 }) {
   return (
     <Page size="A4" wrap style={PAGE}>
-      <SectionHead title={terms.heading} />
-      <View style={{ width: COLUMN }}>
-        <Rich doc={terms.body} prose />
-      </View>
+      <SectionHead title={terms.heading} body={PRINT_FINE} />
+      {/* No measure here, unlike every other block: running text takes a
+          measure so it can be read across, and small print takes the page
+          so there is less of it. */}
+      <Rich doc={terms.body} fine />
       <Footer doc={doc} />
     </Page>
   );
@@ -208,7 +223,21 @@ function Footer({ doc }: { doc: QuoteDocument }) {
   );
 }
 
-function SectionHead({ number, title }: { number?: string; title: string }) {
+function SectionHead({
+  number,
+  title,
+  body = PRINT_BODY,
+}: {
+  number?: string;
+  title: string;
+  /**
+   * The size the title is scaled from. The annex of terms passes its own,
+   * so its heading belongs to the small print under it rather than to the
+   * offer — a section title at the quote's size over 6.5pt clauses is the
+   * "this is still the quote" the annex is meant to avoid (FF-1674).
+   */
+  body?: number;
+}) {
   return (
     // Never split, and never the last thing on a page: a rule at the foot
     // of one page with its title at the head of the next is worse than no
@@ -233,7 +262,7 @@ function SectionHead({ number, title }: { number?: string; title: string }) {
       </View>
       <Text
         style={{
-          fontSize: blockHeadingSize(PRINT_BODY),
+          fontSize: blockHeadingSize(body),
           fontWeight: QUOTE_TYPESET.weight.blockHeading,
           lineHeight: QUOTE_TYPESET.leading.heading,
         }}
@@ -282,6 +311,7 @@ function Rich({
   doc,
   images,
   prose = false,
+  fine = false,
 }: {
   doc: EditorDoc | null;
   /** Given, the text's pictures are drawn from these bytes. */
@@ -298,9 +328,32 @@ function Rich({
    * drawn at before there were two.
    */
   prose?: boolean;
+  /**
+   * True sets this as small print (FF-1674): the general terms, which are
+   * twenty thousand characters of clauses nobody reads line by line. Set in
+   * the quote's own 11pt prose they ran to eight pages and read as though
+   * the offer were still going. They take the tight scale, a smaller body
+   * and the full width of the page — which is what terms look like
+   * everywhere, and what gets them into two pages.
+   */
+  fine?: boolean;
 }) {
   if (!doc) return null;
   const scale = prose ? QUOTE_TYPESET : TYPESET;
+  const size = fine ? PRINT_FINE : PRINT_BODY;
+  if (fine) {
+    return (
+      <View style={{ fontSize: size, lineHeight: FINE_LEADING }}>
+        {formatEditorContent(doc as unknown as InvoiceEditorDoc, {
+          imageOf: (path) => images?.[path] ?? null,
+          spacedParagraphs: true,
+          scale,
+          body: size,
+          headingWeight: scale.weight.heading,
+        })}
+      </View>
+    );
+  }
   return (
     // Sized here: react-pdf's default of 18 would set the line height.
     // Bounded here too: the page is 515pt wide and a line of text is not

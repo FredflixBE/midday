@@ -313,6 +313,16 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   const blocks: DocumentBlock[] = input.content.blocks.flatMap((block) => {
     switch (block.type) {
       case "text":
+        // A block with no heading and nothing written in it prints nothing
+        // — but it is not nothing: its own room above it, plus the height
+        // react-pdf gives an empty document, is enough to open a page and
+        // then put no ink on it. That is the blank sheet OFF-0004 ended on.
+        //
+        // The editor keeps a trailing empty block to type into, which is
+        // right on screen and has no business in the printed document.
+        if (!block.heading?.trim() && block.body.content.length === 0) {
+          return [];
+        }
         return {
           type: "text",
           id: block.id,
