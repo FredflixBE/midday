@@ -27,6 +27,7 @@
   },
   "exports": {
     "./client": "./src/client.ts",
+    "./script-guard": "./src/script-guard.ts",
     "./job-client": "./src/job-client.ts",
     "./worker-client": "./src/worker-client.ts",
     "./queries": "./src/queries/index.ts",

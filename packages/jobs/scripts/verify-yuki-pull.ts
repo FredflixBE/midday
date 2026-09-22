@@ -20,6 +20,7 @@
 
 import { closeDb, connectDb } from "@midday/db/client";
 import { getInboxRowsForYukiPull, getTeamIdsWithApp } from "@midday/db/queries";
+import { readOnlyScript } from "@midday/db/script-guard";
 import { YukiNotConnectedError } from "@midday/yuki";
 import { readYukiArchive } from "@midday/yuki/archive";
 import { fetchDocumentBinary } from "@midday/yuki/documents";
@@ -27,6 +28,10 @@ import { YUKI_APP_ID, yukiClientForTeam } from "@midday/yuki/team";
 import { DEFAULT_YUKI_PULL_CUTOFF } from "../src/schemas/yuki";
 import { syncedAttachmentFileName } from "../src/utils/inbox-sync";
 import { planYukiPull } from "../src/utils/yuki-pull";
+
+// This script reads and prints; it writes nothing. Declared here so the guard
+// lets it run against any environment without a confirmation.
+readOnlyScript();
 
 const short = (id: string) => `${id.slice(0, 8)}…`;
 

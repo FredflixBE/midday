@@ -36,6 +36,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { Client } from "pg";
+import { guardScriptConnection } from "../script-guard";
 import { applyPolicies } from "./apply-policies";
 import { applySqlFile, sslFor } from "./apply-sql";
 import { readJournal, stampMigrations } from "./migrations";
@@ -316,6 +317,10 @@ async function main(): Promise<number> {
     );
     return 2;
   }
+
+  // This one pushes with --force. Say where it is, and stop if that is
+  // production without anybody having said so.
+  guardScriptConnection(url);
 
   const client = new Client({ connectionString: url, ssl: sslFor(url) });
   await client.connect();

@@ -18,6 +18,7 @@
  */
 
 import { Client } from "pg";
+import { guardScriptConnection } from "../script-guard";
 import { sslFor } from "./apply-sql";
 import { readJournal, stampMigrations } from "./migrations";
 
@@ -42,6 +43,8 @@ async function main(): Promise<number> {
     console.error(`No migration named ${through} in the journal.`);
     return 2;
   }
+
+  guardScriptConnection(url);
 
   const client = new Client({ connectionString: url, ssl: sslFor(url) });
   await client.connect();

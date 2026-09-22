@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { guardScriptConnection, readOnlyScript } from "../script-guard";
 import {
   calculateAmountScore,
   calculateCurrencyScore,
@@ -6,6 +7,10 @@ import {
   calculateNameScore,
   scoreMatch,
 } from "../utils/transaction-matching";
+
+// This script reads and prints; it writes nothing. Declared here so the guard
+// lets it run against any environment without a confirmation.
+readOnlyScript();
 
 type EvalRecord = {
   suggestionId: string;
@@ -551,6 +556,8 @@ async function main() {
   if (!dbUrl) {
     throw new Error("DATABASE_URL is required");
   }
+
+  guardScriptConnection(dbUrl);
 
   const pool = new Pool({
     connectionString: dbUrl,

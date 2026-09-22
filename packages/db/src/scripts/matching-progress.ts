@@ -20,6 +20,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
+import { guardScriptConnection, readOnlyScript } from "../script-guard";
 import {
   calculateAmountScore,
   calculateCurrencyScore,
@@ -27,6 +28,10 @@ import {
   calculateNameScore,
   scoreMatch,
 } from "../utils/transaction-matching";
+
+// This script reads and prints; it writes nothing. Declared here so the guard
+// lets it run against any environment without a confirmation.
+readOnlyScript();
 
 // ─── ANSI helpers ───────────────────────────────────────
 
@@ -1421,6 +1426,8 @@ Env:
     console.error("Set DATABASE_URL");
     process.exit(1);
   }
+
+  guardScriptConnection(dbUrl);
 
   const pool = new Pool({
     connectionString: dbUrl,
