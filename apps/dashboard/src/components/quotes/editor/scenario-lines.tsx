@@ -373,9 +373,7 @@ function RowMenu({
           variant="ghost"
           size="icon"
           aria-label={`Options for ${rowLabel(line)}`}
-          // Out of sight until the row is wanted, the way a block's controls
-          // are in the document pane. Focus brings it back for the keyboard.
-          className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100"
+          className="h-7 w-7"
         >
           <MoreHorizontal size={14} />
         </Button>
