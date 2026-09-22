@@ -58,6 +58,15 @@ const PRINT_FINE = 6.5;
  * third page — so this is the smallest step that is worth taking.
  */
 const FINE_LEADING = 1.35;
+/**
+ * The sender's block at the head of the page (FF-1679): a letterhead, set
+ * small but to be read — these are the legal mentions, not small print. Nine
+ * points is the register an invoice's own notes take. The leading is the
+ * tight scale's own, as for any address here: the terms' 6.5/1.35 was tried
+ * and set BTW and IBAN over each other, and an invented 1.4 set the last
+ * line of the block 2pt closer than the rest.
+ */
+const LETTERHEAD_SIZE = PRINT_BODY * 0.82;
 const COLUMN = measureWidth(PRINT_BODY);
 
 const GREY = "#606060";
@@ -168,11 +177,35 @@ function Contents({
  * reason this is written rather than an uploaded PDF stapled to the back:
  * one document, one measure, one scale.
  */
-/** Every page of the document is set the same (FF-1666). */
+/**
+ * Every page of the document is set the same (FF-1666), in the margins a
+ * business document is expected to have (FF-1677).
+ *
+ * It was 36pt at the head and 40 at the sides, so the text began 12.7mm from
+ * the paper edge and ran to the foot: cramped down the page while 159pt of
+ * the width stood empty. DIN 5008 asks 25mm at the left of an A4 business
+ * document, and the classical canon asks more at the foot than the head and
+ * more at the outside than the inside — which is what the empty right of
+ * this page already is.
+ *
+ * Both sides 25mm. The right was left at 40 first, to keep width for the
+ * priced tables — but everything that runs to the content edge (the section
+ * rules, the tables, the option cards) then sat 71pt from the left of the
+ * page and 40 from the right, and Frederik saw it. What made the wider right
+ * affordable was measuring the priced columns: 133pt of slack, cut to 66,
+ * more than the 31pt this costs. The description column ends up 183.5pt,
+ * four points wider than before any of this.
+ *
+ * The prose keeps its 396pt measure, and the rules run 57pt past it rather
+ * than 88: the effect FF-1666 wanted, a little less exaggerated.
+ */
+const FRAME = { top: 71, bottom: 85, left: 71, right: 71 } as const;
+
 const PAGE = {
-  paddingTop: 36,
-  paddingBottom: 48,
-  paddingHorizontal: 40,
+  paddingTop: FRAME.top,
+  paddingBottom: FRAME.bottom,
+  paddingLeft: FRAME.left,
+  paddingRight: FRAME.right,
   fontFamily: "Inter",
   fontWeight: 400,
   color: "#000",
@@ -206,8 +239,11 @@ function Footer({ doc }: { doc: QuoteDocument }) {
       style={{
         position: "absolute",
         bottom: 20,
-        left: 40,
-        right: 40,
+        // The page's own edges, not numbers that happen to match them: the
+        // footer hung 31pt left of every other line the moment the frame
+        // moved (FF-1677).
+        left: FRAME.left,
+        right: FRAME.right,
         flexDirection: "row",
         justifyContent: "space-between",
       }}
@@ -302,16 +338,23 @@ const strong: Style = { fontSize: PRINT_BODY, fontWeight: 600 };
  * They were 64, 84 and 124pt, which fitted "€ 20.808,00" at 9pt and did not
  * at 11 — the rate ran straight into the amount. A column holding a number
  * has to be measured in the type it holds, not in points someone chose once.
+ *
+ * Measured again once the page took a proper left margin (FF-1677): 7, 9.5
+ * and 14 left 37, 49 and 46pt of slack against the widest thing each column
+ * holds, 133pt in all, which the description column needed. They were sized
+ * when an amount still carried its cents. What is left is 15 to 24pt over
+ * the widest ink — a digit's room in each half of a range.
  */
-const QUANTITY_WIDTH = PRINT_BODY * 7;
-const RATE_WIDTH = PRINT_BODY * 9.5;
-const AMOUNT_WIDTH = PRINT_BODY * 14;
+const QUANTITY_WIDTH = PRINT_BODY * 5.5;
+const RATE_WIDTH = PRINT_BODY * 7;
+const AMOUNT_WIDTH = PRINT_BODY * 12;
 
 function Rich({
   doc,
   images,
   prose = false,
   fine = false,
+  letterhead = false,
 }: {
   doc: EditorDoc | null;
   /** Given, the text's pictures are drawn from these bytes. */
@@ -337,6 +380,12 @@ function Rich({
    * everywhere, and what gets them into two pages.
    */
   fine?: boolean;
+  /**
+   * True sets the sender's block at the head of the page (FF-1679): the
+   * tight scale, a smaller body, and no measure — a letterhead is short
+   * lines, and its width is the column it stands in.
+   */
+  letterhead?: boolean;
 }) {
   if (!doc) return null;
   const scale = prose ? QUOTE_TYPESET : TYPESET;
@@ -360,7 +409,7 @@ function Rich({
     // (FF-1662) — the tables below take the page, the prose takes a measure.
     <View
       style={{
-        fontSize: PRINT_BODY,
+        fontSize: letterhead ? LETTERHEAD_SIZE : PRINT_BODY,
         lineHeight: scale.leading.body,
         maxWidth: measureWidth(PRINT_BODY),
       }}
@@ -372,7 +421,7 @@ function Rich({
         // lines is a question this change does not open.
         spacedParagraphs: true,
         scale,
-        body: PRINT_BODY,
+        body: letterhead ? LETTERHEAD_SIZE : PRINT_BODY,
         headingWeight: scale.weight.heading,
       })}
     </View>
@@ -752,71 +801,79 @@ export function QuotePdf({ doc }: { doc: QuoteDocument }) {
   return (
     <Document title={`${labels.quote} ${doc.number}`}>
       <Page size="A4" wrap style={PAGE}>
+        {/* The header speaks the document's own language (FF-1679).
+            One quiet band: the sender's legal mentions run along one line in
+            small grey type, the way they run along the foot of a letter, and
+            a rule closes the band the way a rule opens every section. Then
+            the number as the title's eyebrow — as "05" is a section's — the
+            title alone, and one strip of the same uppercase labels the
+            pricing table already uses: when, until when, and for whom.
+            Before this the sender and the customer stood as two towers of
+            small type at the page's corners with a void between, in three
+            type sizes, and the title floated under them anchored to
+            nothing. */}
         <View
           style={{
             flexDirection: "row",
+            alignItems: "flex-end",
             justifyContent: "space-between",
-            alignItems: "flex-start",
-            marginBottom: 24,
+            paddingBottom: 6,
+            borderBottomWidth: 0.5,
+            borderBottomColor: RULE,
           }}
         >
-          <View style={{ flex: 1, marginRight: 20 }}>
-            {/* The title leads and the number identifies (FF-1653). They
-                used to be the other way round — the number at 16pt and the
-                title at 11pt — which left a quote's own name smaller than
-                every section title inside it, and the number the same size
-                as one. The screen has read this way since FF-1652; this is
-                the print side of it. */}
-            <Text style={small}>
-              {labels.quote} · {doc.number}
-            </Text>
-            <Text
-              style={{
-                fontSize: documentTitleSize(PRINT_BODY),
-                fontWeight: QUOTE_TYPESET.weight.documentTitle,
-                lineHeight: QUOTE_TYPESET.leading.heading,
-                marginTop: 2,
-              }}
-            >
-              {doc.title}
-            </Text>
-            <View style={{ flexDirection: "row", gap: 16, marginTop: 8 }}>
-              {doc.meta.map((m) => (
-                <View key={m.label}>
-                  <Text style={small}>{m.label}</Text>
-                  <Text style={body}>{m.value}</Text>
-                </View>
-              ))}
-            </View>
+          <View style={{ flex: 1, marginRight: 16 }}>
+            {doc.fromLines ? (
+              <Text
+                style={{
+                  fontSize: LETTERHEAD_SIZE,
+                  lineHeight: TYPESET.leading.body,
+                  color: GREY,
+                }}
+              >
+                {doc.fromLines.join(" · ")}
+              </Text>
+            ) : (
+              <Rich doc={doc.fromDetails} letterhead />
+            )}
+            {doc.paymentDetails ? (
+              <View style={{ marginTop: 2 }}>
+                <Rich doc={doc.paymentDetails} letterhead />
+              </View>
+            ) : null}
           </View>
           {doc.logoUrl ? (
             <Image
               src={doc.logoUrl}
-              style={{ height: 60, maxWidth: 200, objectFit: "contain" }}
+              style={{ height: 28, maxWidth: 140, objectFit: "contain" }}
             />
           ) : null}
         </View>
 
-        {/* On the same two columns the document below stands on (FF-1666):
-            who it is from in the sidehead, who it is for at the head of the
-            text column. Before this the page had three different left edges
-            down it. */}
-        <View style={{ flexDirection: "row", marginBottom: 20 }}>
-          <View style={{ flex: 1, marginRight: 10 }}>
-            <Text style={{ ...small, marginBottom: 2 }}>{labels.from}</Text>
-            <Rich doc={doc.fromDetails} />
-            {/* The bank account belongs with the sender's legal details. */}
-            {doc.paymentDetails ? (
-              <View style={{ marginTop: 6 }}>
-                <Text style={{ ...small, marginBottom: 2 }}>
-                  {labels.paymentDetails}
-                </Text>
-                <Rich doc={doc.paymentDetails} />
-              </View>
-            ) : null}
-          </View>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={{ ...small, marginBottom: 2 }}>{labels.to}</Text>
+        <Text style={{ ...eyebrow, marginTop: 28 }}>
+          {labels.quote} · {doc.number}
+        </Text>
+        <Text
+          style={{
+            fontSize: documentTitleSize(PRINT_BODY),
+            fontWeight: QUOTE_TYPESET.weight.documentTitle,
+            lineHeight: QUOTE_TYPESET.leading.heading,
+            marginTop: 4,
+          }}
+        >
+          {doc.title}
+        </Text>
+
+        <View style={{ flexDirection: "row", marginTop: 16, marginBottom: 20 }}>
+          {doc.meta.map((m) => (
+            // Wide enough for a date at body size, with air after it.
+            <View key={m.label} style={{ width: 124, marginRight: 12 }}>
+              <Text style={{ ...eyebrow, marginBottom: 3 }}>{m.label}</Text>
+              <Text style={body}>{m.value}</Text>
+            </View>
+          ))}
+          <View style={{ flex: 1 }}>
+            <Text style={{ ...eyebrow, marginBottom: 3 }}>{labels.to}</Text>
             <Rich doc={doc.customerDetails} />
           </View>
         </View>

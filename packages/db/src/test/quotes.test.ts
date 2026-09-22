@@ -1059,7 +1059,7 @@ describe.skipIf(SKIP)("quotes", () => {
 
         const sender = await senderOf(draft.id);
         expect(sender).toContain("Fredflix BV");
-        expect(sender).toContain("Ondernemingsnummer 0123.456.789");
+        expect(sender).toContain("0123.456.789");
         expect(sender).toContain("RPR Antwerpen, afdeling Antwerpen");
         expect(sender).toContain("IBAN BE68 5390 0754 7034");
       });

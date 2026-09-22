@@ -1,4 +1,5 @@
 import type { ImageSource } from "@midday/invoice/templates/pdf/format";
+import type { EditorNode } from "@midday/invoice/types";
 import { compareScenarios } from "../compare";
 import type {
   EditorDoc,
@@ -51,6 +52,11 @@ export type QuotePdfInput = {
   /** Two-letter codes; a customer abroad gets the reverse-charge note. */
   customerCountryCode: string | null;
   teamCountryCode: string | null;
+  /**
+   * The customer's country as it was stored — a name, "Belgium" — so the
+   * line saying it can be told apart from the rest of the block (FF-1679).
+   */
+  customerCountry?: string | null;
   /** The team's own labels, `quote_settings.labels`. */
   labels?: Record<string, Record<string, string>> | null;
   logoUrl?: string | null;
@@ -157,6 +163,16 @@ export type QuoteDocument = {
   images: Record<string, ImageSource>;
   logoUrl: string | null;
   fromDetails: EditorDoc | null;
+  /**
+   * The sender's block as plain lines, when it is nothing but lines
+   * (FF-1679) — which `asAddress` has just made sure of for any block that
+   * was. The letterhead prints each as its own line of text rather than as
+   * one paragraph broken by `hardBreak`: at 9pt react-pdf set the last line
+   * of such a paragraph 2pt closer than the rest, at 11pt it did not, and
+   * a letterhead is short lines the template can simply set. Null when the
+   * block is a document — a heading, a list — and must be drawn as one.
+   */
+  fromLines: string[] | null;
   customerDetails: EditorDoc | null;
   paymentDetails: EditorDoc | null;
   title: string;
@@ -179,6 +195,109 @@ const LOCALES: Record<QuoteLanguage, string> = { nl: "nl-BE", en: "en-GB" };
 
 /** Where a team with no country set sends from. */
 const HOME_COUNTRY = "BE";
+
+/**
+ * An address as one block (FF-1679).
+ *
+ * The From and To blocks arrive as one paragraph per line — the customer
+ * snapshot writes them that way, and so did the business identity until
+ * FF-1677. The renderer already treats an address as a list of lines and
+ * gives its paragraphs no room above, but each paragraph is still its own
+ * box, and the boxes come to 23.1pt a line where one paragraph broken by
+ * `hardBreak` comes to 17. So a block that is nothing but single-line
+ * paragraphs is folded into one paragraph here, at the seam every version
+ * old or new passes through — a block already stored on a sent version is
+ * set as tightly as one made today.
+ *
+ * Only that shape is touched. A heading, a list, a paragraph that already
+ * runs to more than one line: that is a document, and stays one.
+ */
+/** A country's name in the document's language, from its two-letter code. */
+function regionName(code: string, locale: string): string {
+  try {
+    return new Intl.DisplayNames([locale], { type: "region" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+/** One paragraph, its lines separated by breaks — the address shape. */
+function docOfLines(lines: string[]): EditorDoc {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: lines.flatMap((text, i) =>
+          i === 0
+            ? [{ type: "text", text }]
+            : [{ type: "hardBreak" }, { type: "text", text }],
+        ),
+      },
+    ],
+  };
+}
+
+/** The block without the line that says exactly this; a document is left alone. */
+function withoutLine(
+  doc: EditorDoc | null,
+  text: string | null | undefined,
+): EditorDoc | null {
+  const drop = text?.trim().toLowerCase();
+  const lines = drop ? linesOf(doc) : null;
+  if (!lines) return doc;
+  const kept = lines.filter((line) => line.trim().toLowerCase() !== drop);
+  return kept.length === lines.length ? doc : docOfLines(kept);
+}
+
+/** The block with this line added at its end; a document is left alone. */
+function withLine(doc: EditorDoc | null, text: string): EditorDoc | null {
+  const lines = linesOf(doc);
+  return lines ? docOfLines([...lines, text]) : doc;
+}
+
+/** The lines of a block that is one paragraph of text and breaks; else null. */
+function linesOf(doc: EditorDoc | null): string[] | null {
+  const only = doc?.content?.length === 1 ? doc.content[0] : null;
+  if (!only || only.type !== "paragraph" || !Array.isArray(only.content)) {
+    return null;
+  }
+  const lines: string[] = [""];
+  for (const node of only.content as EditorNode[]) {
+    if (node.type === "hardBreak") lines.push("");
+    else if (node.type === "text") lines[lines.length - 1] += node.text ?? "";
+    else return null;
+  }
+  return lines.filter((line) => line.trim() !== "");
+}
+
+function asAddress(doc: EditorDoc | null): EditorDoc | null {
+  if (!doc?.content?.length) return doc;
+  // The schema keeps a node loose (`Record<string, unknown>`); its children
+  // are editor nodes when there are any, which is the one thing read here.
+  const children = (node: Record<string, unknown>): EditorNode[] =>
+    Array.isArray(node.content) ? (node.content as EditorNode[]) : [];
+  const lines: EditorNode[][] = [];
+  for (const node of doc.content) {
+    if (node.type !== "paragraph") return doc;
+    const inline = children(node);
+    if (inline.some((n) => n.type !== "text")) return doc;
+    if (inline.length === 0) continue; // an empty paragraph is a blank line nobody meant
+    lines.push(inline);
+  }
+  if (lines.length < 2) return doc;
+  return {
+    ...doc,
+    content: [
+      {
+        type: "paragraph",
+        content: lines.flatMap((inline, i) =>
+          i === 0 ? inline : [{ type: "hardBreak" }, ...inline],
+        ),
+      },
+    ],
+  };
+}
 
 function asDoc(value: unknown): EditorDoc | null {
   const doc = value as EditorDoc | null | undefined;
@@ -358,15 +477,34 @@ export function quoteDocument(input: QuotePdfInput): QuoteDocument {
   const teamCountry = (input.teamCountryCode || HOME_COUNTRY).toUpperCase();
   const customerCountry = input.customerCountryCode?.toUpperCase();
   const abroad = Boolean(customerCountry) && customerCountry !== teamCountry;
+
+  /**
+   * The country, on both blocks or on neither (FF-1679). A business document
+   * names countries when it crosses a border and not when it does not: at
+   * home the sender's registered office is its postcode and town, and the
+   * customer's "Belgium" under a Belgian sender said nothing. Abroad, the
+   * customer's line stays and the sender gets one, in the document's
+   * language — the same `abroad` that adds the reverse-charge note.
+   */
+  const customer = asAddress(asDoc(input.customerDetails));
+  const sender = abroad
+    ? withLine(
+        asAddress(asDoc(input.fromDetails)),
+        regionName(teamCountry, LOCALES[input.language]),
+      )
+    : asAddress(asDoc(input.fromDetails));
   const termsBody = asWrittenDoc(input.termsContent);
 
   return {
     labels,
     logoUrl: input.logoUrl ?? null,
     images: input.images ?? {},
-    fromDetails: asDoc(input.fromDetails),
-    customerDetails: asDoc(input.customerDetails),
-    paymentDetails: asDoc(input.paymentDetails),
+    fromDetails: sender,
+    fromLines: linesOf(sender),
+    customerDetails: abroad
+      ? customer
+      : withoutLine(customer, input.customerCountry),
+    paymentDetails: asAddress(asDoc(input.paymentDetails)),
     title: input.title,
     number: formatQuoteVersion(input.quoteNumber, input.version),
     meta: [

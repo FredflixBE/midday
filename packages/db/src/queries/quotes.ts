@@ -1360,7 +1360,10 @@ export async function getQuotePdfInput(
 
   const [customer] = quote.customerId
     ? await db
-        .select({ countryCode: customers.countryCode })
+        .select({
+          countryCode: customers.countryCode,
+          country: customers.country,
+        })
         .from(customers)
         .where(eq(customers.id, quote.customerId))
     : [];
@@ -1420,6 +1423,7 @@ export async function getQuotePdfInput(
     pricing,
     productNames: await productNamesFor(db, params.teamId),
     customerCountryCode: customer?.countryCode ?? null,
+    customerCountry: customer?.country ?? null,
     teamCountryCode: team?.countryCode ?? null,
     labels: settings.labels,
     logoUrl: template?.logoUrl ?? null,

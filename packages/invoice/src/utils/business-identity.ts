@@ -72,12 +72,29 @@ export function businessIdentityDoc(
     return text ? `${label} ${text}` : null;
   };
 
+  /**
+   * The number, and the one label the law does ask for (FF-1679).
+   *
+   * Not "Ondernemingsnummer": the FOD Economie guideline says the law never
+   * required that word (FF-1677 dropped it). But it does say a VAT-liable
+   * business writes "BTW BE" before its number — and a number that carries
+   * the BE country code *is* a VAT identification number; the KBO number
+   * itself has none. So a `BE…` number is labelled BTW, and a bare number
+   * stays bare. That reads the form the team stored, not the team's tax
+   * status, which is FF-1678's to record properly.
+   */
+  const vatLabelled = (value?: string | null) => {
+    const text = said(value);
+    if (!text) return null;
+    return /^BE\s?\d/i.test(text) ? `BTW ${text}` : text;
+  };
+
   const lines = [
     name || null,
     said(identity.addressLine1),
     said(identity.addressLine2),
     town || null,
-    labelled("Ondernemingsnummer", identity.enterpriseNumber),
+    vatLabelled(identity.enterpriseNumber),
     labelled("RPR", identity.rprCourt),
     labelled("IBAN", identity.bankIban),
     labelled("BIC", identity.bankBic),
@@ -85,11 +102,24 @@ export function businessIdentityDoc(
 
   if (lines.length === 0) return null;
 
+  /**
+   * One paragraph, its lines separated by breaks (FF-1677).
+   *
+   * A paragraph each gave every address line paragraph spacing — 23.1pt
+   * against the 19.2pt between two lines of body text, so the block that
+   * should be the tightest thing on the page was the loosest. An address is
+   * one thing said on several lines, and that is what a break is for.
+   */
   return {
     type: "doc",
-    content: lines.map((text) => ({
-      type: "paragraph",
-      content: [{ type: "text", text }],
-    })),
+    content: [
+      {
+        type: "paragraph",
+        content: lines.flatMap((text, i) => [
+          ...(i === 0 ? [] : [{ type: "hardBreak" as const }]),
+          { type: "text" as const, text },
+        ]),
+      },
+    ],
   };
 }
