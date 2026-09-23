@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the dashboard may do inside the desktop shell. remote.urls must list every host a shipped build loads (see MIDDAY_APP_URL in src/lib.rs), or the webview cannot reach the window, event and save-file IPC. Files: the page may only open and write a path the user picked in a save dialog, which grants that one path. localhost lives in dev.json, which only tauri.dev.conf.json enables. Keep dev.json's permissions identical to these.",
+  "description": "What the dashboard may do inside the shipped desktop shell. remote.urls must list every host the shell loads (see MIDDAY_APP_URL in src/lib.rs), or the page gets no IPC. dev.json must keep the same permissions.",
   "windows": ["main", "search"],
   "permissions": [
     "core:default",

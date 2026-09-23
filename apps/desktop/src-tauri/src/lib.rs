@@ -609,28 +609,6 @@ mod tests {
         assert_eq!(deep_link_path("HQ://inbox", &schemes), Some("inbox"));
     }
 
-    fn capability(json: &str) -> serde_json::Value {
-        serde_json::from_str(json).expect("capability file is valid JSON")
-    }
-
-    #[test]
-    fn a_shipped_build_trusts_no_localhost() {
-        let default = capability(include_str!("../capabilities/default.json"));
-        let urls = default["remote"]["urls"].as_array().unwrap();
-        assert!(!urls.is_empty());
-        assert!(urls.iter().all(|url| !url.as_str().unwrap().contains("localhost")));
-    }
-
-    #[test]
-    fn the_dev_capability_grants_localhost_exactly_what_production_gets() {
-        let default = capability(include_str!("../capabilities/default.json"));
-        let dev = capability(include_str!("../capabilities/dev.json"));
-        for key in ["permissions", "windows", "platforms"] {
-            assert_eq!(dev[key], default[key], "dev.json {key} differ from default.json");
-        }
-        assert_eq!(dev["remote"]["urls"], serde_json::json!(["http://localhost:3001/**"]));
-    }
-
     #[test]
     fn ignores_every_other_scheme() {
         let schemes = vec!["hq".to_string()];
@@ -638,5 +616,32 @@ mod tests {
         assert_eq!(deep_link_path("hq-dev://transactions", &schemes), None);
         assert_eq!(deep_link_path("https://midday.fredflix.be", &schemes), None);
         assert_eq!(deep_link_path("not a url", &schemes), None);
+    }
+
+    fn parse_json(json: &str) -> serde_json::Value {
+        serde_json::from_str(json).expect("valid JSON")
+    }
+
+    #[test]
+    fn a_shipped_build_trusts_no_localhost() {
+        // Without an explicit list Tauri enables every file in capabilities/,
+        // dev.json included, so this list is what keeps localhost out.
+        let config = parse_json(include_str!("../tauri.conf.json"));
+        assert_eq!(config["app"]["security"]["capabilities"], json!(["default"]));
+
+        let default = parse_json(include_str!("../capabilities/default.json"));
+        let urls = default["remote"]["urls"].as_array().unwrap();
+        assert!(!urls.is_empty());
+        assert!(urls.iter().all(|url| !url.as_str().unwrap().contains("localhost")));
+    }
+
+    #[test]
+    fn the_dev_capability_grants_localhost_exactly_what_production_gets() {
+        let default = parse_json(include_str!("../capabilities/default.json"));
+        let dev = parse_json(include_str!("../capabilities/dev.json"));
+        for key in ["permissions", "windows", "platforms"] {
+            assert_eq!(dev[key], default[key], "dev.json {key} differ from default.json");
+        }
+        assert_eq!(dev["remote"]["urls"], json!(["http://localhost:3001/**"]));
     }
 }
