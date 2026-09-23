@@ -26,9 +26,8 @@ GitHub Release tagged `desktop-v<version>`. It runs when a push to `main` change
 dashboard change never starts it: the shell loads the live dashboard, so new
 features reach desktop users through the ordinary deploy. A pull request touching
 `apps/desktop/**`, or a manual run from any branch but `main`, builds both
-installers as run artifacts without releasing. Each release also carries a
-`Midday.app.tar.gz`, which the build action attaches on its own; the `.dmg` is the
-download.
+installers as run artifacts without releasing. Markdown changes under
+`apps/desktop/`, like this README, never start a run.
 
 The version is `major.minor` from `src-tauri/Cargo.toml`, with the workflow's run
 number as the patch (`0.5.<n>`). Bump `major.minor` there by hand; every release
