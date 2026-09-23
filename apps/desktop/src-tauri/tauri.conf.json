@@ -16,6 +16,7 @@
     "active": true,
     "targets": "all",
     "macOS": {
+      "signingIdentity": "-",
       "dmg": {
         "background": "./images/installer.png"
       }

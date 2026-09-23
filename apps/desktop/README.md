@@ -4,7 +4,32 @@ A Tauri shell around the web dashboard: the window loads the dashboard URL, and 
 Rust side adds a tray icon, a global shortcut with a search window, deep links and
 native downloads. The dashboard detects the shell through `@midday/desktop-client`.
 
-There is no auto-updater. You build the app yourself and install the result.
+## Download
+
+**https://github.com/FredflixBE/midday/releases/latest**: a universal `.dmg` for
+macOS (Apple Silicon and Intel) and a `-setup.exe` for Windows. That link points
+at the newest desktop build for as long as desktop releases are this repo's only
+releases.
+
+Neither installer is signed yet. On macOS the first launch is blocked: open
+System Settings → Privacy & Security and click **Open Anyway**. On Windows,
+SmartScreen says *Windows protected your PC*: click **More info** → **Run anyway**.
+
+There is no auto-updater yet (FF-1695): download the new release and install it
+over the old one.
+
+## Releases
+
+`.github/workflows/desktop-release.yml` builds both installers and publishes a
+GitHub Release tagged `desktop-v<version>`. It runs when a push to `main` changes
+`apps/desktop/**`, or by hand (Actions → Desktop release → Run workflow). A
+dashboard change never starts it: the shell loads the live dashboard, so new
+features reach desktop users through the ordinary deploy. A pull request touching
+`apps/desktop/**` builds both installers as run artifacts without releasing.
+
+The version is `major.minor` from `src-tauri/Cargo.toml`, with the workflow's run
+number as the patch (`0.5.<n>`). Bump `major.minor` there by hand; every release
+is higher than the last without a version-bump commit.
 
 ## Which dashboard it opens
 
@@ -39,7 +64,7 @@ The deep-link scheme is `hq` (`hq-dev` for the dev config). The dashboard's
 bun run tauri:dev
 ```
 
-## Building for the self-hosted dashboard
+## Building it yourself
 
 ```bash
 cd apps/desktop
@@ -47,8 +72,8 @@ MIDDAY_APP_URL=https://midday.fredflix.be bun run tauri:build
 ```
 
 The bundle lands in `src-tauri/target/release/bundle/` (a `.dmg` and a `.app`).
-Drag the `.app` into Applications.
+Drag the `.app` into Applications. It is ad-hoc signed, so macOS asks once, as
+above. Without `MIDDAY_APP_URL` the build opens `http://localhost:3001`.
 
-The build is not signed or notarised. On first launch macOS refuses to open it;
-right-click the app, choose **Open**, and confirm. After that it opens normally.
-Rebuild and reinstall the same way to update.
+If the `.dmg` step fails with `hdiutil: couldn't unmount … Resource busy`, a
+Finder window is holding the half-built image; run the build again.

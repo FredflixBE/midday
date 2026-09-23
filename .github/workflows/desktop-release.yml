@@ -1,0 +1,200 @@
+# Build the desktop app and publish it as a GitHub Release.
+#
+# The app is a thin Tauri shell around https://midday.fredflix.be. Dashboard
+# features reach desktop users through the ordinary Dokploy deploy, not through
+# a new binary, so a release is cut only when the shell itself changes: a push
+# to main that touches apps/desktop, or a run by hand. A release per push would
+# ship dozens of identical binaries, and once the updater exists (FF-1695) it
+# would ask every user to reinstall for nothing.
+#
+# A pull request that touches the same paths builds both installers and keeps
+# them as run artifacts for a week, without releasing anything. That is where a
+# Windows compile error shows up: nobody here builds on Windows by hand.
+#
+# Each release is tagged desktop-v<version> and carries a universal macOS .dmg
+# and a Windows NSIS -setup.exe. Neither is signed yet (FF-1691); the release
+# notes say how to open them anyway.
+name: Desktop release
+
+on:
+  push:
+    branches:
+      - main
+    # Only the shell. packages/desktop-client ships inside the dashboard bundle,
+    # not the binary. bun.lock is not watched either: apps/desktop's JS
+    # dependencies never reach the binary (the window loads the remote
+    # dashboard), and the one that shapes the build, the Tauri CLI, is not worth
+    # a release on its own; the next shell change picks it up.
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop-release.yml"
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop-release.yml"
+  # For the first release, and for re-running one by hand.
+  workflow_dispatch:
+
+# Never two releases at once, and never cancel one in flight: a half-published
+# release is worse than a slow queue. Pull requests only build, so a newer push
+# to one may cancel its older run.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('desktop-release-{0}', github.ref) || 'desktop-release' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # src-tauri/src/lib.rs bakes this in with option_env!. Without it the release
+  # opens http://localhost:3001.
+  MIDDAY_APP_URL: https://midday.fredflix.be
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the version
+        id: version
+        run: |
+          # major.minor are written by hand in Cargo.toml, which is where Tauri
+          # reads the app's version from. The patch is this workflow's run
+          # number, so every release is higher than the last without a
+          # version-bump commit, which the updater (FF-1695) depends on. Windows
+          # stores each part in 16 bits, so the patch must stay under 65536.
+          base=$(sed -n 's/^version = "\([0-9]*\.[0-9]*\)\.[0-9]*"$/\1/p' apps/desktop/src-tauri/Cargo.toml | head -n 1)
+          if [ -z "$base" ]; then
+            echo "::error title=No desktop version::Could not read major.minor from apps/desktop/src-tauri/Cargo.toml."
+            exit 1
+          fi
+          echo "version=$base.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "Desktop version: $base.${{ github.run_number }}"
+
+  draft:
+    name: Draft the release
+    if: github.event_name != 'pull_request'
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release-id: ${{ steps.draft.outputs.release-id }}
+    steps:
+      - name: Create a draft release
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          # A draft, so a failed build never leaves a public release with one
+          # installer missing. The tag is only created when it is published.
+          cat > notes.md <<EOF
+          The desktop app, version $VERSION. It opens https://midday.fredflix.be; new dashboard features arrive without a new download.
+
+          These builds are not signed yet, so both systems warn the first time.
+
+          **macOS** (Apple Silicon and Intel): open the \`.dmg\` and drag Midday into Applications. The first launch is blocked: open System Settings → Privacy & Security and click **Open Anyway**.
+
+          **Windows**: run the \`-setup.exe\`. When SmartScreen says *Windows protected your PC*, click **More info** → **Run anyway**.
+          EOF
+          id=$(gh api "repos/${{ github.repository }}/releases" -X POST \
+            -f tag_name="desktop-v$VERSION" \
+            -f target_commitish="$GITHUB_SHA" \
+            -f name="HQ desktop $VERSION" \
+            -F body=@notes.md \
+            -F draft=true \
+            --jq .id)
+          echo "release-id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: [version, draft]
+    # On a pull request the draft job is skipped, and the build still runs.
+    if: ${{ !cancelled() && needs.version.result == 'success' && needs.draft.result != 'failure' }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-latest
+            # One .dmg for Apple Silicon and Intel.
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin --bundles dmg
+          - name: Windows
+            runner: windows-latest
+            rust-targets: ""
+            # No MSI: WiX rejects a patch number above 65535, and an MSI adds
+            # nothing the NSIS installer lacks.
+            args: --bundles nsis
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/desktop/src-tauri -> target"
+
+      - name: Stamp the version
+        shell: bash
+        run: |
+          echo '{ "version": "${{ needs.version.outputs.version }}" }' > apps/desktop/src-tauri/tauri.release.conf.json
+
+      - name: Build
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          projectPath: apps/desktop
+          tauriScript: bun run tauri
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+          # Empty on a pull request, which builds without uploading anything.
+          releaseId: ${{ needs.draft.outputs.release-id }}
+
+      - name: Keep the installer
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}-${{ needs.version.outputs.version }}
+          path: |
+            apps/desktop/src-tauri/target/**/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/**/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish the release
+    needs: [version, draft, build]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check both installers are attached, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.draft.outputs.release-id }}
+        run: |
+          assets=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets" --jq '.[].name')
+          echo "$assets"
+          echo "$assets" | grep -q '\.dmg$' || { echo "::error title=No .dmg::The draft release has no macOS installer."; exit 1; }
+          echo "$assets" | grep -q -- '-setup\.exe$' || { echo "::error title=No .exe::The draft release has no Windows installer."; exit 1; }
+          # make_latest keeps github.com/FredflixBE/midday/releases/latest
+          # pointing at the newest desktop build.
+          gh api "repos/${{ github.repository }}/releases/$RELEASE_ID" -X PATCH \
+            -F draft=false \
+            -f make_latest=true \
+            --jq .html_url
