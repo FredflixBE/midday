@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "What the dashboard may do inside the shipped desktop shell. remote.urls must list every host the shell loads (see MIDDAY_APP_URL in src/lib.rs), or the page gets no IPC. dev.json must keep the same permissions.",
+  "identifier": "dev",
+  "description": "default.json's permissions for the local dashboard. Only tauri.dev.conf.json enables it, so a production build never trusts localhost.",
   "windows": ["main", "search"],
   "permissions": [
     "core:default",
@@ -29,7 +29,7 @@
     "fs:allow-write"
   ],
   "remote": {
-    "urls": ["https://midday.fredflix.be/**"]
+    "urls": ["http://localhost:3001/**"]
   },
   "platforms": ["macOS", "windows", "linux"]
 }

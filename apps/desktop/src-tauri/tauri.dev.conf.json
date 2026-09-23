@@ -1,6 +1,11 @@
 {
   "productName": "Midday Dev",
   "identifier": "be.fredflix.hq.dev",
+  "app": {
+    "security": {
+      "capabilities": ["default", "dev"]
+    }
+  },
   "bundle": {
     "icon": [
       "icons/dev/32x32.png",

@@ -12,9 +12,17 @@ The URL is baked in at build time from `MIDDAY_APP_URL` (default
 `http://localhost:3001`). A runtime `MIDDAY_APP_URL` overrides it for local testing.
 
 The host must also be listed under `remote.urls` in
-`src-tauri/capabilities/default.json`, otherwise the page loads but the tray,
-global shortcut and download IPC do not work. `localhost:3001` and
-`https://midday.fredflix.be` are listed; add your own host there if it differs.
+`src-tauri/capabilities/default.json`, otherwise the page loads but the window,
+event and save-file IPC do not work. Only `https://midday.fredflix.be` is listed;
+add your own host there if it differs. `localhost:3001` is trusted only by dev
+builds, through `capabilities/dev.json`, which `tauri.dev.conf.json` enables.
+The two files must grant the same permissions; a unit test checks it.
+
+Files: the page may open and write only a path the user picked in a save dialog.
+It has no upload plugin, no global-shortcut API and no other file commands; the
+global shortcut and deep links are handled in Rust. `core:default` still lets it
+use Tauri's core window, event, path, menu and tray APIs. The capabilities cover
+macOS, Windows and Linux.
 
 The deep-link scheme is `hq` (`hq-dev` for the dev config). The dashboard's
 `NEXT_PUBLIC_DESKTOP_SCHEME` must match the build you install.
