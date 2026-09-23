@@ -2,8 +2,6 @@ import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getDesktopScheme } from "./scheme";
 
-export { getDesktopScheme } from "./scheme";
-
 export function isDesktopApp() {
   return isTauri();
 }

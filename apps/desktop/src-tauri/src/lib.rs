@@ -278,7 +278,7 @@ fn configured_schemes(deep_link_config: Option<&serde_json::Value>) -> Vec<Strin
         .filter_map(|protocol| protocol.get("schemes")?.as_array())
         .flatten()
         .filter_map(|scheme| scheme.as_str())
-        .map(|scheme| scheme.to_ascii_lowercase())
+        .map(str::to_string)
         .collect()
 }
 

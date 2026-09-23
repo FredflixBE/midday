@@ -27,7 +27,7 @@ The deep-link scheme is `hq` (`hq-dev` for the dev config). The dashboard's
 ## Development
 
 ```bash
-# Loads http://localhost:3001 with the "Midday Dev" identifier and hq-dev scheme
+# Loads http://localhost:3001 as "Midday Dev" (be.fredflix.hq.dev) with the hq-dev scheme
 bun run tauri:dev
 ```
 
