@@ -28,16 +28,20 @@ on:
     paths:
       - "apps/desktop/**"
       - ".github/workflows/desktop-release.yml"
+      - ".github/actions/setup/**"
   pull_request:
     paths:
       - "apps/desktop/**"
       - ".github/workflows/desktop-release.yml"
-  # For the first release, and for re-running one by hand.
+      - ".github/actions/setup/**"
+  # For the first release, and for re-running one by hand. Only a run on main
+  # publishes; started from any other branch it just builds, like a pull request.
   workflow_dispatch:
 
 # Never two releases at once, and never cancel one in flight: a half-published
-# release is worse than a slow queue. Pull requests only build, so a newer push
-# to one may cancel its older run.
+# release is worse than a slow queue. (A run still waiting to start is replaced
+# by a newer one, which carries the newer shell anyway.) Pull requests only
+# build, so a newer push to one may cancel its older run.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('desktop-release-{0}', github.ref) || 'desktop-release' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -54,6 +58,7 @@ jobs:
   version:
     name: Version
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -77,9 +82,10 @@ jobs:
 
   draft:
     name: Draft the release
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: version
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     outputs:
@@ -114,10 +120,14 @@ jobs:
   build:
     name: Build (${{ matrix.name }})
     needs: [version, draft]
-    # On a pull request the draft job is skipped, and the build still runs.
+    # When nothing is released (a pull request, or a manual run off main) the
+    # draft job is skipped and the build still runs.
     if: ${{ !cancelled() && needs.version.result == 'success' && needs.draft.result != 'failure' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    # Write, to upload to the draft. Job permissions cannot depend on the event,
+    # so a same-repository pull request's build holds it too; a fork's is always
+    # read-only.
     permissions:
       contents: write
     strategy:
@@ -132,8 +142,7 @@ jobs:
           - name: Windows
             runner: windows-latest
             rust-targets: ""
-            # No MSI: WiX rejects a patch number above 65535, and an MSI adds
-            # nothing the NSIS installer lacks.
+            # No MSI: the NSIS installer is all a release needs.
             args: --bundles nsis
     steps:
       - uses: actions/checkout@v4
@@ -161,11 +170,11 @@ jobs:
           projectPath: apps/desktop
           tauriScript: bun run tauri
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
-          # Empty on a pull request, which builds without uploading anything.
+          # Empty when nothing is released: the build then uploads nothing.
           releaseId: ${{ needs.draft.outputs.release-id }}
 
       - name: Keep the installer
-        if: github.event_name == 'pull_request'
+        if: needs.draft.result == 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.name }}-${{ needs.version.outputs.version }}
@@ -178,8 +187,9 @@ jobs:
   publish:
     name: Publish the release
     needs: [version, draft, build]
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:

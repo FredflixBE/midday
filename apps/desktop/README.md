@@ -25,7 +25,10 @@ GitHub Release tagged `desktop-v<version>`. It runs when a push to `main` change
 `apps/desktop/**`, or by hand (Actions → Desktop release → Run workflow). A
 dashboard change never starts it: the shell loads the live dashboard, so new
 features reach desktop users through the ordinary deploy. A pull request touching
-`apps/desktop/**` builds both installers as run artifacts without releasing.
+`apps/desktop/**`, or a manual run from any branch but `main`, builds both
+installers as run artifacts without releasing. Each release also carries a
+`Midday.app.tar.gz`, which the build action attaches on its own; the `.dmg` is the
+download.
 
 The version is `major.minor` from `src-tauri/Cargo.toml`, with the workflow's run
 number as the patch (`0.5.<n>`). Bump `major.minor` there by hand; every release

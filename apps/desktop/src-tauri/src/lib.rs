@@ -192,7 +192,7 @@ async fn create_preloaded_search_window(
         true
     });
 
-    // Platform-specific styling
+    // macOS: hide the native title bar
     #[cfg(target_os = "macos")]
     let search_builder = search_builder
         .hidden_title(true)
@@ -534,9 +534,11 @@ pub fn run() {
                 Image::new_owned(rgba.into_raw(), width, height)
             };
 
-            // Create tray menu
+            // Create tray menu. "Open Midday" is the way back to a closed (hidden)
+            // main window where there is no Dock icon to click, as on Windows.
+            let open_item = MenuItem::with_id(app, "open", "Open Midday", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Midday", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&quit_item])?;
+            let tray_menu = Menu::with_items(app, &[&open_item, &quit_item])?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(tray_icon)
@@ -544,6 +546,12 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
                     println!("🔧 Tray menu event triggered: {:?}", event.id);
+                    if event.id == "open" {
+                        if let Some(main_window) = app.get_webview_window("main") {
+                            let _ = main_window.show();
+                            let _ = main_window.set_focus();
+                        }
+                    }
                     if event.id == "quit" {
                         app.exit(0);
                     }
