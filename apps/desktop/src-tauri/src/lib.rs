@@ -263,27 +263,51 @@ fn is_external_url(url: &str, app_url: &str) -> bool {
     false
 }
 
+/// The deep-link schemes this build registers: `plugins.deep-link.desktop` in
+/// tauri.conf.json (`hq`), or in tauri.dev.conf.json for dev builds (`hq-dev`).
+/// `desktop` is either one `{ "schemes": [...] }` object or a list of them.
+fn configured_schemes(deep_link_config: Option<&serde_json::Value>) -> Vec<String> {
+    let protocols = match deep_link_config.and_then(|config| config.get("desktop")) {
+        Some(serde_json::Value::Array(list)) => list.iter().collect(),
+        Some(one) => vec![one],
+        None => vec![],
+    };
+
+    protocols
+        .into_iter()
+        .filter_map(|protocol| protocol.get("schemes")?.as_array())
+        .flatten()
+        .filter_map(|scheme| scheme.as_str())
+        .map(|scheme| scheme.to_ascii_lowercase())
+        .collect()
+}
+
+/// The dashboard path a deep link points at, or `None` when the link uses a
+/// scheme this build does not own.
+fn deep_link_path<'a>(url: &'a str, schemes: &[String]) -> Option<&'a str> {
+    let (scheme, path) = url.split_once("://")?;
+    if !schemes.iter().any(|own| own.eq_ignore_ascii_case(scheme)) {
+        return None;
+    }
+    Some(path.trim_start_matches('/'))
+}
+
 fn handle_deep_link_event(app_handle: &tauri::AppHandle, urls: Vec<String>) {
+    let schemes = configured_schemes(app_handle.config().plugins.0.get("deep-link"));
+
     for url in &urls {
-        // Only handle midday schemes (midday://, midday-dev://, midday-staging://)
-        if let Some(idx) = url.find("://") {
-            let scheme = &url[..idx];
-            if !scheme.contains("midday") {
-                continue;
-            }
-            let path = &url[idx + 3..];
+        let Some(clean_path) = deep_link_path(url, &schemes) else {
+            println!("🔗 Ignoring deep link outside {:?}: {}", schemes, url);
+            continue;
+        };
 
-            // Remove any leading slashes
-            let clean_path = path.trim_start_matches('/');
-
-            // Get the main window and emit navigation event to frontend
-            if let Some(window) = app_handle.get_webview_window("main") {
-                // Emit event to frontend with just the path - frontend handles the full URL construction
-                if let Ok(_) = window.emit("deep-link-navigate", clean_path) {
-                    // Always show the window first, then bring it to front
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+        // Get the main window and emit navigation event to frontend
+        if let Some(window) = app_handle.get_webview_window("main") {
+            // Emit event to frontend with just the path - frontend handles the full URL construction
+            if let Ok(_) = window.emit("deep-link-navigate", clean_path) {
+                // Always show the window first, then bring it to front
+                let _ = window.show();
+                let _ = window.set_focus();
             }
         }
     }
@@ -550,4 +574,48 @@ pub fn run() {
             }
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn reads_schemes_from_a_single_protocol() {
+        let config = json!({ "desktop": { "schemes": ["hq"] } });
+        assert_eq!(configured_schemes(Some(&config)), vec!["hq"]);
+    }
+
+    #[test]
+    fn reads_schemes_from_a_list_of_protocols() {
+        let config = json!({ "desktop": [{ "schemes": ["hq"] }, { "schemes": ["hq-dev"] }] });
+        assert_eq!(configured_schemes(Some(&config)), vec!["hq", "hq-dev"]);
+    }
+
+    #[test]
+    fn no_config_means_no_schemes() {
+        assert!(configured_schemes(None).is_empty());
+        assert!(configured_schemes(Some(&json!({}))).is_empty());
+    }
+
+    #[test]
+    fn opens_the_path_of_an_own_scheme() {
+        let schemes = vec!["hq".to_string()];
+        assert_eq!(deep_link_path("hq://transactions", &schemes), Some("transactions"));
+        assert_eq!(
+            deep_link_path("hq:///settings/accounts?id=1&step=reconnect", &schemes),
+            Some("settings/accounts?id=1&step=reconnect")
+        );
+        assert_eq!(deep_link_path("HQ://inbox", &schemes), Some("inbox"));
+    }
+
+    #[test]
+    fn ignores_every_other_scheme() {
+        let schemes = vec!["hq".to_string()];
+        assert_eq!(deep_link_path("midday://transactions", &schemes), None);
+        assert_eq!(deep_link_path("hq-dev://transactions", &schemes), None);
+        assert_eq!(deep_link_path("https://midday.fredflix.be", &schemes), None);
+        assert_eq!(deep_link_path("not a url", &schemes), None);
+    }
 }

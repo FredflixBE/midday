@@ -16,7 +16,7 @@ The host must also be listed under `remote.urls` in
 global shortcut and download IPC do not work. `localhost:3001` and
 `https://midday.fredflix.be` are listed; add your own host there if it differs.
 
-The deep-link scheme is `midday` (`midday-dev` for the dev config). The dashboard's
+The deep-link scheme is `hq` (`hq-dev` for the dev config). The dashboard's
 `NEXT_PUBLIC_DESKTOP_SCHEME` must match the build you install.
 
 ## Prerequisites
@@ -27,7 +27,7 @@ The deep-link scheme is `midday` (`midday-dev` for the dev config). The dashboar
 ## Development
 
 ```bash
-# Loads http://localhost:3001 with the "Midday Dev" identifier and midday-dev scheme
+# Loads http://localhost:3001 with the "Midday Dev" identifier and hq-dev scheme
 bun run tauri:dev
 ```
 

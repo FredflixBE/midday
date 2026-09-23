@@ -1,3 +1,4 @@
+import { getDesktopScheme } from "@midday/desktop-client/scheme";
 import { getSession } from "@midday/supabase/cached-queries";
 import { updateBankConnection } from "@midday/supabase/mutations";
 import { createClient } from "@midday/supabase/server";
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (isDesktop === "true") {
-    const scheme = process.env.NEXT_PUBLIC_DESKTOP_SCHEME || "midday";
+    const scheme = getDesktopScheme();
     return NextResponse.redirect(
       `${scheme}://settings/accounts?id=${id}&step=reconnect`,
     );

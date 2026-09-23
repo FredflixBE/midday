@@ -12,6 +12,7 @@
   },
   "exports": {
     "./platform": "./src/platform.ts",
+    "./scheme": "./src/scheme.ts",
     "./deep-links": "./src/platform.ts",
     "./core": "./src/core.ts"
   }

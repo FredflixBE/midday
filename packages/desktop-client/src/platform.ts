@@ -1,27 +1,18 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getDesktopScheme } from "./scheme";
+
+export { getDesktopScheme } from "./scheme";
 
 export function isDesktopApp() {
   return isTauri();
 }
 
 /**
- * Returns the deep link scheme for the current environment.
- * Controlled by NEXT_PUBLIC_DESKTOP_SCHEME env var.
- *
- * - Production: "midday"
- * - Staging:    "midday-staging"
- * - Dev:        "midday-dev"
- */
-export function getDesktopScheme(): string {
-  return process.env.NEXT_PUBLIC_DESKTOP_SCHEME || "midday";
-}
-
-/**
  * Returns the deep link base URL (scheme + "://") for the current environment.
  *
  * @example
- * getDesktopSchemeUrl() // "midday://" in production, "midday-dev://" in dev
+ * getDesktopSchemeUrl() // "hq://" in production, "hq-dev://" in dev
  */
 export function getDesktopSchemeUrl(): string {
   return `${getDesktopScheme()}://`;
@@ -57,9 +48,9 @@ export async function listenForDeepLinks(handler: DeepLinkHandler) {
  * @example
  * ```typescript
  * // In production:
- * createDeepLink('dashboard');           // "midday://dashboard"
+ * createDeepLink('dashboard');           // "hq://dashboard"
  * // In dev:
- * createDeepLink('transactions/123');    // "midday-dev://transactions/123"
+ * createDeepLink('transactions/123');    // "hq-dev://transactions/123"
  * ```
  */
 export function createDeepLink(path: string): string {

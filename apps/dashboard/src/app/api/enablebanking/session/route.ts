@@ -1,3 +1,4 @@
+import { getDesktopScheme } from "@midday/desktop-client/scheme";
 import { getSession } from "@midday/supabase/cached-queries";
 import { sanitizeRedirectPath } from "@midday/utils/sanitize-redirect";
 import { type NextRequest, NextResponse } from "next/server";
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   const thirdSegment = stateParts[2];
 
   const isDesktop = type === "desktop";
-  const scheme = process.env.NEXT_PUBLIC_DESKTOP_SCHEME || "midday";
+  const scheme = getDesktopScheme();
   const redirectBase = isDesktop ? `${scheme}://` : origin;
 
   if (!code) {

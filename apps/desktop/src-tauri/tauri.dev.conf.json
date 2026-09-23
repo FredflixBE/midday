@@ -1,6 +1,6 @@
 {
   "productName": "Midday Dev",
-  "identifier": "ai.midday.app.dev",
+  "identifier": "be.fredflix.hq.dev",
   "bundle": {
     "icon": [
       "icons/dev/32x32.png",
@@ -13,7 +13,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["midday-dev"]
+        "schemes": ["hq-dev"]
       }
     }
   }
