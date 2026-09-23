@@ -230,7 +230,7 @@ Build arguments (inlined by `next build`; changing one needs a rebuild):
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | yes | `openssl rand -base64 32`. A build argument **and** a runtime variable, with the same value in both: Next encrypts server-action arguments with it at build and decrypts with it at runtime. |
 | `NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN` | no | Same value as the API's `INBOX_FORWARDING_DOMAIN`. Unset hides the forwarding address in the dashboard. |
 | `NEXT_PUBLIC_GOOGLE_API_KEY` | no | Google Maps key for address autocomplete. |
-| `NEXT_PUBLIC_DESKTOP_SCHEME` | no | Deep-link scheme of the desktop build, if you install one. Every reader falls back to `midday`, which is the production scheme; `midday-dev` matches `tauri:dev`. |
+| `NEXT_PUBLIC_DESKTOP_SCHEME` | no | Deep-link scheme of the desktop build, if you install one. Every reader falls back to `hq`, which is the production scheme; `hq-dev` matches `tauri:dev`. |
 
 There is deliberately no `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`. Stripe Connect invoice payments are not part of this fork, the payment sheet only renders for a team that has completed Stripe Connect onboarding, and a declared argument nobody passes is an empty string in the bundle rather than an error — so declaring it would only suggest it does something.
 
@@ -358,7 +358,7 @@ NEXT_PUBLIC_API_URL=https://api.midday.fredflix.be
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
 NEXT_PUBLIC_GOOGLE_API_KEY=<Maps key, or omit>
-NEXT_PUBLIC_DESKTOP_SCHEME=midday
+NEXT_PUBLIC_DESKTOP_SCHEME=hq
 NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<openssl rand -base64 32>
 ```
 

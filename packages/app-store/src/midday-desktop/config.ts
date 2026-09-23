@@ -13,7 +13,7 @@ export default {
 **Features:**
 - **Global search** — Press Shift+Alt+K to open quick search from anywhere on your Mac
 - **System tray** — Access Midday from your menu bar with a single click
-- **Deep links** — Open transactions, invoices, and reports directly via midday:// links
+- **Deep links** — Open transactions, invoices, and reports directly via hq:// links
 - **Auto updates** — Stays up to date automatically in the background
 
 **System requirements:** macOS`,
