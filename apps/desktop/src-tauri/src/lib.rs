@@ -322,7 +322,6 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![show_window])
         .setup(move |app| {
@@ -608,6 +607,28 @@ mod tests {
             Some("settings/accounts?id=1&step=reconnect")
         );
         assert_eq!(deep_link_path("HQ://inbox", &schemes), Some("inbox"));
+    }
+
+    fn capability(json: &str) -> serde_json::Value {
+        serde_json::from_str(json).expect("capability file is valid JSON")
+    }
+
+    #[test]
+    fn a_shipped_build_trusts_no_localhost() {
+        let default = capability(include_str!("../capabilities/default.json"));
+        let urls = default["remote"]["urls"].as_array().unwrap();
+        assert!(!urls.is_empty());
+        assert!(urls.iter().all(|url| !url.as_str().unwrap().contains("localhost")));
+    }
+
+    #[test]
+    fn the_dev_capability_grants_localhost_exactly_what_production_gets() {
+        let default = capability(include_str!("../capabilities/default.json"));
+        let dev = capability(include_str!("../capabilities/dev.json"));
+        for key in ["permissions", "windows", "platforms"] {
+            assert_eq!(dev[key], default[key], "dev.json {key} differ from default.json");
+        }
+        assert_eq!(dev["remote"]["urls"], serde_json::json!(["http://localhost:3001/**"]));
     }
 
     #[test]

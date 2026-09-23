@@ -4,17 +4,6 @@ export { getCurrentWindow, Window } from "@tauri-apps/api/window";
 export { openUrl } from "@tauri-apps/plugin-opener";
 
 /**
- * Download a file from a URL directly to the user's ~/Downloads folder.
- */
-export async function nativeDownload(url: string, filename: string) {
-  const { download } = await import("@tauri-apps/plugin-upload");
-  const { downloadDir } = await import("@tauri-apps/api/path");
-
-  const dir = await downloadDir();
-  await download(url, `${dir}/${filename}`);
-}
-
-/**
  * Write a Blob to a user-selected location via save dialog.
  */
 export async function nativeSaveFile(blob: Blob, filename: string) {
