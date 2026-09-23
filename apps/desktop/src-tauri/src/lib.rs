@@ -2,9 +2,10 @@ use serde_json;
 use std::env;
 use std::sync::{Arc, Mutex};
 use tauri::{
-    Emitter, Listener, Manager, PhysicalPosition, Position, TitleBarStyle, WebviewUrl,
-    WebviewWindowBuilder,
+    Emitter, Listener, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindowBuilder,
 };
+#[cfg(target_os = "macos")]
+use tauri::TitleBarStyle;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog;
 use tauri_plugin_process;
@@ -172,7 +173,7 @@ async fn create_preloaded_search_window(
     let search_window_label = "search";
     let search_url = format!("{}/desktop/search", app_url);
 
-    let mut search_builder = WebviewWindowBuilder::new(
+    let search_builder = WebviewWindowBuilder::new(
         app,
         search_window_label,
         WebviewUrl::External(tauri::Url::parse(&search_url)?),
@@ -191,8 +192,9 @@ async fn create_preloaded_search_window(
         true
     });
 
-    // Platform-specific styling
-    search_builder = search_builder
+    // macOS: hide the native title bar
+    #[cfg(target_os = "macos")]
+    let search_builder = search_builder
         .hidden_title(true)
         .title_bar_style(TitleBarStyle::Overlay);
 
@@ -411,12 +413,8 @@ pub fn run() {
             .inner_size(1450.0, 910.0)
             .min_inner_size(1450.0, 910.0)
             .user_agent("Mozilla/5.0 (compatible; Midday Desktop App)")
-            .decorations(false)
             .visible(false)
-            .transparent(true)
             .shadow(true)
-            .hidden_title(true)
-            .title_bar_style(TitleBarStyle::Overlay)
             .disable_drag_drop_handler()
             .on_download(|_window, _event| {
                 println!("Download triggered!");
@@ -446,7 +444,28 @@ pub fn run() {
                 true
             });
 
+            // On macOS the dashboard draws its own title bar and traffic lights over a
+            // borderless window. Elsewhere the window keeps the native title bar and
+            // buttons: the dashboard's chrome is macOS-only.
+            #[cfg(target_os = "macos")]
+            let win_builder = win_builder
+                .decorations(false)
+                .transparent(true)
+                .hidden_title(true)
+                .title_bar_style(TitleBarStyle::Overlay);
+
             let window = win_builder.build().unwrap();
+
+            // Closing the main window hides it, as the dashboard's own close button
+            // does, so the tray and the global shortcut can bring it back. Destroyed,
+            // it could not be recreated. On Windows this is the native close button.
+            let window_for_close = window.clone();
+            window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window_for_close.hide();
+                }
+            });
 
             // Listen for search window state events from the frontend
             let search_state_for_events = search_state.clone();
@@ -497,9 +516,13 @@ pub fn run() {
             // Don't preload search window immediately - create it on first use instead
             // This prevents interference with the login flow
 
-            // Set the default app menu to restore the Midday menu
-            let app_menu = Menu::default(app.handle())?;
-            app.set_menu(app_menu)?;
+            // Set the default app menu to restore the Midday menu. macOS only: on
+            // Windows and Linux an app menu becomes a menu bar inside every window.
+            #[cfg(target_os = "macos")]
+            {
+                let app_menu = Menu::default(app.handle())?;
+                app.set_menu(app_menu)?;
+            }
 
             // Setup simple system tray for search toggle only
             // Load custom tray icon
@@ -511,9 +534,11 @@ pub fn run() {
                 Image::new_owned(rgba.into_raw(), width, height)
             };
 
-            // Create tray menu
+            // Create tray menu. "Open Midday" is the way back to a closed (hidden)
+            // main window where there is no Dock icon to click, as on Windows.
+            let open_item = MenuItem::with_id(app, "open", "Open Midday", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Midday", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&quit_item])?;
+            let tray_menu = Menu::with_items(app, &[&open_item, &quit_item])?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(tray_icon)
@@ -521,6 +546,12 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
                     println!("🔧 Tray menu event triggered: {:?}", event.id);
+                    if event.id == "open" {
+                        if let Some(main_window) = app.get_webview_window("main") {
+                            let _ = main_window.show();
+                            let _ = main_window.set_focus();
+                        }
+                    }
                     if event.id == "quit" {
                         app.exit(0);
                     }
@@ -548,6 +579,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
         .run(|app_handle, event| match event {
+            #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => {
                 if let Some(main_window) = app_handle.get_webview_window("main") {
                     let _ = main_window.show();
