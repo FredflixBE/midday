@@ -294,6 +294,15 @@ fn deep_link_path<'a>(url: &'a str, schemes: &[String]) -> Option<&'a str> {
     Some(path.trim_start_matches('/'))
 }
 
+/// Brings the main window back from hidden or minimized and focuses it.
+fn bring_main_window_forward(app: &tauri::AppHandle) {
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.unminimize();
+        let _ = main_window.show();
+        let _ = main_window.set_focus();
+    }
+}
+
 /// Where the main window opens when a deep link launched the app: the link's
 /// path on the dashboard. `None` for a link this build does not own, or one that
 /// would lead off the dashboard's origin.
@@ -317,9 +326,7 @@ fn handle_deep_link_event(app_handle: &tauri::AppHandle, urls: Vec<String>) {
         if let Some(window) = app_handle.get_webview_window("main") {
             // Emit event to frontend with just the path - frontend handles the full URL construction
             if let Ok(_) = window.emit("deep-link-navigate", clean_path) {
-                // Always show the window first, then bring it to front
-                let _ = window.show();
-                let _ = window.set_focus();
+                bring_main_window_forward(app_handle);
             }
         }
     }
@@ -332,15 +339,13 @@ pub fn run() {
     let mut builder = tauri::Builder::default();
 
     // One copy of the app. On Windows and Linux every deep link (the sign-in
-    // callback included) starts a new process; this hands its URL to the running
-    // app's on_open_url and exits. It must be the first plugin registered.
+    // callback included) starts a new process; that process exits here, and the
+    // plugin's `deep-link` feature (Cargo.toml) passes its URL on to the running
+    // app's on_open_url. It must be the first plugin registered.
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(main_window) = app.get_webview_window("main") {
-                let _ = main_window.show();
-                let _ = main_window.set_focus();
-            }
+            bring_main_window_forward(app);
         }));
     }
 
@@ -577,10 +582,7 @@ pub fn run() {
                 .on_menu_event(|app, event| {
                     println!("🔧 Tray menu event triggered: {:?}", event.id);
                     if event.id == "open" {
-                        if let Some(main_window) = app.get_webview_window("main") {
-                            let _ = main_window.show();
-                            let _ = main_window.set_focus();
-                        }
+                        bring_main_window_forward(app);
                     }
                     if event.id == "quit" {
                         app.exit(0);
@@ -680,31 +682,34 @@ mod tests {
         assert_eq!(deep_link_path("not a url", &schemes), None);
     }
 
-    const APP: &str = "https://midday.fredflix.be";
+    const DASHBOARD: &str = "https://midday.fredflix.be";
 
-    fn start(url: &str) -> Option<String> {
-        deep_link_start_url(APP, url, &["hq".to_string()]).map(|url| url.to_string())
+    fn launch_page(url: &str) -> Option<String> {
+        deep_link_start_url(DASHBOARD, url, &["hq".to_string()]).map(|url| url.to_string())
     }
 
     #[test]
     fn a_launch_link_opens_its_page_on_the_dashboard() {
-        assert_eq!(start("hq://transactions").as_deref(), Some("https://midday.fredflix.be/transactions"));
-        assert_eq!(start("hq://").as_deref(), Some("https://midday.fredflix.be/"));
+        assert_eq!(launch_page("hq://transactions").as_deref(), Some("https://midday.fredflix.be/transactions"));
+        assert_eq!(launch_page("hq://").as_deref(), Some("https://midday.fredflix.be/"));
     }
 
     #[test]
     fn a_launch_link_keeps_the_sign_in_code() {
         assert_eq!(
-            start("hq://api/auth/callback?code=abc-123").as_deref(),
+            launch_page("hq://api/auth/callback?code=abc-123").as_deref(),
             Some("https://midday.fredflix.be/api/auth/callback?code=abc-123")
         );
     }
 
     #[test]
     fn a_launch_link_never_leaves_the_dashboard() {
-        assert_eq!(start("midday://transactions"), None);
+        assert_eq!(launch_page("midday://transactions"), None);
+        // The URL parser reads a backslash as a slash, so this one resolves to
+        // //evil.example/x, another host; only the origin check stops it.
+        assert_eq!(launch_page("hq://\\\\evil.example/x"), None);
         for escape in ["hq://\\\\evil.example/x", "hq:///\\evil.example/x", "hq://%2F%2Fevil.example/x"] {
-            if let Some(url) = start(escape) {
+            if let Some(url) = launch_page(escape) {
                 assert!(url.starts_with("https://midday.fredflix.be/"), "{escape} opened {url}");
             }
         }
