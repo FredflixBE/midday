@@ -294,6 +294,16 @@ fn deep_link_path<'a>(url: &'a str, schemes: &[String]) -> Option<&'a str> {
     Some(path.trim_start_matches('/'))
 }
 
+/// Where the main window opens when a deep link launched the app: the link's
+/// path on the dashboard. `None` for a link this build does not own, or one that
+/// would lead off the dashboard's origin.
+fn deep_link_start_url(app_url: &str, url: &str, schemes: &[String]) -> Option<tauri::Url> {
+    let path = deep_link_path(url, schemes)?;
+    let dashboard = tauri::Url::parse(app_url).ok()?;
+    let target = dashboard.join(&format!("/{path}")).ok()?;
+    (target.origin() == dashboard.origin()).then_some(target)
+}
+
 fn handle_deep_link_event(app_handle: &tauri::AppHandle, urls: Vec<String>) {
     let schemes = configured_schemes(app_handle.config().plugins.0.get("deep-link"));
 
@@ -319,7 +329,22 @@ fn handle_deep_link_event(app_handle: &tauri::AppHandle, urls: Vec<String>) {
 pub fn run() {
     let app_url = get_app_url();
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // One copy of the app. On Windows and Linux every deep link (the sign-in
+    // callback included) starts a new process; this hands its URL to the running
+    // app's on_open_url and exits. It must be the first plugin registered.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = main_window.show();
+                let _ = main_window.set_focus();
+            }
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
@@ -391,10 +416,15 @@ pub fn run() {
                 }
             }
 
-            // Log deep link URLs if the app was launched via a deep link
-            if let Ok(urls) = app_handle.deep_link().get_current() {
-                println!("🔗 Current deep link URLs on launch: {:?}", urls);
-            }
+            // A deep link that launched the app (e.g. the sign-in callback when the
+            // app was not running) opens its page; otherwise the dashboard home.
+            let launch_urls = app_handle.deep_link().get_current().ok().flatten().unwrap_or_default();
+            println!("🔗 Current deep link URLs on launch: {:?}", launch_urls);
+            let schemes = configured_schemes(app.config().plugins.0.get("deep-link"));
+            let start_url = launch_urls
+                .iter()
+                .find_map(|url| deep_link_start_url(&app_url_clone, url.as_str(), &schemes))
+                .unwrap_or_else(|| tauri::Url::parse(&app_url_clone).unwrap());
 
             // Handle deep link events
             app_handle.deep_link().on_open_url(move |event| {
@@ -407,7 +437,7 @@ pub fn run() {
             let win_builder = WebviewWindowBuilder::new(
                 app,
                 "main",
-                WebviewUrl::External(tauri::Url::parse(&app_url).unwrap()),
+                WebviewUrl::External(start_url),
             )
             .title("Midday")
             .inner_size(1450.0, 910.0)
@@ -648,6 +678,36 @@ mod tests {
         assert_eq!(deep_link_path("hq-dev://transactions", &schemes), None);
         assert_eq!(deep_link_path("https://midday.fredflix.be", &schemes), None);
         assert_eq!(deep_link_path("not a url", &schemes), None);
+    }
+
+    const APP: &str = "https://midday.fredflix.be";
+
+    fn start(url: &str) -> Option<String> {
+        deep_link_start_url(APP, url, &["hq".to_string()]).map(|url| url.to_string())
+    }
+
+    #[test]
+    fn a_launch_link_opens_its_page_on_the_dashboard() {
+        assert_eq!(start("hq://transactions").as_deref(), Some("https://midday.fredflix.be/transactions"));
+        assert_eq!(start("hq://").as_deref(), Some("https://midday.fredflix.be/"));
+    }
+
+    #[test]
+    fn a_launch_link_keeps_the_sign_in_code() {
+        assert_eq!(
+            start("hq://api/auth/callback?code=abc-123").as_deref(),
+            Some("https://midday.fredflix.be/api/auth/callback?code=abc-123")
+        );
+    }
+
+    #[test]
+    fn a_launch_link_never_leaves_the_dashboard() {
+        assert_eq!(start("midday://transactions"), None);
+        for escape in ["hq://\\\\evil.example/x", "hq:///\\evil.example/x", "hq://%2F%2Fevil.example/x"] {
+            if let Some(url) = start(escape) {
+                assert!(url.starts_with("https://midday.fredflix.be/"), "{escape} opened {url}");
+            }
+        }
     }
 
     fn parse_json(json: &str) -> serde_json::Value {
