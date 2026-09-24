@@ -24,14 +24,16 @@ on:
     # not the binary. bun.lock is not watched either: apps/desktop's JS
     # dependencies never reach the binary (the window loads the remote
     # dashboard), and the one that shapes the build, the Tauri CLI, is not worth
-    # a release on its own; the next shell change picks it up.
+    # a release on its own; the next shell change picks it up. Nor is a README.
     paths:
       - "apps/desktop/**"
+      - "!apps/desktop/**/*.md"
       - ".github/workflows/desktop-release.yml"
       - ".github/actions/setup/**"
   pull_request:
     paths:
       - "apps/desktop/**"
+      - "!apps/desktop/**/*.md"
       - ".github/workflows/desktop-release.yml"
       - ".github/actions/setup/**"
   # For the first release, and for re-running one by hand. Only a run on main
