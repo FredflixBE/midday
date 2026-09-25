@@ -5,8 +5,12 @@
  * to the database.
  *
  * Usage:
- *   cd packages/db
- *   bun run src/scripts/seed-institutions.ts
+ *   bun run --cwd packages/jobs seed-institutions
+ *
+ * Lives here rather than in packages/banking because it writes to the
+ * database, and banking must not depend on @midday/db: the database package
+ * already depends on banking, and the loop stops Turborepo planning any build
+ * (FF-1685). The jobs package depends on both.
  */
 
 import { fetchAllInstitutions } from "@midday/banking";
