@@ -78,8 +78,6 @@ export function DataTable({ initialSettings, initialTab }: Props) {
     setColumns,
     setCanDelete,
     setTransactionIds,
-    lastClickedIndex,
-    setLastClickedIndex,
   } = useTransactionsStore();
   const { exportingTransactionIds } = useExportStore();
   const deferredSearch = useDeferredValue(filter.q);
@@ -374,8 +372,6 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       editTransaction,
       moveToReview,
       handleShiftClickRange,
-      lastClickedIndex,
-      setLastClickedIndex,
       exportingTransactionIds,
     }),
     [
@@ -387,8 +383,6 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       editTransaction,
       moveToReview,
       handleShiftClickRange,
-      lastClickedIndex,
-      setLastClickedIndex,
       exportingTransactionIds,
     ],
   );
