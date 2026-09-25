@@ -13,7 +13,7 @@ type Props = {
 
 export function LabelInput({ name, className, onSave, defaultValue }: Props) {
   const { setValue, control } = useFormContext();
-  const value = useWatch({ control, name: name });
+  const value = useWatch({ control, name });
   const displayValue = value ?? defaultValue ?? "";
 
   return (

@@ -396,7 +396,8 @@ export function Form() {
 /**
  * The submit button also waits for a draft save in flight. DraftAutoSave owns
  * that mutation, so the button reads it from the mutation cache here, where a
- * save starting or ending re-renders only the button, not the whole editor.
+ * save starting or ending re-renders only the button, not the whole editor
+ * (FF-1715).
  */
 function FormSubmitButton({ isSubmitting }: { isSubmitting: boolean }) {
   const trpc = useTRPC();
