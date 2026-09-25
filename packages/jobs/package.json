@@ -18,6 +18,7 @@
     "link-suppliers": "bun run scripts/link-suppliers.ts",
     "retype-receipts": "bun run scripts/retype-receipts.ts",
     "dedupe-invoice-copies": "bun run scripts/dedupe-invoice-copies.ts",
+    "seed-institutions": "bun run scripts/seed-institutions.ts",
     "read-billed-amounts": "bun run scripts/read-billed-amounts.ts",
     "typecheck": "tsc --noEmit"
   },

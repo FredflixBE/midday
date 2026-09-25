@@ -11,6 +11,15 @@
  *   bun run packages/banking/scripts/debug.ts transactions <bank_account_id> [--limit N]
  *
  * Requires DATABASE_URL + provider API credentials in your environment.
+ *
+ * A developer tool that deliberately imports what packages/banking does not
+ * declare: @midday/db and @midday/supabase, which resolve only because bun
+ * hoists every workspace package (FF-1685). Declaring them is not possible —
+ * both depend on banking, and the loop stops Turborepo planning any build —
+ * and moving this file out would mean exporting five of banking's internals
+ * (both providers' API clients and transforms, and the shared types) for one
+ * debugging script. So it stays here, undeclared on purpose, and is not
+ * type-checked: banking's tsconfig covers src/ only.
  */
 
 import { db } from "@midday/db/client";
