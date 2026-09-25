@@ -43,7 +43,7 @@ const SelectCell = memo(
     <div
       // Capture phase, so a shift-click never reaches the checkbox: its own
       // toggle would move the range anchor to this row before the range is
-      // read.
+      // read (FF-1706).
       onClickCapture={(e) => {
         if (e.shiftKey && onShiftClick) {
           e.preventDefault();
@@ -306,6 +306,10 @@ export const columns: ColumnDef<Transaction>[] = [
             lastClickedIndex,
             row.index,
           );
+        } else {
+          // No range to extend yet: the click selects this row, as a plain
+          // click would.
+          row.toggleSelected(!row.getIsSelected());
         }
         setLastClickedIndex(row.index);
       };

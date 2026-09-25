@@ -106,6 +106,14 @@ export function DataTable({ initialSettings, initialTab }: Props) {
   const activeTab = (tab ?? initialTab ?? "all") as TransactionTab;
   const isReviewTab = activeTab === "review";
 
+  // The shift-click anchor is a row position, and a different filter, sort or
+  // tab is a different list, so the anchor does not carry over (FF-1706).
+  // Keyed on a string, since this table re-renders on every store change.
+  const rowListKey = JSON.stringify([filter, params.sort, activeTab]);
+  useEffect(() => {
+    useTransactionsStore.getState().setLastClickedIndex(null);
+  }, [rowListKey]);
+
   // Get tab-specific row selection
   const rowSelection = rowSelectionByTab[activeTab];
   const setRowSelection = useCallback(
