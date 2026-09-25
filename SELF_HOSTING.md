@@ -492,6 +492,10 @@ bun run dev:api
 bun run dev:dashboard
 ```
 
+The dashboard listens on `:3001` and the API on `:3003`. A plain `bun run dev`
+starts every workspace's `dev` script, including the email template preview
+on `:3004`.
+
 `bun run typecheck`, `bun run lint` and `bun run test` are what CI runs.
 
 ## What a script may do to a database
