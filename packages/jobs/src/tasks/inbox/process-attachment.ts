@@ -21,6 +21,7 @@ import {
   getInboxByFilePath,
   getTeamById,
   groupRelatedInboxItems,
+  resolveInvoiceCopies,
   updateInbox,
   updateInboxWithProcessedData,
 } from "@midday/db/queries";
@@ -412,6 +413,41 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
           error: error instanceof Error ? error.message : "Unknown error",
         });
         // Don't fail the entire process if grouping fails
+      }
+
+      // The same invoice may already be here from the team's other mailbox:
+      // suppliers send each recipient its own PDF, so the byte check at the
+      // top lets the second one in. Decide on what the documents say, and stop
+      // here if this is the spare copy, before it is indexed or matched and
+      // grows a second suggestion for one invoice (FF-1549).
+      try {
+        const copies = await resolveInvoiceCopies(db, {
+          inboxId: inboxData.id,
+          teamId,
+          apply: true,
+        });
+        if (copies.outcome === "resolved") {
+          this.logger.info("Removed duplicate copies of one invoice", {
+            jobId: job.id,
+            inboxId: inboxData.id,
+            keptInboxId: copies.keep,
+            removedInboxIds: copies.removed,
+          });
+        }
+        // "gone": the other copy's run got here first and removed this one.
+        if (
+          copies.outcome === "gone" ||
+          (copies.outcome === "resolved" && copies.currentRemoved)
+        ) {
+          return;
+        }
+      } catch (error) {
+        // A failed check leaves a duplicate, which is what happened before it
+        // existed; it is not a reason to lose this document's processing.
+        this.logger.error("Failed to check for duplicate invoice copies", {
+          inboxId: inboxData.id,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
       }
 
       // Trigger document processing and matching (no inbox embedding dependency).

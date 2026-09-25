@@ -499,7 +499,10 @@ export type DeleteInboxParams = {
   teamId: string;
 };
 
-export async function deleteInbox(db: Database, params: DeleteInboxParams) {
+export async function deleteInbox(
+  db: DatabaseOrTransaction,
+  params: DeleteInboxParams,
+) {
   const { id, teamId } = params;
 
   // First get the inbox item to check if it has attachments

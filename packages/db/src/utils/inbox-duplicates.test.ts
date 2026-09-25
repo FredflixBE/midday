@@ -1,0 +1,176 @@
+import { describe, expect, test } from "bun:test";
+import {
+  type InvoiceCopy,
+  invoiceIdentity,
+  planInvoiceCopies,
+} from "./inbox-duplicates";
+
+function copy(overrides: Partial<InvoiceCopy> & { id: string }): InvoiceCopy {
+  return {
+    invoiceNumber: "5664449825",
+    amount: 39,
+    currency: "EUR",
+    displayName: "Google Cloud EMEA Limited",
+    type: "invoice",
+    referenceId: `sha256-${overrides.id}`,
+    transactionId: null,
+    hasConfirmedMatch: false,
+    createdAt: "2026-09-12T16:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("invoiceIdentity", () => {
+  test("two PDFs of one invoice share an identity", () => {
+    const a = copy({ id: "a" });
+    const b = copy({
+      id: "b",
+      invoiceNumber: " 5664449825 ",
+      displayName: "google cloud emea limited",
+      currency: "eur",
+      amount: 39.0,
+    });
+    expect(invoiceIdentity(a)).not.toBeNull();
+    expect(invoiceIdentity(a)).toBe(invoiceIdentity(b));
+  });
+
+  test("spacing inside an invoice number does not make a different invoice", () => {
+    expect(
+      invoiceIdentity(copy({ id: "a", invoiceNumber: "SBIE-12857967" })),
+    ).toBe(
+      invoiceIdentity(copy({ id: "b", invoiceNumber: "sbie - 12857967" })),
+    );
+  });
+
+  test("a different amount, currency, supplier or type is a different document", () => {
+    const base = invoiceIdentity(copy({ id: "a" }));
+    expect(invoiceIdentity(copy({ id: "b", amount: 41.59 }))).not.toBe(base);
+    expect(invoiceIdentity(copy({ id: "c", currency: "USD" }))).not.toBe(base);
+    expect(invoiceIdentity(copy({ id: "d", displayName: "Adobe" }))).not.toBe(
+      base,
+    );
+    expect(invoiceIdentity(copy({ id: "e", type: "expense" }))).not.toBe(base);
+  });
+
+  test("without a number, an amount or a supplier there is no identity to compare", () => {
+    expect(invoiceIdentity(copy({ id: "a", invoiceNumber: null }))).toBeNull();
+    expect(invoiceIdentity(copy({ id: "b", invoiceNumber: "  " }))).toBeNull();
+    expect(invoiceIdentity(copy({ id: "c", amount: null }))).toBeNull();
+    expect(invoiceIdentity(copy({ id: "d", displayName: null }))).toBeNull();
+    expect(invoiceIdentity(copy({ id: "e", currency: null }))).toBeNull();
+  });
+});
+
+describe("planInvoiceCopies", () => {
+  test("keeps the oldest email copy and removes the newer one", () => {
+    const older = copy({ id: "older", createdAt: "2026-09-12T16:00:00Z" });
+    const newer = copy({ id: "newer", createdAt: "2026-09-12T16:00:05Z" });
+    const plan = planInvoiceCopies([newer, older]);
+    expect(plan.keep.id).toBe("older");
+    expect(plan.remove.map((row) => row.id)).toEqual(["newer"]);
+  });
+
+  test("gives the same answer whichever copy asks, so two runs at once agree", () => {
+    const a = copy({ id: "a", createdAt: "2026-09-20T12:58:54Z" });
+    const b = copy({ id: "b", createdAt: "2026-09-20T12:58:54Z" });
+    expect(planInvoiceCopies([a, b]).keep.id).toBe(
+      planInvoiceCopies([b, a]).keep.id,
+    );
+  });
+
+  test("the copy already in use survives, even when it is the newer one", () => {
+    const older = copy({ id: "older", createdAt: "2026-09-01T00:00:00Z" });
+    const matched = copy({
+      id: "matched",
+      createdAt: "2026-09-02T00:00:00Z",
+      transactionId: "tx-1",
+    });
+    const plan = planInvoiceCopies([older, matched]);
+    expect(plan.keep.id).toBe("matched");
+    expect(plan.remove.map((row) => row.id)).toEqual(["older"]);
+  });
+
+  test("a copy attached to the same payment as the survivor is still a spare copy", () => {
+    // Production had 25 of these: both mailboxes' PDFs confirmed onto one
+    // payment, so the payment carried the invoice twice.
+    const first = copy({
+      id: "first",
+      transactionId: "tx-1",
+      hasConfirmedMatch: true,
+    });
+    const second = copy({
+      id: "second",
+      transactionId: "tx-1",
+      hasConfirmedMatch: true,
+      createdAt: "2026-09-12T16:00:03Z",
+    });
+    const plan = planInvoiceCopies([second, first]);
+    expect(plan.keep.id).toBe("first");
+    expect(plan.remove.map((row) => row.id)).toEqual(["second"]);
+  });
+
+  test("a copy attached to a different payment is left for a person to judge", () => {
+    const august = copy({ id: "august", transactionId: "tx-aug" });
+    const september = copy({
+      id: "september",
+      transactionId: "tx-sep",
+      createdAt: "2026-09-12T16:00:03Z",
+    });
+    expect(planInvoiceCopies([august, september]).remove).toEqual([]);
+  });
+
+  test("a confirmed match counts as in use", () => {
+    const older = copy({ id: "older", createdAt: "2026-09-01T00:00:00Z" });
+    const confirmed = copy({
+      id: "confirmed",
+      createdAt: "2026-09-02T00:00:00Z",
+      hasConfirmedMatch: true,
+    });
+    expect(planInvoiceCopies([older, confirmed]).keep.id).toBe("confirmed");
+  });
+
+  test("never removes a copy that is in use, even a second one", () => {
+    const one = copy({ id: "one", transactionId: "tx-1" });
+    const two = copy({
+      id: "two",
+      hasConfirmedMatch: true,
+      createdAt: "2026-09-13T00:00:00Z",
+    });
+    const spare = copy({ id: "spare", createdAt: "2026-09-14T00:00:00Z" });
+    const plan = planInvoiceCopies([one, two, spare]);
+    expect(plan.remove.map((row) => row.id)).toEqual(["spare"]);
+  });
+
+  test("never removes the copy that came from the books, and keeps one email copy beside it", () => {
+    const books = copy({
+      id: "books",
+      referenceId: "yuki:4ad0b24e",
+      createdAt: "2026-09-01T00:00:00Z",
+    });
+    const email = copy({ id: "email", createdAt: "2026-09-12T00:00:00Z" });
+    const extra = copy({ id: "extra", createdAt: "2026-09-12T00:00:01Z" });
+    const plan = planInvoiceCopies([books, email, extra]);
+    expect(plan.keep.id).toBe("email");
+    expect(plan.remove.map((row) => row.id)).toEqual(["extra"]);
+  });
+
+  test("of two copies on one payment, the one with the confirmed match stays", () => {
+    // Its confirmed suggestion is what auto-matching learns from; removing that
+    // copy would take the record with it.
+    const attached = copy({ id: "attached", transactionId: "tx-1" });
+    const confirmed = copy({
+      id: "confirmed",
+      transactionId: "tx-1",
+      hasConfirmedMatch: true,
+      createdAt: "2026-09-12T16:00:03Z",
+    });
+    const plan = planInvoiceCopies([attached, confirmed]);
+    expect(plan.keep.id).toBe("confirmed");
+    expect(plan.remove.map((row) => row.id)).toEqual(["attached"]);
+  });
+
+  test("one copy alone has nothing to remove", () => {
+    const only = copy({ id: "only" });
+    expect(planInvoiceCopies([only])).toEqual({ keep: only, remove: [] });
+  });
+});
