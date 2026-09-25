@@ -21,6 +21,7 @@ import {
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
 import { resolveInvoiceCopies } from "../queries/inbox-duplicates";
+import { calculateInboxSuggestions } from "../queries/inbox-matching";
 import {
   inbox,
   transactionAttachments,
@@ -140,6 +141,7 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
     });
 
     expect(result).toEqual({
+      outcome: "resolved",
       keep: FREDERIK,
       removed: [SUPPORT],
       currentRemoved: true,
@@ -164,6 +166,7 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
     });
 
     expect(result).toEqual({
+      outcome: "resolved",
       keep: FREDERIK,
       removed: [SUPPORT],
       currentRemoved: false,
@@ -181,7 +184,7 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
       apply: false,
     });
 
-    expect(result?.removed).toEqual([SUPPORT]);
+    expect(result).toMatchObject({ removed: [SUPPORT] });
     expect((await statusOf(SUPPORT))?.status).toBe("pending");
   });
 
@@ -199,7 +202,7 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
       apply: true,
     });
 
-    expect(result?.keep).toBe(SUPPORT);
+    expect(result).toMatchObject({ keep: SUPPORT });
     expect((await statusOf(FREDERIK))?.status).toBe("deleted");
     expect((await statusOf(SUPPORT))?.status).toBe("done");
   });
@@ -247,6 +250,7 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
     });
 
     expect(result).toEqual({
+      outcome: "resolved",
       keep: FREDERIK,
       removed: [SUPPORT],
       currentRemoved: false,
@@ -278,7 +282,7 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
       apply: true,
     });
 
-    expect(result).toBeNull();
+    expect(result).toEqual({ outcome: "unique" });
     expect((await statusOf(SUPPORT))?.status).toBe("done");
     expect((await statusOf(FREDERIK))?.status).toBe("pending");
   });
@@ -295,14 +299,17 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
       groupedInboxId: FREDERIK,
     });
 
-    // FREDERIK leads the group, so it survives even though SUPPORT is older.
+    // SUPPORT is older, so it survives although FREDERIK leads the group:
+    // the group moves to it. Grouping never decides the survivor, because each
+    // copy's run regroups before it asks.
     const first = await resolveInvoiceCopies(db, {
-      inboxId: SUPPORT,
+      inboxId: FREDERIK,
       teamId: TEAM_EUR_ID,
       apply: true,
     });
-    expect(first?.keep).toBe(FREDERIK);
-    expect((await statusOf(RECEIPT))?.groupedInboxId).toBe(FREDERIK);
+    expect(first).toMatchObject({ keep: SUPPORT, removed: [FREDERIK] });
+    expect((await statusOf(RECEIPT))?.groupedInboxId).toBe(SUPPORT);
+    expect((await statusOf(SUPPORT))?.groupedInboxId).toBeNull();
 
     // Now make the leader the one to go: a third, matched copy arrives.
     await googleCopy(THIRD, {
@@ -316,8 +323,9 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
       apply: true,
     });
     expect(second).toEqual({
+      outcome: "resolved",
       keep: THIRD,
-      removed: [FREDERIK],
+      removed: [SUPPORT],
       currentRemoved: false,
     });
     expect((await statusOf(RECEIPT))?.groupedInboxId).toBe(THIRD);
@@ -345,7 +353,7 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
         teamId: TEAM_EUR_ID,
         apply: true,
       }),
-    ).toBeNull();
+    ).toEqual({ outcome: "unique" });
     for (const id of [FREDERIK, SUPPORT, THIRD, RECEIPT]) {
       expect((await statusOf(id))?.status).toBe("pending");
     }
@@ -361,6 +369,49 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
         teamId: TEAM_EUR_ID,
         apply: true,
       }),
-    ).toBeNull();
+    ).toEqual({ outcome: "unique" });
+  });
+
+  test("a copy another run already removed reports itself gone", async () => {
+    await googleCopy(FREDERIK, { createdAt: "2026-09-12T16:00:00Z" });
+    await googleCopy(SUPPORT, { createdAt: "2026-09-12T16:00:03Z" });
+    await resolveInvoiceCopies(db, {
+      inboxId: FREDERIK,
+      teamId: TEAM_EUR_ID,
+      apply: true,
+    });
+
+    // SUPPORT's own run arrives afterwards: it must stop, not match.
+    expect(
+      await resolveInvoiceCopies(db, {
+        inboxId: SUPPORT,
+        teamId: TEAM_EUR_ID,
+        apply: true,
+      }),
+    ).toEqual({ outcome: "gone" });
+  });
+
+  test("matching leaves a removed copy removed", async () => {
+    await googleCopy(FREDERIK, { createdAt: "2026-09-12T16:00:00Z" });
+    await googleCopy(SUPPORT, { createdAt: "2026-09-12T16:00:03Z" });
+    await resolveInvoiceCopies(db, {
+      inboxId: FREDERIK,
+      teamId: TEAM_EUR_ID,
+      apply: true,
+    });
+
+    // A matching run for SUPPORT that was already on its way.
+    const outcome = await calculateInboxSuggestions(db, {
+      teamId: TEAM_EUR_ID,
+      inboxId: SUPPORT,
+    });
+
+    expect(outcome).toEqual({ action: "no_match_yet" });
+    expect((await statusOf(SUPPORT))?.status).toBe("deleted");
+    const suggestions = await db
+      .select({ id: transactionMatchSuggestions.id })
+      .from(transactionMatchSuggestions)
+      .where(eq(transactionMatchSuggestions.inboxId, SUPPORT));
+    expect(suggestions).toEqual([]);
   });
 });

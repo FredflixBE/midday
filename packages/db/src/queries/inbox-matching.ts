@@ -1,5 +1,5 @@
 import { createLoggerWithContext } from "@midday/logger";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { inbox, transactionMatchSuggestions } from "../schema";
 import { createActivity } from "./activities";
@@ -158,12 +158,24 @@ export async function calculateInboxSuggestions(
   const { teamId, inboxId, excludeTransactionIds } = params;
 
   try {
-    // Set status to analyzing while we process
-    await updateInbox(db, {
-      id: inboxId,
-      teamId,
-      status: "analyzing",
-    });
+    // Set status to analyzing while we process — unless the document is gone.
+    // A duplicate copy can be deleted by another run while this one was on its
+    // way here (FF-1549); matching it would bring it back as "pending".
+    const [live] = await db
+      .update(inbox)
+      .set({ status: "analyzing" })
+      .where(
+        and(
+          eq(inbox.id, inboxId),
+          eq(inbox.teamId, teamId),
+          or(isNull(inbox.status), ne(inbox.status, "deleted")),
+        ),
+      )
+      .returning({ id: inbox.id });
+
+    if (!live) {
+      return { action: "no_match_yet" };
+    }
 
     // Find the best match using our matching algorithm
     const bestMatch = await findMatches(db, {

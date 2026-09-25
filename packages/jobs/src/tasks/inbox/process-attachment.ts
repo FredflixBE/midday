@@ -426,16 +426,20 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
           teamId,
           apply: true,
         });
-        if (copies) {
+        if (copies.outcome === "resolved") {
           this.logger.info("Removed duplicate copies of one invoice", {
             jobId: job.id,
             inboxId: inboxData.id,
             keptInboxId: copies.keep,
             removedInboxIds: copies.removed,
           });
-          if (copies.currentRemoved) {
-            return;
-          }
+        }
+        // "gone": the other copy's run got here first and removed this one.
+        if (
+          copies.outcome === "gone" ||
+          (copies.outcome === "resolved" && copies.currentRemoved)
+        ) {
+          return;
         }
       } catch (error) {
         // A failed check leaves a duplicate, which is what happened before it

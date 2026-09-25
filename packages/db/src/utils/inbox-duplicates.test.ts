@@ -15,7 +15,6 @@ function copy(overrides: Partial<InvoiceCopy> & { id: string }): InvoiceCopy {
     referenceId: `sha256-${overrides.id}`,
     transactionId: null,
     hasConfirmedMatch: false,
-    groupedInboxId: null,
     createdAt: "2026-09-12T16:00:00Z",
     ...overrides,
   };
@@ -94,7 +93,11 @@ describe("planInvoiceCopies", () => {
   test("a copy attached to the same payment as the survivor is still a spare copy", () => {
     // Production had 25 of these: both mailboxes' PDFs confirmed onto one
     // payment, so the payment carried the invoice twice.
-    const first = copy({ id: "first", transactionId: "tx-1" });
+    const first = copy({
+      id: "first",
+      transactionId: "tx-1",
+      hasConfirmedMatch: true,
+    });
     const second = copy({
       id: "second",
       transactionId: "tx-1",
@@ -151,14 +154,19 @@ describe("planInvoiceCopies", () => {
     expect(plan.remove.map((row) => row.id)).toEqual(["extra"]);
   });
 
-  test("prefers the copy the inbox already shows over an older one nested under it", () => {
-    const nested = copy({
-      id: "nested",
-      createdAt: "2026-09-01T00:00:00Z",
-      groupedInboxId: "shown",
+  test("of two copies on one payment, the one with the confirmed match stays", () => {
+    // Its confirmed suggestion is what auto-matching learns from; removing that
+    // copy would take the record with it.
+    const attached = copy({ id: "attached", transactionId: "tx-1" });
+    const confirmed = copy({
+      id: "confirmed",
+      transactionId: "tx-1",
+      hasConfirmedMatch: true,
+      createdAt: "2026-09-12T16:00:03Z",
     });
-    const shown = copy({ id: "shown", createdAt: "2026-09-02T00:00:00Z" });
-    expect(planInvoiceCopies([nested, shown]).keep.id).toBe("shown");
+    const plan = planInvoiceCopies([attached, confirmed]);
+    expect(plan.keep.id).toBe("confirmed");
+    expect(plan.remove.map((row) => row.id)).toEqual(["attached"]);
   });
 
   test("one copy alone has nothing to remove", () => {

@@ -24,7 +24,6 @@ export type InvoiceCopy = {
   referenceId: string | null;
   transactionId: string | null;
   hasConfirmedMatch: boolean;
-  groupedInboxId: string | null;
   createdAt: string;
 };
 
@@ -33,9 +32,12 @@ type IdentityFields = Pick<
   "invoiceNumber" | "amount" | "currency" | "displayName" | "type"
 >;
 
-/** An invoice number as printed, minus the spacing and case that vary by PDF. */
+/**
+ * An invoice number as printed, minus the spacing and case that vary by PDF.
+ * `invoiceNumberKeySql` in queries/inbox-duplicates.ts is the same in SQL.
+ */
 export function normalizeInvoiceNumber(value: string | null): string | null {
-  const normalized = value?.replace(/\s+/g, "").toUpperCase() ?? "";
+  const normalized = value?.replace(/[ \t\n\r\f\v]+/g, "").toUpperCase() ?? "";
   return normalized === "" ? null : normalized;
 }
 
@@ -82,37 +84,38 @@ function byAge(a: InvoiceCopy, b: InvoiceCopy): number {
 /**
  * Of one invoice's copies, the one to keep and the ones to remove.
  *
- * Only redundant email copies are ever removed, never a copy from the books.
- * One email copy always survives: the one in use (linked to a payment or
- * carrying a confirmed match), else the one the inbox shows (not nested in a
- * group), else the oldest.
+ * Only copies the team received itself are ever removed, never a copy from the
+ * books. One of them always survives: the one with a confirmed match (so the
+ * match history that auto-matching learns from keeps its record), else one
+ * linked to a payment, else the oldest.
  *
  * A copy in use is redundant only when it is in use for the same payment as
  * the survivor: both mailboxes' PDFs confirmed onto one payment put the
  * invoice on it twice. A copy linked to a different payment is a question for
  * a person, not for this rule, so it stays.
  *
- * Deterministic in its input, whatever the order: two copies processed at once
- * each run this over the same rows and reach the same answer.
+ * Deterministic in its input and nothing else — not the order, not how the
+ * inbox happens to group the copies right now — so two copies processed at
+ * once each run this over the same rows and reach the same answer.
  */
 export function planInvoiceCopies(copies: InvoiceCopy[]): {
   keep: InvoiceCopy;
   remove: InvoiceCopy[];
 } {
   const sorted = [...copies].sort(byAge);
-  const email = sorted.filter((row) => !isBooksCopy(row));
-  const candidates = email.length > 0 ? email : sorted;
+  const received = sorted.filter((row) => !isBooksCopy(row));
+  const candidates = received.length > 0 ? received : sorted;
 
   const keep =
-    candidates.find(isInUse) ??
-    candidates.find((row) => row.groupedInboxId === null) ??
+    candidates.find((row) => row.hasConfirmedMatch) ??
+    candidates.find((row) => row.transactionId !== null) ??
     candidates[0];
 
   if (!keep) {
     throw new Error("planInvoiceCopies needs at least one copy");
   }
 
-  const remove = email.filter(
+  const remove = received.filter(
     (row) =>
       row.id !== keep.id &&
       (!isInUse(row) ||

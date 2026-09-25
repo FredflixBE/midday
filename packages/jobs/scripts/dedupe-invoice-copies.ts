@@ -33,9 +33,9 @@
  */
 
 import { closeDb, connectDb } from "@midday/db/client";
-import { resolveInvoiceCopies } from "@midday/db/queries";
+import { invoiceNumberKeySql, resolveInvoiceCopies } from "@midday/db/queries";
 import { inbox } from "@midday/db/schema";
-import { and, isNotNull, ne, sql } from "drizzle-orm";
+import { and, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 
 async function main() {
   const write = process.argv.includes("--confirm");
@@ -43,20 +43,23 @@ async function main() {
 
   // Every live document that shares its team, invoice number and amount with
   // another. A superset of the copies: resolveInvoiceCopies decides the rest.
+  const live = or(isNull(inbox.status), ne(inbox.status, "deleted"));
+  const numberKey = invoiceNumberKeySql(inbox.invoiceNumber);
+  const shared = db
+    .select({ teamId: inbox.teamId, number: numberKey, amount: inbox.amount })
+    .from(inbox)
+    .where(and(live, isNotNull(inbox.invoiceNumber)))
+    .groupBy(inbox.teamId, numberKey, inbox.amount)
+    .having(sql`count(*) > 1`);
+
   const members = await db
     .select({ id: inbox.id, teamId: inbox.teamId })
     .from(inbox)
     .where(
       and(
-        ne(inbox.status, "deleted"),
+        live,
         isNotNull(inbox.invoiceNumber),
-        sql`(${inbox.teamId}, upper(regexp_replace(${inbox.invoiceNumber}, '\\s+', '', 'g')), ${inbox.amount}) IN (
-          SELECT team_id, upper(regexp_replace(invoice_number, '\\s+', '', 'g')), amount
-          FROM inbox
-          WHERE status IS DISTINCT FROM 'deleted' AND invoice_number IS NOT NULL
-          GROUP BY 1, 2, 3
-          HAVING count(*) > 1
-        )`,
+        sql`(${inbox.teamId}, ${numberKey}, ${inbox.amount}) IN (${shared})`,
       ),
     );
 
@@ -66,7 +69,7 @@ async function main() {
 
   // Asking from each member finds every set, and each set once per member;
   // the kept document names the set.
-  const sets = new Map<string, { teamId: string; removed: Set<string> }>();
+  const sets = new Map<string, Set<string>>();
   const removed = new Set<string>();
 
   for (const member of members) {
@@ -78,22 +81,19 @@ async function main() {
       teamId: member.teamId,
       apply: write,
     });
-    if (!result) {
+    if (result.outcome !== "resolved") {
       continue;
     }
-    const set = sets.get(result.keep) ?? {
-      teamId: member.teamId,
-      removed: new Set<string>(),
-    };
+    const set = sets.get(result.keep) ?? new Set<string>();
     for (const id of result.removed) {
-      set.removed.add(id);
+      set.add(id);
       removed.add(id);
     }
     sets.set(result.keep, set);
   }
 
   for (const [keep, set] of sets) {
-    console.log(`keep ${keep}  remove ${[...set.removed].join(", ")}`);
+    console.log(`keep ${keep}  remove ${[...set].join(", ")}`);
   }
 
   console.log(
