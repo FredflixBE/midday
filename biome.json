@@ -10,6 +10,7 @@
       "!**/.next",
       "!**/.react-email",
       "!**/.wrangler",
+      "!**/.trigger",
       "!**/packages/db/migrations/meta"
     ]
   },
