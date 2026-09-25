@@ -9,10 +9,8 @@ interface RowSelectionByTab {
 }
 
 interface TransactionsState {
-  canDelete?: boolean;
   columns: Column<any, unknown>[];
   setColumns: (columns?: Column<any, unknown>[]) => void;
-  setCanDelete: (canDelete?: boolean) => void;
   transactionIds: string[];
   setTransactionIds: (ids: string[]) => void;
   // Per-tab row selection
@@ -31,14 +29,12 @@ interface TransactionsState {
 
 export const useTransactionsStore = create<TransactionsState>()((set, get) => ({
   columns: [],
-  canDelete: false,
   transactionIds: [],
   rowSelectionByTab: {
     all: {},
     review: {},
   },
   lastClickedIndex: null,
-  setCanDelete: (canDelete) => set({ canDelete }),
   setColumns: (columns) => set({ columns: columns || [] }),
   setTransactionIds: (ids) => set({ transactionIds: ids }),
   setRowSelection: (tab: TransactionTab, updater: Updater<RowSelectionState>) =>

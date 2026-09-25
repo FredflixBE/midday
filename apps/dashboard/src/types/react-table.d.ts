@@ -20,7 +20,7 @@ declare module "@tanstack/table-core" {
     moveToReview?: (id: string) => void;
     editTransaction?: (id: string) => void;
     handleShiftClickRange?: (startIndex: number, endIndex: number) => void;
-    exportingTransactionIds?: string[];
+    exportingTransactionIds?: ReadonlySet<string>;
 
     // Vault table meta
     handleDelete?: (id: string) => void;
