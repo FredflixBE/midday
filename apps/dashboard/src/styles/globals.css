@@ -19,9 +19,15 @@
  */
 @import "./typeset.css";
 
+/*
+ * Every package whose components the dashboard renders (FF-1654). Tailwind
+ * only emits classes it reads here, so a package left out keeps working only
+ * while each class it uses happens to be written somewhere that is listed.
+ */
 @source "../";
 @source "../../../../packages/ui/src";
 @source "../../../../packages/invoice/src";
+@source "../../../../packages/app-store/src";
 
 /*
  * `dark:` is a class on the html element, not the operating system's
