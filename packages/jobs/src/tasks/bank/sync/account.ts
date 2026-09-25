@@ -1,8 +1,8 @@
-import { parseAPIError } from "@jobs/utils/parse-error";
+import { isBankRefusal, parseAPIError } from "@jobs/utils/parse-error";
 import { getClassification } from "@jobs/utils/transform";
 import { createClient } from "@midday/supabase/job";
 import { trpc } from "@midday/trpc";
-import { logger, schemaTask } from "@trigger.dev/sdk";
+import { AbortTaskRunError, logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { upsertTransactions } from "../transactions/upsert";
 
@@ -118,6 +118,12 @@ export const syncAccount = schemaTask({
 
       logger.error("Failed to sync account balance", { error: parsedError });
 
+      // The transactions call would be refused too, and would spend another
+      // read; so would a retry of this run.
+      if (isBankRefusal(parsedError)) {
+        throw new AbortTaskRunError(parsedError.message);
+      }
+
       if (parsedError.code === "disconnected") {
         const retries = errorRetries ? errorRetries + 1 : 1;
 
@@ -205,6 +211,11 @@ export const syncAccount = schemaTask({
       }
     } catch (error) {
       logger.error("Failed to sync transactions", { error });
+
+      const parsedError = parseAPIError(error);
+      if (isBankRefusal(parsedError)) {
+        throw new AbortTaskRunError(parsedError.message);
+      }
 
       throw error;
     }

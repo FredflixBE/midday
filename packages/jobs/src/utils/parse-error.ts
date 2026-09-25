@@ -1,4 +1,6 @@
-export function parseAPIError(error: unknown) {
+export type ParsedAPIError = { code: string; message: string };
+
+export function parseAPIError(error: unknown): ParsedAPIError {
   if (typeof error === "object" && error !== null && "error" in error) {
     const apiError = error as { error: { code: string; message: string } };
 
@@ -15,9 +17,13 @@ export function parseAPIError(error: unknown) {
     try {
       const parsed = JSON.parse(message);
       if (parsed.providerCode) {
+        const failed = parsed.message ?? message;
         return {
           code: parsed.providerCode,
-          message: parsed.message ?? message,
+          // What the provider said, when the API passed it on.
+          message: parsed.providerMessage
+            ? `${failed}: ${parsed.providerMessage}`
+            : failed,
         };
       }
     } catch {
@@ -26,4 +32,14 @@ export function parseAPIError(error: unknown) {
   }
 
   return { code: "unknown", message: "An unknown error occurred" };
+}
+
+/**
+ * The bank behind the provider refused. Asking again straight away spends
+ * another of the account's few unattended reads a day and, when the refusal is
+ * the bank's CDN blocking traffic, tends to prolong the block — so a job stops
+ * rather than retrying, and the next scheduled sync tries again.
+ */
+export function isBankRefusal(error: ParsedAPIError) {
+  return error.code === "bank_error";
 }
