@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { AppRouter } from "@midday/api/trpc/routers/_app";
-import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+import { HydrationBoundary } from "@tanstack/react-query";
 import { createTRPCClient, httpLink, loggerLink } from "@trpc/client";
 import {
   createTRPCOptionsProxy,
@@ -9,6 +9,11 @@ import {
 } from "@trpc/tanstack-react-query";
 import { cache } from "react";
 import superjson from "superjson";
+import {
+  claimForLayout,
+  createHydrationScope,
+  dehydrateBoundary,
+} from "./hydration-scope";
 import { makeQueryClient } from "./query-client";
 import {
   buildTRPCRequestHeaders,
@@ -18,6 +23,9 @@ import {
 // IMPORTANT: Create a stable getter for the query client that
 //            will return the same client during the same request.
 export const getQueryClient = cache(makeQueryClient);
+
+// Per request: which queries the HydrateClient boundaries have sent.
+const getHydrationScope = cache(createHydrationScope);
 
 // Server-side: prefer the internal API URL (skips DNS + TLS + proxy)
 // Falls back to the public URL when no internal URL is configured
@@ -67,14 +75,22 @@ export const trpc = createTRPCOptionsProxy<AppRouter>({
   }),
 });
 
-export function HydrateClient(props: { children: React.ReactNode }) {
-  const queryClient = getQueryClient();
-
-  return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
-      {props.children}
-    </HydrationBoundary>
+/**
+ * Hands the prefetched queries to the browser. Each query is sent by one
+ * boundary only: a layout passes the `queries` it got from
+ * `prefetchForLayout`, and a page passes nothing.
+ */
+export function HydrateClient(props: {
+  children: React.ReactNode;
+  queries?: readonly ReturnType<TRPCQueryOptions<any>>[];
+}) {
+  const state = dehydrateBoundary(
+    getQueryClient(),
+    getHydrationScope(),
+    props.queries,
   );
+
+  return <HydrationBoundary state={state}>{props.children}</HydrationBoundary>;
 }
 
 export function prefetch<T extends ReturnType<TRPCQueryOptions<any>>>(
@@ -109,6 +125,21 @@ export function batchPrefetch<T extends ReturnType<TRPCQueryOptions<any>>>(
       });
     }
   }
+}
+
+/**
+ * Prefetches a layout's queries and claims them for the layout's own
+ * HydrateClient, which must receive the returned list. Call it before the
+ * layout's first await: pages render while the layout waits, and skip only
+ * the queries already claimed.
+ */
+export function prefetchForLayout<T extends ReturnType<TRPCQueryOptions<any>>>(
+  queryOptionsArray: T[],
+): T[] {
+  claimForLayout(getHydrationScope(), queryOptionsArray);
+  batchPrefetch(queryOptionsArray);
+
+  return queryOptionsArray;
 }
 
 /**
