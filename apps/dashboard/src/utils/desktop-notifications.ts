@@ -14,3 +14,22 @@ export function setDesktopNotificationsEnabled(enabled: boolean) {
     localStorage.removeItem(STORAGE_KEY);
   }
 }
+
+/**
+ * Hands `text` to the desktop shell as a native notification; clicking it
+ * opens `path`. Loaded on use so web pages do not ship the desktop APIs
+ * (FF-1725).
+ */
+export function showOnDesktop(
+  text: string,
+  path: string,
+  options?: { evenInForeground?: boolean },
+) {
+  import("@midday/desktop-client/core")
+    .then(({ showDesktopNotification }) =>
+      showDesktopNotification(text, path, options),
+    )
+    .catch((error: unknown) => {
+      console.error("Failed to show a desktop notification", error);
+    });
+}

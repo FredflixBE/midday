@@ -9,6 +9,7 @@
 //! This talks to the operating system directly rather than through
 //! tauri-plugin-notification, whose desktop side cannot report a click.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Shows `text` as a native notification. `path` is a dashboard path, such as
@@ -24,7 +25,7 @@ pub fn notify(
     path: Option<String>,
     even_in_foreground: Option<bool>,
 ) -> Result<(), String> {
-    let main = app.get_webview_window("main").map(|window| Window {
+    let main = app.get_webview_window("main").map(|window| WindowState {
         visible: window.is_visible().unwrap_or(false),
         focused: window.is_focused().unwrap_or(false),
         minimized: window.is_minimized().unwrap_or(false),
@@ -35,9 +36,13 @@ pub fn notify(
 
     let path = dashboard_path(path.as_deref());
     // Waiting for the click blocks, so each notification gets its own thread
-    // for as long as it sits in the notification centre.
+    // for as long as it sits in the notification centre. Past a limit, a new
+    // one still shows but does not wait: a click on it only brings the app up.
     std::thread::spawn(move || {
-        if show(&app, &text) {
+        let wait = WAITING.fetch_add(1, Ordering::SeqCst) < MAX_WAITING;
+        let clicked = show(&app, &text, wait);
+        WAITING.fetch_sub(1, Ordering::SeqCst);
+        if clicked {
             println!("🔔 Notification clicked, opening /{}", path);
             open(&app, &path);
         }
@@ -45,8 +50,12 @@ pub fn notify(
     Ok(())
 }
 
+/// Notifications waiting for a click, one thread each.
+static WAITING: AtomicUsize = AtomicUsize::new(0);
+const MAX_WAITING: usize = 20;
+
 #[derive(Clone, Copy, Debug)]
-struct Window {
+struct WindowState {
     visible: bool,
     focused: bool,
     minimized: bool,
@@ -55,7 +64,7 @@ struct Window {
 /// Whether a notification shows: always when asked to, and otherwise only
 /// when the main window is not the one in use (hidden in the tray, minimized,
 /// or behind another app).
-fn should_show(main: Option<Window>, even_in_foreground: bool) -> bool {
+fn should_show(main: Option<WindowState>, even_in_foreground: bool) -> bool {
     let in_use = main.is_some_and(|w| w.visible && w.focused && !w.minimized);
     even_in_foreground || !in_use
 }
@@ -75,9 +84,9 @@ fn open(app: &AppHandle, path: &str) {
     }
 }
 
-/// Shows the notification and waits: `true` when it was clicked.
+/// Shows the notification and, if `wait`, waits: `true` when it was clicked.
 #[cfg(target_os = "macos")]
-fn show(app: &AppHandle, text: &str) -> bool {
+fn show(app: &AppHandle, text: &str, wait: bool) -> bool {
     use mac_notification_sys::{Notification, NotificationResponse};
     use std::sync::Once;
 
@@ -92,7 +101,7 @@ fn show(app: &AppHandle, text: &str) -> bool {
         text,
         None,
         "",
-        Some(Notification::new().wait_for_click(true)),
+        Some(Notification::new().wait_for_click(wait)),
     ) {
         Ok(NotificationResponse::Click) => true,
         Ok(_) => false,
@@ -103,9 +112,9 @@ fn show(app: &AppHandle, text: &str) -> bool {
     }
 }
 
-/// Shows the notification and waits: `true` when it was clicked.
+/// Shows the notification and, if `wait`, waits: `true` when it was clicked.
 #[cfg(windows)]
-fn show(app: &AppHandle, text: &str) -> bool {
+fn show(app: &AppHandle, text: &str, wait: bool) -> bool {
     use std::sync::mpsc;
     use tauri_winrt_notification::{Toast, ToastDismissalReason};
 
@@ -121,6 +130,13 @@ fn show(app: &AppHandle, text: &str) -> bool {
     } else {
         Toast::POWERSHELL_APP_ID.to_string()
     };
+
+    if !wait {
+        if let Err(error) = Toast::new(&app_id).title(text).show() {
+            eprintln!("🔔 Could not show a notification: {}", error);
+        }
+        return false;
+    }
 
     // true for a click, false when the user closes the toast. A toast that
     // times out moves to the notification centre, where it can still be
@@ -150,7 +166,7 @@ fn show(app: &AppHandle, text: &str) -> bool {
 }
 
 #[cfg(not(any(target_os = "macos", windows)))]
-fn show(_app: &AppHandle, _text: &str) -> bool {
+fn show(_app: &AppHandle, _text: &str, _wait: bool) -> bool {
     false
 }
 
@@ -160,7 +176,7 @@ mod tests {
 
     #[test]
     fn nothing_shows_over_the_window_in_use() {
-        let in_use = Window { visible: true, focused: true, minimized: false };
+        let in_use = WindowState { visible: true, focused: true, minimized: false };
         assert!(!should_show(Some(in_use), false));
         assert!(should_show(Some(in_use), true));
     }
@@ -168,9 +184,9 @@ mod tests {
     #[test]
     fn it_shows_whenever_the_window_is_not_in_use() {
         for window in [
-            Window { visible: false, focused: false, minimized: false }, // in the tray
-            Window { visible: true, focused: false, minimized: false },  // behind another app
-            Window { visible: true, focused: true, minimized: true },    // minimized
+            WindowState { visible: false, focused: false, minimized: false }, // in the tray
+            WindowState { visible: true, focused: false, minimized: false },  // behind another app
+            WindowState { visible: true, focused: true, minimized: true },    // minimized
         ] {
             assert!(should_show(Some(window), false), "{window:?}");
         }

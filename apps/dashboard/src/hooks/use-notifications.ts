@@ -10,7 +10,10 @@ import { useRealtime } from "@/hooks/use-realtime";
 import { useUserQuery } from "@/hooks/use-user";
 import { useI18n } from "@/locales/client";
 import { useTRPC } from "@/trpc/client";
-import { desktopNotificationsEnabled } from "@/utils/desktop-notifications";
+import {
+  desktopNotificationsEnabled,
+  showOnDesktop,
+} from "@/utils/desktop-notifications";
 import { notificationPath } from "@/utils/notification-path";
 
 // Infer types from tRPC router
@@ -94,17 +97,7 @@ export function useNotifications() {
             user,
             t,
           );
-          // Loaded here so web pages do not ship the desktop APIs (FF-1725).
-          import("@midday/desktop-client/core")
-            .then(({ showDesktopNotification }) =>
-              showDesktopNotification(
-                text,
-                notificationPath(newRecord.type, metadata),
-              ),
-            )
-            .catch((error: unknown) => {
-              console.error("Failed to show a desktop notification", error);
-            });
+          showOnDesktop(text, notificationPath(newRecord.type, metadata));
         }
       }
     },

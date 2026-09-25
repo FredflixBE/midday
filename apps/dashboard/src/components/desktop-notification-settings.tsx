@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import {
   desktopNotificationsEnabled,
   setDesktopNotificationsEnabled,
+  showOnDesktop,
 } from "@/utils/desktop-notifications";
 
 // Only the desktop app renders this. The setting lives in this device's
@@ -37,17 +38,9 @@ export function DesktopNotificationSettings() {
     if (on) {
       // The first notification is when the operating system asks whether
       // this app may show them, so it asks now rather than at launch.
-      import("@midday/desktop-client/core")
-        .then(({ showDesktopNotification }) =>
-          showDesktopNotification(
-            "Desktop notifications are on",
-            "/settings/notifications",
-            { evenInForeground: true },
-          ),
-        )
-        .catch((error: unknown) => {
-          console.error("Failed to show a desktop notification", error);
-        });
+      showOnDesktop("Desktop notifications are on", "/settings/notifications", {
+        evenInForeground: true,
+      });
     }
   };
 
