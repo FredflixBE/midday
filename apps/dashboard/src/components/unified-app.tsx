@@ -1,5 +1,4 @@
 import type { UnifiedApp } from "@midday/app-store/types";
-import { openUrl } from "@midday/desktop-client/core";
 import { isDesktopApp } from "@midday/desktop-client/platform";
 import { createClient } from "@midday/supabase/client";
 import {
@@ -423,9 +422,11 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
       // Handle apps with installUrl (like Midday Desktop download page)
       if (app.installUrl) {
         if (isDesktopApp()) {
-          openUrl(app.installUrl);
+          // Loaded here so web pages do not ship the desktop APIs (FF-1725).
+          const { openUrl } = await import("@midday/desktop-client/core");
+          await openUrl(app.installUrl);
         } else {
-          window.open(app.installUrl, "_blank");
+          window.open(app.installUrl, "_blank", "noopener,noreferrer");
         }
         setLoading(false);
         return;

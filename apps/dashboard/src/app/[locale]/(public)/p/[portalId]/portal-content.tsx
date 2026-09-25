@@ -18,7 +18,6 @@ import {
 } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
-import JSZip from "jszip";
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -111,6 +110,8 @@ export function PortalContent({ portalId }: Props) {
     setIsDownloading(true);
 
     try {
+      // Loaded on the click, not with the page (FF-1723).
+      const { default: JSZip } = await import("jszip");
       const zip = new JSZip();
       const usedFilenames = new Set<string>();
 

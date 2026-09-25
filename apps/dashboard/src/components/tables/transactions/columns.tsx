@@ -689,7 +689,7 @@ export const columns: ColumnDef<Transaction>[] = [
       const meta = table.options.meta;
 
       // Show exporting state when transaction is being exported
-      if (meta?.exportingTransactionIds?.includes(row.original.id)) {
+      if (meta?.exportingTransactionIds?.has(row.original.id)) {
         return (
           <div className="flex items-center space-x-2">
             <Spinner size={14} className="stroke-primary" />

@@ -490,9 +490,12 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
   // The transactions table's own selection, so its bulk bar works unchanged.
   // Cleared on the way in and out: it is shared with that table, and a
   // selection made on one page must not act on the other.
-  const { rowSelectionByTab, setRowSelection, setCanDelete } =
-    useTransactionsStore();
-  const selection = rowSelectionByTab.all;
+  const selection = useTransactionsStore(
+    (state) => state.rowSelectionByTab.all,
+  );
+  const setRowSelection = useTransactionsStore(
+    (state) => state.setRowSelection,
+  );
 
   useEffect(() => {
     setRowSelection("all", {});
@@ -503,10 +506,9 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
   const allSelected = data.length > 0 && selectedIds.length === data.length;
 
   // Only a manually added payment can be deleted, as on the transactions table.
-  useEffect(() => {
-    const selected = data.filter((row) => selection[row.id]);
-    setCanDelete(selected.length > 0 && selected.every((row) => row.manual));
-  }, [data, selection, setCanDelete]);
+  const selectedRows = data.filter((row) => selection[row.id]);
+  const canDelete =
+    selectedRows.length > 0 && selectedRows.every((row) => row.manual);
 
   const toggle = (id: string, checked: boolean) =>
     setRowSelection("all", (current) => {
@@ -602,7 +604,7 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
         </TableBody>
       </Table>
 
-      <BulkEditBar />
+      <BulkEditBar canDelete={canDelete} />
     </div>
   );
 }

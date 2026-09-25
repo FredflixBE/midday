@@ -79,7 +79,11 @@ export function ShareMetricModal({
 
   const openInX = () => {
     const url = encodeURIComponent(shareUrl);
-    window.open(`https://x.com/intent/tweet?url=${url}`, "_blank");
+    window.open(
+      `https://x.com/intent/tweet?url=${url}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   const openInLinkedIn = () => {
@@ -95,6 +99,7 @@ export function ShareMetricModal({
     window.open(
       `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
       "_blank",
+      "noopener,noreferrer",
     );
   };
 

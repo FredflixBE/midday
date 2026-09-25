@@ -72,14 +72,18 @@ export function DataTable({ initialSettings, initialTab }: Props) {
   const { data: user } = useUserQuery();
   const { filter, hasFilters } = useTransactionFilterParamsWithPersistence();
   const { tab } = useTransactionTab();
-  const {
-    setRowSelection: setRowSelectionForTab,
-    rowSelectionByTab,
-    setColumns,
-    setCanDelete,
-    setTransactionIds,
-  } = useTransactionsStore();
-  const { exportingTransactionIds } = useExportStore();
+  // Selectors, not the whole stores: a checkbox click changes the selection
+  // and nothing else this table reads.
+  const setRowSelectionForTab = useTransactionsStore(
+    (state) => state.setRowSelection,
+  );
+  const setColumns = useTransactionsStore((state) => state.setColumns);
+  const setTransactionIds = useTransactionsStore(
+    (state) => state.setTransactionIds,
+  );
+  const exportingTransactionIds = useExportStore(
+    (state) => state.exportingTransactionIds,
+  );
   const deferredSearch = useDeferredValue(filter.q);
   const { params } = useSortParams();
   const { transactionId, setParams } = useTransactionParams();
@@ -108,14 +112,16 @@ export function DataTable({ initialSettings, initialTab }: Props) {
 
   // The shift-click anchor is a row position, and a different filter, sort or
   // tab is a different list, so the anchor does not carry over (FF-1706).
-  // Keyed on a string, since this table re-renders on every store change.
+  // Keyed on a string, so a re-render with an equal list keeps the anchor.
   const rowListKey = JSON.stringify([filter, params.sort, activeTab]);
   useEffect(() => {
     useTransactionsStore.getState().setLastClickedIndex(null);
   }, [rowListKey]);
 
   // Get tab-specific row selection
-  const rowSelection = rowSelectionByTab[activeTab];
+  const rowSelection = useTransactionsStore(
+    (state) => state.rowSelectionByTab[activeTab],
+  );
   const setRowSelection = useCallback(
     (updater: Parameters<typeof setRowSelectionForTab>[1]) => {
       setRowSelectionForTab(activeTab, updater);
@@ -254,6 +260,25 @@ export function DataTable({ initialSettings, initialTab }: Props) {
     return tableData.map((row) => row?.id);
   }, [tableData]);
 
+  // Looked up per row, so a set rather than an array scan.
+  const exportingIds = useMemo(
+    () => new Set(exportingTransactionIds),
+    [exportingTransactionIds],
+  );
+
+  // Only manual transactions can be deleted. A selected id that is not in
+  // the loaded rows does not block it, as before.
+  const nonManualIds = useMemo(
+    () => new Set(tableData.filter((t) => t && !t.manual).map((t) => t.id)),
+    [tableData],
+  );
+  const canDelete = useMemo(() => {
+    const selectedIds = Object.keys(rowSelection);
+    return (
+      selectedIds.length > 0 && !selectedIds.some((id) => nonManualIds.has(id))
+    );
+  }, [rowSelection, nonManualIds]);
+
   useEffect(() => {
     setTransactionIds(ids);
   }, [ids, setTransactionIds]);
@@ -380,7 +405,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       editTransaction,
       moveToReview,
       handleShiftClickRange,
-      exportingTransactionIds,
+      exportingTransactionIds: exportingIds,
     }),
     [
       user?.dateFormat,
@@ -391,7 +416,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       editTransaction,
       moveToReview,
       handleShiftClickRange,
-      exportingTransactionIds,
+      exportingIds,
     ],
   );
 
@@ -501,26 +526,6 @@ export function DataTable({ initialSettings, initialTab }: Props) {
     setColumns(table.getAllLeafColumns());
   }, [columnVisibility, setColumns, table]);
 
-  // Determine if selected transactions can be deleted (only manual transactions can be deleted)
-  useEffect(() => {
-    const selectedIds = Object.keys(rowSelection);
-
-    // No selections means nothing can be deleted
-    if (selectedIds.length === 0) {
-      setCanDelete(false);
-      return;
-    }
-
-    // Check if any selected non-manual transaction exists (these cannot be deleted)
-    const hasNonManualSelected = selectedIds.some((id) => {
-      const transaction = tableData.find((t) => t?.id === id);
-      return transaction && !transaction.manual;
-    });
-
-    // Can delete only if all selected transactions are manual
-    setCanDelete(!hasNonManualSelected);
-  }, [rowSelection, tableData, setCanDelete]);
-
   useHotkeys(
     "ArrowUp, ArrowDown",
     ({ key }) => {
@@ -629,9 +634,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
                             columnOrder={columnOrder}
                             columnVisibility={columnVisibility}
                             isSelected={rowSelection[row.id] ?? false}
-                            isExporting={exportingTransactionIds.includes(
-                              row.id,
-                            )}
+                            isExporting={exportingIds.has(row.id)}
                           />
                         );
                       })}
@@ -649,7 +652,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
         </TooltipProvider>
 
         <ExportBar />
-        <BulkEditBar />
+        <BulkEditBar canDelete={canDelete} />
       </div>
     </TransactionTableProvider>
   );

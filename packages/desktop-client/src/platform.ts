@@ -1,9 +1,11 @@
-import { isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { getDesktopScheme } from "./scheme";
 
+// This module is imported by web pages only to ask isDesktopApp(), so it
+// imports nothing from @tauri-apps at the top: the check is the same one-line
+// global test @tauri-apps/api/core's isTauri() makes, and the event API loads
+// when a deep-link listener is actually set up (FF-1725).
 export function isDesktopApp() {
-  return isTauri();
+  return Boolean((globalThis as { isTauri?: unknown }).isTauri);
 }
 
 /**
@@ -25,6 +27,7 @@ export async function listenForDeepLinks(handler: DeepLinkHandler) {
   }
 
   try {
+    const { listen } = await import("@tauri-apps/api/event");
     const unlisten = await listen<string>("deep-link-navigate", (event) => {
       console.log("Deep link navigation received:", event.payload);
       handler(event.payload);

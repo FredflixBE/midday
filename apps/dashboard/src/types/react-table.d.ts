@@ -20,7 +20,7 @@ declare module "@tanstack/table-core" {
     moveToReview?: (id: string) => void;
     editTransaction?: (id: string) => void;
     handleShiftClickRange?: (startIndex: number, endIndex: number) => void;
-    exportingTransactionIds?: string[];
+    exportingTransactionIds?: ReadonlySet<string>;
 
     // Vault table meta
     handleDelete?: (id: string) => void;
@@ -34,6 +34,9 @@ declare module "@tanstack/table-core" {
     setExpandedCategories?: Dispatch<SetStateAction<Set<string>>>;
     searchValue?: string;
     setSearchValue?: Dispatch<SetStateAction<string>>;
+
+    // Invoices table meta
+    openCustomer?: (customerId: string) => void;
 
     // Customers table meta
     deleteCustomer?: (id: string) => void;

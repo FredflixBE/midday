@@ -1,6 +1,5 @@
 "use client";
 
-import { openUrl } from "@midday/desktop-client/core";
 import { isDesktopApp } from "@midday/desktop-client/platform";
 import { cn } from "@midday/ui/cn";
 
@@ -15,9 +14,14 @@ export function OpenURL({
 }) {
   const handleOnClick = () => {
     if (isDesktopApp()) {
-      openUrl(href);
+      // Loaded here so web pages do not ship the desktop APIs (FF-1725).
+      import("@midday/desktop-client/core")
+        .then(({ openUrl }) => openUrl(href))
+        .catch((error: unknown) => {
+          console.error("Failed to open link in the desktop app", error);
+        });
     } else {
-      window.open(href, "_blank");
+      window.open(href, "_blank", "noopener,noreferrer");
     }
   };
 

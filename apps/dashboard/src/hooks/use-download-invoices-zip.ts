@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import { useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
 import { saveFile } from "@/lib/save-file";
@@ -22,6 +21,8 @@ export function useDownloadInvoicesZip() {
     setProgress({ current: 0, total: invoices.length });
 
     try {
+      // Loaded on the click, not with the page (FF-1723).
+      const { default: JSZip } = await import("jszip");
       const zip = new JSZip();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 

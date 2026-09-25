@@ -14,12 +14,11 @@ import {
   TooltipTrigger,
 } from "@midday/ui/tooltip";
 import { DEFAULT_DATE_FORMAT, formatDate } from "@midday/utils/format";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { format, formatDistanceToNow } from "date-fns";
 import type { MouseEvent } from "react";
 import { FormatAmount } from "@/components/format-amount";
 import { InvoiceStatus } from "@/components/invoice-status";
-import { useCustomerParams } from "@/hooks/use-customer-params";
 import { getDueDateStatus } from "@/utils/format";
 import { getWebsiteLogo } from "@/utils/logos";
 import { ActionsMenu } from "./actions-menu";
@@ -190,90 +189,7 @@ export const columns: ColumnDef<Invoice>[] = [
       sortField: "customer",
       className: "w-[220px] min-w-[160px]",
     },
-    cell: ({ row }) => {
-      const customer = row.original.customer;
-      const name = customer?.name || row.original.customerName;
-      const viewAt = row.original.viewedAt;
-      const customerId = customer?.id || row.original.customerId;
-      const { setParams } = useCustomerParams();
-
-      if (!name) return "-";
-
-      const handleCustomerClick = (e: MouseEvent<HTMLButtonElement>) => {
-        e.stopPropagation();
-        if (customerId) {
-          setParams({
-            customerId,
-            details: true,
-          });
-        }
-      };
-
-      return (
-        <div className="flex items-center space-x-2 min-w-0">
-          {customerId ? (
-            <button
-              type="button"
-              onClick={handleCustomerClick}
-              className="flex items-center space-x-2 text-left min-w-0"
-            >
-              <Avatar className="size-5 shrink-0">
-                {customer?.website && (
-                  <AvatarImageNext
-                    src={getWebsiteLogo(customer?.website)}
-                    alt={`${name} logo`}
-                    width={20}
-                    height={20}
-                    quality={100}
-                  />
-                )}
-                <AvatarFallback className="text-[9px] font-medium">
-                  {name?.[0]}
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate">{name}</span>
-            </button>
-          ) : (
-            <>
-              <Avatar className="size-5 shrink-0">
-                {customer?.website && (
-                  <AvatarImageNext
-                    src={getWebsiteLogo(customer?.website)}
-                    alt={`${name} logo`}
-                    width={20}
-                    height={20}
-                    quality={100}
-                  />
-                )}
-                <AvatarFallback className="text-[9px] font-medium">
-                  {name?.[0]}
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate">{name}</span>
-            </>
-          )}
-
-          {viewAt && row.original.status !== "paid" && (
-            <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger className="flex items-center space-x-2 shrink-0">
-                  <Icons.Visibility className="size-4 text-[#878787]" />
-                </TooltipTrigger>
-                <TooltipContent
-                  className="text-xs py-1 px-2"
-                  side="right"
-                  sideOffset={5}
-                >
-                  {viewAt
-                    ? `Viewed ${formatDistanceToNow(new Date(viewAt))} ago`
-                    : ""}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      );
-    },
+    cell: (props) => <InvoiceCustomerCell {...props} />,
   },
   {
     id: "amount",
@@ -651,3 +567,83 @@ export const columns: ColumnDef<Invoice>[] = [
     },
   },
 ];
+
+function InvoiceCustomerCell({ row, table }: CellContext<Invoice, unknown>) {
+  const customer = row.original.customer;
+  const name = customer?.name || row.original.customerName;
+  const viewAt = row.original.viewedAt;
+  const customerId = customer?.id || row.original.customerId;
+  if (!name) return "-";
+
+  const handleCustomerClick = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (customerId) {
+      table.options.meta?.openCustomer?.(customerId);
+    }
+  };
+
+  return (
+    <div className="flex items-center space-x-2 min-w-0">
+      {customerId ? (
+        <button
+          type="button"
+          onClick={handleCustomerClick}
+          className="flex items-center space-x-2 text-left min-w-0"
+        >
+          <Avatar className="size-5 shrink-0">
+            {customer?.website && (
+              <AvatarImageNext
+                src={getWebsiteLogo(customer?.website)}
+                alt={`${name} logo`}
+                width={20}
+                height={20}
+                quality={100}
+              />
+            )}
+            <AvatarFallback className="text-[9px] font-medium">
+              {name?.[0]}
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate">{name}</span>
+        </button>
+      ) : (
+        <>
+          <Avatar className="size-5 shrink-0">
+            {customer?.website && (
+              <AvatarImageNext
+                src={getWebsiteLogo(customer?.website)}
+                alt={`${name} logo`}
+                width={20}
+                height={20}
+                quality={100}
+              />
+            )}
+            <AvatarFallback className="text-[9px] font-medium">
+              {name?.[0]}
+            </AvatarFallback>
+          </Avatar>
+          <span className="truncate">{name}</span>
+        </>
+      )}
+
+      {viewAt && row.original.status !== "paid" && (
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger className="flex items-center space-x-2 shrink-0">
+              <Icons.Visibility className="size-4 text-[#878787]" />
+            </TooltipTrigger>
+            <TooltipContent
+              className="text-xs py-1 px-2"
+              side="right"
+              sideOffset={5}
+            >
+              {viewAt
+                ? `Viewed ${formatDistanceToNow(new Date(viewAt))} ago`
+                : ""}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
+  );
+}

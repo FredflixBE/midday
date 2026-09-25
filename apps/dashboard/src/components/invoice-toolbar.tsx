@@ -11,7 +11,6 @@ import {
 } from "@midday/ui/tooltip";
 import { useToast } from "@midday/ui/use-toast";
 import { motion } from "framer-motion";
-import JSZip from "jszip";
 import { useEffect, useRef, useState } from "react";
 import { MdContentCopy, MdOutlineFileDownload } from "react-icons/md";
 import { useCopyToClipboard } from "usehooks-ts";
@@ -82,6 +81,8 @@ export default function InvoiceToolbar({
     try {
       if (isPaid) {
         // For paid invoices, download both invoice and receipt as a zip
+        // Loaded on the click, not with the page (FF-1723).
+        const { default: JSZip } = await import("jszip");
         const zip = new JSZip();
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 

@@ -6,9 +6,9 @@ import { GlobalSheetsProvider } from "@/components/sheets/global-sheets-provider
 import { Sidebar } from "@/components/sidebar";
 import { TimezoneDetector } from "@/components/timezone-detector";
 import {
-  batchPrefetch,
   getQueryClient,
   HydrateClient,
+  prefetchForLayout,
   trpc,
 } from "@/trpc/server";
 import { firstStop } from "@/utils/first-stop";
@@ -20,8 +20,10 @@ export default async function Layout({
 }) {
   const queryClient = getQueryClient();
 
-  // NOTE: These are used in the global sheets
-  batchPrefetch([
+  // Sent by this layout's HydrateClient alone, because the header, the
+  // sidebar and the global sheets render outside every page's boundary.
+  const layoutQueries = prefetchForLayout([
+    trpc.user.me.queryOptions(),
     trpc.team.current.queryOptions(),
     trpc.invoice.defaultSettings.queryOptions(),
     trpc.search.global.queryOptions({ searchTerm: "" }),
@@ -45,7 +47,7 @@ export default async function Layout({
   }
 
   return (
-    <HydrateClient>
+    <HydrateClient queries={layoutQueries}>
       <div className="relative">
         <Sidebar />
 
