@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { flushSync } from "react-dom";
 import { useChatState } from "@/components/chat/chat-context";
-import { InputBar } from "@/components/chat/chat-view";
 import { filesToUIParts } from "@/components/chat/file-utils";
+import { InputBar } from "@/components/chat/input-bar";
 import { useTRPC } from "@/trpc/client";
 import { ConnectorsBar } from "./connectors-bar";
 
