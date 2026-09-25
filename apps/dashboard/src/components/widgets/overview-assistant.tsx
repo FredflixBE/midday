@@ -14,7 +14,7 @@ import { AskMidday } from "./ask-midday";
 import { QuickActions } from "./quick-actions";
 
 // The conversation, its markdown renderer and the invoice canvas load when
-// the chat opens, not with the Ask bar.
+// the chat opens, not with the Ask bar (FF-1712).
 const ChatView = dynamic(
   () => import("@/components/chat/chat-view").then((m) => m.ChatView),
   { ssr: false },
@@ -23,7 +23,7 @@ const ChatView = dynamic(
 /**
  * The overview's assistant: one chat state shared by the Ask bar, which it
  * renders into `askSlot` on the overview, and the chat view that replaces the
- * overview once a conversation starts.
+ * overview once a conversation starts (FF-1712).
  */
 export function OverviewAssistant({
   isChat,

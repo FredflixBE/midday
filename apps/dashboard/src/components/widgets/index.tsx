@@ -23,7 +23,8 @@ export function OverviewView() {
   const { assistant: assistantAvailable } = useFeatureAvailability();
   // Where the Ask bar goes on the overview. The assistant renders it there
   // through a portal, so the overview below never remounts when the
-  // assistant's code arrives, and the chat state survives opening the chat.
+  // assistant's code arrives, and the chat state survives opening the chat
+  // (FF-1712).
   const [askSlot, setAskSlot] = useState<HTMLDivElement | null>(null);
 
   const isChat = assistant === true && assistantAvailable;
