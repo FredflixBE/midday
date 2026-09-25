@@ -21,7 +21,13 @@ import {
   isValid,
   startOfDay,
 } from "date-fns";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useLatestProjectId } from "@/hooks/use-latest-project-id";
 import { useTrackerParams } from "@/hooks/use-tracker-params";
@@ -683,7 +689,11 @@ export function TrackerSchedule() {
   }, [urlProjectId, latestProjectId]);
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
-  const sortedRange = range?.sort((a, b) => a.localeCompare(b));
+  // Copy before sorting: `range` is URL state.
+  const sortedRange = useMemo(
+    () => (range ? [...range].sort((a, b) => a.localeCompare(b)) : range),
+    [range],
+  );
 
   // Scroll to appropriate time on mount (using user timezone)
   useEffect(() => {
