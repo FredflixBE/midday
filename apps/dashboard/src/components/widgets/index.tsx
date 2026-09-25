@@ -1,56 +1,37 @@
 "use client";
 
-import { Button } from "@midday/ui/button";
-import { Icons } from "@midday/ui/icons";
+import dynamic from "next/dynamic";
 import { parseAsBoolean, useQueryState } from "nuqs";
-import { Suspense, useCallback } from "react";
-import { ChatProvider } from "@/components/chat/chat-context";
-import { ChatTitle } from "@/components/chat/chat-title";
-import { ChatView } from "@/components/chat/chat-view";
-import { NewChatButton } from "@/components/chat/new-chat-button";
+import { Suspense, useState } from "react";
 import { useFeatureAvailability } from "@/hooks/use-feature-availability";
-import { useInvoiceParams } from "@/hooks/use-invoice-params";
-import { AskMidday } from "./ask-midday";
 import { McpBanner } from "./mcp-banner";
 import { SummarySkeleton, WidgetCardsSkeleton } from "./overview-skeleton";
-import { QuickActions } from "./quick-actions";
 import { WelcomeGreeting, WelcomeSummary } from "./welcome-section";
 import { WidgetCards } from "./widget-cards";
 
+// The assistant (chat state, the Ask bar, the chat view) is its own chunk,
+// loaded only on an instance that offers it (FF-1712).
+const OverviewAssistant = dynamic(
+  () => import("./overview-assistant").then((m) => m.OverviewAssistant),
+  { ssr: false },
+);
+
 export function OverviewView() {
-  const [assistant, setAssistant] = useQueryState("assistant", parseAsBoolean);
-  const { setParams: setInvoiceParams } = useInvoiceParams();
+  const [assistant] = useQueryState("assistant", parseAsBoolean);
   // Without an OpenAI key every chat request fails, so the assistant is not
   // offered at all on this instance.
   const { assistant: assistantAvailable } = useFeatureAvailability();
+  // Where the Ask bar goes on the overview. The assistant renders it there
+  // through a portal, so the overview below never remounts when the
+  // assistant's code arrives, and the chat state survives opening the chat.
+  const [askSlot, setAskSlot] = useState<HTMLDivElement | null>(null);
 
   const isChat = assistant === true && assistantAvailable;
 
-  const openChat = useCallback(() => {
-    setAssistant(true);
-  }, [setAssistant]);
-
-  const goBack = useCallback(() => {
-    setInvoiceParams(null);
-    setAssistant(null);
-  }, [setInvoiceParams, setAssistant]);
-
   return (
-    <ChatProvider>
-      {isChat && (
-        <div>
-          <ChatView
-            header={
-              <>
-                <Button variant="outline" size="icon" onClick={goBack}>
-                  <Icons.ArrowBack className="size-4" />
-                </Button>
-                <ChatTitle />
-                <NewChatButton variant="outline" />
-              </>
-            }
-          />
-        </div>
+    <>
+      {assistantAvailable && (
+        <OverviewAssistant isChat={isChat} askSlot={askSlot} />
       )}
 
       {!isChat && (
@@ -61,18 +42,13 @@ export function OverviewView() {
               <WelcomeSummary />
             </Suspense>
           </div>
-          {assistantAvailable && (
-            <>
-              <AskMidday onChatOpen={openChat} />
-              <QuickActions onChatOpen={openChat} />
-            </>
-          )}
+          {assistantAvailable && <div ref={setAskSlot} className="w-full" />}
           <Suspense fallback={<WidgetCardsSkeleton />}>
             <WidgetCards />
           </Suspense>
           <McpBanner />
         </div>
       )}
-    </ChatProvider>
+    </>
   );
 }

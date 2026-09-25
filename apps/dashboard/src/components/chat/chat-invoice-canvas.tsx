@@ -1,58 +1,18 @@
 "use client";
 
 import { cn } from "@midday/ui/cn";
-import {
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import { Suspense, useEffect, useRef } from "react";
-import { Form } from "@/components/invoice/form";
-import { FormContext } from "@/components/invoice/form-context";
-import { InvoiceSuccess } from "@/components/invoice-success";
+import { lazy, Suspense } from "react";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
-import { useInvoiceEditorStore } from "@/store/invoice-editor";
-import { useTRPC } from "@/trpc/client";
 
-function InvoiceCanvasContent() {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const { invoiceType, invoiceId } = useInvoiceParams();
-  const prevInvoiceIdRef = useRef(invoiceId);
-
-  useEffect(() => {
-    if (prevInvoiceIdRef.current && prevInvoiceIdRef.current !== invoiceId) {
-      useInvoiceEditorStore.getState().reset();
-      queryClient.invalidateQueries({
-        queryKey: trpc.invoice.getById.queryKey(),
-      });
-    }
-    prevInvoiceIdRef.current = invoiceId;
-  }, [invoiceId, queryClient, trpc.invoice.getById]);
-
-  const { data: defaultSettings } = useSuspenseQuery(
-    trpc.invoice.defaultSettings.queryOptions(),
-  );
-
-  const { data } = useQuery(
-    trpc.invoice.getById.queryOptions(
-      { id: invoiceId! },
-      { enabled: !!invoiceId, staleTime: 30 * 1000 },
-    ),
-  );
-
-  return (
-    <FormContext defaultSettings={defaultSettings} data={data}>
-      <div className="flex flex-col h-full">
-        <div className="flex-1 min-h-0">
-          {invoiceType === "success" ? <InvoiceSuccess /> : <Form />}
-        </div>
-      </div>
-    </FormContext>
-  );
-}
+// The invoice form behind the canvas (Tiptap, line items) loads only when the
+// canvas opens (FF-1712).
+const InvoiceCanvasContent = lazy(() =>
+  import("./invoice-canvas-content").then((m) => ({
+    default: m.InvoiceCanvasContent,
+  })),
+);
 
 export function ChatInvoiceCanvas() {
   const { canvas } = useInvoiceParams();
