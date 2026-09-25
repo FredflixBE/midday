@@ -613,6 +613,7 @@
       "name": "@midday/trpc",
       "version": "0.0.1",
       "dependencies": {
+        "@midday/utils": "workspace:*",
         "@trpc/client": "^11.16.0",
         "@trpc/server": "^11.16.0",
         "superjson": "^2.2.6",
