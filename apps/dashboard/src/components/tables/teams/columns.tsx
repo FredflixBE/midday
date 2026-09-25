@@ -32,8 +32,10 @@ import { useRouter } from "next/navigation";
 import { useI18n } from "@/locales/client";
 import { useTRPC } from "@/trpc/client";
 
-const teamNameFilterFn: FilterFn<RouterOutputs["team"]["list"][number]> = (
-  row: Row<RouterOutputs["team"]["list"][number]>,
+type Team = RouterOutputs["team"]["list"][number];
+
+const teamNameFilterFn: FilterFn<Team> = (
+  row: Row<Team>,
   _: string,
   filterValue: string,
 ) => {
@@ -42,7 +44,7 @@ const teamNameFilterFn: FilterFn<RouterOutputs["team"]["list"][number]> = (
   return teamName?.includes(filterValue.toLowerCase()) ?? false;
 };
 
-export const columns: ColumnDef<RouterOutputs["team"]["list"][number]>[] = [
+export const columns: ColumnDef<Team>[] = [
   {
     id: "team",
     accessorKey: "team.name",
@@ -58,9 +60,7 @@ export const columns: ColumnDef<RouterOutputs["team"]["list"][number]>[] = [
   },
 ];
 
-function TeamNameCell({
-  row,
-}: CellContext<RouterOutputs["team"]["list"][number], unknown>) {
+function TeamNameCell({ row }: CellContext<Team, unknown>) {
   const t = useI18n();
 
   return (
@@ -89,9 +89,7 @@ function TeamNameCell({
   );
 }
 
-function TeamActionsCell({
-  row,
-}: CellContext<RouterOutputs["team"]["list"][number], unknown>) {
+function TeamActionsCell({ row }: CellContext<Team, unknown>) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const router = useRouter();
