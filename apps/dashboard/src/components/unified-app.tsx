@@ -425,7 +425,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
         if (isDesktopApp()) {
           openUrl(app.installUrl);
         } else {
-          window.open(app.installUrl, "_blank");
+          window.open(app.installUrl, "_blank", "noopener,noreferrer");
         }
         setLoading(false);
         return;

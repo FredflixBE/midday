@@ -361,7 +361,11 @@ export function Form() {
                         size="icon"
                         type="button"
                         onClick={() => {
-                          window.open(`${getUrl()}/i/${token}`, "_blank");
+                          window.open(
+                            `${getUrl()}/i/${token}`,
+                            "_blank",
+                            "noopener,noreferrer",
+                          );
                         }}
                       >
                         <Icons.ExternalLink className="size-3" />

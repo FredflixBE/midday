@@ -17,7 +17,7 @@ export function OpenURL({
     if (isDesktopApp()) {
       openUrl(href);
     } else {
-      window.open(href, "_blank");
+      window.open(href, "_blank", "noopener,noreferrer");
     }
   };
 
