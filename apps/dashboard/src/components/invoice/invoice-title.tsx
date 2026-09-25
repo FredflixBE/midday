@@ -2,12 +2,12 @@
 
 import { cn } from "@midday/ui/cn";
 import { useEffect, useRef, useState } from "react";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
 
 export function InvoiceTitle() {
-  const { control, watch } = useFormContext();
-  const invoiceTitle = watch("template.title") ?? "";
+  const { control } = useFormContext();
+  const invoiceTitle = useWatch({ control, name: "template.title" }) ?? "";
   const { updateTemplate } = useTemplateUpdate();
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);

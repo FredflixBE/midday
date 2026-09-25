@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetTitle } from "@midday/ui/sheet";
 import { getEmailUrl } from "@midday/utils/envs";
 import { format } from "date-fns";
 import { useCallback, useEffect, useRef } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { SavingBar } from "@/components/saving-bar";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
@@ -131,31 +131,54 @@ function EditableMultilineText({
 
 export function EmailPreview() {
   const { emailPreview, setParams } = useInvoiceParams();
-  const { watch, setValue } = useFormContext();
+  const { control, setValue } = useFormContext();
   const { data: user } = useUserQuery();
   const { updateTemplate, isPending, isError } = useTemplateUpdate();
 
   const isOpen = emailPreview === true;
 
   const teamName = user?.team?.name ?? "Your Company";
-  const customerName = watch("customerName") || "Customer";
-  const invoiceLogoUrl = watch("template.logoUrl") as string | null;
-  const invoiceNumber = watch("invoiceNumber") as string | null;
-  const amount = watch("amount") as number | null;
-  const currency = (watch("template.currency") as string) || "USD";
-  const locale = (watch("template.locale") as string) || "en-US";
-  const dateFormat = (watch("template.dateFormat") as string) || "MM/dd/yyyy";
-  const dueDate = watch("dueDate") as string | null;
-  const dueDateLabel = (watch("template.dueDateLabel") as string) || "Due";
+  const customerName =
+    useWatch({ control, name: "customerName" }) || "Customer";
+  const invoiceLogoUrl = useWatch({ control, name: "template.logoUrl" }) as
+    | string
+    | null;
+  const invoiceNumber = useWatch({ control, name: "invoiceNumber" }) as
+    | string
+    | null;
+  const amount = useWatch({ control, name: "amount" }) as number | null;
+  const currency =
+    (useWatch({ control, name: "template.currency" }) as string) || "USD";
+  const locale =
+    (useWatch({ control, name: "template.locale" }) as string) || "en-US";
+  const dateFormat =
+    (useWatch({ control, name: "template.dateFormat" }) as string) ||
+    "MM/dd/yyyy";
+  const dueDate = useWatch({ control, name: "dueDate" }) as string | null;
+  const dueDateLabel =
+    (useWatch({ control, name: "template.dueDateLabel" }) as string) || "Due";
   const invoiceNoLabel =
-    (watch("template.invoiceNoLabel") as string) || "Invoice";
-  const includePdf = watch("template.includePdf") as boolean;
-  const token = watch("token") as string | null;
+    (useWatch({ control, name: "template.invoiceNoLabel" }) as string) ||
+    "Invoice";
+  const includePdf = useWatch({
+    control,
+    name: "template.includePdf",
+  }) as boolean;
+  const token = useWatch({ control, name: "token" }) as string | null;
 
-  const emailSubject = watch("template.emailSubject") as string | null;
-  const emailHeading = watch("template.emailHeading") as string | null;
-  const emailBody = watch("template.emailBody") as string | null;
-  const emailButtonText = watch("template.emailButtonText") as string | null;
+  const emailSubject = useWatch({ control, name: "template.emailSubject" }) as
+    | string
+    | null;
+  const emailHeading = useWatch({ control, name: "template.emailHeading" }) as
+    | string
+    | null;
+  const emailBody = useWatch({ control, name: "template.emailBody" }) as
+    | string
+    | null;
+  const emailButtonText = useWatch({
+    control,
+    name: "template.emailButtonText",
+  }) as string | null;
 
   const formattedAmount =
     amount != null

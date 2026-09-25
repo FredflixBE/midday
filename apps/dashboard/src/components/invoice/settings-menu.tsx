@@ -39,7 +39,7 @@ import { useToast } from "@midday/ui/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, parseISO } from "date-fns";
 import { useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { useAppOAuth } from "@/hooks/use-app-oauth";
 import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useTRPC } from "@/trpc/client";
@@ -130,7 +130,7 @@ const emailItems = [
 ];
 
 export function SettingsMenu() {
-  const { watch, setValue } = useFormContext();
+  const { control, getValues, setValue } = useFormContext();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -140,11 +140,12 @@ export function SettingsMenu() {
   const [newName, setNewName] = useState("");
   const [customPaymentDays, setCustomPaymentDays] = useState("");
 
-  const templateId = watch("template.id");
-  const templateName = watch("template.name");
-  const isDefault = watch("template.isDefault");
-  const paymentEnabled = watch("template.paymentEnabled");
-  const paymentTermsDays = watch("template.paymentTermsDays");
+  const template = useWatch({ control, name: "template" });
+  const templateId = template?.id;
+  const templateName = template?.name;
+  const isDefault = template?.isDefault;
+  const paymentEnabled = template?.paymentEnabled;
+  const paymentTermsDays = template?.paymentTermsDays;
 
   // Stripe Connect status
   const { stripe: stripeAvailable } = useFeatureAvailability();
@@ -340,7 +341,7 @@ export function SettingsMenu() {
   };
 
   const handlePaymentTermsChange = (days: number) => {
-    const currentPaymentTermsDays = watch("template.paymentTermsDays");
+    const currentPaymentTermsDays = getValues("template.paymentTermsDays");
     const valueChanged = currentPaymentTermsDays !== days;
 
     if (valueChanged) {
@@ -352,7 +353,7 @@ export function SettingsMenu() {
 
     // Always update due date based on issue date + payment terms
     // This ensures clicking the same option still recalculates the due date
-    const issueDate = watch("issueDate");
+    const issueDate = getValues("issueDate");
     if (issueDate) {
       const issueDateParsed = parseISO(issueDate);
       const newDueDate = addDays(issueDateParsed, days);
@@ -381,14 +382,14 @@ export function SettingsMenu() {
 
   const handleDuplicate = () => {
     // Get the current template settings from the form
-    const currentTemplate = watch("template");
+    const currentTemplate = getValues("template");
     if (!currentTemplate) return;
 
     // Get the CURRENT invoice-level details (editors modify these, not template.*)
     // This ensures user's edits are captured, not stale template values
-    const fromDetails = watch("fromDetails");
-    const paymentDetails = watch("paymentDetails");
-    const noteDetails = watch("noteDetails");
+    const fromDetails = getValues("fromDetails");
+    const paymentDetails = getValues("paymentDetails");
+    const noteDetails = getValues("noteDetails");
 
     // Exclude id and create with new name
     const {
@@ -442,7 +443,7 @@ export function SettingsMenu() {
                           headless
                           className="text-xs"
                           currencies={uniqueCurrencies}
-                          value={watch(watchKey)}
+                          value={template?.[item.key]}
                           onChange={(value) => {
                             setValue(watchKey, value, {
                               shouldValidate: true,
@@ -470,7 +471,7 @@ export function SettingsMenu() {
                         <DropdownMenuCheckboxItem
                           key={optionIndex.toString()}
                           className="text-xs"
-                          checked={watch(watchKey) === option.value}
+                          checked={template?.[item.key] === option.value}
                           onCheckedChange={(checked) => {
                             if (checked) {
                               setValue(watchKey, option.value, {
@@ -575,7 +576,7 @@ export function SettingsMenu() {
             <DropdownMenuSubContent className="w-44">
               {taxItems.map((item) => {
                 const watchKey = `template.${item.key}`;
-                const isChecked = watch(watchKey) === true;
+                const isChecked = template?.[item.key] === true;
                 return (
                   <DropdownMenuCheckboxItem
                     key={item.key}
@@ -610,7 +611,7 @@ export function SettingsMenu() {
             <DropdownMenuSubContent className="w-48">
               {emailItems.map((item) => {
                 const watchKey = `template.${item.key}`;
-                const isChecked = watch(watchKey) === true;
+                const isChecked = template?.[item.key] === true;
                 return (
                   <DropdownMenuCheckboxItem
                     key={item.key}

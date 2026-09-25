@@ -191,7 +191,7 @@ function LineItemRow({
   gridCols: string;
 }) {
   const controls = useDragControls();
-  const { control, watch, setValue } = useFormContext();
+  const { control, setValue } = useFormContext();
 
   const locale = useWatch({ control, name: "template.locale" });
 
@@ -205,7 +205,7 @@ function LineItemRow({
     name: `lineItems.${index}.quantity`,
   });
 
-  const lineItemName = watch(`lineItems.${index}.name`);
+  const lineItemName = useWatch({ control, name: `lineItems.${index}.name` });
 
   return (
     <Reorder.Item

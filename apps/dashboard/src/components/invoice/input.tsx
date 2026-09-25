@@ -1,13 +1,13 @@
 import { cn } from "@midday/ui/cn";
 import { Input as BaseInput, type InputProps } from "@midday/ui/input";
 import { useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 
 export function Input({ className, ...props }: InputProps) {
-  const { register, watch } = useFormContext();
+  const { register, control } = useFormContext();
   const [isFocused, setIsFocused] = useState(false);
   const fieldName = props.name as string;
-  const fieldValue = watch(fieldName);
+  const fieldValue = useWatch({ control, name: fieldName });
 
   const { ref, ...rest } = register(fieldName, {
     valueAsNumber: props.type === "number",

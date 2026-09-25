@@ -1,15 +1,15 @@
 "use client";
 
 import { SheetContent, SheetTitle } from "@midday/ui/sheet";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { Form } from "@/components/invoice/form";
 import { InvoiceSuccess } from "@/components/invoice-success";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 
 export function InvoiceContent() {
   const { invoiceType } = useInvoiceParams();
-  const { watch } = useFormContext();
-  const templateSize = watch("template.size");
+  const { control } = useFormContext();
+  const templateSize = useWatch({ control, name: "template.size" });
 
   const size = templateSize === "a4" ? 650 : 740;
 

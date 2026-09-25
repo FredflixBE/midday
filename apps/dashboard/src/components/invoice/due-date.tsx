@@ -4,16 +4,16 @@ import { Calendar } from "@midday/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@midday/ui/popover";
 import { format } from "date-fns";
 import { useMemo, useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
 import { useUserQuery } from "@/hooks/use-user";
 import { LabelInput } from "./label-input";
 
 export function DueDate() {
-  const { setValue, watch } = useFormContext();
+  const { setValue, control } = useFormContext();
   const { data: user } = useUserQuery();
-  const dueDate = watch("dueDate");
-  const dateFormat = watch("template.dateFormat");
+  const dueDate = useWatch({ control, name: "dueDate" });
+  const dateFormat = useWatch({ control, name: "template.dateFormat" });
 
   const [isOpen, setIsOpen] = useState(false);
   const { updateTemplate } = useTemplateUpdate();
