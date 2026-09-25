@@ -91,6 +91,31 @@ describe("planInvoiceCopies", () => {
     expect(plan.remove.map((row) => row.id)).toEqual(["older"]);
   });
 
+  test("a copy attached to the same payment as the survivor is still a spare copy", () => {
+    // Production had 25 of these: both mailboxes' PDFs confirmed onto one
+    // payment, so the payment carried the invoice twice.
+    const first = copy({ id: "first", transactionId: "tx-1" });
+    const second = copy({
+      id: "second",
+      transactionId: "tx-1",
+      hasConfirmedMatch: true,
+      createdAt: "2026-09-12T16:00:03Z",
+    });
+    const plan = planInvoiceCopies([second, first]);
+    expect(plan.keep.id).toBe("first");
+    expect(plan.remove.map((row) => row.id)).toEqual(["second"]);
+  });
+
+  test("a copy attached to a different payment is left for a person to judge", () => {
+    const august = copy({ id: "august", transactionId: "tx-aug" });
+    const september = copy({
+      id: "september",
+      transactionId: "tx-sep",
+      createdAt: "2026-09-12T16:00:03Z",
+    });
+    expect(planInvoiceCopies([august, september]).remove).toEqual([]);
+  });
+
   test("a confirmed match counts as in use", () => {
     const older = copy({ id: "older", createdAt: "2026-09-01T00:00:00Z" });
     const confirmed = copy({

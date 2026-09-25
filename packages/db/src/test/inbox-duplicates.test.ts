@@ -21,7 +21,12 @@ import {
 import { eq } from "drizzle-orm";
 import type { Database } from "../client";
 import { resolveInvoiceCopies } from "../queries/inbox-duplicates";
-import { inbox, transactionMatchSuggestions, transactions } from "../schema";
+import {
+  inbox,
+  transactionAttachments,
+  transactionMatchSuggestions,
+  transactions,
+} from "../schema";
 import {
   BANK_EUR_ACCOUNT_ID,
   seedAll,
@@ -58,6 +63,9 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
       .where(eq(transactionMatchSuggestions.teamId, TEAM_EUR_ID));
     await db.delete(inbox).where(eq(inbox.teamId, TEAM_EUR_ID));
     await db.delete(inbox).where(eq(inbox.teamId, TEAM_USD_ID));
+    await db
+      .delete(transactionAttachments)
+      .where(eq(transactionAttachments.transactionId, PAYMENT));
     await db.delete(transactions).where(eq(transactions.id, PAYMENT));
     await db.insert(transactions).values({
       id: PAYMENT,
@@ -194,6 +202,66 @@ describe.skipIf(SKIP)("resolveInvoiceCopies", () => {
     expect(result?.keep).toBe(SUPPORT);
     expect((await statusOf(FREDERIK))?.status).toBe("deleted");
     expect((await statusOf(SUPPORT))?.status).toBe("done");
+  });
+
+  test("two copies on one payment leave one, and the payment keeps its attachment", async () => {
+    // Production's commonest case: both mailboxes' PDFs confirmed onto one payment.
+    await db
+      .update(transactions)
+      .set({ taxRate: 21, taxType: "vat" })
+      .where(eq(transactions.id, PAYMENT));
+    const attachments = await db
+      .insert(transactionAttachments)
+      .values([
+        {
+          teamId: TEAM_EUR_ID,
+          transactionId: PAYMENT,
+          name: "g1.pdf",
+          type: "application/pdf",
+        },
+        {
+          teamId: TEAM_EUR_ID,
+          transactionId: PAYMENT,
+          name: "g2.pdf",
+          type: "application/pdf",
+        },
+      ])
+      .returning({ id: transactionAttachments.id });
+    await googleCopy(FREDERIK, {
+      createdAt: "2026-09-12T16:00:00Z",
+      transactionId: PAYMENT,
+      attachmentId: attachments[0]?.id,
+      status: "done",
+    });
+    await googleCopy(SUPPORT, {
+      createdAt: "2026-09-12T16:00:03Z",
+      transactionId: PAYMENT,
+      attachmentId: attachments[1]?.id,
+      status: "done",
+    });
+
+    const result = await resolveInvoiceCopies(db, {
+      inboxId: FREDERIK,
+      teamId: TEAM_EUR_ID,
+      apply: true,
+    });
+
+    expect(result).toEqual({
+      keep: FREDERIK,
+      removed: [SUPPORT],
+      currentRemoved: false,
+    });
+    const remaining = await db
+      .select({ id: transactionAttachments.id })
+      .from(transactionAttachments)
+      .where(eq(transactionAttachments.transactionId, PAYMENT));
+    expect(remaining).toEqual([{ id: attachments[0]?.id as string }]);
+    const [payment] = await db
+      .select({ taxRate: transactions.taxRate, taxType: transactions.taxType })
+      .from(transactions)
+      .where(eq(transactions.id, PAYMENT));
+    expect(payment).toEqual({ taxRate: 21, taxType: "vat" });
+    expect((await statusOf(FREDERIK))?.status).toBe("done");
   });
 
   test("a copy from the books is never removed", async () => {

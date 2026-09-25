@@ -82,11 +82,15 @@ function byAge(a: InvoiceCopy, b: InvoiceCopy): number {
 /**
  * Of one invoice's copies, the one to keep and the ones to remove.
  *
- * Only redundant email copies are ever removed. A copy linked to a transaction
- * or carrying a confirmed match is in use and stays, and so does a copy from
- * the books. One email copy always survives — the one in use, else the one the
- * inbox shows (not nested in a group), else the oldest — so the invoice keeps
- * the document the inbox and matching work with.
+ * Only redundant email copies are ever removed, never a copy from the books.
+ * One email copy always survives: the one in use (linked to a payment or
+ * carrying a confirmed match), else the one the inbox shows (not nested in a
+ * group), else the oldest.
+ *
+ * A copy in use is redundant only when it is in use for the same payment as
+ * the survivor: both mailboxes' PDFs confirmed onto one payment put the
+ * invoice on it twice. A copy linked to a different payment is a question for
+ * a person, not for this rule, so it stays.
  *
  * Deterministic in its input, whatever the order: two copies processed at once
  * each run this over the same rows and reach the same answer.
@@ -108,7 +112,13 @@ export function planInvoiceCopies(copies: InvoiceCopy[]): {
     throw new Error("planInvoiceCopies needs at least one copy");
   }
 
-  const remove = email.filter((row) => row.id !== keep.id && !isInUse(row));
+  const remove = email.filter(
+    (row) =>
+      row.id !== keep.id &&
+      (!isInUse(row) ||
+        (keep.transactionId !== null &&
+          row.transactionId === keep.transactionId)),
+  );
 
   return { keep, remove };
 }

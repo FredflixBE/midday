@@ -46,10 +46,11 @@ const copyColumns = {
  *
  * Copies are the team's other live documents with the same supplier, invoice
  * number, amount, currency and type — see `invoiceIdentity`. Which ones go is
- * `planInvoiceCopies`: only email copies that are not in use, never a copy from
- * the books. A removed copy is deleted the way the inbox deletes one, which
- * takes its pending match suggestions with it, and any document grouped under
- * it (an invoice's receipt, say) moves to the survivor.
+ * `planInvoiceCopies`: redundant email copies, including one attached to the
+ * survivor's payment; never one linked to another payment, never a copy from
+ * the books. A removed copy is deleted the way the inbox deletes one — its
+ * attachment comes off the payment and its suggestions go — and any document
+ * grouped under it (an invoice's receipt, say) moves to the survivor.
  *
  * Returns null when the document has no copies to remove.
  */
