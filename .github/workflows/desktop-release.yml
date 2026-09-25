@@ -147,9 +147,11 @@ jobs:
         include:
           - name: macOS
             runner: macos-latest
-            # One .dmg for Apple Silicon and Intel.
+            # One .dmg for Apple Silicon and Intel. The app bundle is listed too:
+            # without it there is no .app.tar.gz, which is what the updater
+            # installs on macOS.
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            args: --target universal-apple-darwin --bundles dmg
+            args: --target universal-apple-darwin --bundles app,dmg
           - name: Windows
             runner: windows-latest
             rust-targets: ""
@@ -192,7 +194,7 @@ jobs:
           # The publish job writes latest.json once both builds are in. Each
           # build writing its own would race, and the loser's platform would be
           # missing from it.
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
       - name: Keep the installer
         if: needs.draft.result == 'skipped'
@@ -224,7 +226,8 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           repo="${{ github.repository }}"
-          gh api "repos/$repo/releases/$RELEASE_ID/assets" --paginate > assets.json
+          # One array, however many pages the listing takes.
+          gh api "repos/$repo/releases/$RELEASE_ID/assets" --paginate --jq '.[]' | jq -s . > assets.json
           jq -r '.[].name' assets.json
 
           # One asset whose name ends with $1, or fail naming what is missing.
@@ -252,13 +255,23 @@ jobs:
           one -setup.exe.sig "signature for the Windows update" > /dev/null
           one .app.tar.gz.sig "signature for the macOS update" > /dev/null
 
+          # Read into variables first: a failing command inside jq's arguments
+          # would not stop the step, and latest.json would ship an empty
+          # signature that every installed copy rejects.
+          mac_sig=$(signature "$app.sig")
+          win_sig=$(signature "$exe.sig")
+          if [ -z "$mac_sig" ] || [ -z "$win_sig" ]; then
+            echo "::error title=Empty signature::A .sig asset came back empty." >&2
+            exit 1
+          fi
+
           # One universal .app.tar.gz serves both Mac architectures; the
           # Windows update is the NSIS installer itself.
           jq -n \
             --arg version "$VERSION" \
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg mac_url "$(url "$app")" --arg mac_sig "$(signature "$app.sig")" \
-            --arg win_url "$(url "$exe")" --arg win_sig "$(signature "$exe.sig")" \
+            --arg mac_url "$(url "$app")" --arg mac_sig "$mac_sig" \
+            --arg win_url "$(url "$exe")" --arg win_sig "$win_sig" \
             '{
               version: $version,
               notes: "HQ desktop \($version)",
