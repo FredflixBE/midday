@@ -1,7 +1,7 @@
 "use client";
 
 import { parseAsString, useQueryState } from "nuqs";
-import { type ComponentType, type ReactNode, useEffect, useState } from "react";
+import { type ComponentType, useEffect, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useCategoryParams } from "@/hooks/use-category-params";
 import { useConnectParams } from "@/hooks/use-connect-params";
@@ -16,8 +16,7 @@ import { useSearchStore } from "@/store/search";
 import { loadInvoiceSheet } from "./load-invoice-sheet";
 
 // Every sheet is its own chunk, fetched the first time it opens instead of all
-// of them after every page load. A sheet stays mounted once it has opened, so
-// its close animation plays and a second open is instant.
+// of them after every page load.
 
 /**
  * Like next/dynamic, without Suspense: React holds back a suspended boundary's
@@ -30,39 +29,50 @@ function lazySheet(load: () => Promise<ComponentType>) {
   let loading: Promise<ComponentType> | undefined;
 
   const get = () => {
-    loading ??= load().then(
-      (component) => {
-        loaded = component;
-        return component;
-      },
-      (error: unknown) => {
-        // Let the next open try again, and say why this one showed nothing.
-        loading = undefined;
-        console.error("A sheet failed to load", error);
-        throw error;
-      },
-    );
+    loading ??= load().then((component) => {
+      loaded = component;
+      return component;
+    });
     return loading;
   };
 
-  return function LazySheet() {
+  return function LazySheet({ when }: { when: boolean }) {
     const [Component, setComponent] = useState(() => loaded);
+    const [error, setError] = useState<unknown>();
+    // Mounted from the first open on, so its close animation plays and a
+    // second open is instant. `when` may be looser than the sheet's own open
+    // state: that only fetches the chunk sooner, and the sheet still decides
+    // whether it is open.
+    const [opened, setOpened] = useState(when);
+
+    if (when && !opened) {
+      setOpened(true);
+    }
 
     useEffect(() => {
-      if (Component) return;
+      if (Component || !when) return;
       let current = true;
       get().then(
         (component) => {
           if (current) setComponent(() => component);
         },
-        () => {},
+        (reason: unknown) => {
+          if (current) setError(reason);
+        },
       );
       return () => {
         current = false;
       };
-    }, [Component]);
+    }, [Component, when]);
 
-    return Component ? <Component /> : null;
+    // The bundler's runtime keeps a failed chunk failed until the page
+    // reloads, so there is nothing to retry here. Hand the error to the
+    // nearest error boundary, as next/dynamic would.
+    if (error) {
+      throw error;
+    }
+
+    return Component && opened ? <Component /> : null;
   };
 }
 
@@ -142,49 +152,22 @@ const TransactionSheet = lazySheet(() =>
   import("./transaction-sheet").then((mod) => mod.TransactionSheet),
 );
 
-/**
- * Mounts its sheet the first time `when` is true and keeps it mounted.
- * `when` may be looser than the sheet's own open state: mounting early only
- * fetches the chunk sooner, while the sheet still decides whether it is open.
- */
-function OnceOpened({
-  when,
-  children,
-}: {
-  when: boolean;
-  children: ReactNode;
-}) {
-  const [opened, setOpened] = useState(when);
-
-  if (when && !opened) {
-    setOpened(true);
-  }
-
-  return opened || when ? children : null;
-}
-
 function TrackerSheets() {
   const { update, create, projectId, range, selectedDate, eventId } =
     useTrackerParams();
 
   return (
     <>
-      <OnceOpened when={update !== null}>
-        <TrackerUpdateSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(create)}>
-        <TrackerCreateSheet />
-      </OnceOpened>
-      <OnceOpened
+      <TrackerUpdateSheet when={update !== null} />
+      <TrackerCreateSheet when={Boolean(create)} />
+      <TrackerScheduleSheet
         when={
           Boolean(projectId) ||
           Boolean(range?.length) ||
           Boolean(selectedDate) ||
           Boolean(eventId)
         }
-      >
-        <TrackerScheduleSheet />
-      </OnceOpened>
+      />
     </>
   );
 }
@@ -194,12 +177,8 @@ function CategorySheets() {
 
   return (
     <>
-      <OnceOpened when={Boolean(createCategory)}>
-        <CategoryCreateSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(categoryId)}>
-        <CategoryEditSheet />
-      </OnceOpened>
+      <CategoryCreateSheet when={Boolean(createCategory)} />
+      <CategoryEditSheet when={Boolean(categoryId)} />
     </>
   );
 }
@@ -209,13 +188,9 @@ function CustomerSheets() {
 
   return (
     <>
-      <OnceOpened when={Boolean(createCustomer)}>
-        <CustomerCreateSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(customerId)}>
-        <CustomerDetailsSheet />
-        <CustomerEditSheet />
-      </OnceOpened>
+      <CustomerCreateSheet when={Boolean(createCustomer)} />
+      <CustomerDetailsSheet when={Boolean(customerId)} />
+      <CustomerEditSheet when={Boolean(customerId)} />
     </>
   );
 }
@@ -225,12 +200,8 @@ function ProductSheets() {
 
   return (
     <>
-      <OnceOpened when={Boolean(createProduct)}>
-        <ProductCreateSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(productId)}>
-        <ProductEditSheet />
-      </OnceOpened>
+      <ProductCreateSheet when={Boolean(createProduct)} />
+      <ProductEditSheet when={Boolean(productId)} />
     </>
   );
 }
@@ -241,15 +212,9 @@ function TransactionSheets() {
 
   return (
     <>
-      <OnceOpened when={Boolean(transactionId)}>
-        <TransactionSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(createTransaction)}>
-        <TransactionCreateSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(editTransaction)}>
-        <TransactionEditSheet />
-      </OnceOpened>
+      <TransactionSheet when={Boolean(transactionId)} />
+      <TransactionCreateSheet when={Boolean(createTransaction)} />
+      <TransactionEditSheet when={Boolean(editTransaction)} />
     </>
   );
 }
@@ -259,15 +224,9 @@ function BankSheets() {
 
   return (
     <>
-      <OnceOpened when={step === "account"}>
-        <SelectBankAccountsModal />
-      </OnceOpened>
-      <OnceOpened when={step === "import"}>
-        <ImportModal />
-      </OnceOpened>
-      <OnceOpened when={step === "connect"}>
-        <ConnectTransactionsModal />
-      </OnceOpened>
+      <SelectBankAccountsModal when={step === "account"} />
+      <ImportModal when={step === "import"} />
+      <ConnectTransactionsModal when={step === "connect"} />
     </>
   );
 }
@@ -281,11 +240,7 @@ function Search() {
     enableOnFormTags: true,
   });
 
-  return (
-    <OnceOpened when={isOpen}>
-      <SearchModal />
-    </OnceOpened>
-  );
+  return <SearchModal when={isOpen} />;
 }
 
 function DocumentSheets() {
@@ -294,14 +249,10 @@ function DocumentSheets() {
 
   return (
     <>
-      <OnceOpened
+      <DocumentSheet
         when={Boolean(documentParams.filePath || documentParams.documentId)}
-      >
-        <DocumentSheet />
-      </OnceOpened>
-      <OnceOpened when={inboxParams.inboxType === "details"}>
-        <InboxDetailsSheet />
-      </OnceOpened>
+      />
+      <InboxDetailsSheet when={inboxParams.inboxType === "details"} />
     </>
   );
 }
@@ -311,15 +262,9 @@ function InvoiceSheets() {
 
   return (
     <>
-      <OnceOpened when={invoiceType === "details"}>
-        <InvoiceDetailsSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(invoiceType) && invoiceType !== "details"}>
-        <InvoiceSheet />
-      </OnceOpened>
-      <OnceOpened when={Boolean(editRecurringId)}>
-        <EditRecurringSheet />
-      </OnceOpened>
+      <InvoiceDetailsSheet when={invoiceType === "details"} />
+      <InvoiceSheet when={Boolean(invoiceType) && invoiceType !== "details"} />
+      <EditRecurringSheet when={Boolean(editRecurringId)} />
     </>
   );
 }
@@ -327,11 +272,7 @@ function InvoiceSheets() {
 function AppSheets() {
   const [appId] = useQueryState("mcp-app", parseAsString);
 
-  return (
-    <OnceOpened when={Boolean(appId)}>
-      <AppDetailSheet />
-    </OnceOpened>
-  );
+  return <AppDetailSheet when={Boolean(appId)} />;
 }
 
 export function GlobalSheets() {
