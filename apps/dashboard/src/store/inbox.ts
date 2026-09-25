@@ -14,10 +14,9 @@ interface InboxState {
   setLastClickedIndex: (index: number | null) => void;
 }
 
-/** Whether anything is selected, without counting every key. */
+/** Whether anything is selected. A boolean, so items re-render only when it flips. */
 export function hasInboxSelection(state: Pick<InboxState, "selectedIds">) {
-  for (const _ in state.selectedIds) return true;
-  return false;
+  return Object.keys(state.selectedIds).length > 0;
 }
 
 export const useInboxStore = create<InboxState>()((set, get) => ({
