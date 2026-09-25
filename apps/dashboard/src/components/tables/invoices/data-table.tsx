@@ -8,6 +8,7 @@ import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { VirtualRow } from "@/components/tables/core";
+import { useCustomerParams } from "@/hooks/use-customer-params";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useInvoiceFilterParams } from "@/hooks/use-invoice-filter-params";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
@@ -41,6 +42,9 @@ export function DataTable({ initialSettings }: Props) {
   const { params } = useSortParams();
   const { filter, hasFilters } = useInvoiceFilterParams();
   const { setParams } = useInvoiceParams();
+  // Read here once, not in every customer cell, so opening or closing the
+  // customer sheet does not re-render the rows (FF-1739).
+  const { setParams: setCustomerParams } = useCustomerParams();
   const { data: user } = useUserQuery();
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -85,8 +89,10 @@ export function DataTable({ initialSettings }: Props) {
     () => ({
       dateFormat: user?.dateFormat,
       timeFormat: user?.timeFormat,
+      openCustomer: (customerId: string) =>
+        setCustomerParams({ customerId, details: true }),
     }),
-    [user?.dateFormat, user?.timeFormat],
+    [user?.dateFormat, user?.timeFormat, setCustomerParams],
   );
 
   const table = useReactTable({

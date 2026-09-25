@@ -19,7 +19,6 @@ import { format, formatDistanceToNow } from "date-fns";
 import type { MouseEvent } from "react";
 import { FormatAmount } from "@/components/format-amount";
 import { InvoiceStatus } from "@/components/invoice-status";
-import { useCustomerParams } from "@/hooks/use-customer-params";
 import { getDueDateStatus } from "@/utils/format";
 import { getWebsiteLogo } from "@/utils/logos";
 import { ActionsMenu } from "./actions-menu";
@@ -569,22 +568,17 @@ export const columns: ColumnDef<Invoice>[] = [
   },
 ];
 
-function InvoiceCustomerCell({ row }: CellContext<Invoice, unknown>) {
+function InvoiceCustomerCell({ row, table }: CellContext<Invoice, unknown>) {
   const customer = row.original.customer;
   const name = customer?.name || row.original.customerName;
   const viewAt = row.original.viewedAt;
   const customerId = customer?.id || row.original.customerId;
-  const { setParams } = useCustomerParams();
-
   if (!name) return "-";
 
   const handleCustomerClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     if (customerId) {
-      setParams({
-        customerId,
-        details: true,
-      });
+      table.options.meta?.openCustomer?.(customerId);
     }
   };
 

@@ -35,6 +35,9 @@ declare module "@tanstack/table-core" {
     searchValue?: string;
     setSearchValue?: Dispatch<SetStateAction<string>>;
 
+    // Invoices table meta
+    openCustomer?: (customerId: string) => void;
+
     // Customers table meta
     deleteCustomer?: (id: string) => void;
     enrichCustomer?: (id: string) => void;
