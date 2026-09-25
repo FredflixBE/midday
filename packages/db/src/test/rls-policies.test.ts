@@ -16,6 +16,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "pg";
+import { TABLES_WITHOUT_RLS_SQL } from "../scripts/policies";
 import { asRole } from "./helpers/as-role";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -254,5 +255,95 @@ describe.skipIf(SKIP)("row level security, as a browser sees it", () => {
 
       expect(seen).toEqual([]);
     }
+  });
+});
+
+describe.skipIf(SKIP)("tables only the server reads", () => {
+  // The six that had RLS off until FF-1688. The API reaches them as the owner;
+  // nothing a browser holds should reach them at all.
+  const SERVER_ONLY = [
+    "api_keys",
+    "institutions",
+    "invoice_comments",
+    "oauth_access_tokens",
+    "oauth_authorization_codes",
+    "transaction_match_suggestions",
+  ];
+  const INSTITUTION = "rls-test-institution";
+  const COMMENT = "eeeeeeee-3000-0000-0000-000000000001";
+
+  let client: Client;
+
+  async function cleanup() {
+    await client.query("delete from institutions where id = $1", [INSTITUTION]);
+    await client.query("delete from invoice_comments where id = $1", [COMMENT]);
+  }
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DATABASE_URL });
+    await client.connect();
+    await cleanup();
+
+    // Rows to be seen, so an empty answer means refused rather than empty.
+    await client.query(
+      `insert into institutions (id, name, provider, countries)
+       values ($1, 'RLS Test Bank', 'enablebanking', '{BE}')`,
+      [INSTITUTION],
+    );
+    await client.query("insert into invoice_comments (id) values ($1)", [
+      COMMENT,
+    ]);
+  });
+
+  afterAll(async () => {
+    await cleanup();
+    await client.end();
+  });
+
+  test("no table in public has row level security off", async () => {
+    const { rows } = await client.query<{ name: string }>(
+      TABLES_WITHOUT_RLS_SQL,
+    );
+
+    expect(rows.map((row) => row.name)).toEqual([]);
+  });
+
+  test("the owner, as the API connects, still reads them", async () => {
+    const { rows } = await client.query(
+      "select id from institutions where id = $1",
+      [INSTITUTION],
+    );
+
+    expect(rows).toHaveLength(1);
+  });
+
+  test("anon and a signed-in user read nothing from any of them", async () => {
+    for (const user of [null, { id: MEMBER }]) {
+      for (const table of SERVER_ONLY) {
+        const seen = await asRole(client, user, async () => {
+          const { rows } = await client.query(`select * from ${table}`);
+          return rows.length;
+        });
+
+        expect(`${table}: ${seen}`).toBe(`${table}: 0`);
+      }
+    }
+  });
+
+  test("anon cannot write to them", async () => {
+    const code = await asRole(client, null, () =>
+      client
+        .query(
+          `insert into institutions (id, name, provider, countries)
+           values ('rls-test-planted', 'Planted', 'enablebanking', '{BE}')`,
+        )
+        .then(
+          () => null,
+          (error: { code?: string }) => error.code,
+        ),
+    );
+
+    // insufficient_privilege: refused by row level security.
+    expect(code).toBe("42501");
   });
 });

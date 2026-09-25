@@ -5,7 +5,8 @@
  * policies then allow, against a real database.
  */
 import { describe, expect, test } from "bun:test";
-import { pgTable, uuid } from "drizzle-orm/pg-core";
+import { getTableConfig, pgTable, uuid } from "drizzle-orm/pg-core";
+import * as schema from "../schema";
 import {
   KNOWN_POLICIES_WITHOUT_EXPRESSION,
   policyStatements,
@@ -69,6 +70,30 @@ describe("policyStatements", () => {
         `ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`,
       );
     }
+  });
+
+  test("enables it on every table schema.ts puts in public", () => {
+    // A new table is born with Supabase's default grants: anon and
+    // authenticated may read and write it through the Data API. Six tables sat
+    // like that until FF-1688, because a table with no pgPolicy gets no RLS
+    // unless it says .enableRLS(). One that should not be public says so here.
+    const open = Object.values(schema).flatMap((value) => {
+      let config: ReturnType<typeof getTableConfig>;
+      try {
+        config = getTableConfig(value as Parameters<typeof getTableConfig>[0]);
+      } catch {
+        return []; // Not a table.
+      }
+      if (config.schema && config.schema !== "public") return [];
+
+      return enableRls.includes(
+        `ALTER TABLE public."${config.name}" ENABLE ROW LEVEL SECURITY;`,
+      )
+        ? []
+        : [config.name];
+    });
+
+    expect(open).toEqual([]);
   });
 
   test("enables it on a table that has no policies on purpose", () => {
