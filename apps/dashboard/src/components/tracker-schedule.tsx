@@ -43,6 +43,7 @@ import {
   getSlotFromDate,
   isValidTimeSlot,
   NEW_EVENT_ID,
+  sortDates,
 } from "@/utils/tracker";
 import { TrackerEntriesForm } from "./forms/tracker-entries-form";
 import { TrackerDaySelect } from "./tracker-day-select";
@@ -689,9 +690,9 @@ export function TrackerSchedule() {
   }, [urlProjectId, latestProjectId]);
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
-  // Copy before sorting: `range` is URL state.
+  // sortDates copies before sorting: `range` is URL state (FF-1707).
   const sortedRange = useMemo(
-    () => (range ? [...range].sort((a, b) => a.localeCompare(b)) : range),
+    () => (range ? sortDates(range) : range),
     [range],
   );
 
