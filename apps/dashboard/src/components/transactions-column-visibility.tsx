@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@midday/ui/popover";
 import { useTransactionsStore } from "@/store/transactions";
 
 export function TransactionsColumnVisibility() {
-  const { columns } = useTransactionsStore();
+  const columns = useTransactionsStore((s) => s.columns);
 
   return (
     <Popover>

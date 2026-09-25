@@ -87,9 +87,9 @@ export function ExportTransactionsModal({
   onOpenChange,
 }: ExportTransactionsModalProps) {
   const { exportData, setExportData, setIsExporting } = useExportStore();
-  const { rowSelectionByTab, setRowSelection } = useTransactionsStore();
   // Export modal is used from review tab, so use review tab selection
-  const rowSelection = rowSelectionByTab.review;
+  const rowSelection = useTransactionsStore((s) => s.rowSelectionByTab.review);
+  const setRowSelection = useTransactionsStore((s) => s.setRowSelection);
   const { data: user } = useUserQuery();
   const { data: team } = useTeamQuery();
   const teamMutation = useTeamMutation();

@@ -23,17 +23,21 @@ import { useTransactionTab } from "@/hooks/use-transaction-tab";
 import { useTransactionsStore } from "@/store/transactions";
 import { useTRPC } from "@/trpc/client";
 
-export function BulkEditBar() {
+type Props = {
+  /** Only manually added transactions can be deleted. */
+  canDelete: boolean;
+};
+
+export function BulkEditBar({ canDelete }: Props) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { tab } = useTransactionTab();
-  const { rowSelectionByTab, setRowSelection, canDelete } =
-    useTransactionsStore();
+  // BulkEditBar is only shown on "all" tab, so use all tab selection
+  const rowSelection = useTransactionsStore((s) => s.rowSelectionByTab.all);
+  const setRowSelection = useTransactionsStore((s) => s.setRowSelection);
   const [isOpen, setOpen] = useState(false);
 
   const isReviewTab = tab === "review";
-  // BulkEditBar is only shown on "all" tab, so use all tab selection
-  const rowSelection = rowSelectionByTab.all;
   const selectedCount = Object.keys(rowSelection).length;
   const hasSelection = selectedCount > 0;
 

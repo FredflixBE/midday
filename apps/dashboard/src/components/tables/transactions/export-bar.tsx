@@ -53,15 +53,15 @@ export function ExportBar() {
     useAccountingError();
   const { play: playSuccessSound } = useSuccessSound();
   const { tab } = useTransactionTab();
-  const {
-    exportData,
-    setExportData,
-    setIsExporting,
-    setExportingTransactionIds,
-  } = useExportStore();
-  const { rowSelectionByTab, setRowSelection } = useTransactionsStore();
+  const exportData = useExportStore((s) => s.exportData);
+  const setExportData = useExportStore((s) => s.setExportData);
+  const setIsExporting = useExportStore((s) => s.setIsExporting);
+  const setExportingTransactionIds = useExportStore(
+    (s) => s.setExportingTransactionIds,
+  );
   // ExportBar is only shown on review tab, so use review tab selection
-  const rowSelection = rowSelectionByTab.review;
+  const rowSelection = useTransactionsStore((s) => s.rowSelectionByTab.review);
+  const setRowSelection = useTransactionsStore((s) => s.setRowSelection);
   const [isOpen, setOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [exportingCount, setExportingCount] = useState<number | null>(null);

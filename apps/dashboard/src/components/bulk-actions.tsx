@@ -29,7 +29,7 @@ export function BulkActions({ ids }: Props) {
   const trpc = useTRPC();
   const { toast } = useToast();
 
-  const { setRowSelection } = useTransactionsStore();
+  const setRowSelection = useTransactionsStore((s) => s.setRowSelection);
   const invalidateTransactionQueries = useInvalidateTransactionQueries();
 
   const updateTransactionsMutation = useMutation(
