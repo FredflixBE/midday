@@ -99,9 +99,9 @@ export function PdfViewer({ url, maxWidth }: PdfViewerProps) {
           height: Math.floor((width * viewport.height) / viewport.width),
         });
       },
-      // Without a size the placeholders are empty, so every page is in view
-      // and renders: the viewer falls back to drawing them all.
-      () => {},
+      // Without a size, fall back to drawing every page: zero-height
+      // placeholders are all in view at once.
+      () => setPlaceholder({ width: maxWidth ?? 0, height: 0 }),
     );
     setIsPasswordProtected(false);
     setPasswordCancelled(false);
@@ -285,14 +285,18 @@ export function PdfViewer({ url, maxWidth }: PdfViewerProps) {
                 }
               >
                 {numPages &&
-                  Array.from(new Array(numPages), (_, index) => (
-                    <LazyPage
-                      width={maxWidth}
-                      key={`${url}_${index + 1}`}
-                      pageNumber={index + 1}
-                      placeholder={placeholder}
-                    />
-                  ))}
+                  Array.from(new Array(numPages), (_, index) =>
+                    // A later page mounts only once its placeholder has a
+                    // size: an empty one would count as in view and render.
+                    index < EAGER_PAGES || placeholder ? (
+                      <LazyPage
+                        width={maxWidth}
+                        key={`${url}_${index + 1}`}
+                        pageNumber={index + 1}
+                        placeholder={placeholder}
+                      />
+                    ) : null,
+                  )}
               </Document>
             </div>
           </TransformComponent>
