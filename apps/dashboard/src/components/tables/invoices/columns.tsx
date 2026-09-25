@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@midday/ui/tooltip";
-import { formatDate } from "@midday/utils/format";
+import { DEFAULT_DATE_FORMAT, formatDate } from "@midday/utils/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, formatDistanceToNow } from "date-fns";
 import type { MouseEvent } from "react";
@@ -35,7 +35,7 @@ function formatDateUTC(date: string, dateFormat?: string | null): string {
   if (tzDate.getUTCFullYear() === now.getUTCFullYear()) {
     return format(tzDate, "MMM d");
   }
-  return format(tzDate, dateFormat ?? "P");
+  return format(tzDate, dateFormat ?? DEFAULT_DATE_FORMAT);
 }
 
 export type Invoice = NonNullable<

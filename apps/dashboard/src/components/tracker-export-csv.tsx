@@ -7,6 +7,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@midday/ui/dropdown-menu";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import { useQueryClient } from "@tanstack/react-query";
 import { endOfMonth, format, parseISO, startOfMonth } from "date-fns";
 import Papa from "papaparse";
@@ -52,7 +53,10 @@ export function TrackerExportCSV({ name, projectId }: Props) {
 
     const formattedData = entries.map((item: TrackerEntry) => {
       const formattedItem: Record<string, string | null> = {
-        Date: format(parseISO(item.date), user?.dateFormat ?? "P"),
+        Date: format(
+          parseISO(item.date),
+          user?.dateFormat ?? DEFAULT_DATE_FORMAT,
+        ),
         Description: item.description ?? null,
         Time: secondsToHoursAndMinutes(item.duration ?? 0),
         Assigned: item.assigned?.full_name ?? null,

@@ -4,6 +4,7 @@ import { getTransactionsByIds } from "@midday/db/queries";
 import { createClient } from "@midday/supabase/job";
 import { download } from "@midday/supabase/storage";
 import { ensureFileExtension } from "@midday/utils";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import {
   calculateBaseTaxAmount,
   getTaxTypeLabel,
@@ -131,7 +132,7 @@ export async function processTransactionsForExport(params: {
 
       return [
         transaction.id,
-        format(parseISO(transaction.date), dateFormat ?? "LLL dd, y"),
+        format(parseISO(transaction.date), dateFormat || DEFAULT_DATE_FORMAT),
         transaction.name,
         transaction.description,
         transaction.amount,

@@ -28,6 +28,7 @@ import { Select } from "@midday/ui/select";
 import { SubmitButton } from "@midday/ui/submit-button";
 import { Switch } from "@midday/ui/switch";
 import { Textarea } from "@midday/ui/textarea";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatISO } from "date-fns";
 import { nanoid } from "nanoid";
@@ -398,7 +399,10 @@ export function TransactionCreateForm() {
                         onClick={() => setIsOpen(true)}
                       >
                         {field.value ? (
-                          format(utc(field.value), user?.dateFormat ?? "PPP")
+                          format(
+                            utc(field.value),
+                            user?.dateFormat ?? DEFAULT_DATE_FORMAT,
+                          )
                         ) : (
                           <span>Select date</span>
                         )}

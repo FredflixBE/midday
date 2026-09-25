@@ -5,6 +5,7 @@ import { Button } from "@midday/ui/button";
 import { Calendar } from "@midday/ui/calendar";
 import { Icons } from "@midday/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@midday/ui/popover";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import { format, parse } from "date-fns";
 import { useState } from "react";
 import { useUserQuery } from "@/hooks/use-user";
@@ -17,7 +18,7 @@ function toDate(value: string) {
 
 /** A sync start date as the user reads dates. */
 export function formatSyncStart(value: string, dateFormat?: string | null) {
-  return format(toDate(value), dateFormat ?? "MMM d, yyyy");
+  return format(toDate(value), dateFormat || DEFAULT_DATE_FORMAT);
 }
 
 /**

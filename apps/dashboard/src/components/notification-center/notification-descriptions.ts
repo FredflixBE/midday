@@ -1,5 +1,5 @@
 import { getFrequencyShortLabel } from "@midday/invoice/recurring";
-import { formatAmount } from "@midday/utils/format";
+import { DEFAULT_DATE_FORMAT, formatAmount } from "@midday/utils/format";
 import { format } from "date-fns";
 import type { useI18n } from "@/locales/client";
 
@@ -78,7 +78,7 @@ const handleInvoicePaid: NotificationDescriptionHandler = (
   const paidAt = metadata?.paidAt;
 
   if (invoiceNumber && source === "manual" && paidAt) {
-    const userDateFormat = user?.dateFormat || "dd/MM/yyyy";
+    const userDateFormat = user?.dateFormat || DEFAULT_DATE_FORMAT;
     const paidDate = new Date(paidAt);
     const formattedDate = format(paidDate, userDateFormat);
 
@@ -147,7 +147,7 @@ const handleInvoiceScheduled: NotificationDescriptionHandler = (
 
   if (invoiceNumber && scheduledAt) {
     const scheduledDate = new Date(scheduledAt);
-    const userDateFormat = user?.dateFormat || "dd/MM/yyyy";
+    const userDateFormat = user?.dateFormat || DEFAULT_DATE_FORMAT;
     const formattedDate = format(scheduledDate, userDateFormat);
     const formattedTime = format(scheduledDate, "HH:mm");
 

@@ -1,3 +1,5 @@
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
+
 /**
  * Default values for invoice templates.
  * This is the single source of truth for template defaults.
@@ -34,7 +36,7 @@ export const DEFAULT_TEMPLATE_LABELS = {
 export const DEFAULT_TEMPLATE_SETTINGS = {
   currency: "USD",
   locale: "en-US",
-  dateFormat: "dd/MM/yyyy",
+  dateFormat: DEFAULT_DATE_FORMAT,
   size: "a4" as const,
   // Tax/VAT settings - default to false, user enables as needed
   includeVat: false,
