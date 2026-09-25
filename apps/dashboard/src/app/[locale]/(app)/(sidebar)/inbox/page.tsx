@@ -6,6 +6,7 @@ import { ErrorFallback } from "@/components/error-fallback";
 import { Inbox } from "@/components/inbox";
 import { InboxConnectedEmpty } from "@/components/inbox/inbox-empty";
 import { InboxGetStarted } from "@/components/inbox/inbox-get-started";
+import { InboxHeader } from "@/components/inbox/inbox-header";
 import { InboxViewSkeleton } from "@/components/inbox/inbox-skeleton";
 import { InboxView } from "@/components/inbox/inbox-view";
 import { loadInboxFilterParams } from "@/hooks/use-inbox-filter-params";
@@ -20,7 +21,26 @@ type Props = {
   searchParams: Promise<SearchParams>;
 };
 
-export default async function Page(props: Props) {
+// The page itself renders at once, so clicking Inbox shows the skeleton instead
+// of leaving the previous page on screen while the API answers. Whether to
+// show the list, the empty state or the get-started screen needs that answer,
+// so it is decided inside the boundary.
+export default function Page(props: Props) {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <InboxHeader />
+          <InboxViewSkeleton />
+        </>
+      }
+    >
+      <InboxContent searchParams={props.searchParams} />
+    </Suspense>
+  );
+}
+
+async function InboxContent(props: Props) {
   const queryClient = getQueryClient();
   const searchParams = await props.searchParams;
   const filter = loadInboxFilterParams(searchParams);
