@@ -74,11 +74,15 @@ export function DataTable({ initialSettings, initialTab }: Props) {
   const { tab } = useTransactionTab();
   // Selectors, not the whole stores: a checkbox click changes the selection
   // and nothing else this table reads.
-  const setRowSelectionForTab = useTransactionsStore((s) => s.setRowSelection);
-  const setColumns = useTransactionsStore((s) => s.setColumns);
-  const setTransactionIds = useTransactionsStore((s) => s.setTransactionIds);
+  const setRowSelectionForTab = useTransactionsStore(
+    (state) => state.setRowSelection,
+  );
+  const setColumns = useTransactionsStore((state) => state.setColumns);
+  const setTransactionIds = useTransactionsStore(
+    (state) => state.setTransactionIds,
+  );
   const exportingTransactionIds = useExportStore(
-    (s) => s.exportingTransactionIds,
+    (state) => state.exportingTransactionIds,
   );
   const deferredSearch = useDeferredValue(filter.q);
   const { params } = useSortParams();
@@ -116,7 +120,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
 
   // Get tab-specific row selection
   const rowSelection = useTransactionsStore(
-    (s) => s.rowSelectionByTab[activeTab],
+    (state) => state.rowSelectionByTab[activeTab],
   );
   const setRowSelection = useCallback(
     (updater: Parameters<typeof setRowSelectionForTab>[1]) => {
@@ -401,7 +405,7 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       editTransaction,
       moveToReview,
       handleShiftClickRange,
-      exportingIds,
+      exportingTransactionIds: exportingIds,
     }),
     [
       user?.dateFormat,

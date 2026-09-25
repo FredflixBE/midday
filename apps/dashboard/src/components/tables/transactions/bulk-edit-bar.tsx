@@ -33,8 +33,12 @@ export function BulkEditBar({ canDelete }: Props) {
   const queryClient = useQueryClient();
   const { tab } = useTransactionTab();
   // BulkEditBar is only shown on "all" tab, so use all tab selection
-  const rowSelection = useTransactionsStore((s) => s.rowSelectionByTab.all);
-  const setRowSelection = useTransactionsStore((s) => s.setRowSelection);
+  const rowSelection = useTransactionsStore(
+    (state) => state.rowSelectionByTab.all,
+  );
+  const setRowSelection = useTransactionsStore(
+    (state) => state.setRowSelection,
+  );
   const [isOpen, setOpen] = useState(false);
 
   const isReviewTab = tab === "review";

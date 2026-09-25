@@ -490,8 +490,12 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
   // The transactions table's own selection, so its bulk bar works unchanged.
   // Cleared on the way in and out: it is shared with that table, and a
   // selection made on one page must not act on the other.
-  const selection = useTransactionsStore((s) => s.rowSelectionByTab.all);
-  const setRowSelection = useTransactionsStore((s) => s.setRowSelection);
+  const selection = useTransactionsStore(
+    (state) => state.rowSelectionByTab.all,
+  );
+  const setRowSelection = useTransactionsStore(
+    (state) => state.setRowSelection,
+  );
 
   useEffect(() => {
     setRowSelection("all", {});
