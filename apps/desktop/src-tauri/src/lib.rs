@@ -9,10 +9,13 @@ use tauri::TitleBarStyle;
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_dialog;
 use tauri_plugin_process;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::image::Image;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use image;
+
+#[cfg(desktop)]
+mod updates;
 
 // Global state for search window availability
 type SearchWindowState = Arc<Mutex<bool>>;
@@ -388,6 +391,7 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             bring_main_window_forward(app);
         }));
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
 
     builder
@@ -615,9 +619,23 @@ pub fn run() {
 
             // Create tray menu. "Open Midday" is the way back to a closed (hidden)
             // main window where there is no Dock icon to click, as on Windows.
+            // The version line is how anyone can tell an update has landed.
             let open_item = MenuItem::with_id(app, "open", "Open Midday", true, None::<&str>)?;
+            let update_item =
+                MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?;
+            let version_item = MenuItem::with_id(
+                app,
+                "version",
+                format!("Version {}", app.package_info().version),
+                false,
+                None::<&str>,
+            )?;
+            let separator = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit Midday", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&open_item, &quit_item])?;
+            let tray_menu = Menu::with_items(
+                app,
+                &[&open_item, &update_item, &version_item, &separator, &quit_item],
+            )?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(tray_icon)
@@ -627,6 +645,10 @@ pub fn run() {
                     println!("🔧 Tray menu event triggered: {:?}", event.id);
                     if event.id == "open" {
                         bring_main_window_forward(app);
+                    }
+                    #[cfg(desktop)]
+                    if event.id == "check-updates" {
+                        updates::check_in_background(app, updates::Check::Asked);
                     }
                     if event.id == "quit" {
                         app.exit(0);
@@ -649,6 +671,9 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            #[cfg(desktop)]
+            updates::start(app.handle());
 
             Ok(())
         })
@@ -784,6 +809,23 @@ mod tests {
             assert_eq!(dev[key], default[key], "dev.json {key} differ from default.json");
         }
         assert_eq!(dev["remote"]["urls"], json!(["http://localhost:3001/**"]));
+    }
+
+    #[test]
+    fn a_shipped_build_updates_from_the_newest_github_release() {
+        let config = parse_json(include_str!("../tauri.conf.json"));
+        let updater = &config["plugins"]["updater"];
+        assert_eq!(
+            updater["endpoints"],
+            json!(["https://github.com/FredflixBE/midday/releases/latest/download/latest.json"])
+        );
+        assert!(!updater["pubkey"].as_str().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn a_dev_build_never_offers_a_production_release() {
+        let dev = parse_json(include_str!("../tauri.dev.conf.json"));
+        assert_eq!(dev["plugins"]["updater"]["endpoints"], json!([]));
     }
 
     #[test]

@@ -15,8 +15,30 @@ Neither installer is signed yet. On macOS the first launch is blocked: open
 System Settings → Privacy & Security and click **Open Anyway**. On Windows,
 SmartScreen says *Windows protected your PC*: click **More info** → **Run anyway**.
 
-There is no auto-updater yet (FF-1695): download the new release and install it
-over the old one.
+## Updates
+
+An installed app checks for a new version when it starts and every six hours
+after, and **Check for Updates…** in the tray menu checks at once. The tray menu
+also shows the running version. When there is one, a dialog offers **Install and
+restart** or **Later**. On Windows the installer closes the app while it runs.
+A check that finds nothing, or cannot reach GitHub, says nothing unless you
+asked.
+
+The first build with the updater has to be installed by hand; earlier builds
+never learn of updates. Dev builds (`tauri.dev.conf.json`) never check.
+
+The check runs in Rust, never in the website: `capabilities/default.json` must
+not grant `updater:*`, and a unit test fails if it does. The app reads
+`releases/latest/download/latest.json`, which the release workflow writes and
+signs, so it too depends on desktop releases staying this repo's only releases.
+
+**The updater key.** Installed copies accept only updates signed with the
+private key whose public half is `plugins.updater.pubkey` in
+`src-tauri/tauri.conf.json`. CI signs with the repository secrets
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The same
+key and password are kept outside GitHub, because a secret cannot be read back:
+if the key is lost, every installed copy is stranded and has to be reinstalled by
+hand. This key is separate from Apple and Windows code signing and needs neither.
 
 ## Releases
 
