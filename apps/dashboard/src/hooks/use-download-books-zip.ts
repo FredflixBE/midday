@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import JSZip from "jszip";
 import { useState } from "react";
 import { saveFile } from "@/lib/save-file";
 import { useTRPC } from "@/trpc/client";
@@ -119,6 +118,8 @@ export function useDownloadBooksZip() {
         options,
         booksInvoiceNumberSet(booksInvoiceNumbers),
       );
+      // Loaded on the click, not with the page (FF-1723).
+      const { default: JSZip } = await import("jszip");
       const zip = new JSZip();
       // Downloaded and kept so far, written into the zip only once every
       // exclusion is decided. Removing an entry afterwards left its folder
