@@ -259,7 +259,8 @@ Runtime environment:
 | `GMAIL_*` / `OUTLOOK_*` | for inbox sync | Same OAuth client as the API. |
 | `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | for accounting export | Token refresh needs the client credentials. |
 | `MISTRAL_API_KEY`, `OPENAI_API_KEY` | no | Document OCR fallback; Slack receipt summaries. |
-| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
+| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. The bank sync jobs call the API at `API_URL`. |
+| `API_INTERNAL_URL` | no | A private address for the API that the jobs can reach, used instead of `API_URL` for their calls to it. Trigger.dev Cloud reaches only the public URL, so leave it unset there. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Jobs run unless set to `false`. They used to run only in Midday's own production environment. `SYNC_INSTITUTIONS_ENABLED` now gates a task with no cron, started from Settings → Admin, and `BANK_SYNC_SCHEDULER_ENABLED` gates one of each; `packages/jobs/README.md` lists what is scheduled and what is not. |
