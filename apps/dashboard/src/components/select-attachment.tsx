@@ -155,9 +155,9 @@ export function SelectAttachment({
                     Best Match
                   </Badge>
                 )}
-                {item.amount && item.currency && (
+                {item.amount != null && item.currency ? (
                   <FormatAmount amount={item.amount} currency={item.currency} />
-                )}
+                ) : null}
               </div>
             </div>
           ),

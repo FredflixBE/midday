@@ -409,7 +409,7 @@ export function ProductAutocomplete({
 
                   <div className="flex items-center gap-2">
                     <div className="text-xs text-muted-foreground">
-                      {product.price && product.currency && (
+                      {product.price != null && product.currency ? (
                         <span>
                           {formatAmount({
                             amount: product.price,
@@ -419,7 +419,7 @@ export function ProductAutocomplete({
                           })}
                           {product.unit && `/${product.unit}`}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <div
                       className={cn(
