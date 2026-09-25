@@ -66,9 +66,9 @@ const NO_PRODUCTS: Product[] = [];
 const NO_BLOCKS: QuoteContent["blocks"] = [];
 
 // The panes re-render only when what they show changes (FF-1717).
-const DocumentPane = memo(QuoteBlocks);
-const ScenariosPane = memo(QuoteScenarios);
-const ComparisonPane = memo(QuoteComparison);
+const MemoQuoteBlocks = memo(QuoteBlocks);
+const MemoQuoteScenarios = memo(QuoteScenarios);
+const MemoQuoteComparison = memo(QuoteComparison);
 
 /**
  * One quote, full page (FF-1611). It opens on the latest version; a draft is
@@ -343,7 +343,7 @@ function VersionEditor({
                     and a block still expands to be read full screen
                     (FF-1624). The blocks turn every control of their own off
                     on a sent version. */}
-                <DocumentPane
+                <MemoQuoteBlocks
                   content={draft.content}
                   change={change}
                   editable={editable}
@@ -359,7 +359,7 @@ function VersionEditor({
                 <Activity mode={pane === "pricing" ? "visible" : "hidden"}>
                   {/* Outside the fieldset: a sent version's scenarios are still
                       browsed. */}
-                  <ScenariosPane
+                  <MemoQuoteScenarios
                     content={pricingContent}
                     kind={draft.kind}
                     products={products}
@@ -372,7 +372,7 @@ function VersionEditor({
                     onSelect={setScenarioId}
                   />
 
-                  <ComparisonPane
+                  <MemoQuoteComparison
                     content={pricingContent}
                     kind={draft.kind}
                     pricing={pricing}
