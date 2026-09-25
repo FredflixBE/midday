@@ -2,6 +2,9 @@
   "name": "@midday/invoice",
   "private": true,
   "main": "src/index.tsx",
+  "sideEffects": [
+    "./src/templates/pdf/fonts.ts"
+  ],
   "scripts": {
     "clean": "rm -rf .turbo node_modules",
     "lint": "biome check .",
@@ -23,6 +26,7 @@
     "./calculate": "./src/utils/calculate.ts",
     "./format-to-html": "./src/templates/html/format.tsx",
     "./content": "./src/utils/content.ts",
+    "./extract-text": "./src/utils/extract-text.ts",
     "./business-identity": "./src/utils/business-identity.ts",
     "./types": "./src/types.ts",
     "./utils": "./src/utils/transform.ts",
