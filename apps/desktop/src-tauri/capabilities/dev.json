@@ -4,6 +4,7 @@
   "description": "default.json's permissions for the local dashboard. Only tauri.dev.conf.json enables it, so a production build never trusts localhost.",
   "windows": ["main", "search"],
   "permissions": [
+    "allow-show-window",
     "core:window:default",
     "core:window:allow-hide",
     "core:window:allow-minimize",

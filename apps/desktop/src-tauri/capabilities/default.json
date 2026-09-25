@@ -4,6 +4,7 @@
   "description": "What the dashboard may do inside the shipped desktop shell, and nothing more: window buttons and dragging, events, the Downloads path, and saving a file through the dialog. The tray, menus, app metadata and updates are the shell's own business, done from Rust. remote.urls must list every host the shell loads (see MIDDAY_APP_URL in src/lib.rs), or the page gets no IPC. dev.json must keep the same permissions.",
   "windows": ["main", "search"],
   "permissions": [
+    "allow-show-window",
     "core:window:default",
     "core:window:allow-hide",
     "core:window:allow-minimize",
