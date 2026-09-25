@@ -1,5 +1,5 @@
 import { calculateTotal } from "@midday/invoice/calculate";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
 import { AnimatedNumber } from "../animated-number";
@@ -10,7 +10,7 @@ import { TaxInput } from "./tax-input";
 import { VATInput } from "./vat-input";
 
 export function Summary() {
-  const { control, setValue } = useFormContext();
+  const { control, getValues, setValue } = useFormContext();
   const { updateTemplate } = useTemplateUpdate();
 
   const includeDecimals = useWatch({
@@ -85,17 +85,28 @@ export function Summary() {
     discount: discount ?? 0,
   });
 
-  const updateFormValues = useCallback(() => {
-    setValue("amount", total, { shouldValidate: true });
-    setValue("vat", totalVAT, { shouldValidate: true });
-    setValue("tax", totalTax, { shouldValidate: true });
-    setValue("subtotal", subTotal, { shouldValidate: true });
-    setValue("discount", discount ?? 0, { shouldValidate: true });
-  }, [total, totalVAT, totalTax, subTotal, discount]);
-
+  // The form holds the totals because the draft autosave and submit read them
+  // from it. Write only the ones that changed, and validate only a write that
+  // turns a missing value into a number: every number calculateTotal returns
+  // is valid, so validating each write ran the whole schema five times per
+  // keystroke (FF-1716).
   useEffect(() => {
-    updateFormValues();
-  }, [updateFormValues]);
+    const totals = {
+      amount: total,
+      vat: totalVAT,
+      tax: totalTax,
+      subtotal: subTotal,
+      discount: discount ?? 0,
+    };
+
+    for (const [name, value] of Object.entries(totals)) {
+      const current = getValues(name);
+
+      if (current !== value) {
+        setValue(name, value, { shouldValidate: typeof current !== "number" });
+      }
+    }
+  }, [total, totalVAT, totalTax, subTotal, discount, getValues, setValue]);
 
   useEffect(() => {
     if (!includeTax) {

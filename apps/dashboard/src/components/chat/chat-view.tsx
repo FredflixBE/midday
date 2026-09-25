@@ -4,9 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import type React from "react";
 import { useCallback, useEffect } from "react";
-import type { ConnectedApp } from "@/components/chat/chat-context";
 import { useChatState } from "@/components/chat/chat-context";
-import { ChatInput } from "@/components/chat/chat-input";
 import { ChatInvoiceCanvas } from "@/components/chat/chat-invoice-canvas";
 import { ChatMessages } from "@/components/chat/chat-messages";
 import {
@@ -15,62 +13,10 @@ import {
   ConversationScrollButton,
 } from "@/components/chat/conversation";
 import { filesToUIParts } from "@/components/chat/file-utils";
+import { InputBar } from "@/components/chat/input-bar";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 import { useInvoiceEditorStore } from "@/store/invoice-editor";
 import { useTRPC } from "@/trpc/client";
-
-export function InputBar({
-  isActive,
-  hasMessages,
-  inputValue,
-  isStreaming,
-  onChange,
-  onSubmit,
-  onStop,
-  onEscape,
-  onSuggestion,
-  menuPosition,
-  connectedApps,
-  mentionedApps,
-  onMentionApp,
-  onRemoveMention,
-}: {
-  isActive?: boolean;
-  hasMessages?: boolean;
-  inputValue: string;
-  isStreaming: boolean;
-  onChange: (v: string) => void;
-  onSubmit: (files?: File[]) => void;
-  onStop: () => void;
-  onEscape?: () => void;
-  onSuggestion?: (text: string) => void;
-  menuPosition?: "above" | "below";
-  connectedApps?: ConnectedApp[];
-  mentionedApps?: ConnectedApp[];
-  onMentionApp?: (app: ConnectedApp) => void;
-  onRemoveMention?: (slug: string) => void;
-}) {
-  return (
-    <div className="bg-[rgba(247,247,247,0.85)] dark:bg-[rgba(19,19,19,0.7)] backdrop-blur-lg">
-      <ChatInput
-        value={inputValue}
-        onChange={onChange}
-        onSubmit={onSubmit}
-        onStop={onStop}
-        isStreaming={isStreaming}
-        placeholder={hasMessages ? "Reply..." : "How can I help you today?"}
-        autoFocus={isActive}
-        onEscape={onEscape}
-        onSuggestion={onSuggestion}
-        menuPosition={menuPosition}
-        connectedApps={connectedApps}
-        mentionedApps={mentionedApps}
-        onMentionApp={onMentionApp}
-        onRemoveMention={onRemoveMention}
-      />
-    </div>
-  );
-}
 
 export function ChatView({ header }: { header?: React.ReactNode }) {
   const {

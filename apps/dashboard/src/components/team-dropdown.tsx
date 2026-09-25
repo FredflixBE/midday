@@ -70,13 +70,14 @@ export function TeamDropdown({ isExpanded = false }: Props) {
     }
   }, [user?.team?.id]);
 
-  const sortedTeams =
-    teams?.sort((a, b) => {
-      if (a.id === selectedId) return -1;
-      if (b.id === selectedId) return 1;
+  // Copy before sorting: `teams` is the array held in the query cache
+  // (FF-1707).
+  const sortedTeams = [...(teams ?? [])].sort((a, b) => {
+    if (a.id === selectedId) return -1;
+    if (b.id === selectedId) return 1;
 
-      return (a.id ?? "").localeCompare(b.id ?? "");
-    }) ?? [];
+    return (a.id ?? "").localeCompare(b.id ?? "");
+  });
 
   // @ts-expect-error
   useOnClickOutside(ref, () => {

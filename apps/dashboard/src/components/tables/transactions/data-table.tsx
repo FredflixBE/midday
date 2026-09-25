@@ -78,8 +78,6 @@ export function DataTable({ initialSettings, initialTab }: Props) {
     setColumns,
     setCanDelete,
     setTransactionIds,
-    lastClickedIndex,
-    setLastClickedIndex,
   } = useTransactionsStore();
   const { exportingTransactionIds } = useExportStore();
   const deferredSearch = useDeferredValue(filter.q);
@@ -107,6 +105,14 @@ export function DataTable({ initialSettings, initialTab }: Props) {
   // Use the current tab from URL, falling back to initial value
   const activeTab = (tab ?? initialTab ?? "all") as TransactionTab;
   const isReviewTab = activeTab === "review";
+
+  // The shift-click anchor is a row position, and a different filter, sort or
+  // tab is a different list, so the anchor does not carry over (FF-1706).
+  // Keyed on a string, since this table re-renders on every store change.
+  const rowListKey = JSON.stringify([filter, params.sort, activeTab]);
+  useEffect(() => {
+    useTransactionsStore.getState().setLastClickedIndex(null);
+  }, [rowListKey]);
 
   // Get tab-specific row selection
   const rowSelection = rowSelectionByTab[activeTab];
@@ -374,8 +380,6 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       editTransaction,
       moveToReview,
       handleShiftClickRange,
-      lastClickedIndex,
-      setLastClickedIndex,
       exportingTransactionIds,
     }),
     [
@@ -387,8 +391,6 @@ export function DataTable({ initialSettings, initialTab }: Props) {
       editTransaction,
       moveToReview,
       handleShiftClickRange,
-      lastClickedIndex,
-      setLastClickedIndex,
       exportingTransactionIds,
     ],
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { useTRPC } from "@/trpc/client";
 import { Input } from "./input";
 
@@ -15,16 +15,28 @@ export function ProductAwareUnitInput({
   name,
   ...props
 }: Props) {
-  const { watch } = useFormContext();
+  const { control } = useFormContext();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
 
   // Get current line item data
-  const lineItemName = watch(`lineItems.${lineItemIndex}.name`);
-  const currentPrice = watch(`lineItems.${lineItemIndex}.price`);
-  const currentProductId = watch(`lineItems.${lineItemIndex}.productId`);
-  const currentUnit = watch(`lineItems.${lineItemIndex}.unit`);
-  const currency = watch("template.currency");
+  const lineItemName = useWatch({
+    control,
+    name: `lineItems.${lineItemIndex}.name`,
+  });
+  const currentPrice = useWatch({
+    control,
+    name: `lineItems.${lineItemIndex}.price`,
+  });
+  const currentProductId = useWatch({
+    control,
+    name: `lineItems.${lineItemIndex}.productId`,
+  });
+  const currentUnit = useWatch({
+    control,
+    name: `lineItems.${lineItemIndex}.unit`,
+  });
+  const currency = useWatch({ control, name: "template.currency" });
 
   // Mutation for saving line item as product
   const saveLineItemAsProductMutation = useMutation(

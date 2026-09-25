@@ -108,12 +108,12 @@ export function InvoiceSuccess() {
             </span>
 
             <span className="text-xl">
-              {invoice.amount && invoice.currency && (
+              {invoice.amount != null && invoice.currency ? (
                 <FormatAmount
                   amount={invoice.amount}
                   currency={invoice.currency}
                 />
-              )}
+              ) : null}
             </span>
           </motion.div>
 

@@ -26,6 +26,7 @@ import { InlineSelectTags } from "@/components/inline-select-tags";
 import { TransactionBankAccount } from "@/components/transaction-bank-account";
 import { TransactionMethod } from "@/components/transaction-method";
 import { TransactionStatus } from "@/components/transaction-status";
+import { useTransactionsStore } from "@/store/transactions";
 
 type Transaction = RouterOutputs["transactions"]["get"]["data"][number];
 
@@ -40,7 +41,10 @@ const SelectCell = memo(
     onShiftClick?: () => void;
   }) => (
     <div
-      onClick={(e) => {
+      // Capture phase, so a shift-click never reaches the checkbox: its own
+      // toggle would move the range anchor to this row before the range is
+      // read (FF-1706).
+      onClickCapture={(e) => {
         if (e.shiftKey && onShiftClick) {
           e.preventDefault();
           e.stopPropagation();
@@ -289,20 +293,25 @@ export const columns: ColumnDef<Transaction>[] = [
         "w-[50px] min-w-[50px] md:sticky md:left-[var(--stick-left)] bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f] z-10",
     },
     cell: ({ row, table }) => {
-      const meta = table.options.meta;
-      const rows = table.getRowModel().rows;
-      const rowIndex = rows.findIndex((r) => r.id === row.id);
+      // Read the anchor when the click happens, not when the row rendered:
+      // VirtualRow skips re-rendering unchanged rows, so anything captured
+      // here can be several clicks old (FF-1706). The table has no client
+      // sorting or filtering, so row.index is the row's position.
       const handleShiftClick = () => {
-        if (
-          meta?.lastClickedIndex !== null &&
-          meta?.lastClickedIndex !== undefined &&
-          meta?.handleShiftClickRange
-        ) {
-          meta.handleShiftClickRange(meta.lastClickedIndex, rowIndex);
+        const { lastClickedIndex, setLastClickedIndex } =
+          useTransactionsStore.getState();
+
+        if (lastClickedIndex !== null) {
+          table.options.meta?.handleShiftClickRange?.(
+            lastClickedIndex,
+            row.index,
+          );
+        } else {
+          // No range to extend yet: the click selects this row, as a plain
+          // click would.
+          row.toggleSelected(!row.getIsSelected());
         }
-        if (meta?.setLastClickedIndex) {
-          meta.setLastClickedIndex(rowIndex);
-        }
+        setLastClickedIndex(row.index);
       };
 
       return (
@@ -310,9 +319,7 @@ export const columns: ColumnDef<Transaction>[] = [
           checked={row.getIsSelected()}
           onChange={(value) => {
             row.toggleSelected(!!value);
-            if (meta?.setLastClickedIndex) {
-              meta.setLastClickedIndex(rowIndex);
-            }
+            useTransactionsStore.getState().setLastClickedIndex(row.index);
           }}
           onShiftClick={handleShiftClick}
         />

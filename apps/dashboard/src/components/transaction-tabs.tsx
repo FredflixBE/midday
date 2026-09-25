@@ -3,26 +3,22 @@
 import { cn } from "@midday/ui/cn";
 import { Tabs, TabsList, TabsTrigger } from "@midday/ui/tabs";
 import { useEffect, useState } from "react";
-import { useReviewTransactions } from "@/hooks/use-review-transactions";
+import { useReviewCount } from "@/hooks/use-review-count";
 import { useTransactionTab } from "@/hooks/use-transaction-tab";
 
 function ReviewCount() {
-  const { transactionIds } = useReviewTransactions();
+  const { data: count = 0 } = useReviewCount();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted || transactionIds.length === 0) {
+  if (!mounted || count === 0) {
     return null;
   }
 
-  return (
-    <span className="ml-1 text-xs text-[#878787]">
-      ({transactionIds.length})
-    </span>
-  );
+  return <span className="ml-1 text-xs text-[#878787]">({count})</span>;
 }
 
 export function TransactionTabs() {

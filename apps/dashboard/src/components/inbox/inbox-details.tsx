@@ -25,7 +25,7 @@ import { formatDate, getInitials } from "@midday/utils/format";
 import { getTaxTypeLabel } from "@midday/utils/tax";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreVertical, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useCopyToClipboard } from "usehooks-ts";
 import { FileViewer } from "@/components/file-viewer";
@@ -51,8 +51,6 @@ export function InboxDetails() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [showFallback, setShowFallback] = useState(false);
-  const [imageLoading, setImageLoading] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { data: user } = useUserQuery();
   const [, copy] = useCopyToClipboard();
@@ -241,11 +239,6 @@ export function InboxDetails() {
   const isOtherDocument = data?.status === "other" || data?.type === "other";
   const hasFailed = data?.status === "failed";
 
-  useEffect(() => {
-    setShowFallback(false);
-    setImageLoading(true);
-  }, [data]);
-
   const handleCopyLink = () => {
     if (!data) return;
 
@@ -273,8 +266,6 @@ export function InboxDetails() {
       downloadFile(downloadUrl, data.fileName);
     }
   };
-
-  const fallback = showFallback || (!data?.website && data?.displayName);
 
   if (isLoading) {
     return <InboxDetailsSkeleton />;
@@ -475,39 +466,11 @@ export function InboxDetails() {
               {isProcessing ? (
                 <Skeleton className="h-[40px] w-[40px] rounded-full" />
               ) : (
-                <div className="relative">
-                  {data.website && imageLoading && (
-                    <Skeleton className="h-[40px] w-[40px] rounded-full absolute z-20" />
-                  )}
-                  <Avatar>
-                    {data.website && (
-                      <AvatarImageNext
-                        alt={data.website}
-                        width={40}
-                        height={40}
-                        className={cn(
-                          "rounded-full overflow-hidden",
-                          showFallback && "hidden",
-                        )}
-                        src={getWebsiteLogo(data.website)}
-                        quality={100}
-                        onLoad={() => {
-                          setImageLoading(false);
-                        }}
-                        onError={() => {
-                          setImageLoading(false);
-                          setShowFallback(true);
-                        }}
-                      />
-                    )}
-
-                    {fallback && (
-                      <AvatarFallback>
-                        {getInitials(data?.displayName ?? "")}
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                </div>
+                <SenderLogo
+                  key={data.website ?? ""}
+                  website={data.website}
+                  displayName={data.displayName}
+                />
               )}
 
               <div className="grid gap-1 select-text">
@@ -548,9 +511,9 @@ export function InboxDetails() {
                                   currency={data.currency}
                                   maximumFractionDigits={2}
                                 />
-                                {data.taxRate &&
-                                  data.taxRate > 0 &&
-                                  ` (${data.taxRate}%)`}
+                                {data.taxRate != null && data.taxRate > 0
+                                  ? ` (${data.taxRate}%)`
+                                  : null}
                               </span>
                             </div>
                           </TooltipContent>
@@ -648,6 +611,59 @@ export function InboxDetails() {
           onOpenChange={setShowDeleteDialog}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Keyed on the website by its caller, so the loading and fallback state
+ * resets only when the sender changes. A refetch that keeps the same logo URL
+ * never fires `onLoad` again, so resetting on every new `data` left the
+ * skeleton over a loaded logo (FF-1708).
+ */
+function SenderLogo({
+  website,
+  displayName,
+}: {
+  website: string | null;
+  displayName: string | null;
+}) {
+  const [showFallback, setShowFallback] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  const fallback = showFallback || (!website && displayName);
+
+  return (
+    <div className="relative">
+      {website && imageLoading && (
+        <Skeleton className="h-[40px] w-[40px] rounded-full absolute z-20" />
+      )}
+      <Avatar>
+        {website && (
+          <AvatarImageNext
+            alt={website}
+            width={40}
+            height={40}
+            className={cn(
+              "rounded-full overflow-hidden",
+              showFallback && "hidden",
+            )}
+            src={getWebsiteLogo(website)}
+            quality={100}
+            onLoad={() => {
+              setImageLoading(false);
+            }}
+            onError={() => {
+              setImageLoading(false);
+              setShowFallback(true);
+            }}
+          />
+        )}
+
+        {fallback && (
+          <AvatarFallback>{getInitials(displayName ?? "")}</AvatarFallback>
+        )}
+      </Avatar>
     </div>
   );
 }

@@ -21,7 +21,13 @@ import {
   isValid,
   startOfDay,
 } from "date-fns";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useLatestProjectId } from "@/hooks/use-latest-project-id";
 import { useTrackerParams } from "@/hooks/use-tracker-params";
@@ -37,6 +43,7 @@ import {
   getSlotFromDate,
   isValidTimeSlot,
   NEW_EVENT_ID,
+  sortDates,
 } from "@/utils/tracker";
 import { TrackerEntriesForm } from "./forms/tracker-entries-form";
 import { TrackerDaySelect } from "./tracker-day-select";
@@ -683,7 +690,11 @@ export function TrackerSchedule() {
   }, [urlProjectId, latestProjectId]);
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
-  const sortedRange = range?.sort((a, b) => a.localeCompare(b));
+  // sortDates copies before sorting: `range` is URL state (FF-1707).
+  const sortedRange = useMemo(
+    () => (range ? sortDates(range) : range),
+    [range],
+  );
 
   // Scroll to appropriate time on mount (using user timezone)
   useEffect(() => {

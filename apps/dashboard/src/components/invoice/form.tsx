@@ -15,16 +15,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { differenceInDays } from "date-fns";
-import { useEffect } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
-import { useDebounceValue } from "usehooks-ts";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 import { useUserQuery } from "@/hooks/use-user";
-import { useInvoiceEditorStore } from "@/store/invoice-editor";
 import { useTRPC } from "@/trpc/client";
 import { getUrl } from "@/utils/environment";
-import { SavingBar } from "../saving-bar";
 import { CustomerDetails } from "./customer-details";
+import { DraftAutoSave } from "./draft-auto-save";
 import { EditBlock } from "./edit-block";
 import { EmailPreview } from "./email-preview";
 import type { InvoiceFormValues } from "./form-context";
@@ -38,43 +35,21 @@ import { SettingsMenu } from "./settings-menu";
 import { SubmitButton } from "./submit-button";
 import { Summary } from "./summary";
 import { TemplateSelector } from "./template-selector";
-import { transformFormValuesToDraft } from "./utils";
 
 export function Form() {
-  const { invoiceId, setParams } = useInvoiceParams();
+  const { setParams } = useInvoiceParams();
   const { data: user } = useUserQuery();
 
   const form = useFormContext();
-  const token = form.watch("token");
-  const deliveryType = form.watch("template.deliveryType");
+  const token = useWatch({ control: form.control, name: "token" });
+  const deliveryType = useWatch({
+    control: form.control,
+    name: "template.deliveryType",
+  });
 
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-
-  // Track in-flight template upsert mutations (fired by SettingsMenu, labels, etc.)
-  // so the SavingBar reacts immediately instead of waiting for the 500ms debounce.
-  const templateUpsertCount = useIsMutating({
-    mutationKey: trpc.invoiceTemplate.upsert.mutationKey(),
-  });
-
-  const draftInvoiceMutation = useMutation(
-    trpc.invoice.draft.mutationOptions({
-      onSuccess: (data) => {
-        if (!invoiceId && data?.id) {
-          setParams({ invoiceType: "edit", invoiceId: data.id });
-        }
-
-        queryClient.invalidateQueries({
-          queryKey: trpc.invoice.get.infiniteQueryKey(),
-        });
-
-        queryClient.invalidateQueries({
-          queryKey: trpc.invoice.invoiceSummary.queryKey(),
-        });
-      },
-    }),
-  );
 
   const createInvoiceMutation = useMutation(
     trpc.invoice.create.mutationOptions({
@@ -160,11 +135,6 @@ export function Form() {
     }),
   );
 
-  // Mutation to update recurring series template when editing an invoice in a series
-  const updateRecurringTemplateMutation = useMutation(
-    trpc.invoiceRecurring.update.mutationOptions(),
-  );
-
   // Mutation to update invoice status (used for scheduling future-dated recurring invoices)
   const updateInvoiceMutation = useMutation(
     trpc.invoice.update.mutationOptions({
@@ -177,124 +147,6 @@ export function Form() {
       },
     }),
   );
-
-  // Only watch the fields that are used in the upsert action
-  const formValues = useWatch({
-    control: form.control,
-    name: [
-      "customerDetails",
-      "customerId",
-      "customerName",
-      "template",
-      "lineItems",
-      "amount",
-      "vat",
-      "tax",
-      "discount",
-      "dueDate",
-      "issueDate",
-      "noteDetails",
-      "paymentDetails",
-      "fromDetails",
-      "invoiceNumber",
-      "topBlock",
-      "bottomBlock",
-      "scheduledAt",
-      "recurringConfig",
-      "invoiceRecurringId",
-    ],
-  });
-
-  const invoiceNumberValid = !form.getFieldState("invoiceNumber").error;
-  const [debouncedValue] = useDebounceValue(formValues, 500);
-
-  // Auto-save: only save when form values have genuinely changed from what was loaded/last saved.
-  // Uses a zustand snapshot store instead of isDirty (which is unreliable with computed fields).
-  //
-  // After each form.reset(), the store is marked as uninitialized. The first debounce tick
-  // captures the fully hydrated state (after Summary and other child effects have settled)
-  // as the baseline. Subsequent ticks compare against that baseline.
-  useEffect(() => {
-    const currentFormValues = form.getValues();
-    const store = useInvoiceEditorStore.getState();
-
-    // First debounce after a reset: capture the settled values as baseline, don't save
-    if (!store.initialized) {
-      store.initialize(currentFormValues);
-      return;
-    }
-
-    if (!store.hasChanged(currentFormValues)) return;
-    if (!currentFormValues.customerId || !invoiceNumberValid) return;
-
-    // Serialize now — getValues() returns a shallow copy so nested objects
-    // (e.g. template) are shared mutable refs into the form's internal state.
-    // If the user edits a field between mutation start and onSuccess,
-    // JSON.stringify would capture the unsaved mutation, causing the next
-    // hasChanged() check to silently skip the save.
-    const serialized = JSON.stringify(currentFormValues);
-
-    // If invoice is part of a recurring series, both the draft AND the
-    // recurring template must save successfully before we mark the snapshot
-    // as saved. Otherwise a recurring-template failure would be masked by
-    // the draft's onSuccess updating the snapshot, and hasChanged() would
-    // return false on the next tick — silently dropping the retry.
-    const { invoiceRecurringId } = currentFormValues;
-    const needsRecurringUpdate = !!invoiceRecurringId;
-
-    // Track which mutations have completed for this save cycle
-    let draftOk = false;
-    let recurringOk = !needsRecurringUpdate; // true when no recurring update needed
-
-    const maybeCommitSnapshot = () => {
-      if (draftOk && recurringOk) {
-        store.setSnapshot(serialized);
-      }
-    };
-
-    draftInvoiceMutation.mutate(
-      // @ts-expect-error
-      transformFormValuesToDraft(currentFormValues),
-      {
-        onSuccess: () => {
-          draftOk = true;
-          maybeCommitSnapshot();
-        },
-      },
-    );
-
-    if (needsRecurringUpdate) {
-      // Remove deliveryType from template since "recurring" is not a valid API deliveryType
-      const { deliveryType: _, ...templateWithoutDeliveryType } =
-        currentFormValues.template;
-
-      updateRecurringTemplateMutation.mutate(
-        {
-          id: invoiceRecurringId,
-          lineItems: currentFormValues.lineItems,
-          template: templateWithoutDeliveryType,
-          paymentDetails: currentFormValues.paymentDetails,
-          fromDetails: currentFormValues.fromDetails,
-          noteDetails: currentFormValues.noteDetails,
-          vat: currentFormValues.vat,
-          tax: currentFormValues.tax,
-          discount: currentFormValues.discount,
-          subtotal: currentFormValues.subtotal,
-          topBlock: currentFormValues.topBlock,
-          bottomBlock: currentFormValues.bottomBlock,
-          amount: currentFormValues.amount,
-        },
-        {
-          onSuccess: () => {
-            recurringOk = true;
-            maybeCommitSnapshot();
-          },
-          // onError intentionally omitted — recurringOk stays false,
-          // snapshot is never committed, and the next debounce tick retries.
-        },
-      );
-    }
-  }, [debouncedValue, invoiceNumberValid]);
 
   // Submit the form and the draft invoice
   const handleSubmit = async (values: InvoiceFormValues) => {
@@ -466,10 +318,7 @@ export function Form() {
           </div>
         </div>
 
-        <SavingBar
-          isPending={draftInvoiceMutation.isPending || templateUpsertCount > 0}
-          isError={draftInvoiceMutation.isError}
-        />
+        <DraftAutoSave />
       </ScrollArea>
 
       <div className="absolute bottom-4 w-full border-t border-border pt-4 px-6">
@@ -529,20 +378,10 @@ export function Form() {
                 )}
               </TooltipProvider>
 
-              <SubmitButton
+              <FormSubmitButton
                 isSubmitting={
                   createInvoiceMutation.isPending ||
                   createRecurringInvoiceMutation.isPending
-                }
-                disabled={
-                  createInvoiceMutation.isPending ||
-                  createRecurringInvoiceMutation.isPending ||
-                  draftInvoiceMutation.isPending
-                }
-                className={
-                  draftInvoiceMutation.isPending
-                    ? "disabled:opacity-100 disabled:cursor-wait"
-                    : undefined
                 }
               />
             </div>
@@ -551,5 +390,27 @@ export function Form() {
       </div>
       <EmailPreview />
     </form>
+  );
+}
+
+/**
+ * The submit button also waits for a draft save in flight. DraftAutoSave owns
+ * that mutation, so the button reads it from the mutation cache here, where a
+ * save starting or ending re-renders only the button, not the whole editor
+ * (FF-1715).
+ */
+function FormSubmitButton({ isSubmitting }: { isSubmitting: boolean }) {
+  const trpc = useTRPC();
+  const isSavingDraft =
+    useIsMutating({ mutationKey: trpc.invoice.draft.mutationKey() }) > 0;
+
+  return (
+    <SubmitButton
+      isSubmitting={isSubmitting}
+      disabled={isSubmitting || isSavingDraft}
+      className={
+        isSavingDraft ? "disabled:opacity-100 disabled:cursor-wait" : undefined
+      }
+    />
   );
 }

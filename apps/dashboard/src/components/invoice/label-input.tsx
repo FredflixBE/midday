@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@midday/ui/cn";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 
 type Props = {
   name: string;
@@ -12,8 +12,8 @@ type Props = {
 };
 
 export function LabelInput({ name, className, onSave, defaultValue }: Props) {
-  const { setValue, watch } = useFormContext();
-  const value = watch(name);
+  const { setValue, control } = useFormContext();
+  const value = useWatch({ control, name });
   const displayValue = value ?? defaultValue ?? "";
 
   return (

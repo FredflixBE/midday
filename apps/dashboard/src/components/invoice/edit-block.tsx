@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@midday/ui/cn";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { Editor } from "./editor";
 import type { InvoiceFormValues } from "./form-context";
 
@@ -10,8 +10,8 @@ type Props = {
 };
 
 export function EditBlock({ name }: Props) {
-  const { control, watch } = useFormContext();
-  const id = watch("id");
+  const { control } = useFormContext();
+  const id = useWatch({ control, name: "id" });
 
   return (
     <div className="group">

@@ -5,6 +5,7 @@ import {
   formatQuoteVersion,
   type PricingResult,
   priceVersion,
+  type QuoteContent,
   quoteState,
 } from "@midday/quote";
 import { pricingView } from "@midday/quote/view";
@@ -25,7 +26,9 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import {
+  Activity,
   type CSSProperties,
+  memo,
   type ReactNode,
   useEffect,
   useMemo,
@@ -53,9 +56,19 @@ import {
 import { AcceptanceNote, RecordAcceptance } from "./record-acceptance";
 
 type Quote = RouterOutputs["quotes"]["get"];
+type Product = RouterOutputs["productRates"]["products"][number];
 /** What the main column is showing (FF-1639). */
 type Pane = "document" | "pricing";
 type Version = Quote["versions"][number];
+
+/** One array while the products load, so the memos below hold (FF-1717). */
+const NO_PRODUCTS: Product[] = [];
+const NO_BLOCKS: QuoteContent["blocks"] = [];
+
+// The panes re-render only when what they show changes (FF-1717).
+const MemoQuoteBlocks = memo(QuoteBlocks);
+const MemoQuoteScenarios = memo(QuoteScenarios);
+const MemoQuoteComparison = memo(QuoteComparison);
 
 /**
  * One quote, full page (FF-1611). It opens on the latest version; a draft is
@@ -159,7 +172,7 @@ function VersionEditor({
   const { draft, change, saved } = useQuoteDraft(quote, version);
   const editable = version.status === "draft";
 
-  const { data: products = [] } = useQuery(
+  const { data: products = NO_PRODUCTS } = useQuery(
     trpc.productRates.products.queryOptions(),
   );
   const { data: customerRates } = useQuery({
@@ -169,12 +182,23 @@ function VersionEditor({
     enabled: draft.customerId !== null,
   });
 
+  // What pricing reads of the content: the scenarios, the rates and the unit,
+  // never the text. Built from those alone, it keeps its identity while a
+  // text block is typed in, so nothing is re-priced and the Pricing pane's
+  // memo holds (FF-1717). Naming every field means a field added to the
+  // content has to be placed here, on one side or the other.
+  const { scenarios, rates, displayUnit, hoursPerDay } = draft.content;
+  const pricingContent = useMemo<QuoteContent>(
+    () => ({ blocks: NO_BLOCKS, scenarios, rates, displayUnit, hoursPerDay }),
+    [scenarios, rates, displayUnit, hoursPerDay],
+  );
+
   // A sent version reads from the pricing frozen when it was sent.
   const pricing = useMemo<PricingResult>(
     () =>
       (version.pricing as PricingResult | null) ??
-      priceVersion(draft.content, toProductRates(products, customerRates)),
-    [version.pricing, draft.content, products, customerRates],
+      priceVersion(pricingContent, toProductRates(products, customerRates)),
+    [version.pricing, pricingContent, products, customerRates],
   );
 
   const [strip, stripHeight] = useStripHeight();
@@ -305,7 +329,11 @@ function VersionEditor({
 
               {/* Both panes stay mounted: unmounting an editor throws away
                   its undo history and a half-typed number, neither of which
-                  is worth a tab switch. */}
+                  is worth a tab switch. The Pricing pane is also an
+                  Activity, so while hidden it keeps its state without
+                  rendering alongside every keystroke in the text. The
+                  document pane is not: hiding an Activity runs its effects'
+                  cleanup, and Tiptap destroys an editor there (FF-1717). */}
               <TabsContent
                 value="document"
                 forceMount
@@ -315,7 +343,7 @@ function VersionEditor({
                     and a block still expands to be read full screen
                     (FF-1624). The blocks turn every control of their own off
                     on a sent version. */}
-                <QuoteBlocks
+                <MemoQuoteBlocks
                   content={draft.content}
                   change={change}
                   editable={editable}
@@ -328,28 +356,30 @@ function VersionEditor({
                 forceMount
                 className="space-y-10 data-[state=inactive]:hidden"
               >
-                {/* Outside the fieldset: a sent version's scenarios are still
-                    browsed. */}
-                <QuoteScenarios
-                  content={draft.content}
-                  kind={draft.kind}
-                  products={products}
-                  currency={quote.currency}
-                  locale={user?.locale ?? undefined}
-                  editable={editable}
-                  change={change}
-                  selected={scenario}
-                  pricing={scenarioPricing}
-                  onSelect={setScenarioId}
-                />
+                <Activity mode={pane === "pricing" ? "visible" : "hidden"}>
+                  {/* Outside the fieldset: a sent version's scenarios are still
+                      browsed. */}
+                  <MemoQuoteScenarios
+                    content={pricingContent}
+                    kind={draft.kind}
+                    products={products}
+                    currency={quote.currency}
+                    locale={user?.locale ?? undefined}
+                    editable={editable}
+                    change={change}
+                    selected={scenario}
+                    pricing={scenarioPricing}
+                    onSelect={setScenarioId}
+                  />
 
-                <QuoteComparison
-                  content={draft.content}
-                  kind={draft.kind}
-                  pricing={pricing}
-                  currency={quote.currency}
-                  locale={user?.locale ?? undefined}
-                />
+                  <MemoQuoteComparison
+                    content={pricingContent}
+                    kind={draft.kind}
+                    pricing={pricing}
+                    currency={quote.currency}
+                    locale={user?.locale ?? undefined}
+                  />
+                </Activity>
               </TabsContent>
             </Tabs>
           </main>

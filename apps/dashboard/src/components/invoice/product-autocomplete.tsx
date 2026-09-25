@@ -1,6 +1,6 @@
 "use client";
 
-import { extractTextFromValue } from "@midday/invoice";
+import { extractTextFromValue } from "@midday/invoice/extract-text";
 import type { InvoiceProduct } from "@midday/invoice/types";
 import { cn } from "@midday/ui/cn";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { useProductParams } from "@/hooks/use-product-params";
 import { useTRPC } from "@/trpc/client";
 import { formatAmount } from "@/utils/format";
@@ -36,7 +36,7 @@ export function ProductAutocomplete({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [hoveredIndex, setHoveredIndex] = useState(-1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { setValue, watch } = useFormContext();
+  const { setValue, control } = useFormContext();
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -60,12 +60,18 @@ export function ProductAutocomplete({
   const { setParams: setProductParams } = useProductParams();
 
   // Get current line item data for learning
-  const currentPrice = watch(`lineItems.${index}.price`);
-  const currentUnit = watch(`lineItems.${index}.unit`);
-  const currentProductId = watch(`lineItems.${index}.productId`);
-  const currency = watch("template.currency");
-  const locale = watch("template.locale");
-  const includeDecimals = watch("template.includeDecimals");
+  const currentPrice = useWatch({ control, name: `lineItems.${index}.price` });
+  const currentUnit = useWatch({ control, name: `lineItems.${index}.unit` });
+  const currentProductId = useWatch({
+    control,
+    name: `lineItems.${index}.productId`,
+  });
+  const currency = useWatch({ control, name: "template.currency" });
+  const locale = useWatch({ control, name: "template.locale" });
+  const includeDecimals = useWatch({
+    control,
+    name: "template.includeDecimals",
+  });
 
   const maximumFractionDigits = includeDecimals ? 2 : 0;
 
@@ -409,7 +415,7 @@ export function ProductAutocomplete({
 
                   <div className="flex items-center gap-2">
                     <div className="text-xs text-muted-foreground">
-                      {product.price && product.currency && (
+                      {product.price != null && product.currency ? (
                         <span>
                           {formatAmount({
                             amount: product.price,
@@ -419,7 +425,7 @@ export function ProductAutocomplete({
                           })}
                           {product.unit && `/${product.unit}`}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <div
                       className={cn(

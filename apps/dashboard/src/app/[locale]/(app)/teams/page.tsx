@@ -60,14 +60,14 @@ export default async function Teams() {
           </div>
 
           {/* If there are teams, show them */}
-          {teams?.length && (
+          {teams?.length > 0 ? (
             <>
               <span className="text-sm text-[#878787] mb-4">Teams</span>
               <div className="max-h-[260px] overflow-y-auto">
                 <SelectTeamTable data={teams} />
               </div>
             </>
-          )}
+          ) : null}
 
           {/* If there are invites, show them */}
           {invites?.length > 0 && <TeamInvites />}

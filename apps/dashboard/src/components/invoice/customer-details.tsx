@@ -4,7 +4,7 @@ import { transformCustomerToContent } from "@midday/invoice/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { JSONContent } from "@tiptap/react";
 import { useEffect } from "react";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { Editor } from "@/components/invoice/editor";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
@@ -13,14 +13,14 @@ import { SelectCustomer } from "../select-customer";
 import { LabelInput } from "./label-input";
 
 export function CustomerDetails() {
-  const { control, setValue, watch } = useFormContext();
+  const { control, setValue } = useFormContext();
   const { setParams, selectedCustomerId } = useInvoiceParams();
 
   const trpc = useTRPC();
   const { updateTemplate } = useTemplateUpdate();
 
-  const content = watch("customerDetails");
-  const id = watch("id");
+  const content = useWatch({ control, name: "customerDetails" });
+  const id = useWatch({ control, name: "id" });
 
   const { data: customer } = useQuery(
     trpc.customers.getById.queryOptions(

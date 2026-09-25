@@ -56,13 +56,19 @@ export default async function Transactions(props: Props) {
 
   // Prefetch all data needed for instant experience
   batchPrefetch([
-    // Transaction data for both tabs
+    // Transaction data for the "all" tab
     trpc.transactions.get.infiniteQueryOptions(allTabFilter, {
       getNextPageParam: ({ meta }) => meta?.cursor,
     }),
-    trpc.transactions.get.infiniteQueryOptions(reviewTabFilter, {
-      getNextPageParam: ({ meta }) => meta?.cursor,
-    }),
+    // The review queue loads every row it holds, so it is fetched only on the
+    // tab that shows it; the tab's badge reads the count (FF-1713).
+    ...(tab === "review"
+      ? [
+          trpc.transactions.get.infiniteQueryOptions(reviewTabFilter, {
+            getNextPageParam: ({ meta }) => meta?.cursor,
+          }),
+        ]
+      : []),
     trpc.transactions.getReviewCount.queryOptions(),
     // Shared data used by table rows (assign user, tags)
     trpc.team.members.queryOptions(),

@@ -9,7 +9,7 @@ import {
 } from "@midday/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useFormState, useWatch } from "react-hook-form";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
 import { useTRPC } from "@/trpc/client";
@@ -17,13 +17,9 @@ import { Input } from "./input";
 import { LabelInput } from "./label-input";
 
 export function InvoiceNo() {
-  const {
-    watch,
-    setError,
-    clearErrors,
-    formState: { errors },
-  } = useFormContext();
-  const invoiceNumber = watch("invoiceNumber");
+  const { control, setError, clearErrors } = useFormContext();
+  const { errors } = useFormState({ control, name: "invoiceNumber" });
+  const invoiceNumber = useWatch({ control, name: "invoiceNumber" });
   const trpc = useTRPC();
   const { updateTemplate } = useTemplateUpdate();
 
