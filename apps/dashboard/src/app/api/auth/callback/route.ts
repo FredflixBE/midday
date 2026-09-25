@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { getTRPCClient } from "@/trpc/server";
 import { Cookies } from "@/utils/constants";
 import { getUrl } from "@/utils/environment";
+import { firstStop } from "@/utils/first-stop";
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
@@ -45,10 +46,10 @@ export async function GET(req: NextRequest) {
       const trpcClient = await getTRPCClient();
       const user = await trpcClient.user.me.query();
 
-      const isOnboarding = !user?.fullName || !user.teamId;
+      const detour = firstStop(user);
 
-      if (isOnboarding) {
-        return NextResponse.redirect(`${origin}/onboarding`);
+      if (detour) {
+        return NextResponse.redirect(`${origin}${detour}`);
       }
     }
   }
