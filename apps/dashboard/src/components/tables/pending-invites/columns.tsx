@@ -8,7 +8,12 @@ import {
   DropdownMenuTrigger,
 } from "@midday/ui/dropdown-menu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { ColumnDef, FilterFn, Row } from "@tanstack/react-table";
+import type {
+  CellContext,
+  ColumnDef,
+  FilterFn,
+  Row,
+} from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
 import { useI18n } from "@/locales/client";
 import { useTRPC } from "@/trpc/client";
@@ -49,54 +54,56 @@ export const columns: ColumnDef<TeamInvite>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
-      const t = useI18n();
-      const trpc = useTRPC();
-      const queryClient = useQueryClient();
-
-      const deleteInvite = useMutation(
-        trpc.team.deleteInvite.mutationOptions({
-          onSuccess: () => {
-            queryClient.invalidateQueries({
-              queryKey: trpc.team.teamInvites.queryKey(),
-            });
-          },
-        }),
-      );
-
-      return (
-        <div className="flex justify-end">
-          <div className="flex space-x-2 items-center">
-            <span className="text-[#606060]">
-              {t(`roles.${row.original.role || "member"}`)}
-            </span>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-8 w-8 p-0">
-                  <span className="sr-only">Open menu</span>
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() =>
-                    deleteInvite.mutate({
-                      id: row.original.id,
-                    })
-                  }
-                >
-                  Remove
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      );
-    },
+    cell: (props) => <InviteActionsCell {...props} />,
     meta: {
       className: "text-right",
     },
   },
 ];
+
+function InviteActionsCell({ row }: CellContext<TeamInvite, unknown>) {
+  const t = useI18n();
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  const deleteInvite = useMutation(
+    trpc.team.deleteInvite.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: trpc.team.teamInvites.queryKey(),
+        });
+      },
+    }),
+  );
+
+  return (
+    <div className="flex justify-end">
+      <div className="flex space-x-2 items-center">
+        <span className="text-[#606060]">
+          {t(`roles.${row.original.role || "member"}`)}
+        </span>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() =>
+                deleteInvite.mutate({
+                  id: row.original.id,
+                })
+              }
+            >
+              Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
