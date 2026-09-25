@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useDebounceCallback } from "usehooks-ts";
 import { useInboxFilterParams } from "@/hooks/use-inbox-filter-params";
@@ -31,12 +31,9 @@ export function InboxView() {
   const { data: user } = useUserQuery();
   const { params, setParams } = useInboxParams();
   const { params: filter, hasFilter } = useInboxFilterParams();
-  const {
-    lastClickedIndex,
-    selectRange,
-    setLastClickedIndex,
-    toggleSelection,
-  } = useInboxStore();
+  const setLastClickedIndex = useInboxStore(
+    (state) => state.setLastClickedIndex,
+  );
   const { play: playMatchSound } = useMatchSound();
 
   const realtimeInsertIdsRef = useRef(new Set<string>());
@@ -305,21 +302,36 @@ export function InboxView() {
     [tableData, params, setParams],
   );
 
-  // Handle item click for selection
-  const handleItemClick = (e: React.MouseEvent, index: number) => {
-    if (e.shiftKey && lastClickedIndex !== null) {
-      // Shift-click: select range
-      selectRange(lastClickedIndex, index, tableData);
-      setLastClickedIndex(index);
-    } else {
-      // Regular click: toggle selection
-      const item = tableData[index];
-      if (item) {
-        toggleSelection(item.id);
+  // Handle item click for selection. Stable, and reading the store when it
+  // runs, so the memoised items are not re-rendered by a new handler.
+  const handleItemClick = useCallback(
+    (e: React.MouseEvent, index: number) => {
+      const {
+        lastClickedIndex,
+        selectRange,
+        setLastClickedIndex,
+        toggleSelection,
+      } = useInboxStore.getState();
+      if (e.shiftKey && lastClickedIndex !== null) {
+        // Shift-click: select range
+        selectRange(lastClickedIndex, index, tableData);
         setLastClickedIndex(index);
+      } else {
+        // Regular click: toggle selection
+        const item = tableData[index];
+        if (item) {
+          toggleSelection(item.id);
+          setLastClickedIndex(index);
+        }
       }
-    }
-  };
+    },
+    [tableData],
+  );
+
+  const handleNavigate = useCallback(
+    (id: string) => setParams({ inboxId: id }),
+    [setParams],
+  );
 
   useEffect(() => {
     const inboxId = params.inboxId;
@@ -419,7 +431,12 @@ export function InboxView() {
                     <InboxItem
                       item={item}
                       index={virtualRow.index}
+                      isNavigationSelected={
+                        params.inboxId === item.id ||
+                        (!params.inboxId && virtualRow.index === 0)
+                      }
                       onItemClick={handleItemClick}
+                      onNavigate={handleNavigate}
                     />
                   </motion.div>
                 </div>

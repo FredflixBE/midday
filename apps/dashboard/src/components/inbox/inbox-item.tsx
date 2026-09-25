@@ -10,34 +10,33 @@ import {
 } from "@midday/ui/tooltip";
 import { formatDate } from "@midday/utils/format";
 import { getTaxTypeLabel } from "@midday/utils/tax";
-import { forwardRef } from "react";
+import { forwardRef, memo } from "react";
 import { FormatAmount } from "@/components/format-amount";
 import { InboxStatus } from "@/components/inbox/inbox-status";
-import { useInboxParams } from "@/hooks/use-inbox-params";
 import { useUserQuery } from "@/hooks/use-user";
-import { useInboxStore } from "@/store/inbox";
+import { hasInboxSelection, useInboxStore } from "@/store/inbox";
 
 type Props = {
   item: RouterOutputs["inbox"]["get"]["data"][number];
   index: number;
+  /** The item open in the details pane. */
+  isNavigationSelected: boolean;
   onItemClick?: (e: React.MouseEvent, index: number) => void;
+  onNavigate: (id: string) => void;
 };
 
-export const InboxItem = forwardRef<HTMLButtonElement, Props>(
-  function InboxItem({ item, index, onItemClick }, ref) {
-    const { params, setParams } = useInboxParams();
+// Memoised, and reading only its own slice of the selection, so selecting or
+// opening one item re-renders that item rather than the whole list (FF-1740).
+export const InboxItem = memo(
+  forwardRef<HTMLButtonElement, Props>(function InboxItem(
+    { item, index, isNavigationSelected, onItemClick, onNavigate },
+    ref,
+  ) {
     const { data: user } = useUserQuery();
-    const {
-      selectedIds,
-      toggleSelection,
-      setLastClickedIndex,
-      clearSelection,
-    } = useInboxStore();
-
-    const isNavigationSelected =
-      params.inboxId === item.id || (!params.inboxId && index === 0);
-    const isBulkSelected = selectedIds[item.id] === true;
-    const isSelectionMode = Object.keys(selectedIds).length > 0;
+    const isBulkSelected = useInboxStore(
+      (state) => state.selectedIds[item.id] === true,
+    );
+    const isSelectionMode = useInboxStore(hasInboxSelection);
     const isSelected =
       isBulkSelected || (!isSelectionMode && isNavigationSelected);
     const isProcessing = item.status === "processing" || item.status === "new";
@@ -50,12 +49,15 @@ export const InboxItem = forwardRef<HTMLButtonElement, Props>(
       }
 
       // If Cmd/Ctrl is held, toggle selection and navigate
+      const { toggleSelection, setLastClickedIndex, clearSelection } =
+        useInboxStore.getState();
+
       if (e.metaKey || e.ctrlKey) {
         toggleSelection(item.id);
         setLastClickedIndex(index);
         // Still navigate when Cmd/Ctrl clicking
         if (!isBulkSelected) {
-          setParams({ inboxId: item.id });
+          onNavigate(item.id);
         }
         return;
       }
@@ -64,7 +66,7 @@ export const InboxItem = forwardRef<HTMLButtonElement, Props>(
       if (isSelectionMode) {
         clearSelection();
       }
-      setParams({ inboxId: item.id });
+      onNavigate(item.id);
     };
 
     return (
@@ -180,5 +182,5 @@ export const InboxItem = forwardRef<HTMLButtonElement, Props>(
         </div>
       </button>
     );
-  },
+  }),
 );

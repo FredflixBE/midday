@@ -14,6 +14,12 @@ interface InboxState {
   setLastClickedIndex: (index: number | null) => void;
 }
 
+/** Whether anything is selected, without counting every key. */
+export function hasInboxSelection(state: Pick<InboxState, "selectedIds">) {
+  for (const _ in state.selectedIds) return true;
+  return false;
+}
+
 export const useInboxStore = create<InboxState>()((set, get) => ({
   selectedIds: {},
   lastClickedIndex: null,

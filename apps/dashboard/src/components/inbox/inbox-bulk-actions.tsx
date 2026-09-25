@@ -36,6 +36,8 @@ export function InboxBulkActions() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const selectedIdsArray = Object.keys(selectedIds);
+  // Checked once per loaded item below, so a set rather than an array scan.
+  const selectedIdSet = new Set(selectedIdsArray);
   const selectedCount = selectedIdsArray.length;
 
   useEffect(() => {
@@ -73,7 +75,7 @@ export function InboxBulkActions() {
             pages: old.pages.map((page: any) => ({
               ...page,
               data: page.data.filter(
-                (item: any) => !selectedIdsArray.includes(item.id),
+                (item: any) => !selectedIdSet.has(item.id),
               ),
             })),
             pageParams: old.pageParams,
@@ -105,7 +107,7 @@ export function InboxBulkActions() {
         // Check if inbox is empty after deletion
         // Use the optimistically updated data from onMutate
         const remainingInboxes = (context?.allInboxes ?? []).filter(
-          (item) => !selectedIdsArray.includes(item.id),
+          (item) => !selectedIdSet.has(item.id),
         );
 
         const hasFilters = Object.values(filter).some(
