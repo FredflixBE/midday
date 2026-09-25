@@ -455,14 +455,14 @@ const SearchResultItemDisplay = ({
                     "") as string
                 }
               </span>
-              {item.data?.amount && item.data?.currency && (
+              {item.data?.amount != null && item.data?.currency ? (
                 <span className="text-xs text-muted-foreground">
                   <FormatAmount
                     currency={item.data.currency}
                     amount={item.data.amount}
                   />
                 </span>
-              )}
+              ) : null}
               <span className="text-xs text-muted-foreground">
                 {item.data?.date && formatDate(item.data.date, dateFormat)}
               </span>

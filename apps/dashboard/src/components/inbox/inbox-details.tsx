@@ -548,9 +548,9 @@ export function InboxDetails() {
                                   currency={data.currency}
                                   maximumFractionDigits={2}
                                 />
-                                {data.taxRate &&
-                                  data.taxRate > 0 &&
-                                  ` (${data.taxRate}%)`}
+                                {data.taxRate != null && data.taxRate > 0
+                                  ? ` (${data.taxRate}%)`
+                                  : null}
                               </span>
                             </div>
                           </TooltipContent>

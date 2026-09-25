@@ -86,7 +86,7 @@ export function TaxRateAssistant({
             />
           </div>
         </TooltipTrigger>
-        {result?.taxRate && (
+        {result?.taxRate != null ? (
           <TooltipContent
             sideOffset={20}
             className="flex flex-col max-w-[310px] space-y-2"
@@ -108,7 +108,7 @@ export function TaxRateAssistant({
               </Button>
             </div>
           </TooltipContent>
-        )}
+        ) : null}
       </Tooltip>
     </TooltipProvider>
   );

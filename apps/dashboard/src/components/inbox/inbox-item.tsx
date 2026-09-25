@@ -153,9 +153,9 @@ export const InboxItem = forwardRef<HTMLButtonElement, Props>(
                               currency={item.currency}
                               maximumFractionDigits={2}
                             />
-                            {item.taxRate &&
-                              item.taxRate > 0 &&
-                              ` (${item.taxRate}%)`}
+                            {item.taxRate != null && item.taxRate > 0
+                              ? ` (${item.taxRate}%)`
+                              : null}
                           </span>
                         </div>
                       </TooltipContent>

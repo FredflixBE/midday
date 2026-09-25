@@ -210,14 +210,15 @@ export function SuggestedMatch({
           <div className="flex items-center justify-between">
             <div>
               <h4 className="font-medium text-sm">{documentName}</h4>
-              {suggestion?.documentAmount && suggestion?.documentCurrency && (
+              {suggestion?.documentAmount != null &&
+              suggestion?.documentCurrency ? (
                 <p className="text-[#606060] text-xs mt-1">
                   <FormatAmount
                     amount={suggestion.documentAmount}
                     currency={suggestion.documentCurrency}
                   />
                 </p>
-              )}
+              ) : null}
             </div>
             <div className="flex items-center space-x-2">
               <SubmitButton
