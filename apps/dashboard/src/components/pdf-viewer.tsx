@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Document, Page, PasswordResponses, pdfjs } from "react-pdf";
+import type { PDFDocumentProxy } from "pdfjs-dist";
+import { useEffect, useRef, useState } from "react";
+import { Document, Page, PasswordResponses } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import { Alert, AlertDescription } from "@midday/ui/alert";
 import { cn } from "@midday/ui/cn";
@@ -9,8 +10,61 @@ import { Icons } from "@midday/ui/icons";
 import { Input } from "@midday/ui/input";
 import { Skeleton } from "@midday/ui/skeleton";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import "@/lib/pdf-worker";
 
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Pages drawn as soon as the document opens. The rest wait as placeholders of
+// the first page's size until they come within a screen of being seen.
+const EAGER_PAGES = 2;
+
+type PageSize = { width: number; height: number };
+
+function LazyPage({
+  pageNumber,
+  width,
+  placeholder,
+}: {
+  pageNumber: number;
+  width?: number;
+  placeholder?: PageSize;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(pageNumber <= EAGER_PAGES);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (inView || !element) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      {
+        // The pages scroll inside the zoom wrapper, not the window.
+        root: element.closest(".react-transform-wrapper"),
+        rootMargin: "100% 0px",
+      },
+    );
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [inView]);
+
+  if (!inView) {
+    return <div ref={ref} style={placeholder} />;
+  }
+
+  return (
+    <Page
+      width={width}
+      pageNumber={pageNumber}
+      renderAnnotationLayer={false}
+      renderTextLayer={true}
+    />
+  );
+}
 
 interface PdfViewerProps {
   url: string;
@@ -19,6 +73,7 @@ interface PdfViewerProps {
 
 export function PdfViewer({ url, maxWidth }: PdfViewerProps) {
   const [numPages, setNumPages] = useState<number>();
+  const [placeholder, setPlaceholder] = useState<PageSize>();
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [passwordCancelled, setPasswordCancelled] = useState(false);
   const [password, setPassword] = useState("");
@@ -31,8 +86,23 @@ export function PdfViewer({ url, maxWidth }: PdfViewerProps) {
     ((password: string | null) => void) | null
   >(null);
 
-  function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
-    setNumPages(numPages);
+  function onDocumentLoadSuccess(pdf: PDFDocumentProxy): void {
+    setNumPages(pdf.numPages);
+    // Placeholders take the first page's size, scaled to the width pages render at.
+    pdf.getPage(1).then(
+      (page) => {
+        const viewport = page.getViewport({ scale: 1 });
+        const width = maxWidth ?? viewport.width;
+        setPlaceholder({
+          width,
+          // Rounded down, as the page canvas is.
+          height: Math.floor((width * viewport.height) / viewport.width),
+        });
+      },
+      // Without a size, fall back to drawing every page: zero-height
+      // placeholders are all in view at once.
+      () => setPlaceholder({ width: maxWidth ?? 0, height: 0 }),
+    );
     setIsPasswordProtected(false);
     setPasswordCancelled(false);
     setPassword("");
@@ -215,15 +285,18 @@ export function PdfViewer({ url, maxWidth }: PdfViewerProps) {
                 }
               >
                 {numPages &&
-                  Array.from(new Array(numPages), (_, index) => (
-                    <Page
-                      width={maxWidth}
-                      key={`${url}_${index + 1}`}
-                      pageNumber={index + 1}
-                      renderAnnotationLayer={false}
-                      renderTextLayer={true}
-                    />
-                  ))}
+                  Array.from(new Array(numPages), (_, index) =>
+                    // A later page mounts only once its placeholder has a
+                    // size: an empty one would count as in view and render.
+                    index < EAGER_PAGES || placeholder ? (
+                      <LazyPage
+                        width={maxWidth}
+                        key={`${url}_${index + 1}`}
+                        pageNumber={index + 1}
+                        placeholder={placeholder}
+                      />
+                    ) : null,
+                  )}
               </Document>
             </div>
           </TransformComponent>
