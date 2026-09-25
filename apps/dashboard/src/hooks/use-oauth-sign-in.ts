@@ -7,42 +7,23 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { getUrl } from "@/utils/environment";
 
-export type OAuthProvider = "google" | "apple" | "github" | "azure";
+/**
+ * Google is the only way in: the OAuth client is an internal Workspace app, and
+ * no other provider is enabled in Supabase (FF-1427, FF-1435). Adding one means
+ * enabling it there and adding it here.
+ */
+export type OAuthProvider = "google";
 
 type ProviderConfig = {
   name: string;
-  icon: "Google" | "Apple" | "Github" | "Microsoft";
-  scopes?: string;
   queryParams?: Record<string, string>;
-  variant: "primary" | "secondary";
   supportsReturnTo: boolean;
 };
 
 const OAUTH_PROVIDERS: Record<OAuthProvider, ProviderConfig> = {
   google: {
     name: "Google",
-    icon: "Google",
     queryParams: { prompt: "select_account" },
-    variant: "secondary",
-    supportsReturnTo: true,
-  },
-  apple: {
-    name: "Apple",
-    icon: "Apple",
-    variant: "secondary",
-    supportsReturnTo: false,
-  },
-  github: {
-    name: "Github",
-    icon: "Github",
-    variant: "secondary",
-    supportsReturnTo: true,
-  },
-  azure: {
-    name: "Microsoft",
-    icon: "Microsoft",
-    scopes: "email profile openid",
-    variant: "secondary",
     supportsReturnTo: true,
   },
 };
@@ -58,7 +39,6 @@ export function useOAuthSignIn(provider: OAuthProvider) {
     setLoading(true);
 
     const redirectTo = new URL("/api/auth/callback", getUrl());
-    redirectTo.searchParams.append("provider", provider);
 
     const isDesktop = isDesktopApp();
 
@@ -76,7 +56,6 @@ export function useOAuthSignIn(provider: OAuthProvider) {
       provider: provider as Provider,
       options: {
         redirectTo: redirectTo.toString(),
-        scopes: config.scopes,
         queryParams,
       },
     });

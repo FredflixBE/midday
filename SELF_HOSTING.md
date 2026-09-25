@@ -200,7 +200,7 @@ same value everywhere the name appears.
 | `DB_POOL_MAX` | no | Pool size outside development (default 10). |
 | `ENABLEBANKING_APPLICATION_ID`, `ENABLE_BANKING_KEY_CONTENT`, `ENABLEBANKING_REDIRECT_URL` | yes | Enable Banking control panel. The redirect URL points at the **dashboard**, not the API — the callback is handled by `apps/dashboard/src/app/api/enablebanking/session/route.ts`, so the value is `<DASHBOARD_URL>/api/enablebanking/session`. Register that exact URL with Enable Banking too. The API does not start without these three. |
 | `GOCARDLESS_SECRET_ID`, `GOCARDLESS_SECRET_KEY` | no | GoCardless Bank Account Data portal. Leave empty to disable the provider. |
-| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. |
+| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend; the audience receives new sign-ups. The API boots without a key, and the requests that send email fail with a clear error until one is set. Give the key **Sending access**. That is all sending needs, and `/health` reports it healthy. Only `RESEND_AUDIENCE_ID` needs **Full access**: Resend refuses a sending-only key for adding and removing audience contacts. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | The address email is sent from, e.g. `Midday <midday@fredflix.be>`. Its domain must be verified with Resend or every message fails DKIM. Invoices go out under the team's name from this address. |
 | `INBOX_FORWARDING_DOMAIN` | no | Domain receipts may be forwarded to, e.g. `inbox.fredflix.be`. Requires an inbound email provider posting to `/webhooks/inbox`. Unset means that route is not mounted and the dashboard hides the address; Gmail sync and manual upload are unaffected. Set `NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN` to the same value for the dashboard. |
 | `ALLOWED_ASSET_HOSTS` | no | Extra hostnames the renderer may fetch a logo or avatar from, comma-separated. The Supabase storage host and your own `CDN_URL`, `DASHBOARD_URL` and `API_URL` are always allowed. |
@@ -259,8 +259,9 @@ Runtime environment:
 | `GMAIL_*` / `OUTLOOK_*` | for inbox sync | Same OAuth client as the API. |
 | `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | for accounting export | Token refresh needs the client credentials. |
 | `MISTRAL_API_KEY`, `OPENAI_API_KEY` | no | Document OCR fallback; Slack receipt summaries. |
-| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. |
-| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. |
+| `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. The bank sync jobs call the API at `API_URL`. |
+| `API_INTERNAL_URL` | no | A private address for the API that the jobs can reach, used instead of `API_URL` for their calls to it. Trigger.dev Cloud reaches only the public URL, so leave it unset there. |
+| `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. Same key and permission as the API. |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | yes to send / no | Same value as the API. |
 | `BANK_SYNC_SCHEDULER_ENABLED`, `INVOICE_SCHEDULER_ENABLED`, `NO_MATCH_SCHEDULER_ENABLED`, `RATES_SCHEDULER_ENABLED`, `SYNC_INSTITUTIONS_ENABLED` | no | Jobs run unless set to `false`. They used to run only in Midday's own production environment. `SYNC_INSTITUTIONS_ENABLED` now gates a task with no cron, started from Settings → Admin, and `BANK_SYNC_SCHEDULER_ENABLED` gates one of each; `packages/jobs/README.md` lists what is scheduled and what is not. |
 | `MATCH_AUTO_ENABLED` | for automatic matching | Off unless exactly `true`. Attaches an invoice to its payment without asking when the match clears the team's calibrated threshold. Unset is **silent**: `resolveMatchType` never returns `auto_matched`, so every pair waits for a click and nothing says why. The matcher runs in the jobs, so this belongs in the Trigger.dev environment — setting it on the API changes nothing. |
@@ -491,6 +492,10 @@ cp packages/db/.env.example packages/db/.env
 bun run dev:api
 bun run dev:dashboard
 ```
+
+The dashboard listens on `:3001` and the API on `:3003`. A plain `bun run dev`
+starts every workspace's `dev` script, including the email template preview
+on `:3004`.
 
 `bun run typecheck`, `bun run lint` and `bun run test` are what CI runs.
 

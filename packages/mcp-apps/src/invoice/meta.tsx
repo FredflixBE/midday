@@ -1,4 +1,5 @@
 import { TZDate } from "@date-fns/tz";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import { format } from "date-fns";
 
 type Props = {
@@ -11,7 +12,7 @@ type Props = {
 export function Meta({ template, invoiceNumber, issueDate, dueDate }: Props) {
   if (!template) return null;
 
-  const dateFormat = template.dateFormat || "dd/MM/yyyy";
+  const dateFormat = template.dateFormat || DEFAULT_DATE_FORMAT;
 
   return (
     <div className="mb-2">

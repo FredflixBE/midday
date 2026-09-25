@@ -5,7 +5,11 @@ import * as jose from "jose";
 import xior, { type XiorInstance, type XiorRequestConfig } from "xior";
 import { env } from "../../env";
 import type { GetTransactionsRequest } from "../../types";
-import { getProviderErrorDetails, ProviderError } from "../../utils/error";
+import {
+  fromEnableBankingError,
+  getProviderErrorDetails,
+  ProviderError,
+} from "../../utils/error";
 import { logger } from "../../utils/logger";
 import { withRateLimitRetry } from "../../utils/retry";
 import { transformSessionData } from "./transform";
@@ -137,6 +141,7 @@ export class EnableBankingApi {
     params?: Record<string, string>,
     config?: XiorRequestConfig,
   ): Promise<TResponse> {
+    // Converted outside the rate-limit retry, which reads the raw 429.
     return withRateLimitRetry(async () => {
       const api = await this.#getApi();
 
@@ -155,6 +160,8 @@ export class EnableBankingApi {
           },
         })
         .then(({ data }) => data);
+    }).catch((error) => {
+      throw fromEnableBankingError(error);
     });
   }
 
@@ -471,6 +478,12 @@ export class EnableBankingApi {
         } while (recentContinuationKey);
       }
     } catch (error) {
+      // A bank that refused will refuse the fallback too, and each attempt is
+      // another of the account's unattended reads.
+      if (error instanceof ProviderError && error.code === "bank_error") {
+        throw error;
+      }
+
       // Fallback: If longest strategy fails, use default with 1-year range
       logger.warn(
         "EnableBanking longest strategy failed, using default fallback",

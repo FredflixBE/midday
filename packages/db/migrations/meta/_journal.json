@@ -183,6 +183,13 @@
       "when": 1790094595229,
       "tag": "0025_written_quote_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790354954308,
+      "tag": "0026_server_only_tables_rls",
+      "breakpoints": true
     }
   ]
 }

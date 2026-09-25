@@ -31,6 +31,19 @@ const dialect = new PgDialect();
  */
 export const KNOWN_POLICIES_WITHOUT_EXPRESSION = 0;
 
+/**
+ * Every table in `public` with row level security off, as `name` rows. The
+ * answer must be none: Supabase grants anon and authenticated everything on
+ * `public`, so such a table is readable and writable by anyone holding the
+ * publishable key, which ships in the dashboard's JavaScript. Six were, until
+ * FF-1688. A table the browser has no business reading gets RLS and no policy.
+ */
+export const TABLES_WITHOUT_RLS_SQL = `select relname as name from pg_class
+  where relnamespace = 'public'::regnamespace
+    and relkind in ('r', 'p')
+    and not relrowsecurity
+  order by relname`;
+
 /** Postgres keywords that must not be quoted in a policy's TO list. */
 const BARE_ROLES = new Set([
   "public",

@@ -119,7 +119,23 @@ export function stripeProbe(): Dependency {
   };
 }
 
-/** Resend: GET /emails (lightweight API check) */
+/**
+ * Whether Resend accepted the key (FF-1686). A sending-only key — all this
+ * deployment needs to send — may not list domains, and Resend refuses it
+ * with a 401 named `restricted_api_key`. That refusal still means the key is
+ * real and active: a key Resend does not know is a 400 `validation_error`,
+ * and one that is no longer active is a 403, under the same name.
+ */
+async function resendAcceptedKey(res: Response): Promise<boolean> {
+  if (res.ok) return true;
+  if (res.status !== 401) return false;
+  const body = (await res.json().catch(() => null)) as {
+    name?: unknown;
+  } | null;
+  return body?.name === "restricted_api_key";
+}
+
+/** Resend: GET /domains (lightweight API check) */
 export function resendProbe(): Dependency {
   return {
     name: "resend",
@@ -133,7 +149,7 @@ export function resendProbe(): Dependency {
         headers: { Authorization: `Bearer ${key}` },
         signal: AbortSignal.timeout(5_000),
       });
-      return res.ok;
+      return resendAcceptedKey(res);
     },
   };
 }

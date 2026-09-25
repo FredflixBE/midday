@@ -1,4 +1,5 @@
 import { getAppUrl } from "@midday/utils/envs";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerMcpApps } from "./apps";
 import { registerPrompts } from "./prompts";
@@ -30,7 +31,7 @@ function getServerInstructions(ctx: McpContext): string {
   const dateCtx = getDateContext(ctx.timezone);
   const userLocale = ctx.locale || "en";
   const userCountry = ctx.countryCode || null;
-  const dateFormat = ctx.dateFormat || null;
+  const dateFormat = ctx.dateFormat || DEFAULT_DATE_FORMAT;
   const timeFormat = ctx.timeFormat ?? 24;
 
   return `Midday is a financial operating system for small businesses. This MCP server provides access to financial data including transactions, invoices, customers, time tracking, documents, and reports.

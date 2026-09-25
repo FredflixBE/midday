@@ -1943,12 +1943,18 @@ export const trackerReports = pgTable(
   ],
 );
 
+// Row level security on and no policy: a table only the server reads, which
+// the API reaches as the owner and so past RLS. Without it the table is open
+// to anyone holding the publishable key, because Supabase grants anon and
+// authenticated everything on `public` by default (FF-1688). The same holds
+// for institutions, transaction_match_suggestions, api_keys and the two OAuth
+// tables below.
 export const invoiceComments = pgTable("invoice_comments", {
   id: uuid().defaultRandom().primaryKey().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
     .defaultNow()
     .notNull(),
-});
+}).enableRLS();
 
 export const trackerProjectTags = pgTable(
   "tracker_project_tags",
@@ -2084,7 +2090,7 @@ export const institutions = pgTable(
     ),
     index("institutions_status_idx").on(table.status),
   ],
-);
+).enableRLS();
 
 export const bankConnections = pgTable(
   "bank_connections",
@@ -3482,7 +3488,7 @@ export const transactionMatchSuggestions = pgTable(
       table.transactionId,
     ),
   ],
-);
+).enableRLS();
 
 export const documentTagAssignments = pgTable(
   "document_tag_assignments",
@@ -3875,7 +3881,7 @@ export const apiKeys = pgTable(
     }).onDelete("cascade"),
     unique("api_keys_key_unique").on(table.keyHash),
   ],
-);
+).enableRLS();
 
 // Relations
 // OAuth Applications
@@ -3993,7 +3999,7 @@ export const oauthAuthorizationCodes = pgTable(
       name: "oauth_authorization_codes_team_id_fkey",
     }).onDelete("cascade"),
   ],
-);
+).enableRLS();
 
 // OAuth Access Tokens
 export const oauthAccessTokens = pgTable(
@@ -4057,7 +4063,7 @@ export const oauthAccessTokens = pgTable(
       name: "oauth_access_tokens_team_id_fkey",
     }).onDelete("cascade"),
   ],
-);
+).enableRLS();
 
 export const transactionsRelations = relations(
   transactions,
