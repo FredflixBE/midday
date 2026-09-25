@@ -64,17 +64,12 @@ export async function nativeSaveFile(blob: Blob, filename: string) {
 
     console.log("[nativeSaveFile] File saved successfully:", selectedPath);
 
-    // Optionally reveal file in Finder (macOS will bounce the folder icon)
-    // This is optional - comment out if you don't want to open Finder
+    // Show the saved file selected in Finder or Explorer. revealItemInDir takes
+    // the file's own path on either system; opener:default permits it, where a
+    // file:// URL is refused.
     try {
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      // Open the file's parent directory in Finder
-      // On macOS, this will cause the folder icon to bounce if Downloads folder
-      const parentDir = selectedPath.substring(
-        0,
-        selectedPath.lastIndexOf("/"),
-      );
-      await openUrl(`file://${parentDir}`);
+      const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+      await revealItemInDir(selectedPath);
     } catch (error) {
       // Ignore errors - revealing file is optional
       console.log("[nativeSaveFile] Could not reveal file:", error);
