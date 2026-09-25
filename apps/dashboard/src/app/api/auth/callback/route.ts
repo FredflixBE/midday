@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getTRPCClient } from "@/trpc/server";
 import { getUrl } from "@/utils/environment";
+import { firstStop } from "@/utils/first-stop";
 
 export async function GET(req: NextRequest) {
   const requestUrl = new URL(req.url);
@@ -34,10 +35,10 @@ export async function GET(req: NextRequest) {
       const trpcClient = await getTRPCClient();
       const user = await trpcClient.user.me.query();
 
-      const isOnboarding = !user?.fullName || !user.teamId;
+      const detour = firstStop(user);
 
-      if (isOnboarding) {
-        return NextResponse.redirect(`${origin}/onboarding`);
+      if (detour) {
+        return NextResponse.redirect(`${origin}${detour}`);
       }
     }
   }

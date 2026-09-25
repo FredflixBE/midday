@@ -11,6 +11,7 @@ import {
   HydrateClient,
   trpc,
 } from "@/trpc/server";
+import { firstStop } from "@/utils/first-stop";
 
 export default async function Layout({
   children,
@@ -37,8 +38,10 @@ export default async function Layout({
     redirect("/login");
   }
 
-  if (!user.fullName || !user.teamId) {
-    redirect("/onboarding");
+  const detour = firstStop(user);
+
+  if (detour) {
+    redirect(detour);
   }
 
   return (
