@@ -1,7 +1,6 @@
 "use client";
 
 import { Dialog, DialogContent, DialogTitle } from "@midday/ui/dialog";
-import { useHotkeys } from "react-hotkeys-hook";
 import { useSearchStore } from "@/store/search";
 import { Search } from "./search";
 import { SearchFooter } from "./search-footer";
@@ -9,9 +8,7 @@ import { SearchFooter } from "./search-footer";
 export function SearchModal() {
   const { isOpen, setOpen } = useSearchStore();
 
-  useHotkeys("meta+k", () => setOpen(), {
-    enableOnFormTags: true,
-  });
+  // Its meta+k hotkey lives in GlobalSheets, which mounts this on first open.
 
   return (
     <Dialog open={isOpen} onOpenChange={setOpen}>

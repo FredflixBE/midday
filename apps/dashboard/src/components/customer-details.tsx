@@ -43,6 +43,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CopyInput } from "@/components/copy-input";
 import { OpenURL } from "@/components/open-url";
 import { CustomerRates } from "@/components/quotes/customer-rates";
+import { preloadInvoiceSheet } from "@/components/sheets/load-invoice-sheet";
 import { useCustomerParams } from "@/hooks/use-customer-params";
 import { useFeatureAvailability } from "@/hooks/use-feature-availability";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
@@ -1317,6 +1318,8 @@ export function CustomerDetails() {
 
                       <Button
                         variant="outline"
+                        onPointerEnter={preloadInvoiceSheet}
+                        onFocus={preloadInvoiceSheet}
                         onClick={() => {
                           // Close customer details sheet
                           setParams({ customerId: null, details: null });

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@midday/ui/button";
+import { preloadInvoiceSheet } from "@/components/sheets/load-invoice-sheet";
 import { useInvoiceFilterParams } from "@/hooks/use-invoice-filter-params";
 import { useInvoiceParams } from "@/hooks/use-invoice-params";
 
@@ -20,6 +21,8 @@ export function EmptyState() {
 
         <Button
           variant="outline"
+          onPointerEnter={preloadInvoiceSheet}
+          onFocus={preloadInvoiceSheet}
           onClick={() =>
             setParams({
               invoiceType: "create",
