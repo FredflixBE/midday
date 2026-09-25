@@ -1,6 +1,6 @@
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { Button } from "@midday/ui/button";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import * as React from "react";
 import "@tanstack/react-table";
 import { scopesToName } from "@api/utils/scopes";
@@ -67,38 +67,7 @@ export const columns: ColumnDef<OAuthApplication>[] = [
     id: "clientId",
     accessorKey: "clientId",
     header: "Client ID",
-    cell: ({ row }) => {
-      const clientId = row.original.clientId;
-      const shortId = `${clientId.slice(0, 12)}...`;
-      const [, copy] = useCopyToClipboard();
-      const [isCopied, setIsCopied] = React.useState(false);
-
-      const handleCopyClientId = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        copy(clientId);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
-      };
-
-      return (
-        <TooltipProvider>
-          <Tooltip open={isCopied}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleCopyClientId}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              >
-                {shortId}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="px-3 py-1.5 text-xs" sideOffset={10}>
-              <p>Copied!</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
-    },
+    cell: (props) => <ClientIdCell {...props} />,
   },
   {
     id: "scopes",
@@ -124,54 +93,91 @@ export const columns: ColumnDef<OAuthApplication>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
-      const { setParams } = useOAuthApplicationParams();
-      const [showDeleteModal, setShowDeleteModal] = React.useState(false);
-
-      return (
-        <div className="flex justify-end">
-          <div className="flex space-x-2 items-center">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost">
-                  <Icons.MoreHoriz className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent sideOffset={10} align="end">
-                <DropdownMenuItem
-                  onClick={() =>
-                    setParams({
-                      applicationId: row.original.id,
-                      editApplication: true,
-                    })
-                  }
-                >
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => setShowDeleteModal(true)}
-                >
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DeleteOAuthApplicationModal
-              applicationId={row.original.id}
-              applicationName={row.original.name}
-              isOpen={showDeleteModal}
-              onOpenChange={setShowDeleteModal}
-            />
-          </div>
-        </div>
-      );
-    },
+    cell: (props) => <OAuthApplicationActionsCell {...props} />,
     meta: {
       className: "text-right",
     },
   },
 ];
+
+function ClientIdCell({ row }: CellContext<OAuthApplication, unknown>) {
+  const clientId = row.original.clientId;
+  const shortId = `${clientId.slice(0, 12)}...`;
+  const [, copy] = useCopyToClipboard();
+  const [isCopied, setIsCopied] = React.useState(false);
+
+  const handleCopyClientId = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    copy(clientId);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  return (
+    <TooltipProvider>
+      <Tooltip open={isCopied}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={handleCopyClientId}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          >
+            {shortId}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="px-3 py-1.5 text-xs" sideOffset={10}>
+          <p>Copied!</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function OAuthApplicationActionsCell({
+  row,
+}: CellContext<OAuthApplication, unknown>) {
+  const { setParams } = useOAuthApplicationParams();
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+
+  return (
+    <div className="flex justify-end">
+      <div className="flex space-x-2 items-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost">
+              <Icons.MoreHoriz className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent sideOffset={10} align="end">
+            <DropdownMenuItem
+              onClick={() =>
+                setParams({
+                  applicationId: row.original.id,
+                  editApplication: true,
+                })
+              }
+            >
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => setShowDeleteModal(true)}
+            >
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DeleteOAuthApplicationModal
+          applicationId={row.original.id}
+          applicationName={row.original.name}
+          isOpen={showDeleteModal}
+          onOpenChange={setShowDeleteModal}
+        />
+      </div>
+    </div>
+  );
+}

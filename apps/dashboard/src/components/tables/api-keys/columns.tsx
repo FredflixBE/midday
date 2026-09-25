@@ -1,6 +1,6 @@
 import type { RouterOutputs } from "@api/trpc/routers/_app";
 import { Button } from "@midday/ui/button";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import "@tanstack/react-table";
 import { scopesToName } from "@api/utils/scopes";
 import { Avatar, AvatarFallback, AvatarImageNext } from "@midday/ui/avatar";
@@ -107,37 +107,39 @@ export const columns: ColumnDef<ApiKey>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
-      const { setData } = useTokenModalStore();
-
-      return (
-        <div className="flex justify-end">
-          <div className="flex space-x-2 items-center">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost">
-                  <Icons.MoreHoriz className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent sideOffset={10} align="end">
-                <DropdownMenuItem onClick={() => setData(row.original, "edit")}>
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => setData(row.original, "delete")}
-                >
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      );
-    },
+    cell: (props) => <ApiKeyActionsCell {...props} />,
     meta: {
       className: "text-right",
     },
   },
 ];
+
+function ApiKeyActionsCell({ row }: CellContext<ApiKey, unknown>) {
+  const { setData } = useTokenModalStore();
+
+  return (
+    <div className="flex justify-end">
+      <div className="flex space-x-2 items-center">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost">
+              <Icons.MoreHoriz className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent sideOffset={10} align="end">
+            <DropdownMenuItem onClick={() => setData(row.original, "edit")}>
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => setData(row.original, "delete")}
+            >
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
