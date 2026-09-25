@@ -51,10 +51,6 @@ export function Form() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // DraftAutoSave owns the draft mutation; the submit button waits for it.
-  const isSavingDraft =
-    useIsMutating({ mutationKey: trpc.invoice.draft.mutationKey() }) > 0;
-
   const createInvoiceMutation = useMutation(
     trpc.invoice.create.mutationOptions({
       onSuccess: (data) => {
@@ -382,20 +378,10 @@ export function Form() {
                 )}
               </TooltipProvider>
 
-              <SubmitButton
+              <FormSubmitButton
                 isSubmitting={
                   createInvoiceMutation.isPending ||
                   createRecurringInvoiceMutation.isPending
-                }
-                disabled={
-                  createInvoiceMutation.isPending ||
-                  createRecurringInvoiceMutation.isPending ||
-                  isSavingDraft
-                }
-                className={
-                  isSavingDraft
-                    ? "disabled:opacity-100 disabled:cursor-wait"
-                    : undefined
                 }
               />
             </div>
@@ -404,5 +390,26 @@ export function Form() {
       </div>
       <EmailPreview />
     </form>
+  );
+}
+
+/**
+ * The submit button also waits for a draft save in flight. DraftAutoSave owns
+ * that mutation, so the button reads it from the mutation cache here, where a
+ * save starting or ending re-renders only the button, not the whole editor.
+ */
+function FormSubmitButton({ isSubmitting }: { isSubmitting: boolean }) {
+  const trpc = useTRPC();
+  const isSavingDraft =
+    useIsMutating({ mutationKey: trpc.invoice.draft.mutationKey() }) > 0;
+
+  return (
+    <SubmitButton
+      isSubmitting={isSubmitting}
+      disabled={isSubmitting || isSavingDraft}
+      className={
+        isSavingDraft ? "disabled:opacity-100 disabled:cursor-wait" : undefined
+      }
+    />
   );
 }
