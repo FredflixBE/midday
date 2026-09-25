@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@midday/ui/select";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import { useUserMutation, useUserQuery } from "@/hooks/use-user";
 
 export function DateFormatSettings() {
@@ -31,7 +32,7 @@ export function DateFormatSettings() {
 
       <CardContent>
         <Select
-          defaultValue={user?.dateFormat ?? undefined}
+          defaultValue={user?.dateFormat ?? DEFAULT_DATE_FORMAT}
           onValueChange={(value) => {
             updateUserMutation.mutate({
               dateFormat: value as

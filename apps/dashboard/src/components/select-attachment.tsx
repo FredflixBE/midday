@@ -2,7 +2,7 @@ import { TZDate } from "@date-fns/tz";
 import { Badge } from "@midday/ui/badge";
 import { Combobox } from "@midday/ui/combobox";
 import { Icons } from "@midday/ui/icons";
-import { formatDate } from "@midday/utils/format";
+import { DEFAULT_DATE_FORMAT, formatDate } from "@midday/utils/format";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -82,7 +82,7 @@ export function SelectAttachment({
           if (item.dueDate) {
             // Use TZDate for invoice dates (stored as UTC midnight)
             const tzDate = new TZDate(item.dueDate, "UTC");
-            parts.push(format(tzDate, user?.dateFormat ?? "MMM d"));
+            parts.push(format(tzDate, user?.dateFormat ?? DEFAULT_DATE_FORMAT));
           }
           secondaryText = parts.length > 0 ? parts.join(" • ") : undefined;
         } else {

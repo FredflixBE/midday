@@ -36,14 +36,20 @@ export function formatAmount({
   }).format(amount);
 }
 
+/**
+ * How a date is shown when nobody has chosen a format (FF-1539): the user's
+ * own setting under Account → Date and locale, or an invoice template's.
+ *
+ * Day first, because a month-first date beside an amount is misread by every
+ * reader who is not American. One of the four formats that setting offers, so
+ * the setting can show it as the one in effect. And a fixed pattern, never
+ * date-fns' "P"/"PPP": those follow the locale date-fns was given, which is
+ * en-US unless one is passed.
+ */
+export const DEFAULT_DATE_FORMAT = "dd/MM/yyyy";
+
 export function formatDate(date: string, dateFormat?: string | null) {
-  const parsedDate = parseISO(date);
-
-  if (dateFormat) {
-    return format(parsedDate, dateFormat);
-  }
-
-  return format(parsedDate, "P");
+  return format(parseISO(date), dateFormat || DEFAULT_DATE_FORMAT);
 }
 
 export function getInitials(value: string) {
