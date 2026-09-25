@@ -1,6 +1,6 @@
 "use client";
 
-import { extractTextFromValue } from "@midday/invoice";
+import { extractTextFromValue } from "@midday/invoice/extract-text";
 import type { InvoiceProduct } from "@midday/invoice/types";
 import { cn } from "@midday/ui/cn";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
