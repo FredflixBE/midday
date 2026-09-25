@@ -4,23 +4,16 @@ import { generateFileKey } from "@midday/encryption";
 const renderQuotePdf = mock(async () => Buffer.from("%PDF-quote"));
 mock.module("@midday/quote/pdf", () => ({ renderQuotePdf }));
 
-/** What the vault gives back for the stored file, per test. */
-let storedFile: Blob | null = null;
-const storageDownload = mock(async () => ({
-  data: storedFile,
-  error: storedFile ? null : { message: "Object not found" },
-}));
-mock.module("@api/services/supabase", () => ({
-  createClient: mock(async () => ({})),
-  createAdminClient: mock(async () => ({
-    storage: { from: () => ({ download: storageDownload }) },
-  })),
-}));
-
 const { downloadQuoteRouter } = await import(
   "../../rest/routers/files/download-quote"
 );
+// The vault is setup's mock of `@api/services/supabase`. Mocking that module
+// again here would replace it for every other file in the same run.
 const { mocks } = await import("../setup");
+const storageDownload = mocks.supabaseStorageDownload;
+
+/** What the vault gives back for the stored file, per test. */
+let storedFile: Blob | null = null;
 const { OpenAPIHono } = await import("@hono/zod-openapi");
 
 const TEAM = "00000000-0000-0000-0000-000000000001";
@@ -57,7 +50,11 @@ describe("GET /files/download/quote", () => {
     mocks.getQuoteVersionFile.mockReset();
     mocks.getQuotePdfInput.mockImplementation(() => PDF_INPUT);
     renderQuotePdf.mockClear();
-    storageDownload.mockClear();
+    storageDownload.mockReset();
+    storageDownload.mockImplementation(async () => ({
+      data: storedFile,
+      error: storedFile ? null : { message: "Object not found" },
+    }));
     storedFile = null;
   });
 

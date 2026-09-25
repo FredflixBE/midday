@@ -1,3 +1,4 @@
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import {
   Body,
   Container,
@@ -87,7 +88,7 @@ export const InvoiceEmail = ({
   const dueDateLbl = dueDateLabel || "Due";
   const invoiceNoLbl = invoiceNoLabel || "Invoice";
   const resolvedLocale = locale || "en-US";
-  const resolvedDateFormat = dateFormat || "MM/dd/yyyy";
+  const resolvedDateFormat = dateFormat || DEFAULT_DATE_FORMAT;
 
   const formattedAmount =
     amount !== undefined && currency

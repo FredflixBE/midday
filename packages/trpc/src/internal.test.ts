@@ -83,3 +83,60 @@ describe("createInternalClient", () => {
     expect([...SLOW_PROCEDURES]).toEqual(["banking.getProviderTransactions"]);
   });
 });
+
+describe("createInternalClient's address", () => {
+  let captured: Captured[];
+
+  beforeEach(() => {
+    captured = [];
+    process.env.INTERNAL_API_KEY = "test-internal-key";
+    delete process.env.API_INTERNAL_URL;
+    delete process.env.API_URL;
+    delete process.env.NEXT_PUBLIC_API_URL;
+    globalThis.fetch = recordingFetch(captured) as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    process.env = { ...originalEnv };
+  });
+
+  async function calledUrl() {
+    await createInternalClient().banking.getBalance.query({
+      provider: "enablebanking",
+      id: "account-1",
+    });
+    return captured[0]?.url;
+  }
+
+  test("reaches the API at API_URL when nothing overrides it", async () => {
+    process.env.API_URL = "https://api.example.com";
+
+    expect(await calledUrl()).toStartWith(
+      "https://api.example.com/trpc/banking.getBalance",
+    );
+  });
+
+  test("prefers API_INTERNAL_URL, the private address, over API_URL", async () => {
+    process.env.API_URL = "https://api.example.com";
+    process.env.API_INTERNAL_URL = "http://api:8080/";
+
+    expect(await calledUrl()).toStartWith(
+      "http://api:8080/trpc/banking.getBalance",
+    );
+  });
+
+  test("refuses to start in production with no address, naming API_URL", () => {
+    process.env.NODE_ENV = "production";
+
+    expect(() => createInternalClient()).toThrow("API_URL is not set");
+  });
+
+  test("uses the local API outside production", async () => {
+    process.env.NODE_ENV = "development";
+
+    expect(await calledUrl()).toStartWith(
+      "http://localhost:3003/trpc/banking.getBalance",
+    );
+  });
+});

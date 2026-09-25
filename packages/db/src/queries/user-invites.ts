@@ -2,9 +2,16 @@ import { and, eq, or, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { teams, userInvites, users, usersOnTeam } from "../schema";
 
+// An invite keeps the address as it was typed, and a provider may sign the
+// same person in with different capitals, so invites match without case — as
+// accepting one and checking for a duplicate invite already do.
+function sameEmail(email: string) {
+  return sql`LOWER(${userInvites.email}) = ${email.trim().toLowerCase()}`;
+}
+
 export async function getUserInvites(db: Database, email: string) {
   return db.query.userInvites.findMany({
-    where: eq(userInvites.email, email),
+    where: sameEmail(email),
     with: {
       user: {
         columns: {
@@ -86,7 +93,7 @@ export async function declineTeamInvite(
 
   return db
     .delete(userInvites)
-    .where(and(eq(userInvites.id, id), eq(userInvites.email, email)));
+    .where(and(eq(userInvites.id, id), sameEmail(email)));
 }
 
 export async function getTeamInvites(db: Database, teamId: string) {
@@ -119,7 +126,7 @@ export async function getTeamInvites(db: Database, teamId: string) {
 
 export async function getInvitesByEmail(db: Database, email: string) {
   return db.query.userInvites.findMany({
-    where: eq(userInvites.email, email),
+    where: sameEmail(email),
     columns: {
       id: true,
       email: true,

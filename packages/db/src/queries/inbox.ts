@@ -1736,6 +1736,29 @@ export type GetInboxByFilePathParams = {
   teamId: string;
 };
 
+/**
+ * Whether the inbox item behind a stored file has been deleted: a row for the
+ * file is marked deleted, and none is left that is not.
+ *
+ * Deleting an item is a status, not a removed row (`deleteInbox`), and it is
+ * how both the inbox and duplicate removal (FF-1549) take an item away. So a
+ * file with no row at all has not been deleted — it has not been given a row
+ * yet, which is where email sync starts every attachment.
+ */
+export async function inboxFileWasDeleted(
+  db: Database,
+  params: GetInboxByFilePathParams,
+): Promise<boolean> {
+  const { filePath, teamId } = params;
+
+  const rows = await db
+    .select({ status: inbox.status })
+    .from(inbox)
+    .where(and(eq(inbox.filePath, filePath), eq(inbox.teamId, teamId)));
+
+  return rows.length > 0 && rows.every((row) => row.status === "deleted");
+}
+
 export async function getInboxByFilePath(
   db: Database,
   params: GetInboxByFilePathParams,

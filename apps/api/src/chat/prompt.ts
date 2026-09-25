@@ -1,4 +1,5 @@
 import { getDateContext } from "@api/mcp/utils";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 
 export interface MentionedApp {
   slug: string;
@@ -41,7 +42,7 @@ export function buildSystemPrompt(ctx: UserContext): string {
 - This month: ${dateCtx.monthStart} to ${dateCtx.date}
 - This quarter: ${dateCtx.quarterStart} to ${dateCtx.date}
 - This year: ${dateCtx.yearStart} to ${dateCtx.date}
-- Date format: ${ctx.dateFormat ?? "locale default"}
+- Date format: ${ctx.dateFormat || DEFAULT_DATE_FORMAT}
 - Time format: ${timeLabel}
 
 ## Critical rules

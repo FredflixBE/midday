@@ -394,6 +394,9 @@ export const mocks = {
   supabaseStorageRemove: mock(() =>
     Promise.resolve({ data: [], error: null }),
   ) as MockFn,
+  supabaseStorageDownload: mock(() =>
+    Promise.resolve({ data: null, error: { message: "Object not found" } }),
+  ) as MockFn,
   resendContactsRemove: mock(() =>
     Promise.resolve({ data: {}, error: null }),
   ) as MockFn,
@@ -1440,6 +1443,8 @@ mock.module("@api/services/supabase", () => ({
     storage: {
       from: () => ({
         remove: (...args: unknown[]) => mocks.supabaseStorageRemove(...args),
+        download: (...args: unknown[]) =>
+          mocks.supabaseStorageDownload(...args),
       }),
     },
   })),

@@ -1,4 +1,5 @@
 import type { AppRouter } from "@midday/api/trpc/routers/_app";
+import { getApiUrl } from "@midday/utils/envs";
 import {
   createTRPCClient,
   httpBatchLink,
@@ -27,14 +28,22 @@ const fetchSlow = createFetchWithRetry({
 });
 
 /**
+ * Where the API is. API_INTERNAL_URL, a private address on the same network,
+ * wins when set; otherwise the API's public URL, resolved by `getApiUrl()` like
+ * everywhere else — so an unset API_URL in production is an error naming it,
+ * not a silent localhost that only ever worked on a laptop.
+ */
+function internalApiUrl() {
+  const privateUrl = process.env.API_INTERNAL_URL?.replace(/\/+$/, "");
+  return privateUrl || getApiUrl();
+}
+
+/**
  * Create a tRPC client for internal service-to-service calls.
  * Authenticates via INTERNAL_API_KEY header.
  */
 export function createInternalClient() {
-  const apiUrl =
-    process.env.API_INTERNAL_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:3003";
+  const apiUrl = internalApiUrl();
 
   const internalApiKey = process.env.INTERNAL_API_KEY;
 
@@ -45,12 +54,6 @@ export function createInternalClient() {
   }
 
   const trpcUrl = `${apiUrl}/trpc`;
-
-  if (!process.env.API_INTERNAL_URL && !process.env.NEXT_PUBLIC_API_URL) {
-    console.warn(
-      `[trpc-internal] Neither API_INTERNAL_URL nor NEXT_PUBLIC_API_URL is set, falling back to ${trpcUrl}`,
-    );
-  }
 
   const headers = () => ({ "x-internal-key": internalApiKey });
 

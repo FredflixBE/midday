@@ -30,6 +30,20 @@ import { TRPCError } from "@trpc/server";
 
 const logger = createLoggerWithContext("trpc:banking");
 
+/**
+ * The error a job gets back from a bank call: what failed, the provider's code
+ * (`parseAPIError` in the jobs reads it to decide what to do) and, when the
+ * provider said something, what it said — so a bank's refusal names itself in
+ * the job's run rather than only in this service's log.
+ */
+function providerFailure(message: string, error: unknown) {
+  return JSON.stringify(
+    error instanceof ProviderError
+      ? { message, providerCode: error.code, providerMessage: error.message }
+      : { message, providerCode: "unknown" },
+  );
+}
+
 export const bankingRouter = createTRPCRouter({
   gocardlessLink: protectedProcedure
     .input(gocardlessLinkSchema)
@@ -305,15 +319,9 @@ export const bankingRouter = createTRPCRouter({
           getProviderErrorDetails(error),
         );
 
-        const providerCode =
-          error instanceof ProviderError ? error.code : "unknown";
-
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: JSON.stringify({
-            message: "Failed to get account balance",
-            providerCode,
-          }),
+          message: providerFailure("Failed to get account balance", error),
         });
       }
     }),
@@ -337,15 +345,12 @@ export const bankingRouter = createTRPCRouter({
           getProviderErrorDetails(error),
         );
 
-        const providerCode =
-          error instanceof ProviderError ? error.code : "unknown";
-
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: JSON.stringify({
-            message: "Failed to get provider transactions",
-            providerCode,
-          }),
+          message: providerFailure(
+            "Failed to get provider transactions",
+            error,
+          ),
         });
       }
     }),

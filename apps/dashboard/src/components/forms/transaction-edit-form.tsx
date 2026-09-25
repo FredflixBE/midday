@@ -18,6 +18,7 @@ import { Label } from "@midday/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@midday/ui/popover";
 import { Switch } from "@midday/ui/switch";
 import { Textarea } from "@midday/ui/textarea";
+import { DEFAULT_DATE_FORMAT } from "@midday/utils/format";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
@@ -426,7 +427,10 @@ export function TransactionEditForm({ transaction }: Props) {
                 onClick={() => setIsOpen(true)}
               >
                 {transaction.date ? (
-                  format(utc(transaction.date), user?.dateFormat ?? "PPP")
+                  format(
+                    utc(transaction.date),
+                    user?.dateFormat ?? DEFAULT_DATE_FORMAT,
+                  )
                 ) : (
                   <span>Select date</span>
                 )}

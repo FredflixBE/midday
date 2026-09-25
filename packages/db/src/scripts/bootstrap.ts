@@ -40,7 +40,10 @@ import { guardScriptConnection } from "../script-guard";
 import { applyPolicies } from "./apply-policies";
 import { applySqlFile, sslFor } from "./apply-sql";
 import { readJournal, stampMigrations } from "./migrations";
-import { KNOWN_POLICIES_WITHOUT_EXPRESSION } from "./policies";
+import {
+  KNOWN_POLICIES_WITHOUT_EXPRESSION,
+  TABLES_WITHOUT_RLS_SQL,
+} from "./policies";
 import { PUBLISHED_TABLES } from "./realtime-tables";
 
 const PACKAGE_ROOT = resolve(__dirname, "../..");
@@ -164,9 +167,12 @@ const CHECKS: Check[] = [
     },
   },
   {
-    what: "row level security is on for activities",
-    sql: "select relrowsecurity from pg_class where relname = 'activities' and relnamespace = 'public'::regnamespace",
-    verdict: (rows) => (rows[0]?.relrowsecurity === true ? "" : "RLS is off"),
+    // Every table, not a sample: a table without RLS is open to anyone with
+    // the publishable key, and six were until FF-1688.
+    what: "row level security is on for every public table",
+    sql: TABLES_WITHOUT_RLS_SQL,
+    verdict: (rows) =>
+      rows.length === 0 ? "" : `off for ${rows.map((r) => r.name).join(", ")}`,
   },
   {
     what: "policy expressions survived the push",

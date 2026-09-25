@@ -21,6 +21,7 @@ import {
   getInboxByFilePath,
   getTeamById,
   groupRelatedInboxItems,
+  inboxFileWasDeleted,
   resolveInvoiceCopies,
   updateInbox,
   updateInboxWithProcessedData,
@@ -97,6 +98,18 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
     // Create inbox item if it doesn't exist (for non-manual uploads)
     // or update existing item status if it was created manually
     if (!inboxData) {
+      // Only deleted rows hold this file: the user deleted the item before the
+      // run got to it — a manual upload makes its row first. A new row now
+      // would bring back what they deleted, as a failed item once the file
+      // turns out to be gone (FF-1469).
+      if (await inboxFileWasDeleted(db, { filePath, teamId })) {
+        this.logger.info(
+          "Inbox item was deleted before processing started, nothing to do",
+          { jobId: job.id, filePath: fileName, teamId },
+        );
+        return;
+      }
+
       this.logger.info("Creating new inbox item", {
         filePath: fileName,
         referenceId,
@@ -194,6 +207,9 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
       );
 
       if (!data) {
+        if (await this.itemWasDeleted({ filePath, teamId, jobId: job.id })) {
+          return;
+        }
         throw new NonRetryableError("File not found", undefined, "validation");
       }
 
@@ -309,6 +325,9 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
     });
 
     if (!signedUrlResult) {
+      if (await this.itemWasDeleted({ filePath, teamId, jobId: job.id })) {
+        return;
+      }
       throw new NonRetryableError("File not found", undefined, "validation");
     }
 
@@ -599,6 +618,50 @@ export class ProcessAttachmentProcessor extends BaseProcessor<ProcessAttachmentP
       // and when that write failed it took the real error with it.
       throw error;
     }
+  }
+
+  /**
+   * Whether a file that is not in the vault is gone because its inbox item
+   * was deleted — the inbox removes the file along with it — so there is no
+   * work left and no row to finish: deleted is already an ending. When the
+   * row is still live the file is missing under it, and the run has to fail
+   * so onFailure can mark that row (FF-1469).
+   *
+   * Asks about the inbox row, which this task owns, rather than the documents
+   * row `fileMissingBecauseDeleted` reads: the inbox row is the one a quiet
+   * exit would otherwise leave behind.
+   */
+  private async itemWasDeleted({
+    filePath,
+    teamId,
+    jobId,
+  }: {
+    filePath: string[];
+    teamId: string;
+    jobId?: string;
+  }): Promise<boolean> {
+    let deleted: boolean;
+    try {
+      deleted = await inboxFileWasDeleted(getDb(), { filePath, teamId });
+    } catch (error) {
+      // Cannot tell, so assume the worse: the missing file stays the failure.
+      this.logger.warn("Could not check whether the inbox item was deleted", {
+        jobId,
+        filePath: filePath.join("/"),
+        teamId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return false;
+    }
+
+    if (deleted) {
+      this.logger.info(
+        "File is gone because its inbox item was deleted, nothing to do",
+        { jobId, filePath: filePath.join("/"), teamId },
+      );
+    }
+
+    return deleted;
   }
 }
 
