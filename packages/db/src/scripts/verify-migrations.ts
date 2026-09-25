@@ -32,6 +32,7 @@ import {
   sslFor,
 } from "./apply-sql";
 import { readJournal } from "./migrations";
+import { TABLES_WITHOUT_RLS_SQL } from "./policies";
 
 const PACKAGE_ROOT = resolve(__dirname, "../..");
 const SCRATCH = "midday_base_migration_check";
@@ -117,6 +118,15 @@ async function main(): Promise<number> {
       );
     }
 
+    const { rows: open } = await client.query<{ name: string }>(
+      TABLES_WITHOUT_RLS_SQL,
+    );
+    if (open.length > 0) {
+      problems.push(
+        `row level security is off for ${open.map((r) => r.name).join(", ")}`,
+      );
+    }
+
     const { rows: applied } = await client.query<{ n: string }>(
       "select count(*)::text as n from drizzle.__drizzle_migrations",
     );
@@ -128,7 +138,7 @@ async function main(): Promise<number> {
     }
 
     console.log(
-      `${tables[0]?.n} tables, ${applied[0]?.n} migrations recorded, ${toothless[0]?.n} policies without an expression`,
+      `${tables[0]?.n} tables, ${applied[0]?.n} migrations recorded, ${toothless[0]?.n} policies without an expression, ${open.length} tables without row level security`,
     );
   } finally {
     await client.end();
