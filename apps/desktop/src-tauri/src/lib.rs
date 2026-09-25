@@ -14,6 +14,7 @@ use tauri::image::Image;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use image;
 
+mod notifications;
 #[cfg(desktop)]
 mod updates;
 
@@ -400,7 +401,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![show_window])
+        .invoke_handler(tauri::generate_handler![show_window, notifications::notify])
         .setup(move |app| {
             let app_url_clone = app_url.clone();
             let app_handle = app.handle().clone();
@@ -496,6 +497,9 @@ pub fn run() {
             .visible(false)
             .shadow(true)
             .disable_drag_drop_handler()
+            // Hidden in the tray, the page must keep running: its Realtime
+            // subscription is what raises desktop notifications (macOS 14+).
+            .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
             .on_download(|_window, _event| {
                 println!("Download triggered!");
                 // Allow all downloads - they will go to default Downloads folder
