@@ -1,14 +1,14 @@
 "use client";
 
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { InvoiceEditor } from "@/components/invoice/invoice-editor";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
 import { LabelInput } from "./label-input";
 
 export function PaymentDetails() {
-  const { control, watch } = useFormContext();
-  const id = watch("id");
-  const templateId = watch("template.id");
+  const { control } = useFormContext();
+  const id = useWatch({ control, name: "id" });
+  const templateId = useWatch({ control, name: "template.id" });
   const { updateTemplate } = useTemplateUpdate();
 
   return (

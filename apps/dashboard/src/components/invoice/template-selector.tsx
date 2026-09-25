@@ -16,12 +16,12 @@ import { Icons } from "@midday/ui/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, parseISO } from "date-fns";
 import { useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { useTRPC } from "@/trpc/client";
 import { CreateTemplateDialog } from "./create-template-dialog";
 
 export function TemplateSelector() {
-  const { watch, setValue } = useFormContext();
+  const { control, getValues, setValue } = useFormContext();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -30,8 +30,9 @@ export function TemplateSelector() {
     trpc.invoiceTemplate.list.queryOptions(),
   );
 
-  const currentTemplateId = watch("template.id");
-  const currentTemplateName = watch("template.name") || "Default";
+  const currentTemplateId = useWatch({ control, name: "template.id" });
+  const currentTemplateName =
+    useWatch({ control, name: "template.name" }) || "Default";
 
   const handleSelectTemplate = (template: NonNullable<typeof templates>[0]) => {
     // Set entire template object at once - react-hook-form handles nested objects
@@ -51,7 +52,7 @@ export function TemplateSelector() {
 
     // Recalculate dueDate based on the new template's paymentTermsDays
     const paymentTermsDays = template.paymentTermsDays ?? 30;
-    const issueDate = watch("issueDate");
+    const issueDate = getValues("issueDate");
     if (issueDate) {
       const issueDateParsed = parseISO(issueDate);
       const newDueDate = addDays(issueDateParsed, paymentTermsDays);

@@ -34,7 +34,7 @@ import {
   startOfDay,
 } from "date-fns";
 import * as React from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useFormState, useWatch } from "react-hook-form";
 import { useTemplateUpdate } from "@/hooks/use-template-update";
 import { useUserQuery } from "@/hooks/use-user";
 import { useTRPC } from "@/trpc/client";
@@ -51,7 +51,8 @@ type Props = {
 };
 
 export function SubmitButton({ isSubmitting, disabled, className }: Props) {
-  const { watch, setValue, formState } = useFormContext();
+  const { control, getValues, setValue } = useFormContext();
+  const formState = useFormState({ control });
   const { data: user } = useUserQuery();
 
   // Get default schedule date/time: today, rounded up to the next hour + 1 hour buffer
@@ -67,7 +68,7 @@ export function SubmitButton({ isSubmitting, disabled, className }: Props) {
 
   const [scheduleDate, setScheduleDate] = React.useState<Date | undefined>(
     () => {
-      const existingScheduledAt = watch("scheduledAt");
+      const existingScheduledAt = getValues("scheduledAt");
       if (existingScheduledAt) {
         // Parse and normalize to start of day for calendar display
         const parsed = new Date(existingScheduledAt);
@@ -79,7 +80,7 @@ export function SubmitButton({ isSubmitting, disabled, className }: Props) {
   );
 
   const [scheduleTime, setScheduleTime] = React.useState<string>(() => {
-    const existingScheduledAt = watch("scheduledAt");
+    const existingScheduledAt = getValues("scheduledAt");
     const initialDateTime = existingScheduledAt
       ? new Date(existingScheduledAt)
       : getDefaultScheduleDateTime();
@@ -88,16 +89,16 @@ export function SubmitButton({ isSubmitting, disabled, className }: Props) {
   });
 
   // Recurring invoice state
-  const issueDate = watch("issueDate");
-  const amount = watch("amount") || 0;
-  const currency = watch("template.currency") || "USD";
-  const invoiceRecurringId = watch("invoiceRecurringId");
+  const issueDate = useWatch({ control, name: "issueDate" });
+  const amount = useWatch({ control, name: "amount" }) || 0;
+  const currency = useWatch({ control, name: "template.currency" }) || "USD";
+  const invoiceRecurringId = useWatch({ control, name: "invoiceRecurringId" });
 
   // Check if invoice is already part of a recurring series
   const isPartOfRecurringSeries = !!invoiceRecurringId;
 
   // Get recurring config from form state or use default
-  const formRecurringConfig = watch("recurringConfig");
+  const formRecurringConfig = useWatch({ control, name: "recurringConfig" });
   const recurringConfig =
     formRecurringConfig ||
     getDefaultRecurringConfig(issueDate ? new Date(issueDate) : new Date());
@@ -184,16 +185,16 @@ export function SubmitButton({ isSubmitting, disabled, className }: Props) {
   }, [issueDate, formRecurringConfig, setValue]);
 
   // Sync with form scheduledAt changes (for when invoice data is loaded)
+  const scheduledAt = useWatch({ control, name: "scheduledAt" });
   React.useEffect(() => {
-    const currentScheduledAt = watch("scheduledAt");
-    if (currentScheduledAt) {
-      const scheduledDateTime = new Date(currentScheduledAt);
+    if (scheduledAt) {
+      const scheduledDateTime = new Date(scheduledAt);
       // Normalize to start of day for calendar display
       setScheduleDate(startOfDay(scheduledDateTime));
       // Use date-fns format for consistent time formatting
       setScheduleTime(format(scheduledDateTime, "HH:mm"));
     }
-  }, [watch("scheduledAt")]);
+  }, [scheduledAt]);
 
   // Helper function to update scheduledAt with provided date and time
   const updateScheduledAt = (date: Date, time: string) => {
@@ -209,8 +210,8 @@ export function SubmitButton({ isSubmitting, disabled, className }: Props) {
     });
 
     // Auto-adjust issue date and due date when scheduling
-    const currentIssueDate = watch("issueDate");
-    const currentDueDate = watch("dueDate");
+    const currentIssueDate = getValues("issueDate");
+    const currentDueDate = getValues("dueDate");
 
     if (currentIssueDate && currentDueDate) {
       const issueDateTime = parseISO(currentIssueDate);
@@ -261,9 +262,10 @@ export function SubmitButton({ isSubmitting, disabled, className }: Props) {
     }
   };
 
-  const selectedOption = watch("template.deliveryType");
+  const selectedOption = useWatch({ control, name: "template.deliveryType" });
   // Show "Update" instead of "Create" if not a draft OR if part of a recurring series
-  const canUpdate = watch("status") !== "draft" || isPartOfRecurringSeries;
+  const status = useWatch({ control, name: "status" });
+  const canUpdate = status !== "draft" || isPartOfRecurringSeries;
 
   const invoiceNumberValid = !formState.errors.invoiceNumber;
 
@@ -280,8 +282,8 @@ export function SubmitButton({ isSubmitting, disabled, className }: Props) {
       | "create_and_send"
       | "scheduled"
       | "recurring";
-    const currentDeliveryType = watch("template.deliveryType");
-    const invoiceId = watch("id");
+    const currentDeliveryType = getValues("template.deliveryType");
+    const invoiceId = getValues("id");
 
     // Only save create and create_and_send to template, not scheduled or recurring
     if (deliveryType !== "scheduled" && deliveryType !== "recurring") {
