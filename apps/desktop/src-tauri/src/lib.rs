@@ -741,4 +741,34 @@ mod tests {
         }
         assert_eq!(dev["remote"]["urls"], json!(["http://localhost:3001/**"]));
     }
+
+    #[test]
+    fn the_website_gets_only_what_the_dashboard_calls() {
+        // The window shows a remote site: anything granted here, any page on
+        // that origin can do. The tray, menus, app metadata, images, webviews
+        // and updates stay in Rust.
+        let default = parse_json(include_str!("../capabilities/default.json"));
+        let granted: Vec<&str> = default["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|permission| permission.as_str().unwrap())
+            .collect();
+        let forbidden = [
+            "core:default",
+            "core:app:",
+            "core:image:",
+            "core:menu:",
+            "core:tray:",
+            "core:webview:",
+            "deep-link:",
+            "updater:",
+        ];
+        for permission in &granted {
+            assert!(
+                !forbidden.iter().any(|prefix| permission.starts_with(prefix)),
+                "capabilities/default.json grants the website {permission}"
+            );
+        }
+    }
 }

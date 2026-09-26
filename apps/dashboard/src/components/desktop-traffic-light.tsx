@@ -33,13 +33,8 @@ export function DesktopTrafficLight() {
   const handleMaximize = async () => {
     try {
       const window = await getMainWindow();
-      const isMaximized = await window.isMaximized();
-
-      if (isMaximized) {
-        await window.unmaximize();
-      } else {
-        await window.toggleMaximize();
-      }
+      // Restores a maximized window too. The shell does not grant unmaximize.
+      await window.toggleMaximize();
     } catch (error) {
       console.error("Failed to toggle maximize main window:", error);
     }

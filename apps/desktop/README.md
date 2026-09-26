@@ -47,9 +47,11 @@ The two files must grant the same permissions; a unit test checks it.
 
 Files: the page may open and write only a path the user picked in a save dialog.
 It has no upload plugin, no global-shortcut API and no other file commands; the
-global shortcut and deep links are handled in Rust. `core:default` still lets it
-use Tauri's core window, event, path, menu and tray APIs. The capabilities cover
-macOS, Windows and Linux.
+global shortcut and deep links are handled in Rust. Of Tauri's core APIs it gets
+only what the dashboard calls: window buttons and dragging, events, the path API
+and closing a file handle; no tray, menu, app, image or webview APIs, and a unit
+test fails if `default.json` grants them. The capabilities cover macOS, Windows
+and Linux.
 
 The deep-link scheme is `hq` (`hq-dev` for the dev config). The dashboard's
 `NEXT_PUBLIC_DESKTOP_SCHEME` must match the build you install.
