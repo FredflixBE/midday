@@ -57,6 +57,7 @@
     "@midday/trpc": "workspace:*",
     "@midday/utils": "workspace:*",
     "@midday/yuki": "workspace:*",
+    "@opentelemetry/exporter-logs-otlp-http": "0.218.0",
     "@sindresorhus/slugify": "catalog:",
     "@zip.js/zip.js": "^2.8.23",
     "ai": "catalog:",
@@ -72,6 +73,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@opentelemetry/sdk-logs": "0.218.0",
     "@types/archiver": "^7.0.0",
     "@types/bun": "1.4.2",
     "@types/papaparse": "^5.5.2",

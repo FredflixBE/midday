@@ -269,6 +269,7 @@ Runtime environment:
 | `INVOICE_JOBS_DRY_RUN` | no | Off unless set. Makes the two recurring-invoice jobs log which invoices they would generate and who they would email, and send nothing. Worth one run before letting invoicing send for real. |
 | `INSIGHTS_ENABLED` | no | Weekly insight emails, off unless exactly `true`. No schedule is registered for the dispatcher, so this alone starts nothing. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
+| `BETTER_STACK_JOBS_SOURCE_TOKEN`, `BETTER_STACK_JOBS_INGESTING_HOST` | no | A Better Stack source created with the **OpenTelemetry** platform (the host without `https://`). With both set, every task log line also goes to Better Stack, carrying the run ID as `ctx.run.id`. Unset means the Trigger.dev run view only. Leave the API's `BETTER_STACK_SOURCE_TOKEN` unset here: `@midday/logger` lines from shared packages would then go to Better Stack too, and a run has no step that waits for them to send. |
 
 ### Repository secrets (GitHub Actions)
 
