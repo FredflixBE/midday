@@ -20,6 +20,7 @@ export function SyncTransactions({ onClick, disabled }: Props) {
           <Button
             variant="outline"
             size="icon"
+            aria-label="Synchronize"
             className="rounded-full w-7 h-7 flex items-center"
             disabled={disabled}
             onClick={onClick}
