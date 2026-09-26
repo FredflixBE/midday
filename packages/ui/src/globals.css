@@ -325,25 +325,28 @@
   }
 }
 
+/* Centring lives on the `translate` property (Tailwind v4's -translate-*),
+   so these animate `scale` alone; a `transform: translate()` here would add
+   to it and throw the dialog off-centre until the animation ends. */
 @keyframes dialog-content-show {
   from {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.97);
+    scale: 0.97;
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    scale: 1;
   }
 }
 
 @keyframes dialog-content-hide {
   from {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    scale: 1;
   }
   to {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.97);
+    scale: 0.97;
   }
 }
 
