@@ -101,15 +101,33 @@ export function useRealtime<TN extends TableName>({
       );
     }
 
-    channel.subscribe((status, err) => {
-      if (status === "CHANNEL_ERROR") {
-        console.error(`[Realtime] Channel error for ${channelName}:`, err);
-      } else if (status === "TIMED_OUT") {
-        console.warn(`[Realtime] Subscription timed out for ${channelName}`);
-      }
-    });
+    // Join as the signed-in user. supabase-js hands Realtime the user's token
+    // on sign-in and token refresh, not for a session restored from cookies,
+    // so a page load would otherwise join with the publishable key: RLS then
+    // hides every row and no event arrives until the next refresh. setAuth()
+    // with no argument reads the current session.
+    let removed = false;
+    supabase.realtime
+      .setAuth()
+      .catch((error: unknown) => {
+        // Subscribe anyway: joining unauthenticated is what happened before.
+        console.error("[Realtime] Could not authenticate the socket:", error);
+      })
+      .then(() => {
+        if (removed) return;
+        channel.subscribe((status, err) => {
+          if (status === "CHANNEL_ERROR") {
+            console.error(`[Realtime] Channel error for ${channelName}:`, err);
+          } else if (status === "TIMED_OUT") {
+            console.warn(
+              `[Realtime] Subscription timed out for ${channelName}`,
+            );
+          }
+        });
+      });
 
     return () => {
+      removed = true;
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
