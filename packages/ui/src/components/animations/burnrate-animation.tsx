@@ -162,7 +162,7 @@ export function BurnrateAnimation({
                   y1="1"
                   x2="12"
                   y2="1"
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   strokeWidth="1.5"
                   strokeDasharray="3 3"
                 />
@@ -204,7 +204,7 @@ export function BurnrateAnimation({
                     <rect width="8" height="8" fill="transparent" />
                     <path
                       d="M0,0 L8,8 M-2,6 L6,16 M-4,4 L4,12"
-                      stroke="hsl(var(--border))"
+                      stroke="var(--border)"
                       strokeWidth="1.2"
                       opacity="0.6"
                     />
@@ -218,7 +218,7 @@ export function BurnrateAnimation({
                     y1={grid.y}
                     x2={graphWidth - paddingRight}
                     y2={grid.y}
-                    stroke="hsl(var(--border))"
+                    stroke="var(--border)"
                     strokeWidth="1"
                     strokeDasharray="3 3"
                     opacity="0.3"
@@ -232,7 +232,7 @@ export function BurnrateAnimation({
                     y1={paddingTop}
                     x2={point.x}
                     y2={graphHeight - paddingBottom}
-                    stroke="hsl(var(--border))"
+                    stroke="var(--border)"
                     strokeWidth="1"
                     strokeDasharray="3 3"
                     opacity="0.3"
@@ -244,7 +244,7 @@ export function BurnrateAnimation({
                   y1={averageY}
                   x2={graphWidth - paddingRight}
                   y2={averageY}
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--muted-foreground)"
                   strokeWidth="1.5"
                   strokeDasharray="5 5"
                   initial={{ opacity: 0 }}
@@ -265,7 +265,7 @@ export function BurnrateAnimation({
                 <path
                   d={pathData}
                   fill="none"
-                  stroke="hsl(var(--foreground))"
+                  stroke="var(--foreground)"
                   strokeWidth="2"
                   strokeLinecap="square"
                   strokeLinejoin="miter"

@@ -2,7 +2,11 @@
   "extends": "@midday/tsconfig/react-library.json",
   "compilerOptions": {
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@midday/ui": ["./src/components"],
+      "@midday/ui/cn": ["./src/utils/cn.ts"],
+      "@midday/ui/hooks": ["./src/hooks"],
+      "@midday/ui/utils": ["./src/utils"]
     }
   },
   "include": ["src"],

@@ -4,7 +4,11 @@
     "paths": {
       "@/*": ["./src/*"],
       "@api/*": ["../api/src/*"],
-      "@jobs/*": ["../../packages/jobs/src/*"]
+      "@jobs/*": ["../../packages/jobs/src/*"],
+      "@midday/ui": ["../../packages/ui/src/components"],
+      "@midday/ui/cn": ["../../packages/ui/src/utils/cn.ts"],
+      "@midday/ui/hooks": ["../../packages/ui/src/hooks"],
+      "@midday/ui/utils": ["../../packages/ui/src/utils"]
     },
     "strict": true
   },
