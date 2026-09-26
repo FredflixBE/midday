@@ -290,6 +290,31 @@ describe("one quote", () => {
     ]);
   });
 
+  test("shows the quote's own rates as quotes_set_rates takes them", () => {
+    const withRates = {
+      ...priced,
+      versions: priced.versions.map((v) => ({
+        ...v,
+        content: {
+          ...v.content,
+          rates: {
+            productRates: { [productId]: 110 },
+            volumeTiers: [{ minHours: 80, percent: -5 }],
+            termTiers: [{ minMonths: 12, percent: -3 }],
+          },
+        },
+      })),
+    } as typeof priced;
+
+    const [version] = quoteDetail(withRates).versions;
+    expect(version!.rates).toEqual({
+      productRates: [{ product: "Development", productId, hourlyRate: 110 }],
+      volumeTiers: [{ from: 10, percent: -5 }],
+      termTiers: [{ minMonths: 12, percent: -3 }],
+    });
+    expect(version!.scenarios[0]).toMatchObject({ adjustmentOverride: null });
+  });
+
   test("carries the ids a write names, and what an acceptance recorded", () => {
     const detail = quoteDetail(priced);
     expect(detail).toMatchObject({ trackerProjectId: null });

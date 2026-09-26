@@ -146,6 +146,8 @@ function scenarioDetail(
     recurrence: scenario.recurrence,
     /** In percent, on every rate; a negative number is a discount. */
     adjustment: priced?.adjustment ?? 0,
+    /** This scenario's own adjustment, over the tiers; null when it has none. */
+    adjustmentOverride: scenario.adjustmentOverride,
     lines: scenario.lines.map((line) => {
       if (line.type !== "item") return line;
       const p = lines.get(line.id);
@@ -189,6 +191,30 @@ function scenarioDetail(
       percent: p.percent,
       amount: money(p.amount),
     })),
+  };
+}
+
+/**
+ * The quote's own rates, as `quotes_set_rates` takes them: hourly rates by
+ * product, and volume tiers from a quantity in the quote's unit.
+ */
+function ratesDetail(
+  content: QuoteContent,
+  productNames: Record<string, string>,
+) {
+  return {
+    productRates: Object.entries(content.rates.productRates).map(
+      ([productId, hourlyRate]) => ({
+        product: productNames[productId] ?? null,
+        productId,
+        hourlyRate,
+      }),
+    ),
+    volumeTiers: content.rates.volumeTiers.map((tier) => ({
+      from: hoursToUnit(tier.minHours, content),
+      percent: tier.percent,
+    })),
+    termTiers: content.rates.termTiers,
   };
 }
 
@@ -239,6 +265,7 @@ export function quoteDetail(quote: PricedQuote) {
             : null,
         displayUnit: version.content.displayUnit,
         hoursPerDay: version.content.hoursPerDay,
+        rates: ratesDetail(version.content, quote.productNames),
         scenarios: version.content.scenarios.map((scenario) =>
           scenarioDetail(
             scenario,
@@ -286,10 +313,10 @@ function answerToRecord(held: StoredQuote["versions"][number], answer: Answer) {
   };
 }
 
-const quoteIdInput = z.string().uuid().describe("Quote ID");
+export const quoteIdInput = z.string().uuid().describe("Quote ID");
 
 /** A refusal, said to the model in the words it can act on. */
-const refused = (text: string) => ({
+export const refused = (text: string) => ({
   content: [{ type: "text" as const, text }],
   isError: true as const,
 });
@@ -311,7 +338,7 @@ async function pricedQuote(ctx: McpContext, id: string) {
 }
 
 /** A write's answer: the quote it left behind, or why there is none. */
-async function afterWrite(
+export async function afterWrite(
   ctx: McpContext,
   written: { id: string } | null,
   missing = "Quote not found",
@@ -354,7 +381,7 @@ const registerReadTools: RegisterTools = (server, ctx) => {
     {
       title: "Get Quote",
       description:
-        "Get one quote with all its versions, newest first. Each version has its status, mode, dates, who it was sent to, and its scenarios with their lines (named by product), rates, totals and payment schedule. A sent version is priced as it was sent; a draft at today's rates. Amounts are in the quote's currency excluding VAT; quantities are hours, and also in the quote's unit (days when it is shown in days). Versions, scenarios and lines carry the ids the quote write tools take; an accepted version says what was accepted.",
+        "Get one quote with all its versions, newest first. Each version has its status, mode, dates, who it was sent to, and its scenarios with their lines (named by product), rates, totals and payment schedule. A sent version is priced as it was sent; a draft at today's rates. Amounts are in the quote's currency excluding VAT; quantities are hours, and also in the quote's unit (days when it is shown in days). Each version also has the quote's own rates: hourly rates by product, and the volume and term tiers. Versions, scenarios and lines carry the ids the quote write tools take; an accepted version says what was accepted.",
       inputSchema: {
         id: z.string().uuid().describe("Quote ID"),
       },
