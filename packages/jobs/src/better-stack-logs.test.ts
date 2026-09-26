@@ -49,14 +49,16 @@ describe("betterStackLogExporters", () => {
       expect(exporter).toBeDefined();
       expect(rest).toEqual([]);
 
-      // The shape Trigger gives it: its log processor stamps the run's
-      // attributes on each record before any exporter sees it.
+      // The shape Trigger gives it: TaskContextLogProcessor in
+      // @trigger.dev/core stamps the run's attributes on each record before
+      // any exporter sees it, flattened under "$metadata", so the run id
+      // arrives as `$metadata.ctx.run.id`.
       const provider = new LoggerProvider({
         processors: [new SimpleLogRecordProcessor(exporter!)],
       });
       provider.getLogger("task").emit({
         body: "Synced 12 transactions",
-        attributes: { "ctx.run.id": "run_abc123" },
+        attributes: { "$metadata.ctx.run.id": "run_abc123" },
       });
       await provider.forceFlush();
       await provider.shutdown();
@@ -65,6 +67,7 @@ describe("betterStackLogExporters", () => {
       expect(received[0]?.path).toBe("/v1/logs");
       expect(received[0]?.authorization).toBe("Bearer jobs-token");
       expect(received[0]?.body).toContain("Synced 12 transactions");
+      expect(received[0]?.body).toContain('"key":"$metadata.ctx.run.id"');
       expect(received[0]?.body).toContain("run_abc123");
     } finally {
       server.stop(true);

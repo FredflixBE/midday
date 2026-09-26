@@ -8,9 +8,6 @@ import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
  * These are not the API's `BETTER_STACK_SOURCE_TOKEN` and
  * `BETTER_STACK_INGESTING_HOST`: those send `@midday/logger` lines in Better
  * Stack's own format, and an OpenTelemetry source is a different source.
- * `trigger.config.ts` calls this, and the task worker evaluates that file
- * with the environment's variables, so the Trigger.dev dashboard is where
- * these are set.
  */
 export function betterStackLogExporters(
   env: Record<string, string | undefined>,
