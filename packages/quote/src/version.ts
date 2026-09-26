@@ -14,6 +14,27 @@ export function isExpired(
   return version.status === "sent" && version.validUntil < today;
 }
 
+type Versioned = { status: QuoteVersionStatus };
+
+/** The one draft a quote may have at a time. */
+export function draftVersion<V extends Versioned>(versions: V[]) {
+  return versions.find((v) => v.status === "draft");
+}
+
+/**
+ * The version the client holds and so the one they answer: the one sent, or
+ * the one they accepted. Sending supersedes the version before it, and a won
+ * quote is not sent again, so a quote has at most one.
+ */
+export function heldVersion<V extends Versioned>(versions: V[]) {
+  return versions.find((v) => v.status === "sent" || v.status === "accepted");
+}
+
+/** The version the client said yes to, when they did. */
+export function acceptedVersion<V extends Versioned>(versions: V[]) {
+  return versions.find((v) => v.status === "accepted");
+}
+
 export type QuoteOutcome = "open" | "won" | "lost" | "no_decision";
 
 /**

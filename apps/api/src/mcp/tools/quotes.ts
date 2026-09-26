@@ -1,3 +1,9 @@
+import {
+  acceptQuoteSchema,
+  createQuoteSchema,
+  markQuoteSentSchema,
+  setQuoteOutcomeSchema,
+} from "@api/schemas/quotes";
 import { storeQuotePdf } from "@api/services/quote-pdf";
 import {
   acceptQuoteVersion,
@@ -12,6 +18,9 @@ import {
 } from "@midday/db/queries";
 import {
   type Amount,
+  acceptedVersion,
+  draftVersion,
+  heldVersion,
   hoursToUnit,
   type QuoteContent,
   quoteState,
@@ -184,7 +193,7 @@ function scenarioDetail(
 }
 
 export function quoteDetail(quote: PricedQuote) {
-  const held = quote.versions.find((v) => v.status === "sent") ?? null;
+  const held = heldVersion(quote.versions) ?? null;
   const latest = quote.versions[0]!;
 
   return {
@@ -243,55 +252,41 @@ export function quoteDetail(quote: PricedQuote) {
   };
 }
 
-/** The one draft a quote may have at a time. */
-export const draftOf = (quote: StoredQuote) =>
-  quote.versions.find((v) => v.status === "draft");
-
-/**
- * The version the client holds and so the one they answer: sent, or accepted
- * when an answer is being recorded again. Sending supersedes the one before,
- * so there is at most one.
- */
-export const heldOf = (quote: StoredQuote) =>
-  quote.versions.find((v) => v.status === "sent") ??
-  quote.versions.find((v) => v.status === "accepted");
-
 type Answer = {
   scenarioId: string;
   optionalLineIds?: string[];
   acceptedAt?: string;
-  acceptedByName?: string;
-  poNumber?: string;
+  acceptedByName?: string | null;
+  poNumber?: string | null;
 };
 
 /**
- * What to record for an answer. Recording it again replaces the whole
- * record, so a correction keeps what it does not name: the order form, which
- * this tool cannot attach, and the rest of what was recorded. The optional
- * lines are kept only for the same scenario, since they belong to it.
+ * What to record for an answer. Recording one again replaces the whole
+ * record, so on an accepted version what the call leaves out stays as it was:
+ * the order form, which this tool cannot attach, and the rest of what was
+ * recorded. Null clears. The optional lines are kept only for the same
+ * scenario, since they belong to it.
  */
-export function correction(
-  held: StoredQuote["versions"][number],
-  answer: Answer,
-) {
-  if (held.status !== "accepted") {
-    return { ...answer, acceptanceFilePath: held.acceptanceFilePath ?? null };
-  }
+function answerToRecord(held: StoredQuote["versions"][number], answer: Answer) {
+  if (held.status !== "accepted") return answer;
 
+  const kept = <T>(given: T | undefined, recorded: T) =>
+    given === undefined ? recorded : given;
   const sameScenario = answer.scenarioId === held.acceptedScenarioId;
   return {
     scenarioId: answer.scenarioId,
-    optionalLineIds:
-      answer.optionalLineIds ??
-      (sameScenario ? (held.acceptedOptionalLineIds ?? []) : []),
-    acceptedAt: answer.acceptedAt ?? held.acceptedAt ?? undefined,
-    acceptedByName: answer.acceptedByName ?? held.acceptedByName,
-    poNumber: answer.poNumber ?? held.poNumber,
-    acceptanceFilePath: held.acceptanceFilePath ?? null,
+    optionalLineIds: kept(
+      answer.optionalLineIds,
+      sameScenario ? (held.acceptedOptionalLineIds ?? []) : [],
+    ),
+    acceptedAt: kept(answer.acceptedAt, held.acceptedAt ?? undefined),
+    acceptedByName: kept(answer.acceptedByName, held.acceptedByName),
+    poNumber: kept(answer.poNumber, held.poNumber),
+    acceptanceFilePath: held.acceptanceFilePath,
   };
 }
 
-const quoteId = z.string().uuid().describe("Quote ID");
+const quoteIdInput = z.string().uuid().describe("Quote ID");
 
 /** A refusal, said to the model in the words it can act on. */
 const refused = (text: string) => ({
@@ -400,6 +395,9 @@ const registerReadTools: RegisterTools = (server, ctx) => {
   );
 };
 
+const create = createQuoteSchema.shape;
+const accept = acceptQuoteSchema.shape;
+
 const registerWriteTools: RegisterTools = (server, ctx) => {
   const { db, teamId, userId } = ctx;
 
@@ -413,25 +411,20 @@ const registerWriteTools: RegisterTools = (server, ctx) => {
       description:
         "Create a quote for a customer, with version 1 as a draft: numbered, the team's default text blocks copied in, issued today and valid for the team's default number of days. A project quote is priced once; a recurring quote per month, quarter or year. The draft has no scenarios yet. Returns the quote as quotes_get does.",
       inputSchema: {
-        customerId: z.string().uuid().describe("Customer to quote"),
-        title: z.string().trim().min(1).max(300).describe("Quote title"),
-        kind: z
-          .enum(["project", "recurring"])
-          .describe("project: priced once; recurring: priced per period"),
-        language: z
-          .enum(["nl", "en"])
-          .describe("Language the quote is written and printed in"),
-        currency: z
-          .string()
-          .length(3)
-          .optional()
-          .describe("ISO 4217 code; defaults to the team's base currency"),
-        mode: z
-          .enum(["estimate", "firm"])
-          .optional()
-          .describe(
-            "estimate (default): a non-binding estimate; firm: a binding offer",
-          ),
+        customerId: create.customerId.describe("Customer to quote"),
+        title: create.title.describe("Quote title"),
+        kind: create.kind.describe(
+          "project: priced once; recurring: priced per period",
+        ),
+        language: create.language.describe(
+          "Language the quote is written and printed in",
+        ),
+        currency: create.currency.describe(
+          "ISO 4217 code; defaults to the team's base currency",
+        ),
+        mode: create.mode.describe(
+          "estimate (default): a non-binding estimate; firm: a binding offer",
+        ),
       },
       annotations: WRITE_ANNOTATIONS,
     },
@@ -452,7 +445,7 @@ const registerWriteTools: RegisterTools = (server, ctx) => {
       title: "Revise Quote",
       description:
         "Start a new version of a quote: the latest version copied into a new draft, issued today. Refused while the quote already has a draft, and once it is accepted. A quote that has been sent keeps its customer, title, kind and language. Returns the quote as quotes_get does.",
-      inputSchema: { quoteId },
+      inputSchema: { quoteId: quoteIdInput },
       annotations: WRITE_ANNOTATIONS,
     },
     withErrorHandling(
@@ -469,20 +462,17 @@ const registerWriteTools: RegisterTools = (server, ctx) => {
       description:
         "Record that the quote's draft was sent to the client. This sends nothing: quotes go out by hand, as the PDF by email. It freezes the draft with its pricing as of now, stores its PDF, supersedes the version sent before it, and reopens a quote marked lost or no decision. Returns the quote as quotes_get does.",
       inputSchema: {
-        quoteId,
-        sentTo: z
-          .string()
-          .trim()
-          .max(500)
-          .optional()
-          .describe("Who it was sent to, e.g. an email address"),
+        quoteId: quoteIdInput,
+        sentTo: markQuoteSentSchema.shape.sentTo.describe(
+          "Who it was sent to, e.g. an email address",
+        ),
       },
       annotations: WRITE_ANNOTATIONS,
     },
     withErrorHandling(async ({ quoteId, sentTo }) => {
       const quote = await load(quoteId);
       if (!quote) return refused("Quote not found");
-      const draft = draftOf(quote);
+      const draft = draftVersion(quote.versions);
       if (!draft) {
         return refused(
           "This quote has no draft to send; revise it to start one",
@@ -506,38 +496,29 @@ const registerWriteTools: RegisterTools = (server, ctx) => {
     {
       title: "Accept Quote",
       description:
-        "Record that the client accepted the version they hold: which scenario, which of its optional lines they took, who said yes, when, and the PO number. The quote is won and a tracker project is opened for it. Calling it again on an accepted quote corrects what was recorded; what the call leaves out stays as recorded. Take the scenario and line ids from quotes_get. Attaching the signed order form is done in Midday itself.",
+        "Record that the client accepted the version they hold: which scenario, which of its optional lines they took, who said yes, when, and the PO number. The quote is won and a tracker project is opened for it. Calling it again on an accepted quote corrects what was recorded: what the call leaves out stays as recorded, and null clears a name or PO number. Take the scenario and line ids from quotes_get. Attaching the signed order form is done in Midday itself.",
       inputSchema: {
-        quoteId,
-        scenarioId: z.string().min(1).max(200).describe("Scenario accepted"),
-        optionalLineIds: z
-          .array(z.string().min(1).max(200))
-          .max(500)
-          .optional()
-          .describe("Optional lines of that scenario the client took too"),
-        acceptedAt: z.iso
-          .date()
-          .optional()
-          .describe("When the client accepted (YYYY-MM-DD); defaults to now"),
-        acceptedByName: z
-          .string()
-          .trim()
-          .max(300)
-          .optional()
-          .describe("Who accepted, on the client's side"),
-        poNumber: z
-          .string()
-          .trim()
-          .max(100)
-          .optional()
-          .describe("The client's purchase order number"),
+        quoteId: quoteIdInput,
+        scenarioId: accept.scenarioId.describe("Scenario accepted"),
+        optionalLineIds: accept.optionalLineIds.describe(
+          "Optional lines of that scenario the client took too",
+        ),
+        acceptedAt: accept.acceptedAt.describe(
+          "When the client accepted (YYYY-MM-DD); defaults to now",
+        ),
+        acceptedByName: accept.acceptedByName.describe(
+          "Who accepted, on the client's side; null clears it",
+        ),
+        poNumber: accept.poNumber.describe(
+          "The client's purchase order number; null clears it",
+        ),
       },
       annotations: WRITE_ANNOTATIONS,
     },
     withErrorHandling(async ({ quoteId, ...answer }) => {
       const quote = await load(quoteId);
       if (!quote) return refused("Quote not found");
-      const held = heldOf(quote);
+      const held = heldVersion(quote.versions);
       if (!held) {
         return refused("This quote has not been sent, so there is no answer");
       }
@@ -545,7 +526,7 @@ const registerWriteTools: RegisterTools = (server, ctx) => {
       return afterWrite(
         ctx,
         await acceptQuoteVersion(db, {
-          ...correction(held, answer),
+          ...answerToRecord(held, answer),
           teamId,
           versionId: held.id,
           storePdf: storeQuotePdf(teamId, held.id),
@@ -560,13 +541,13 @@ const registerWriteTools: RegisterTools = (server, ctx) => {
       title: "Undo Quote Acceptance",
       description:
         "Take back a recorded acceptance, for an answer recorded by mistake: the version goes back to sent and the quote to open, and what was recorded (scenario, PO number, who, when) is cleared. The tracker project and the stored PDF stay. Returns the quote as quotes_get does.",
-      inputSchema: { quoteId },
+      inputSchema: { quoteId: quoteIdInput },
       annotations: DESTRUCTIVE_ANNOTATIONS,
     },
     withErrorHandling(async ({ quoteId }) => {
       const quote = await load(quoteId);
       if (!quote) return refused("Quote not found");
-      const accepted = quote.versions.find((v) => v.status === "accepted");
+      const accepted = acceptedVersion(quote.versions);
       if (!accepted) return refused("This quote has not been accepted");
 
       return afterWrite(
@@ -583,12 +564,9 @@ const registerWriteTools: RegisterTools = (server, ctx) => {
       description:
         "Record that a quote was lost or ended without a decision, with the reason; open takes that back. Won is not set here: use quotes_accept. A won quote keeps its outcome. Returns the quote as quotes_get does.",
       inputSchema: {
-        quoteId,
-        outcome: z.enum(["open", "lost", "no_decision"]).describe("Outcome"),
-        reason: z
-          .string()
-          .trim()
-          .max(2000)
+        quoteId: quoteIdInput,
+        outcome: setQuoteOutcomeSchema.shape.outcome.describe("Outcome"),
+        reason: setQuoteOutcomeSchema.shape.reason
           .optional()
           .describe("Why, in a sentence; ignored for open"),
       },

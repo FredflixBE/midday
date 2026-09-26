@@ -484,6 +484,30 @@ describe("writing a quote", () => {
     expect(typeof params.storePdf).toBe("function");
   });
 
+  test("a send the query refuses, or whose PDF cannot be stored, comes back as the error", async () => {
+    asMock(getQuote).mockImplementation(() =>
+      Promise.resolve(stored([{ id: "v1", status: "draft" }])),
+    );
+
+    asMock(markQuoteVersionSent).mockImplementation(() =>
+      Promise.reject(
+        new QuoteInputError("This quote has already been accepted"),
+      ),
+    );
+    const refused = await call("quotes_mark_sent", { quoteId: Q });
+    expect(refused).toMatchObject({ isError: true });
+    expect(refused.content[0]!.text).toBe(
+      "This quote has already been accepted",
+    );
+
+    asMock(markQuoteVersionSent).mockImplementation(() =>
+      Promise.reject(new Error("The object exceeded the maximum allowed size")),
+    );
+    const unstored = await call("quotes_mark_sent", { quoteId: Q });
+    expect(unstored).toMatchObject({ isError: true });
+    expect(asMock(getPricedQuote).mock.calls).toHaveLength(0);
+  });
+
   test("a quote with no draft has nothing to send", async () => {
     asMock(getQuote).mockImplementation(() =>
       Promise.resolve(stored([{ id: "v1", status: "sent" }])),
@@ -544,8 +568,8 @@ describe("writing a quote", () => {
       acceptedAt: "2026-09-25",
       acceptedByName: "A. Buyer",
       poNumber: "PO-1",
-      acceptanceFilePath: null,
     });
+    expect(params.acceptanceFilePath).toBeUndefined();
     expect(typeof params.storePdf).toBe("function");
   });
 
@@ -583,11 +607,17 @@ describe("writing a quote", () => {
       acceptanceFilePath: form,
     });
 
-    // Another scenario's optional lines are not this one's.
-    await call("quotes_accept", { quoteId: Q, scenarioId: "s2" });
+    // Another scenario's optional lines are not this one's; null clears.
+    await call("quotes_accept", {
+      quoteId: Q,
+      scenarioId: "s2",
+      poNumber: null,
+    });
     expect(asMock(acceptQuoteVersion).mock.calls[1]?.[1]).toMatchObject({
       scenarioId: "s2",
       optionalLineIds: [],
+      acceptedByName: "A. Buyer",
+      poNumber: null,
       acceptanceFilePath: form,
     });
   });
