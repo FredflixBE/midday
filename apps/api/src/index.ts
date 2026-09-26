@@ -7,7 +7,7 @@ import {
   checkDependencies,
 } from "@midday/health/checker";
 import { apiDependencies } from "@midday/health/probes";
-import { createLoggerWithContext, logger } from "@midday/logger";
+import { createLoggerWithContext, flushLogs, logger } from "@midday/logger";
 import { getApiUrl, getAppUrl } from "@midday/utils/envs";
 import { Scalar } from "@scalar/hono-api-reference";
 import { cors } from "hono/cors";
@@ -390,6 +390,9 @@ const shutdown = async (signal: string) => {
   });
 
   await Promise.race([shutdownPromise, timeoutPromise]);
+  // Better Stack sends in batches; without this the lines above never leave.
+  // It waits at most 2s, which still ends inside the 15s window.
+  await flushLogs();
   process.exit(0);
 };
 
