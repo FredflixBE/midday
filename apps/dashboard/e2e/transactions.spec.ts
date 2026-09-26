@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { open } from "./navigate";
+import { open } from "./page";
 
 // The body rows of the transactions table; the first row is the header.
 function transactionRows(page: Page) {

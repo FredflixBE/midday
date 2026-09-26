@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { open } from "./navigate";
+import { innermost, open } from "./page";
 
 function focusIsOnThePage(page: Page) {
   return page.evaluate(() => {
@@ -16,20 +16,32 @@ test.describe("dialog", () => {
     const trigger = page.getByRole("button", { name: /Find anything/ });
     await expect(trigger).toBeVisible();
 
-    // Record the dialog's centre on every animation frame after opening,
-    // since a screenshot after the animation hides a dialog that jumped
-    // there (FF-1771).
+    // Record the dialog's centre on every animation frame for 600 ms from the
+    // frame it appears, since a screenshot after the animation hides a dialog
+    // that jumped there (FF-1771).
     await page.evaluate(() => {
-      const frames: { x: number; y: number }[] = [];
-      (window as unknown as { __frames: typeof frames }).__frames = frames;
-      const start = performance.now();
-      const tick = () => {
+      const recording = {
+        frames: [] as { x: number; y: number }[],
+        done: false,
+      };
+      (window as unknown as { __recording: typeof recording }).__recording =
+        recording;
+      let start: number | undefined;
+      const tick = (now: number) => {
         const dialog = document.querySelector('[role="dialog"]');
         if (dialog) {
+          start ??= now;
           const box = dialog.getBoundingClientRect();
-          frames.push({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+          recording.frames.push({
+            x: box.x + box.width / 2,
+            y: box.y + box.height / 2,
+          });
         }
-        if (performance.now() - start < 800) requestAnimationFrame(tick);
+        if (start === undefined || now - start < 600) {
+          requestAnimationFrame(tick);
+        } else {
+          recording.done = true;
+        }
       };
       requestAnimationFrame(tick);
     });
@@ -38,20 +50,23 @@ test.describe("dialog", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("combobox")).toBeFocused();
-    await page.waitForTimeout(900);
 
-    const frames = await page.evaluate(
-      () =>
-        (window as unknown as { __frames: { x: number; y: number }[] })
-          .__frames,
-    );
+    const recording = await page.waitForFunction(() => {
+      const { __recording } = window as unknown as {
+        __recording: { frames: { x: number; y: number }[]; done: boolean };
+      };
+      return __recording.done && __recording.frames;
+    });
+    const frames = (await recording.jsonValue()) as { x: number; y: number }[];
+
     expect(frames.length).toBeGreaterThan(5);
     const last = frames.at(-1)!;
     for (const frame of frames) {
       expect(Math.abs(frame.x - last.x)).toBeLessThanOrEqual(2);
       expect(Math.abs(frame.y - last.y)).toBeLessThanOrEqual(2);
     }
-    expect(Math.abs(last.x - 1440 / 2)).toBeLessThanOrEqual(2);
+    const viewport = page.viewportSize()!;
+    expect(Math.abs(last.x - viewport.width / 2)).toBeLessThanOrEqual(2);
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
@@ -77,13 +92,17 @@ test.describe("dialog", () => {
 test.describe("alert dialog", () => {
   test("Delete account asks first, and Cancel closes it", async ({ page }) => {
     await open(page, "/account");
-    const card = page
-      .locator("div")
-      .filter({ has: page.getByRole("heading", { name: "Delete account" }) })
-      .filter({ has: page.getByRole("button", { name: "Delete" }) })
-      .last();
+    const deleteButton = page.getByRole("button", {
+      name: "Delete",
+      exact: true,
+    });
+    const card = innermost(
+      page.getByRole("main"),
+      page.getByRole("heading", { name: "Delete account" }),
+      deleteButton,
+    );
 
-    await card.getByRole("button", { name: "Delete" }).click();
+    await card.getByRole("button", { name: "Delete", exact: true }).click();
 
     const alert = page.getByRole("alertdialog");
     await expect(alert).toBeVisible();

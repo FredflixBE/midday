@@ -1,15 +1,14 @@
 import { expect, type Page, test } from "@playwright/test";
 import { database, signedInUserId } from "./db";
-import { open } from "./navigate";
+import { innermost, open } from "./page";
 
-// A settings card: the innermost block holding both its heading and control.
+// A settings card, by its heading and the control it holds.
 function card(page: Page, heading: string, control: "combobox" | "switch") {
-  return page
-    .getByRole("main")
-    .locator("div")
-    .filter({ has: page.getByRole("heading", { name: heading }) })
-    .filter({ has: page.getByRole(control) })
-    .last();
+  return innermost(
+    page.getByRole("main"),
+    page.getByRole("heading", { name: heading }),
+    page.getByRole(control),
+  );
 }
 
 test.describe("select", () => {
@@ -58,12 +57,20 @@ test.describe("switch", () => {
       await toggle.click();
       await expect(toggle).toBeChecked({ checked: before !== true });
       await expect.poll(weekStartsOnMonday).toBe(before !== true);
-    } finally {
+
       await toggle.click();
       await expect(toggle).toBeChecked({ checked: before === true });
+    } finally {
+      // Put it back through the database whatever happened on screen, then
+      // read it back: the screen agreeing is not proof (FF-1671).
+      if ((await weekStartsOnMonday()) !== before) {
+        await database()
+          .from("users")
+          .update({ week_starts_on_monday: before })
+          .eq("id", signedInUserId());
+      }
+      await expect.poll(weekStartsOnMonday).toBe(before);
     }
-
-    await expect.poll(weekStartsOnMonday).toBe(before === true);
   });
 });
 

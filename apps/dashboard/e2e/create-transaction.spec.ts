@@ -1,17 +1,24 @@
 import { expect, type Page, test } from "@playwright/test";
-import { open } from "./navigate";
+import { innermost, open } from "./page";
 
 // Every test here fills the "Create transaction" form without ever saving it.
-// Should one submit a valid form by mistake, the request is stopped and the
-// test fails rather than writing a transaction.
+// Should one submit a valid form by mistake, the request is stopped before it
+// leaves the browser, and the test fails rather than writing a transaction.
+let triedToCreate = false;
+
 test.beforeEach(async ({ page }) => {
-  await page.route(/\/trpc\/.*transactions\.create/, (route) => {
-    route.abort();
-    throw new Error("The smoke suite tried to create a transaction");
+  triedToCreate = false;
+  await page.route(/\/trpc\/.*transactions\.create/, async (route) => {
+    triedToCreate = true;
+    await route.abort();
   });
 
   await open(page, "/transactions?createTransaction=true");
   await expect(form(page).getByLabel("Description")).toBeVisible();
+});
+
+test.afterEach(() => {
+  expect(triedToCreate, "a test submitted a valid transaction").toBe(false);
 });
 
 function form(page: Page) {
@@ -20,11 +27,11 @@ function form(page: Page) {
 
 // A form field whose label is not tied to its control.
 function field(page: Page, label: string) {
-  return form(page)
-    .locator("div")
-    .filter({ has: page.getByText(label, { exact: true }) })
-    .filter({ has: page.getByRole("button") })
-    .last();
+  return innermost(
+    form(page),
+    page.getByText(label, { exact: true }),
+    page.getByRole("button"),
+  );
 }
 
 test.describe("popover", () => {

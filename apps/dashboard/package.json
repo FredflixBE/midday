@@ -11,7 +11,7 @@
     "format": "biome format --write .",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:smoke": "playwright test",
+    "test:smoke": "playwright install --only-shell chromium && playwright test",
     "test": "find src -name '*.test.ts' -o -name '*.spec.ts' | grep -q . && bun test --exit src || echo 'No tests yet'"
   },
   "dependencies": {
@@ -88,6 +88,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@midday/db": "workspace:*",
     "@midday/tsconfig": "workspace:*",
     "@playwright/test": "1.63.0",
     "@supabase/supabase-js": "2.101.1",

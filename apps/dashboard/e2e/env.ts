@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { describeTarget } from "@midday/db/script-guard";
 
 // The smoke suite runs its own API and dashboard next to the ones on
 // 3001/3003, so it never answers with code from another checkout.
@@ -29,15 +30,29 @@ export function readEnvFile(app: "api" | "dashboard") {
 
 /**
  * The suite signs in and clicks through real screens, so it must never run
- * against the production books. The API's `.env` says which database it
- * talks to (FF-1683); anything but `development` is refused.
+ * against the production books.
+ *
+ * The label sits beside the connection it describes (FF-1683): the API's
+ * `.env` declares `DATABASE_ENVIRONMENT` next to its `DATABASE_URL`. The
+ * suite signs in and reads rows back with the dashboard's Supabase keys,
+ * though, so the dashboard's project has to be the one that label is about.
  */
 export function assertDevelopmentDatabase() {
-  const environment = readEnvFile("api").DATABASE_ENVIRONMENT;
+  const api = readEnvFile("api");
+  const target = describeTarget(api.DATABASE_URL, api as NodeJS.ProcessEnv);
+  const dashboardProject = new URL(
+    readEnvFile("dashboard").NEXT_PUBLIC_SUPABASE_URL ?? "http://unset",
+  ).hostname.split(".")[0];
 
-  if (environment !== "development") {
+  if (target.environment !== "development") {
     throw new Error(
-      `Smoke tests only run against a development database; apps/api/.env has DATABASE_ENVIRONMENT=${environment ?? "(unset)"}`,
+      `Smoke tests only run against a development database; apps/api/.env declares ${target.environment}`,
+    );
+  }
+
+  if (!target.project || target.project !== dashboardProject) {
+    throw new Error(
+      `apps/dashboard/.env's Supabase project (${dashboardProject}) is not the development database apps/api/.env points at (${target.project ?? "none"})`,
     );
   }
 }
