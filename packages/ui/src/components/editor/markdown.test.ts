@@ -250,6 +250,27 @@ describe("markdown written by the assistant", () => {
     );
   });
 
+  test("a table inside a list or a quote keeps its place", () => {
+    for (const markdown of [
+      "- Phases\n\n  | A | B |\n  | --- | --- |\n  | 1 | 2 |",
+      "> | A | B |\n> | --- | --- |\n> | 1 | 2 |",
+    ]) {
+      const doc = markdownToEditorDoc(markdown);
+      expect(editorDocToMarkdown(doc)).toEqual({ markdown, exact: true });
+    }
+  });
+
+  // What the editor cannot nest would be saved as something else — an empty
+  // line before the heading, the bold taken off the code — and the block
+  // could then not be written again. Said now, it can be written simpler.
+  test("that the editor cannot hold as written is refused, not saved as something else", () => {
+    for (const markdown of ["- # Heading in a list", "**bold `code` bold**"]) {
+      expect(() => markdownToEditorDoc(markdown)).toThrow(
+        /write it more simply/,
+      );
+    }
+  });
+
   test("with nothing in it is an empty paragraph, as an empty editor saves", () => {
     expect(markdownToEditorDoc("")).toEqual(
       saved({ type: "doc", content: [{ type: "paragraph" }] }),

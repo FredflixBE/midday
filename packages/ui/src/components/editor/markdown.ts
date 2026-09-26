@@ -212,7 +212,12 @@ const serializer: MarkdownSerializer = new MarkdownSerializer(
               : "---",
       );
       const [head = [], ...body] = rows;
-      state.write([line(head), line(rule), ...body.map(line)].join("\n"));
+      // A line at a time, so each takes the prefix of whatever holds the
+      // table: a list item's indent, a quote's `>`.
+      for (const cells of [head, rule, ...body]) {
+        state.write(line(cells));
+        state.ensureNewLine();
+      }
       state.closeBlock(node);
     },
     // Neither has a markdown form that comes back as itself; both are
@@ -257,7 +262,9 @@ export function editorDocToMarkdown(doc: JSONContent): {
   exact: boolean;
 } {
   const node = editorSchema.nodeFromJSON(doc);
-  const markdown = serializer.serialize(node, { tightLists: true });
+  const markdown = serializer
+    .serialize(node, { tightLists: true })
+    .replace(/\n+$/, "");
 
   let exact = false;
   try {
@@ -288,5 +295,15 @@ export function markdownToEditorDoc(markdown: string): JSONContent {
     );
   }
 
-  return doc.toJSON();
+  // What the editor cannot nest as written — a heading or a table first in
+  // a list item, code inside bold — is saved as something close to it, and
+  // then reads back as markdown that is not the text. Refused here, so all
+  // that is written can be read and written again.
+  const json = doc.toJSON();
+  if (!editorDocToMarkdown(json).exact) {
+    throw new MarkdownInputError(
+      "This markdown nests what the text cannot hold as written, such as a heading inside a list or code inside bold; write it more simply",
+    );
+  }
+  return json;
 }
