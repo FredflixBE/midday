@@ -84,7 +84,9 @@ export function Field({
 }) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
-      <Label className="text-[12px] font-normal text-[#606060]">{label}</Label>
+      <Label className="text-[12px] font-normal text-muted-foreground">
+        {label}
+      </Label>
       {children}
     </div>
   );

@@ -77,7 +77,7 @@ export const columns: ColumnDef<TeamMember>[] = [
               <span className="font-medium text-sm">
                 {row.original.user?.fullName}
               </span>
-              <span className="text-sm text-[#606060]">
+              <span className="text-sm text-muted-foreground">
                 {row.original.user?.email}
               </span>
             </div>
@@ -164,7 +164,7 @@ function MemberActionsCell({ row, table }: CellContext<TeamMember, unknown>) {
             </SelectContent>
           </Select>
         ) : (
-          <span className="text-sm text-[#606060]">
+          <span className="text-sm text-muted-foreground">
             {t(`roles.${row.original.role || "member"}`)}
           </span>
         )}

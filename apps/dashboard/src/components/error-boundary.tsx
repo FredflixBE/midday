@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<
 
       // Default minimal error fallback
       return (
-        <div className="text-xs text-[#707070] dark:text-[#666666] p-2">
+        <div className="text-xs text-muted-foreground p-2">
           Error loading content
         </div>
       );

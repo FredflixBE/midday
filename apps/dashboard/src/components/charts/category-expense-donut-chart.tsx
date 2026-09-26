@@ -28,20 +28,16 @@ const donutTooltipFormatter = ({
   if (active && payload?.length) {
     const data = payload[0].payload;
     return (
-      <div className="border p-2 text-[10px] bg-white dark:bg-[#0c0c0c] border-[#e6e6e6] dark:border-[#1d1d1d] text-black dark:text-white shadow-xs">
-        <p className="mb-1 text-[#707070] dark:text-[#666666]">
-          {data.category}
-        </p>
-        <p className="text-black dark:text-white">
+      <div className="border p-2 text-[10px] bg-background border-border text-foreground shadow-xs">
+        <p className="mb-1 text-muted-foreground">{data.category}</p>
+        <p className="text-foreground">
           {formatAmount({
             amount: data.amount,
             currency,
             locale,
           })}
         </p>
-        <p className="text-[#707070] dark:text-[#666666]">
-          {data.percentage.toFixed(1)}%
-        </p>
+        <p className="text-muted-foreground">{data.percentage.toFixed(1)}%</p>
       </div>
     );
   }

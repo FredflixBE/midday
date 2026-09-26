@@ -303,10 +303,10 @@ export function TransactionDetails() {
                 <TransactionBankAccount
                   name={data?.account?.name ?? undefined}
                   logoUrl={data.account.connection.logoUrl}
-                  className="text-[#606060] text-xs"
+                  className="text-muted-foreground text-xs"
                 />
               )}
-              <span className="text-[#606060] text-xs select-text">
+              <span className="text-muted-foreground text-xs select-text">
                 {data?.date && format(parseISO(data.date), "MMM d, y")}
               </span>
             </div>
@@ -327,7 +327,7 @@ export function TransactionDetails() {
                 <span
                   className={cn(
                     "text-4xl select-text font-serif",
-                    data?.amount > 0 && "text-[#00C969]",
+                    data?.amount > 0 && "text-success",
                   )}
                 >
                   <FormatAmount
@@ -338,7 +338,7 @@ export function TransactionDetails() {
               )}
               <div className="h-3">
                 {data?.taxAmount && data.taxAmount > 0 ? (
-                  <span className="text-[#606060] text-xs select-text">
+                  <span className="text-muted-foreground text-xs select-text">
                     {data.taxType && `${getTaxTypeLabel(data.taxType)} `}
                     <FormatAmount
                       amount={data.taxAmount}
@@ -354,7 +354,7 @@ export function TransactionDetails() {
       </div>
 
       {data?.description && (
-        <div className="border dark:bg-[#1A1A1A]/95 px-4 py-3 text-sm text-popover-foreground select-text">
+        <div className="border dark:bg-card/95 px-4 py-3 text-sm text-popover-foreground select-text">
           {data.description}
         </div>
       )}

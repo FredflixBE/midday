@@ -180,14 +180,18 @@ export function PortalContent({ portalId }: Props) {
             {customer.name}
           </h1>
           {customer.team.name && (
-            <p className="text-sm text-[#606060] mt-1">{customer.team.name}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {customer.team.name}
+            </p>
           )}
         </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
           <div className="bg-background border border-border px-4 py-3">
-            <div className="text-[12px] text-[#606060] mb-2">Total Amount</div>
+            <div className="text-[12px] text-muted-foreground mb-2">
+              Total Amount
+            </div>
             <div className="text-[18px] font-medium">
               {formatAmount({
                 amount: summary.totalAmount,
@@ -196,7 +200,7 @@ export function PortalContent({ portalId }: Props) {
             </div>
           </div>
           <div className="bg-background border border-border px-4 py-3">
-            <div className="text-[12px] text-[#606060] mb-2">Paid</div>
+            <div className="text-[12px] text-muted-foreground mb-2">Paid</div>
             <div className="text-[18px] font-medium">
               {formatAmount({
                 amount: summary.paidAmount,
@@ -205,7 +209,9 @@ export function PortalContent({ portalId }: Props) {
             </div>
           </div>
           <div className="bg-background border border-border px-4 py-3">
-            <div className="text-[12px] text-[#606060] mb-2">Outstanding</div>
+            <div className="text-[12px] text-muted-foreground mb-2">
+              Outstanding
+            </div>
             <div className="text-[18px] font-medium">
               {formatAmount({
                 amount: summary.outstandingAmount,
@@ -214,7 +220,9 @@ export function PortalContent({ portalId }: Props) {
             </div>
           </div>
           <div className="bg-background border border-border px-4 py-3">
-            <div className="text-[12px] text-[#606060] mb-2">Invoices</div>
+            <div className="text-[12px] text-muted-foreground mb-2">
+              Invoices
+            </div>
             <div className="text-[18px] font-medium">
               {summary.invoiceCount}
             </div>
@@ -230,7 +238,7 @@ export function PortalContent({ portalId }: Props) {
         {invoices.length > 0 ? (
           <div className="bg-background border border-border overflow-hidden">
             {/* Table Header */}
-            <div className="grid grid-cols-[32px_minmax(80px,1.2fr)_minmax(70px,1fr)_minmax(70px,1fr)_minmax(70px,1fr)_minmax(60px,0.8fr)_32px] gap-2 px-3 py-3 bg-muted/50 border-b border-border text-[12px] font-medium text-[#606060] items-center">
+            <div className="grid grid-cols-[32px_minmax(80px,1.2fr)_minmax(70px,1fr)_minmax(70px,1fr)_minmax(70px,1fr)_minmax(60px,0.8fr)_32px] gap-2 px-3 py-3 bg-muted/50 border-b border-border text-[12px] font-medium text-muted-foreground items-center">
               <div className="flex items-center justify-center">
                 <Checkbox
                   checked={
@@ -270,7 +278,7 @@ export function PortalContent({ portalId }: Props) {
                   >
                     {invoice.invoiceNumber || "-"}
                   </Link>
-                  <div className="text-[12px] text-[#606060]">
+                  <div className="text-[12px] text-muted-foreground">
                     {invoice.issueDate
                       ? format(
                           new TZDate(invoice.issueDate, "UTC"),
@@ -278,7 +286,7 @@ export function PortalContent({ portalId }: Props) {
                         )
                       : "-"}
                   </div>
-                  <div className="text-[12px] text-[#606060]">
+                  <div className="text-[12px] text-muted-foreground">
                     {invoice.dueDate
                       ? format(
                           new TZDate(invoice.dueDate, "UTC"),
@@ -340,7 +348,7 @@ export function PortalContent({ portalId }: Props) {
           </div>
         ) : (
           <div className="bg-background border border-border py-16 text-center">
-            <p className="text-[#606060]">No invoices yet</p>
+            <p className="text-muted-foreground">No invoices yet</p>
           </div>
         )}
 
@@ -349,7 +357,7 @@ export function PortalContent({ portalId }: Props) {
           <div className="mt-6">
             <Button
               variant="outline"
-              className="w-full text-xs text-[#606060] bg-background"
+              className="w-full text-xs text-muted-foreground bg-background"
               onClick={() => fetchNextPage()}
               disabled={isFetchingNextPage}
             >
@@ -372,9 +380,9 @@ export function PortalContent({ portalId }: Props) {
           href="https://midday.ai?utm_source=customer-portal"
           target="_blank"
           rel="noreferrer"
-          className="text-[9px] text-[#878787]"
+          className="text-[9px] text-muted-foreground"
         >
-          Powered by <span className="text-primary">midday</span>
+          Powered by <span className="text-foreground">midday</span>
         </a>
       </div>
 

@@ -43,7 +43,7 @@ function getToolIcon(toolName: string, size: number): ReactNode {
 }
 
 const boxClassName =
-  "inline-flex items-center gap-1.5 border bg-white border-[#e6e6e6] dark:border-[#1d1d1d] dark:bg-[#0c0c0c] px-2 py-1 text-[11px] leading-none text-muted-foreground/60";
+  "inline-flex items-center gap-1.5 border bg-background border-border px-2 py-1 text-[11px] leading-none text-muted-foreground/60";
 
 const iconClassName = "text-muted-foreground/40";
 
@@ -70,8 +70,8 @@ export function ToolCallGroup({ parts }: { parts: NormalizedToolPart[] }) {
 
     return (
       <Collapsible open={open} onOpenChange={setOpen}>
-        <div className="inline-flex flex-col border bg-white border-[#e6e6e6] dark:border-[#1d1d1d] dark:bg-[#0c0c0c] overflow-hidden">
-          <CollapsibleTrigger className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] leading-none text-muted-foreground/60 cursor-pointer hover:bg-[#f7f7f7] dark:hover:bg-[#0f0f0f] hover:text-foreground transition-all duration-300">
+        <div className="inline-flex flex-col border bg-background border-border overflow-hidden">
+          <CollapsibleTrigger className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] leading-none text-muted-foreground/60 cursor-pointer hover:bg-accent hover:text-foreground transition-all duration-300">
             <Icons.Check
               size={ICON_SIZE}
               className={cn(iconClassName, open && "hidden")}
@@ -91,7 +91,7 @@ export function ToolCallGroup({ parts }: { parts: NormalizedToolPart[] }) {
             {visible.map((p) => (
               <div
                 key={p.toolCallId}
-                className="flex items-center gap-1.5 px-2 py-1 text-[11px] leading-none text-muted-foreground/60 border-t border-[#e6e6e6] dark:border-[#1d1d1d]"
+                className="flex items-center gap-1.5 px-2 py-1 text-[11px] leading-none text-muted-foreground/60 border-t border-border"
               >
                 <span className={cn("shrink-0", iconClassName)}>
                   {getToolIcon(p.toolName, ICON_SIZE)}

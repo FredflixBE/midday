@@ -432,7 +432,7 @@ export function ImportModal() {
 
                         <button
                           type="button"
-                          className="text-sm mb-4 text-[#878787]"
+                          className="text-sm mb-4 text-muted-foreground"
                           onClick={() => {
                             setPageNumber(0);
                             reset();

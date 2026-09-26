@@ -65,7 +65,7 @@ function ConnectionState({
   if (connection.status === "disconnected") {
     return (
       <>
-        <div className="text-xs font-normal flex items-center space-x-1 text-[#c33839]">
+        <div className="text-xs font-normal flex items-center space-x-1 text-destructive">
           <Icons.AlertCircle />
           <span>Connection issue</span>
         </div>
@@ -84,7 +84,7 @@ function ConnectionState({
   if (show && !expired) {
     return (
       <>
-        <div className="text-xs font-normal flex items-center space-x-1 text-[#FFD02B]">
+        <div className="text-xs font-normal flex items-center space-x-1 text-warning">
           <Icons.AlertCircle />
           <span>Connection expires soon</span>
         </div>
@@ -106,7 +106,7 @@ function ConnectionState({
 
   if (expired) {
     return (
-      <div className="text-xs font-normal flex items-center space-x-1 text-[#c33839]">
+      <div className="text-xs font-normal flex items-center space-x-1 text-destructive">
         <Icons.Error />
         <span>Connection expired</span>
       </div>

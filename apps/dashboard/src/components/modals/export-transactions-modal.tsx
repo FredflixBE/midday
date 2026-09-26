@@ -240,7 +240,7 @@ export function ExportTransactionsModal({
                           <FormLabel className="text-sm font-normal">
                             CSV
                           </FormLabel>
-                          <p className="text-xs text-[#878787]">
+                          <p className="text-xs text-muted-foreground">
                             Export as comma-separated values
                           </p>
                         </div>
@@ -266,7 +266,7 @@ export function ExportTransactionsModal({
                           className="border-0"
                         >
                           <AccordionTrigger className="py-3 px-4 hover:no-underline hover:bg-accent/50">
-                            <span className="text-sm text-[#878787]">
+                            <span className="text-sm text-muted-foreground">
                               CSV Settings
                             </span>
                           </AccordionTrigger>
@@ -336,7 +336,7 @@ export function ExportTransactionsModal({
                           <FormLabel className="text-sm font-normal">
                             Excel (XLSX)
                           </FormLabel>
-                          <p className="text-xs text-[#878787]">
+                          <p className="text-xs text-muted-foreground">
                             Export as Excel spreadsheet
                           </p>
                         </div>
@@ -365,7 +365,7 @@ export function ExportTransactionsModal({
                           <FormLabel className="text-sm font-normal">
                             Send via email
                           </FormLabel>
-                          <p className="text-xs text-[#878787]">
+                          <p className="text-xs text-muted-foreground">
                             Email the export to your accountant
                           </p>
                         </div>

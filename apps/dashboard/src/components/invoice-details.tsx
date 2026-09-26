@@ -129,14 +129,14 @@ export function InvoiceDetails() {
 
           <div className="h-3 space-x-2">
             {vat !== 0 && vat != null && currency && (
-              <span className="text-[#606060] text-xs select-text">
+              <span className="text-muted-foreground text-xs select-text">
                 {template?.vatLabel}{" "}
                 <FormatAmount amount={vat} currency={currency} />
               </span>
             )}
 
             {tax !== 0 && tax != null && currency && (
-              <span className="text-[#606060] text-xs select-text">
+              <span className="text-muted-foreground text-xs select-text">
                 {template?.taxLabel}{" "}
                 <FormatAmount amount={tax} currency={currency} />
               </span>
@@ -169,7 +169,7 @@ export function InvoiceDetails() {
               Canceled on {updatedAt && format(new Date(updatedAt), "MMM dd")}
             </span>
             <span className="text-xs">
-              <span className="text-[#606060]">Marked as canceled</span>
+              <span className="text-muted-foreground">Marked as canceled</span>
             </span>
           </div>
         )}
@@ -184,7 +184,7 @@ export function InvoiceDetails() {
 
         <div className="mt-6 flex flex-col space-y-4 border-t border-border pt-6">
           <div className="flex justify-between items-center">
-            <span className="text-sm text-[#606060]">Due date</span>
+            <span className="text-sm text-muted-foreground">Due date</span>
             <span className="text-sm">
               <span>
                 {dueDate && format(new TZDate(dueDate, "UTC"), "MMM dd")}
@@ -192,7 +192,7 @@ export function InvoiceDetails() {
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-sm text-[#606060]">Issue date</span>
+            <span className="text-sm text-muted-foreground">Issue date</span>
             <span className="text-sm">
               <span>
                 {issueDate && format(new TZDate(issueDate, "UTC"), "MMM dd")}
@@ -202,7 +202,9 @@ export function InvoiceDetails() {
 
           {scheduledAt && status === "scheduled" && (
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[#606060]">Scheduled at</span>
+              <span className="text-sm text-muted-foreground">
+                Scheduled at
+              </span>
               <span className="text-sm">
                 <span>
                   {format(
@@ -216,7 +218,7 @@ export function InvoiceDetails() {
 
           {sentAt && (
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[#606060]">Sent at</span>
+              <span className="text-sm text-muted-foreground">Sent at</span>
               <span className="text-sm">
                 <span>{sentAt && format(new Date(sentAt), "MMM dd")}</span>
               </span>
@@ -225,20 +227,20 @@ export function InvoiceDetails() {
 
           {sentTo && (
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[#606060]">Sent to</span>
+              <span className="text-sm text-muted-foreground">Sent to</span>
               <span className="text-sm">{sentTo}</span>
             </div>
           )}
 
           <div className="flex justify-between items-center">
-            <span className="text-sm text-[#606060]">Invoice no.</span>
+            <span className="text-sm text-muted-foreground">Invoice no.</span>
             <span className="text-sm">
               <span>{invoiceNumber}</span>
             </span>
           </div>
 
           <div className="flex justify-between items-center">
-            <span className="text-sm text-[#606060]">Type</span>
+            <span className="text-sm text-muted-foreground">Type</span>
             <span className="text-sm">
               {invoiceRecurringId && recurring ? (
                 <span>
@@ -258,7 +260,7 @@ export function InvoiceDetails() {
 
           {status === "paid" && (
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[#606060]">Payment</span>
+              <span className="text-sm text-muted-foreground">Payment</span>
               <span className="text-sm flex items-center gap-1.5">
                 {paymentIntentId ? (
                   <svg
@@ -282,7 +284,7 @@ export function InvoiceDetails() {
 
           {refundedAt && (
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[#606060]">Refunded</span>
+              <span className="text-sm text-muted-foreground">Refunded</span>
               <span className="text-sm">
                 {format(new Date(refundedAt), "MMM dd")}
               </span>
@@ -296,13 +298,11 @@ export function InvoiceDetails() {
               <span className="text-sm font-medium">Recurring Series</span>
               <span
                 className={cn("text-xs px-2 py-0.5 rounded-full", {
-                  "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400":
-                    recurring.status === "active",
-                  "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400":
-                    recurring.status === "paused",
-                  "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400":
+                  "bg-success/10 text-success": recurring.status === "active",
+                  "bg-warning/10 text-warning": recurring.status === "paused",
+                  "bg-muted text-muted-foreground":
                     recurring.status === "completed",
-                  "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400":
+                  "bg-destructive/10 text-destructive":
                     recurring.status === "canceled",
                 })}
               >
@@ -415,7 +415,7 @@ export function InvoiceDetails() {
 
         {customer && (
           <div className="mt-6 flex flex-col space-y-2 border-t border-border pt-6">
-            <span className="text-sm text-[#606060]">Invoice link</span>
+            <span className="text-sm text-muted-foreground">Invoice link</span>
             <div className="flex w-full gap-2">
               <div className="flex-1 min-w-0 relative">
                 <CopyInput value={`${getUrl()}/i/${token}`} className="pr-14" />

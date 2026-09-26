@@ -87,11 +87,15 @@ export function TransactionStatus({
   hasPendingSuggestion,
 }: Props) {
   if (rawStatus === "archived") {
-    return <span className="cursor-default text-[#878787]">Archived</span>;
+    return (
+      <span className="cursor-default text-muted-foreground">Archived</span>
+    );
   }
 
   if (rawStatus === "excluded") {
-    return <span className="cursor-default text-[#878787]">Excluded</span>;
+    return (
+      <span className="cursor-default text-muted-foreground">Excluded</span>
+    );
   }
 
   if (hasExportError && !isExported) {
@@ -186,5 +190,7 @@ export function TransactionStatus({
     );
   }
 
-  return <span className="cursor-default text-[#878787]">No receipt</span>;
+  return (
+    <span className="cursor-default text-muted-foreground">No receipt</span>
+  );
 }

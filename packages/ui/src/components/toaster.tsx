@@ -41,10 +41,10 @@ export function Toaster() {
                           )}
                           {props?.variant === "success" && <Icons.Check />}
                           {props?.variant === "error" && (
-                            <Icons.Error className="text-[#FF3638]" />
+                            <Icons.Error className="text-destructive" />
                           )}
                           {props?.variant === "info" && (
-                            <Icons.AlertCircle className="text-[#878787]" />
+                            <Icons.AlertCircle className="text-muted-foreground" />
                           )}
                           {props?.variant === "progress" && (
                             <Spinner className="h-4 w-4 animate-spin" />
@@ -59,7 +59,7 @@ export function Toaster() {
 
                     <div>
                       {props?.variant === "progress" && (
-                        <span className="text-sm text-[#878787]">
+                        <span className="text-sm text-muted-foreground">
                           {progress}%
                         </span>
                       )}

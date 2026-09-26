@@ -27,7 +27,7 @@ export function TotalEarnings({ selectedView, billableHoursData }: Props) {
           <HoverCardTrigger asChild>
             <button
               type="button"
-              className="text-sm text-[#666] cursor-pointer"
+              className="text-sm text-muted-foreground cursor-pointer"
             >
               <span className="font-mono">
                 <FormatAmount

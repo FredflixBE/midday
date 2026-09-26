@@ -13,7 +13,9 @@ export function NoResults() {
         <Icons.Transactions2 className="mb-4" />
         <div className="text-center mb-6 space-y-2">
           <h2 className="font-medium text-lg">No results</h2>
-          <p className="text-[#606060] text-sm">Try another search term</p>
+          <p className="text-muted-foreground text-sm">
+            Try another search term
+          </p>
         </div>
 
         <Button
@@ -34,7 +36,7 @@ export function InboxConnectedEmpty() {
         <Icons.Inbox2 className="mb-4" />
         <div className="text-center mb-6 space-y-2">
           <h2 className="font-medium text-lg">No results</h2>
-          <p className="text-[#606060] text-sm">
+          <p className="text-muted-foreground text-sm">
             We'll automatically check for new
             <br />
             receipts several times per day
@@ -52,7 +54,7 @@ export function InboxOtherEmpty() {
         <Icons.Inbox2 className="mb-4" />
         <div className="text-center mb-6 space-y-2">
           <h2 className="font-medium text-lg">No other documents</h2>
-          <p className="text-[#606060] text-sm">
+          <p className="text-muted-foreground text-sm">
             Non-financial documents from your
             <br />
             connected accounts will appear here

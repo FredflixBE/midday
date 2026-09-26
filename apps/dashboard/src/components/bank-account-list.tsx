@@ -12,7 +12,7 @@ function EmptyState() {
       <div className="flex flex-col items-center mt-24">
         <div className="text-center mb-6 space-y-2">
           <h2 className="font-medium text-lg">No bank accounts</h2>
-          <p className="text-[#606060] text-sm">
+          <p className="text-muted-foreground text-sm">
             Connect your bank account to automatically <br />
             import transactions and track your finances.
           </p>

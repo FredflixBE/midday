@@ -69,7 +69,7 @@ export function LoadingTransactionsEvent({
           Something went wrong
         </h2>
 
-        <p className="text-sm text-[#878787] mb-8">
+        <p className="text-sm text-muted-foreground mb-8">
           We couldn't set up your account. This can happen if the bank
           connection timed out or there was a temporary issue. Please try again.
         </p>
@@ -89,7 +89,7 @@ export function LoadingTransactionsEvent({
           <div className="flex justify-center mt-4">
             <button
               type="button"
-              className="text-xs text-[#878787]"
+              className="text-xs text-muted-foreground"
               onClick={() => setActiveTab("support")}
             >
               Need support
@@ -119,13 +119,13 @@ export function LoadingTransactionsEvent({
         Setting up account
       </h2>
 
-      <p className="text-sm text-[#878787] mb-8">
+      <p className="text-sm text-muted-foreground mb-8">
         Depending on the bank it can take up to 1 hour to fetch all
         transactions, feel free to close this window and we will notify you when
         it is done.
       </p>
 
-      <ul className="text-md text-[#878787] space-y-4 transition-all">
+      <ul className="text-md text-muted-foreground space-y-4 transition-all">
         <li
           className={cn(
             "opacity-50 dark:opacity-20",
@@ -163,7 +163,7 @@ export function LoadingTransactionsEvent({
         <div className="flex justify-center mt-4">
           <button
             type="button"
-            className="text-xs text-[#878787]"
+            className="text-xs text-muted-foreground"
             onClick={() => setActiveTab("support")}
           >
             Need support

@@ -43,7 +43,7 @@ export function TimeRangeInput({
   return (
     <div className="flex items-center w-full border border-border px-4 py-2">
       <div className="flex items-center space-x-2 flex-1">
-        <Icons.Time className="w-5 h-5 text-[#878787]" />
+        <Icons.Time className="w-5 h-5 text-muted-foreground" />
         <input
           type="time"
           value={startTime}
@@ -55,7 +55,7 @@ export function TimeRangeInput({
         />
       </div>
       <div className="flex items-center justify-center shrink-0 mx-4">
-        <Icons.ArrowRightAlt className="w-5 h-5 text-[#878787]" />
+        <Icons.ArrowRightAlt className="w-5 h-5 text-muted-foreground" />
       </div>
       <div className="flex items-center space-x-2 flex-1 justify-end">
         <input
@@ -67,7 +67,7 @@ export function TimeRangeInput({
           }}
           className="bg-transparent focus:outline-hidden text-sm"
         />
-        <span className="text-[#878787] text-sm">{duration}</span>
+        <span className="text-muted-foreground text-sm">{duration}</span>
       </div>
     </div>
   );

@@ -193,7 +193,7 @@ export function BankAccount({ data, provider }: Props) {
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">
           <p className="font-medium text-sm">{name}</p>
-          <span className="text-xs text-[#878787] capitalize">
+          <span className="text-xs text-muted-foreground capitalize">
             {type ? t(`account_type.${type}`) : t("account_type.depository")}
           </span>
         </div>
@@ -313,7 +313,7 @@ export function BankAccount({ data, provider }: Props) {
           <>
             <div className="flex items-baseline gap-2">
               {isCreditAccount && (
-                <span className="text-xs text-[#878787]">Owed</span>
+                <span className="text-xs text-muted-foreground">Owed</span>
               )}
               <span className="text-lg font-medium">
                 <FormatAmount amount={balance} currency={currency} />
@@ -321,7 +321,7 @@ export function BankAccount({ data, provider }: Props) {
             </div>
             {isCreditAccount &&
               (availableBalance !== null || creditLimit !== null) && (
-                <div className="flex items-center gap-2 text-xs text-[#878787]">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {availableBalance !== null && (
                     <span>
                       Available:{" "}
@@ -353,7 +353,7 @@ export function BankAccount({ data, provider }: Props) {
             {/* UK Sort Code */}
             {sortCode && (
               <div className="flex items-center justify-between">
-                <span className="text-[#878787]">Sort Code</span>
+                <span className="text-muted-foreground">Sort Code</span>
                 <div className="flex items-center gap-1">
                   <span className="font-mono text-xs">{sortCode}</span>
                   <CopyButton value={sortCode} label="Sort code" />
@@ -364,7 +364,7 @@ export function BankAccount({ data, provider }: Props) {
             {/* EU Account Details - IBAN */}
             {isEUAccount && (bic || details?.iban) && (
               <div className="flex items-center justify-between">
-                <span className="text-[#878787]">IBAN</span>
+                <span className="text-muted-foreground">IBAN</span>
                 <div className="flex items-center gap-1">
                   {isLoadingDetails ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -377,7 +377,7 @@ export function BankAccount({ data, provider }: Props) {
                       <CopyButton value={details.iban} label="IBAN" />
                     </>
                   ) : (
-                    <span className="text-xs text-[#878787]">—</span>
+                    <span className="text-xs text-muted-foreground">—</span>
                   )}
                   <Button
                     variant="ghost"
@@ -398,7 +398,7 @@ export function BankAccount({ data, provider }: Props) {
             {/* EU Account Details - BIC */}
             {bic && (
               <div className="flex items-center justify-between">
-                <span className="text-[#878787]">BIC</span>
+                <span className="text-muted-foreground">BIC</span>
                 <div className="flex items-center gap-1">
                   <span className="font-mono text-xs">{bic}</span>
                   <CopyButton value={bic} label="BIC" />

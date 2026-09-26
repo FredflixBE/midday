@@ -192,7 +192,7 @@ export function CreateTeamStep({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-primary font-normal">
+                  <FormLabel className="text-xs text-foreground font-normal">
                     Company name
                   </FormLabel>
                   <FormControl>
@@ -217,7 +217,7 @@ export function CreateTeamStep({
               name="countryCode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-primary font-normal">
+                  <FormLabel className="text-xs text-foreground font-normal">
                     Country
                   </FormLabel>
                   <FormControl className="w-full">
@@ -242,7 +242,7 @@ export function CreateTeamStep({
                   name="baseCurrency"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-primary font-normal">
+                      <FormLabel className="text-xs text-foreground font-normal">
                         Base currency
                       </FormLabel>
                       <FormControl>
@@ -262,7 +262,7 @@ export function CreateTeamStep({
                   name="fiscalYearStartMonth"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-primary font-normal">
+                      <FormLabel className="text-xs text-foreground font-normal">
                         Fiscal year starts
                       </FormLabel>
                       <FormControl>
@@ -293,7 +293,7 @@ export function CreateTeamStep({
                 name="companyType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs text-primary font-normal">
+                    <FormLabel className="text-xs text-foreground font-normal">
                       What best describes you?
                     </FormLabel>
                     <FormControl>
@@ -313,7 +313,7 @@ export function CreateTeamStep({
                 name="heardAbout"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs text-primary font-normal">
+                    <FormLabel className="text-xs text-foreground font-normal">
                       How did you hear about us?
                     </FormLabel>
                     <FormControl>

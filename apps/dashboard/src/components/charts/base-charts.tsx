@@ -96,14 +96,14 @@ export function StyledTooltip({
   if (active && payload?.length) {
     return (
       <div
-        className="p-2 text-[10px] font-sans border bg-white dark:bg-[#0c0c0c] border-gray-200 dark:border-[#1d1d1d] text-black dark:text-white"
+        className="p-2 text-[10px] font-sans border bg-popover border-border text-foreground"
         style={{
           borderRadius: "0px",
           fontFamily: commonChartConfig.fontFamily,
           boxShadow: "0 2px 6px rgba(0, 0, 0, 0.1)",
         }}
       >
-        <p className="mb-1 text-gray-500 dark:text-[#666666]">{label}</p>
+        <p className="mb-1 text-muted-foreground">{label}</p>
         {payload.map((entry, index) => {
           const value = typeof entry.value === "number" ? entry.value : 0;
           const [formattedValue, name] = formatter
@@ -111,10 +111,7 @@ export function StyledTooltip({
             : [`${value.toLocaleString()}`, entry.dataKey];
 
           return (
-            <p
-              key={`${entry.dataKey}-${index}`}
-              className="text-black dark:text-white"
-            >
+            <p key={`${entry.dataKey}-${index}`} className="text-foreground">
               {name}: {formattedValue}
             </p>
           );
@@ -143,7 +140,7 @@ export function ChartLegend({
       className={`flex items-center ${title ? "justify-between" : "justify-end"} mb-4`}
     >
       {title && (
-        <h4 className="text-[18px] font-normal font-serif text-black dark:text-white">
+        <h4 className="text-[18px] font-normal font-serif text-foreground">
           {title}
         </h4>
       )}
@@ -165,7 +162,7 @@ export function ChartLegend({
                 borderRadius: "0",
               }}
             />
-            <span className="text-[12px] text-gray-500 dark:text-[#666666]">
+            <span className="text-[12px] text-muted-foreground">
               {item.label}
             </span>
           </div>

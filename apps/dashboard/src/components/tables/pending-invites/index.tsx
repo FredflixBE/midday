@@ -70,7 +70,7 @@ export function DataTable() {
                 <h2 className="font-medium mb-1">
                   No Pending Invitations Found
                 </h2>
-                <span className="text-[#606060]">
+                <span className="text-muted-foreground">
                   Use the button above to invite a Team Member.
                 </span>
               </TableCell>

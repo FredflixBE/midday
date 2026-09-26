@@ -23,7 +23,7 @@ export function RuleLabel({
   return (
     <span>
       {RULE_FIELD_LABELS[field]}{" "}
-      <span className="font-mono text-primary">{value}</span>
+      <span className="font-mono text-foreground">{value}</span>
     </span>
   );
 }

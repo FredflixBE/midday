@@ -36,7 +36,7 @@ export function TrackerCalendarType({ selectedView }: Props) {
       onValueChange={handleChange}
       className="h-[36px]"
     >
-      <div className="relative flex items-stretch bg-[#f7f7f7] dark:bg-[#131313] w-fit">
+      <div className="relative flex items-stretch bg-muted w-fit">
         <TabsList className="flex items-stretch h-auto p-0 bg-transparent h-[36px]">
           {options.map((option) => (
             <TabsTrigger
@@ -44,8 +44,8 @@ export function TrackerCalendarType({ selectedView }: Props) {
               value={option.value}
               className={cn(
                 "group relative flex items-center gap-1.5 px-2 py-1.5 text-[14px] transition-all whitespace-nowrap border border-transparent h-[36px] min-h-[36px]",
-                "text-[#707070] hover:text-black bg-[#f7f7f7] dark:text-[#666666] dark:hover:text-white dark:bg-[#131313] mb-0 relative z-[1]",
-                "data-[state=active]:text-black data-[state=active]:bg-[#e6e6e6] dark:data-[state=active]:text-white dark:data-[state=active]:bg-[#1d1d1d] data-[state=active]:mb-[-1px] data-[state=active]:z-10",
+                "text-muted-foreground hover:text-foreground bg-muted mb-0 relative z-[1]",
+                "data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=active]:mb-[-1px] data-[state=active]:z-10",
               )}
             >
               {option.label}

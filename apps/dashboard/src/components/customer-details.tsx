@@ -416,7 +416,7 @@ export function CustomerDetails() {
                 <Skeleton className="h-[13px] w-4/5" />
               </div>
             ) : customer.description ? (
-              <p className="text-[13px] text-[#606060] line-clamp-2">
+              <p className="text-[13px] text-muted-foreground line-clamp-2">
                 {customer.description}
               </p>
             ) : null}
@@ -467,7 +467,7 @@ export function CustomerDetails() {
                 <div className="grid grid-cols-2 gap-4 pt-0">
                   {customer.contact && (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Contact person
                       </div>
                       <div className="text-[14px]">{customer.contact}</div>
@@ -475,7 +475,7 @@ export function CustomerDetails() {
                   )}
                   {customer.email && (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Email
                       </div>
                       <div className="text-[14px]">{customer.email}</div>
@@ -483,7 +483,7 @@ export function CustomerDetails() {
                   )}
                   {customer.billingEmail && (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Billing Email
                       </div>
                       <div className="text-[14px]">{customer.billingEmail}</div>
@@ -491,7 +491,7 @@ export function CustomerDetails() {
                   )}
                   {customer.phone && (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Phone
                       </div>
                       <div className="text-[14px]">{customer.phone}</div>
@@ -499,7 +499,7 @@ export function CustomerDetails() {
                   )}
                   {customer.website && (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Website
                       </div>
                       <div className="text-[14px]">{customer.website}</div>
@@ -560,7 +560,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Industry
                           </div>
                           <div className="text-[14px]">{customer.industry}</div>
@@ -577,7 +577,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Company Type
                           </div>
                           <div className="text-[14px]">
@@ -596,7 +596,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Employees
                           </div>
                           <div className="text-[14px]">
@@ -615,7 +615,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Founded
                           </div>
                           <div className="text-[14px]">
@@ -634,7 +634,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Est. Revenue
                           </div>
                           <div className="text-[14px]">
@@ -653,7 +653,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Funding
                           </div>
                           <div className="text-[14px]">
@@ -674,7 +674,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Headquarters
                           </div>
                           <div className="text-[14px]">
@@ -693,7 +693,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             CEO / Founder
                           </div>
                           <div className="text-[14px]">{customer.ceoName}</div>
@@ -711,7 +711,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Finance Contact
                           </div>
                           <div className="text-[14px]">
@@ -721,7 +721,7 @@ export function CustomerDetails() {
                             {customer.financeContactEmail && (
                               <a
                                 href={`mailto:${customer.financeContactEmail}`}
-                                className="hover:text-[#606060] transition-colors"
+                                className="hover:text-muted-foreground transition-colors"
                               >
                                 {customer.financeContactEmail}
                               </a>
@@ -740,7 +740,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Language
                           </div>
                           <div className="text-[14px]">
@@ -759,7 +759,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Fiscal Year End
                           </div>
                           <div className="text-[14px]">
@@ -787,12 +787,12 @@ export function CustomerDetails() {
                                 },
                               }}
                             >
-                              <div className="text-[12px] mb-2 text-[#606060]">
+                              <div className="text-[12px] mb-2 text-muted-foreground">
                                 Local Time
                               </div>
                               <div className="text-[14px] flex items-center gap-1.5">
                                 <span>{tz.localTime}</span>
-                                <span className="text-[#878787]">
+                                <span className="text-muted-foreground">
                                   ({tz.relative})
                                 </span>
                               </div>
@@ -816,7 +816,7 @@ export function CustomerDetails() {
                             },
                           }}
                         >
-                          <div className="text-[12px] mb-2 text-[#606060]">
+                          <div className="text-[12px] mb-2 text-muted-foreground">
                             Links
                           </div>
                           <div className="flex items-center gap-3">
@@ -880,7 +880,7 @@ export function CustomerDetails() {
 
                       {customer.enrichmentStatus === "failed" && (
                         <motion.div
-                          className="col-span-2 text-[14px] text-[#606060]"
+                          className="col-span-2 text-[14px] text-muted-foreground"
                           variants={{
                             hidden: { opacity: 0 },
                             visible: { opacity: 1 },
@@ -913,7 +913,7 @@ export function CustomerDetails() {
                 <div className="grid grid-cols-2 gap-4 pt-0">
                   {customer.addressLine1 ? (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Address
                       </div>
                       <div className="text-[14px]">
@@ -923,105 +923,105 @@ export function CustomerDetails() {
                     </div>
                   ) : (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Address
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                   {customer.city ? (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         City
                       </div>
                       <div className="text-[14px]">{customer.city}</div>
                     </div>
                   ) : (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         City
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                   {customer.state ? (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         State
                       </div>
                       <div className="text-[14px]">{customer.state}</div>
                     </div>
                   ) : (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         State
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                   {customer.zip ? (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         ZIP Code
                       </div>
                       <div className="text-[14px]">{customer.zip}</div>
                     </div>
                   ) : (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         ZIP Code
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                   {customer.country ? (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Country
                       </div>
                       <div className="text-[14px]">{customer.country}</div>
                     </div>
                   ) : (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Country
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                   {customer.vatNumber ? (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         VAT Number
                       </div>
                       <div className="text-[14px]">{customer.vatNumber}</div>
                     </div>
                   ) : (
                     <div>
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         VAT Number
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                   {customer.note ? (
                     <div className="col-span-2">
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Note
                       </div>
                       <div className="text-[14px]">{customer.note}</div>
                     </div>
                   ) : (
                     <div className="col-span-2">
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Note
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                   {customer.tags && customer.tags.length > 0 ? (
                     <div className="col-span-2">
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Tags
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -1042,10 +1042,10 @@ export function CustomerDetails() {
                     </div>
                   ) : (
                     <div className="col-span-2">
-                      <div className="text-[12px] mb-2 text-[#606060]">
+                      <div className="text-[12px] mb-2 text-muted-foreground">
                         Tags
                       </div>
-                      <div className="text-[14px] text-[#606060]">-</div>
+                      <div className="text-[14px] text-muted-foreground">-</div>
                     </div>
                   )}
                 </div>
@@ -1068,7 +1068,7 @@ export function CustomerDetails() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-[16px] font-medium">Customer Portal</h3>
-                <p className="text-[12px] text-[#606060] mt-1">
+                <p className="text-[12px] text-muted-foreground mt-1">
                   Allow this customer to view their invoices
                 </p>
               </div>
@@ -1131,7 +1131,7 @@ export function CustomerDetails() {
                 {/* Summary Stats */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div className="border border-border px-4 py-3">
-                    <div className="text-[12px] text-[#606060] mb-2">
+                    <div className="text-[12px] text-muted-foreground mb-2">
                       Total Amount
                     </div>
                     <div className="text-[18px] font-medium">
@@ -1146,7 +1146,9 @@ export function CustomerDetails() {
                     </div>
                   </div>
                   <div className="border border-border px-4 py-3">
-                    <div className="text-[12px] text-[#606060] mb-2">Paid</div>
+                    <div className="text-[12px] text-muted-foreground mb-2">
+                      Paid
+                    </div>
                     <div className="text-[18px] font-medium">
                       {summary?.currency ? (
                         <FormatAmount
@@ -1159,7 +1161,7 @@ export function CustomerDetails() {
                     </div>
                   </div>
                   <div className="border border-border px-4 py-3">
-                    <div className="text-[12px] text-[#606060] mb-2">
+                    <div className="text-[12px] text-muted-foreground mb-2">
                       Outstanding
                     </div>
                     <div className="text-[18px] font-medium">
@@ -1174,7 +1176,7 @@ export function CustomerDetails() {
                     </div>
                   </div>
                   <div className="border border-border px-4 py-3">
-                    <div className="text-[12px] text-[#606060] mb-2">
+                    <div className="text-[12px] text-muted-foreground mb-2">
                       Invoices
                     </div>
                     <div className="text-[18px] font-medium">
@@ -1189,23 +1191,23 @@ export function CustomerDetails() {
                     <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow>
-                          <TableHead className="text-[12px] font-medium text-[#606060]">
+                          <TableHead className="text-[12px] font-medium text-muted-foreground">
                             Invoice
                           </TableHead>
-                          <TableHead className="text-[12px] font-medium text-[#606060]">
+                          <TableHead className="text-[12px] font-medium text-muted-foreground">
                             Date
                           </TableHead>
-                          <TableHead className="text-[12px] font-medium text-[#606060]">
+                          <TableHead className="text-[12px] font-medium text-muted-foreground">
                             Due Date
                           </TableHead>
-                          <TableHead className="text-[12px] font-medium text-[#606060]">
+                          <TableHead className="text-[12px] font-medium text-muted-foreground">
                             Amount
                           </TableHead>
-                          <TableHead className="text-[12px] font-medium text-[#606060]">
+                          <TableHead className="text-[12px] font-medium text-muted-foreground">
                             Status
                           </TableHead>
                           <TableHead
-                            className="text-[12px] font-medium text-[#606060] text-center w-[60px]"
+                            className="text-[12px] font-medium text-muted-foreground text-center w-[60px]"
                             data-hide-in-pdf="true"
                           >
                             Actions
@@ -1271,7 +1273,7 @@ export function CustomerDetails() {
                                 <DropdownMenuTrigger asChild>
                                   <button
                                     type="button"
-                                    className="text-[#606060] hover:text-foreground transition-colors"
+                                    className="text-muted-foreground hover:text-foreground transition-colors"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                     }}
@@ -1310,7 +1312,7 @@ export function CustomerDetails() {
                     <div className="flex flex-col items-center">
                       <div className="text-center mb-6 space-y-2">
                         <h2 className="font-medium text-sm">No invoices</h2>
-                        <p className="text-[#606060] text-xs">
+                        <p className="text-muted-foreground text-xs">
                           This customer doesn't have any invoices yet. <br />
                           Create your first invoice for them.
                         </p>

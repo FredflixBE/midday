@@ -42,6 +42,10 @@
     /* Midday: the preset has no foreground for destructive fills, and the
        Radix button, badge and toast still set one. */
     --destructive-foreground: oklch(0.985 0 0);
+    /* Midday: status colours next to --destructive (FF-1775), which the
+       preset lacks. Midday's own green (#00c969) and yellow (#ffd02b). */
+    --success: oklch(0.732 0.191 152.352);
+    --warning: oklch(0.874 0.17 91.129);
     --border: oklch(0.92 0.004 286.32);
     --input: oklch(0.92 0.004 286.32);
     --ring: oklch(0.705 0.015 286.067);
@@ -94,6 +98,8 @@
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --destructive-foreground: oklch(1 0 0);
+    --success: oklch(0.732 0.191 152.352);
+    --warning: oklch(0.874 0.17 91.129);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.552 0.016 285.938);
@@ -146,6 +152,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

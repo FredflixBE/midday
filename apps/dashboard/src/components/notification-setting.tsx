@@ -106,14 +106,14 @@ export function NotificationSetting({
         {/* Left side - Name and Description */}
         <div className="flex-1 pr-8">
           <Label className="text-sm font-medium">{name}</Label>
-          <p className="text-sm text-[#606060] mt-1">{description}</p>
+          <p className="text-sm text-muted-foreground mt-1">{description}</p>
         </div>
 
         <div className="flex gap-8 items-center">
           {/* In-App Checkbox */}
           {getSettingByChannel("in_app") && (
             <div className="flex flex-col items-center space-y-2">
-              <Label className="text-xs font-medium text-[#606060]">
+              <Label className="text-xs font-medium text-muted-foreground">
                 In-app
               </Label>
               <Checkbox
@@ -126,7 +126,7 @@ export function NotificationSetting({
 
           {getSettingByChannel("email") && (
             <div className="flex flex-col items-center space-y-2">
-              <Label className="text-xs font-medium text-[#606060]">
+              <Label className="text-xs font-medium text-muted-foreground">
                 Email
               </Label>
               <Checkbox
@@ -139,7 +139,9 @@ export function NotificationSetting({
 
           {getSettingByChannel("push") && (
             <div className="flex flex-col items-center space-y-2">
-              <Label className="text-xs font-medium text-[#606060]">Push</Label>
+              <Label className="text-xs font-medium text-muted-foreground">
+                Push
+              </Label>
               <Checkbox
                 id={`${type}-push`}
                 checked={getSettingByChannel("push")?.enabled ?? false}

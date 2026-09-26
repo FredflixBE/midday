@@ -199,7 +199,7 @@ export function AddBankAccountsModal({
         <div className="p-4">
           <DialogHeader>
             <DialogTitle>Add Accounts</DialogTitle>
-            <p className="text-sm text-[#878787] mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Select new accounts to add to this connection.
             </p>
           </DialogHeader>
@@ -208,14 +208,14 @@ export function AddBankAccountsModal({
             {isLoading && <RowsSkeleton />}
 
             {isError && (
-              <p className="text-sm text-[#878787] text-center py-8">
+              <p className="text-sm text-muted-foreground text-center py-8">
                 Failed to load accounts from bank provider. Please try
                 reconnecting.
               </p>
             )}
 
             {providerData && newAccounts.length === 0 && (
-              <p className="text-sm text-[#878787] text-center py-8">
+              <p className="text-sm text-muted-foreground text-center py-8">
                 All accounts are already added.
               </p>
             )}
@@ -238,7 +238,7 @@ export function AddBankAccountsModal({
                       </p>
                     </div>
                     <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs text-[#878787]">
+                      <span className="text-xs text-muted-foreground">
                         {/* @ts-ignore */}
                         {account.type
                           ? t(`account_type.${account.type}`)

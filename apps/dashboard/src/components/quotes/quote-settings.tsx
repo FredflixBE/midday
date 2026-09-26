@@ -65,7 +65,10 @@ export function QuoteSettings() {
         </CardHeader>
         <CardContent className="grid grid-cols-3 gap-4">
           <div className="space-y-2 text-sm">
-            <label htmlFor="quote-number-prefix" className="text-[#606060]">
+            <label
+              htmlFor="quote-number-prefix"
+              className="text-muted-foreground"
+            >
               Number prefix
             </label>
             <Input
@@ -76,7 +79,7 @@ export function QuoteSettings() {
             />
           </div>
           <div className="space-y-2 text-sm">
-            <label htmlFor="quote-valid-days" className="text-[#606060]">
+            <label htmlFor="quote-valid-days" className="text-muted-foreground">
               Valid for (days)
             </label>
             <CurrencyInput
@@ -89,7 +92,10 @@ export function QuoteSettings() {
             />
           </div>
           <div className="space-y-2 text-sm">
-            <label htmlFor="quote-hours-per-day" className="text-[#606060]">
+            <label
+              htmlFor="quote-hours-per-day"
+              className="text-muted-foreground"
+            >
               Hours per day
             </label>
             <CurrencyInput

@@ -33,7 +33,7 @@ export function TaxInput() {
           updateTemplate({ taxRate: currentValue });
         }
       }}
-      className="p-0 border-0 h-6 text-xs !bg-transparent shrink-0 w-16 text-[11px] text-[#878787]"
+      className="p-0 border-0 h-6 text-xs !bg-transparent shrink-0 w-16 text-[11px] text-muted-foreground"
       thousandSeparator={false}
       decimalScale={2}
       isAllowed={(values) => {

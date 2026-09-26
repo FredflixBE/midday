@@ -15,7 +15,7 @@ export function TrackerStatus({ status }: Props) {
     <div className="flex items-center space-x-4">
       <div
         className={cn(
-          "w-[6px] h-[6px] rounded-full bg-[#FFD02B]",
+          "w-[6px] h-[6px] rounded-full bg-warning",
           status === "completed" && "bg-primary",
         )}
       />

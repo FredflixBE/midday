@@ -76,7 +76,7 @@ export function InboxStatus({ item }: Props) {
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex space-x-1 items-center p-1 text-[#878787] text-[10px] px-1.5 py-0.5 cursor-default border">
+            <div className="flex space-x-1 items-center p-1 text-muted-foreground text-[10px] px-1.5 py-0.5 cursor-default border">
               <Spinner size={14} className="stroke-primary" />
               <span>Analyzing</span>
             </div>
@@ -98,7 +98,7 @@ export function InboxStatus({ item }: Props) {
         <Tooltip>
           <TooltipTrigger asChild>
             <div className="flex space-x-1.5 items-center px-1.5 py-0.5 text-[10px] cursor-default border">
-              <div className="w-1.5 h-1.5 bg-[#FFD02B] rounded-full" />
+              <div className="w-1.5 h-1.5 bg-warning rounded-full" />
               <span>Suggested match</span>
             </div>
           </TooltipTrigger>
@@ -127,7 +127,7 @@ export function InboxStatus({ item }: Props) {
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="p-1 text-[10px] px-1.5 py-0.5 cursor-default inline-block border text-[#878787]">
+            <div className="p-1 text-[10px] px-1.5 py-0.5 cursor-default inline-block border text-muted-foreground">
               <span>No charge</span>
             </div>
           </TooltipTrigger>
@@ -200,7 +200,7 @@ export function InboxStatus({ item }: Props) {
       <TooltipProvider delayDuration={0}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex space-x-1.5 items-center px-1.5 py-0.5 text-[10px] cursor-default border text-[#878787]">
+            <div className="flex space-x-1.5 items-center px-1.5 py-0.5 text-[10px] cursor-default border text-muted-foreground">
               <span>Filed</span>
             </div>
           </TooltipTrigger>

@@ -46,7 +46,7 @@ export function ScopeSelector({
             key={resource.key}
           >
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-medium text-[#878787]">
+              <span className="text-sm font-medium text-muted-foreground">
                 {resource.name}
               </span>
             </div>
@@ -75,7 +75,7 @@ export function ScopeSelector({
                     />
                     <label
                       htmlFor={`${resource.key}-${scope.type}`}
-                      className="text-sm font-normal capitalize text-[#878787]"
+                      className="text-sm font-normal capitalize text-muted-foreground"
                     >
                       {scope.label}
                     </label>

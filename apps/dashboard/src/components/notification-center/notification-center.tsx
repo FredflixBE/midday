@@ -44,7 +44,7 @@ export function NotificationCenter() {
           className="rounded-full w-8 h-8 flex items-center relative"
         >
           {hasUnseenNotifications && (
-            <div className="w-1.5 h-1.5 bg-[#FFD02B] rounded-full absolute top-0 right-0" />
+            <div className="w-1.5 h-1.5 bg-warning rounded-full absolute top-0 right-0" />
           )}
           <Icons.Notifications size={16} />
         </Button>

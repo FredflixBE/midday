@@ -248,7 +248,9 @@ export function BulkActions({ ids }: Props) {
                     </DropdownMenuCheckboxItem>
                   ))
                 ) : (
-                  <p className="text-sm text-[#878787] px-2">No tags found</p>
+                  <p className="text-sm text-muted-foreground px-2">
+                    No tags found
+                  </p>
                 )}
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
