@@ -1,11 +1,11 @@
 import type pino from "pino";
-import { createBaseLogger } from "./base";
+import { createBaseLogger } from "./base.js";
 import {
   betterStackConfig,
   betterStackStream,
   createBetterStackClient,
   flushWithin,
-} from "./better-stack";
+} from "./better-stack.js";
 
 /**
  * Better Stack receives every line too when its source token and ingesting

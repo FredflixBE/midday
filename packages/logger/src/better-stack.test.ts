@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { gunzipSync } from "node:zlib";
-import { createBaseLogger } from "./base";
+import { createBaseLogger } from "./base.js";
 import {
   type BetterStackClient,
   betterStackConfig,
   betterStackStream,
   createBetterStackClient,
   flushWithin,
-} from "./better-stack";
+} from "./better-stack.js";
 
 function captureStream() {
   const lines: Record<string, unknown>[] = [];
