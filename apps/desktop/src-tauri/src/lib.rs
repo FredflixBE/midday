@@ -182,10 +182,12 @@ async fn create_preloaded_search_window(
         search_window_label,
         WebviewUrl::External(tauri::Url::parse(&search_url)?),
     )
-    .title("Midday Search")
+    .title(format!("{} Search", app.package_info().name))
     .inner_size(720.0, 450.0)
     .min_inner_size(720.0, 450.0)
     .resizable(false)
+    // The dashboard recognises the desktop app by this user agent
+    // (utils/desktop.ts), so it keeps the old name: installed copies send it.
     .user_agent("Mozilla/5.0 (compatible; Midday Desktop App)")
     .transparent(true)
     .decorations(false)
@@ -490,7 +492,7 @@ pub fn run() {
                 "main",
                 WebviewUrl::External(start_url),
             )
-            .title("Midday")
+            .title(&app.package_info().name)
             .inner_size(MAIN_WINDOW_SIZE.0, MAIN_WINDOW_SIZE.1)
             .min_inner_size(MAIN_WINDOW_MIN_SIZE.0, MAIN_WINDOW_MIN_SIZE.1)
             .user_agent("Mozilla/5.0 (compatible; Midday Desktop App)")
@@ -603,7 +605,7 @@ pub fn run() {
             // Don't preload search window immediately - create it on first use instead
             // This prevents interference with the login flow
 
-            // Set the default app menu to restore the Midday menu. macOS only: on
+            // Set the default app menu, named after the product. macOS only: on
             // Windows and Linux an app menu becomes a menu bar inside every window.
             #[cfg(target_os = "macos")]
             {
@@ -621,10 +623,12 @@ pub fn run() {
                 Image::new_owned(rgba.into_raw(), width, height)
             };
 
-            // Create tray menu. "Open Midday" is the way back to a closed (hidden)
+            // Create tray menu. "Open HQ" is the way back to a closed (hidden)
             // main window where there is no Dock icon to click, as on Windows.
+            // Labels use the product name, so a dev build says "Open HQ Dev".
             // The version line is how anyone can tell an update has landed.
-            let open_item = MenuItem::with_id(app, "open", "Open Midday", true, None::<&str>)?;
+            let name = app.package_info().name.clone();
+            let open_item = MenuItem::with_id(app, "open", format!("Open {name}"), true, None::<&str>)?;
             let update_item =
                 MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?;
             let version_item = MenuItem::with_id(
@@ -635,7 +639,7 @@ pub fn run() {
                 None::<&str>,
             )?;
             let separator = PredefinedMenuItem::separator(app)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit Midday", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", format!("Quit {name}"), true, None::<&str>)?;
             let tray_menu = Menu::with_items(
                 app,
                 &[&open_item, &update_item, &version_item, &separator, &quit_item],
@@ -824,6 +828,18 @@ mod tests {
             json!(["https://github.com/FredflixBE/midday/releases/latest/download/latest.json"])
         );
         assert!(!updater["pubkey"].as_str().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn the_app_is_called_hq_and_keeps_its_identity() {
+        let config = parse_json(include_str!("../tauri.conf.json"));
+        assert_eq!(config["productName"], "HQ");
+        // Renaming must not move the identifier: the sign-in and window state
+        // installed copies keep are filed under it.
+        assert_eq!(config["identifier"], "be.fredflix.hq");
+        let dev = parse_json(include_str!("../tauri.dev.conf.json"));
+        assert_eq!(dev["productName"], "HQ Dev");
+        assert_eq!(dev["identifier"], "be.fredflix.hq.dev");
     }
 
     #[test]

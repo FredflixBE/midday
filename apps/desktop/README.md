@@ -1,4 +1,4 @@
-# Midday Desktop App
+# HQ Desktop App
 
 A Tauri shell around the web dashboard: the window loads the dashboard URL, and the
 Rust side adds a tray icon, a global shortcut with a search window, deep links and
@@ -86,7 +86,7 @@ The deep-link scheme is `hq` (`hq-dev` for the dev config). The dashboard's
 ## Development
 
 ```bash
-# Loads http://localhost:3001 as "Midday Dev" (be.fredflix.hq.dev) with the hq-dev scheme
+# Loads http://localhost:3001 as "HQ Dev" (be.fredflix.hq.dev) with the hq-dev scheme
 bun run tauri:dev
 ```
 
