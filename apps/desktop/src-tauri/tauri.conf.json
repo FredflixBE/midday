@@ -34,6 +34,15 @@
       "desktop": {
         "schemes": ["hq"]
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk0Mjg3Q0QyNjcxMTk3NUUKUldSZWx4Rm4wbndvbEYwRUVwVDZpcXRINzBkdGRSMnhyNWhFdFVYTlpBaU0vQ0xiMDk0TmM1WlkK",
+      "endpoints": [
+        "https://github.com/FredflixBE/midday/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

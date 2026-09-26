@@ -20,6 +20,9 @@
       "desktop": {
         "schemes": ["hq-dev"]
       }
+    },
+    "updater": {
+      "endpoints": []
     }
   }
 }

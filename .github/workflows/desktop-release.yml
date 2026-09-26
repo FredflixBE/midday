@@ -12,8 +12,17 @@
 # Windows compile error shows up: nobody here builds on Windows by hand.
 #
 # Each release is tagged desktop-v<version> and carries a universal macOS .dmg
-# and a Windows NSIS -setup.exe. Neither is signed yet (FF-1691); the release
-# notes say how to open them anyway.
+# and a Windows NSIS -setup.exe. Neither is code-signed yet (FF-1691); the
+# release notes say how to open them anyway.
+#
+# It also carries what installed copies update from (FF-1695): the macOS
+# .app.tar.gz, a .sig for it and for the -setup.exe, and latest.json, which the
+# app reads from releases/latest/download/latest.json. That URL only finds it
+# while desktop releases are the only releases in this repository: publish
+# anything else as latest and every installed copy stops seeing updates.
+# The .sig files are made with the updater key (TAURI_SIGNING_PRIVATE_KEY and
+# its password, repository secrets). Lose that key and installed copies can
+# never update again; they only accept what it signed.
 name: Desktop release
 
 on:
@@ -138,9 +147,11 @@ jobs:
         include:
           - name: macOS
             runner: macos-latest
-            # One .dmg for Apple Silicon and Intel.
+            # One .dmg for Apple Silicon and Intel. The app bundle is listed too:
+            # without it there is no .app.tar.gz, which is what the updater
+            # installs on macOS.
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            args: --target universal-apple-darwin --bundles dmg
+            args: --target universal-apple-darwin --bundles app,dmg
           - name: Windows
             runner: windows-latest
             rust-targets: ""
@@ -162,18 +173,28 @@ jobs:
       - name: Stamp the version
         shell: bash
         run: |
-          echo '{ "version": "${{ needs.version.outputs.version }}" }' > apps/desktop/src-tauri/tauri.release.conf.json
+          # createUpdaterArtifacts is on here rather than in tauri.conf.json, so a
+          # local `tauri build` does not need the updater's private key.
+          echo '{ "version": "${{ needs.version.outputs.version }}", "bundle": { "createUpdaterArtifacts": true } }' > apps/desktop/src-tauri/tauri.release.conf.json
 
       - name: Build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Signs the update files. A fork's pull request gets no secrets, and
+          # its build fails here: it cannot sign.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
           tauriScript: bun run tauri
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
           # Empty when nothing is released: the build then uploads nothing.
           releaseId: ${{ needs.draft.outputs.release-id }}
+          # The publish job writes latest.json once both builds are in. Each
+          # build writing its own would race, and the loser's platform would be
+          # missing from it.
+          includeUpdaterJson: false
 
       - name: Keep the installer
         if: needs.draft.result == 'skipped'
@@ -183,6 +204,9 @@ jobs:
           path: |
             apps/desktop/src-tauri/target/**/release/bundle/dmg/*.dmg
             apps/desktop/src-tauri/target/**/release/bundle/nsis/*-setup.exe
+            apps/desktop/src-tauri/target/**/release/bundle/nsis/*-setup.exe.sig
+            apps/desktop/src-tauri/target/**/release/bundle/macos/*.app.tar.gz
+            apps/desktop/src-tauri/target/**/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
           retention-days: 7
 
@@ -195,18 +219,76 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Check both installers are attached, then publish
+      - name: Check every file is attached, write latest.json, then publish
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ID: ${{ needs.draft.outputs.release-id }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          assets=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets" --jq '.[].name')
-          echo "$assets"
-          echo "$assets" | grep -q '\.dmg$' || { echo "::error title=No .dmg::The draft release has no macOS installer."; exit 1; }
-          echo "$assets" | grep -q -- '-setup\.exe$' || { echo "::error title=No .exe::The draft release has no Windows installer."; exit 1; }
-          # make_latest keeps github.com/FredflixBE/midday/releases/latest
-          # pointing at the newest desktop build.
-          gh api "repos/${{ github.repository }}/releases/$RELEASE_ID" -X PATCH \
+          repo="${{ github.repository }}"
+          # One array, however many pages the listing takes.
+          gh api "repos/$repo/releases/$RELEASE_ID/assets" --paginate --jq '.[]' | jq -s . > assets.json
+          jq -r '.[].name' assets.json
+
+          # One asset whose name ends with $1, or fail naming what is missing.
+          one() {
+            name=$(jq -r --arg end "$1" '[.[] | select(.name | endswith($end))][0].name // empty' assets.json)
+            if [ -z "$name" ]; then
+              echo "::error title=No $1::The draft release has no $2." >&2
+              exit 1
+            fi
+            echo "$name"
+          }
+          # The text of a .sig asset, which is what latest.json carries.
+          signature() {
+            id=$(jq -r --arg name "$1" '.[] | select(.name == $name) | .id' assets.json)
+            gh api "repos/$repo/releases/assets/$id" -H "Accept: application/octet-stream"
+          }
+          # Where the asset lives once the release is published and tagged.
+          url() {
+            printf 'https://github.com/%s/releases/download/desktop-v%s/%s' "$repo" "$VERSION" "$(jq -rn --arg n "$1" '$n|@uri')"
+          }
+
+          one .dmg "macOS installer" > /dev/null
+          exe=$(one -setup.exe "Windows installer")
+          app=$(one .app.tar.gz "macOS update")
+          one -setup.exe.sig "signature for the Windows update" > /dev/null
+          one .app.tar.gz.sig "signature for the macOS update" > /dev/null
+
+          # Read into variables first: a failing command inside jq's arguments
+          # would not stop the step, and latest.json would ship an empty
+          # signature that every installed copy rejects.
+          mac_sig=$(signature "$app.sig")
+          win_sig=$(signature "$exe.sig")
+          if [ -z "$mac_sig" ] || [ -z "$win_sig" ]; then
+            echo "::error title=Empty signature::A .sig asset came back empty." >&2
+            exit 1
+          fi
+
+          # One universal .app.tar.gz serves both Mac architectures; the
+          # Windows update is the NSIS installer itself.
+          jq -n \
+            --arg version "$VERSION" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg mac_url "$(url "$app")" --arg mac_sig "$mac_sig" \
+            --arg win_url "$(url "$exe")" --arg win_sig "$win_sig" \
+            '{
+              version: $version,
+              notes: "HQ desktop \($version)",
+              pub_date: $date,
+              platforms: {
+                "darwin-aarch64": { url: $mac_url, signature: $mac_sig },
+                "darwin-x86_64": { url: $mac_url, signature: $mac_sig },
+                "windows-x86_64": { url: $win_url, signature: $win_sig }
+              }
+            }' > latest.json
+          cat latest.json
+          gh api "https://uploads.github.com/repos/$repo/releases/$RELEASE_ID/assets?name=latest.json" \
+            -X POST -H "Content-Type: application/json" --input latest.json --jq .name
+
+          # make_latest keeps releases/latest, and so latest.json, pointing at
+          # the newest desktop build.
+          gh api "repos/$repo/releases/$RELEASE_ID" -X PATCH \
             -F draft=false \
             -f make_latest=true \
             --jq .html_url
