@@ -3,6 +3,8 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"],
+      // Where the shadcn CLI writes: components.json's aliases resolve
+      // through these (FF-1774). Imports go through the package exports.
       "@midday/ui": ["./src/components"],
       "@midday/ui/cn": ["./src/utils/cn.ts"],
       "@midday/ui/hooks": ["./src/hooks"],
