@@ -1,12 +1,20 @@
 "use client";
 
 import type { AppRouter } from "@midday/api/trpc/routers/_app";
+import { isDesktopApp } from "@midday/desktop-client/platform";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { useCallback, useMemo } from "react";
+import { getNotificationDescription } from "@/components/notification-center/notification-descriptions";
 import { useRealtime } from "@/hooks/use-realtime";
 import { useUserQuery } from "@/hooks/use-user";
+import { useI18n } from "@/locales/client";
 import { useTRPC } from "@/trpc/client";
+import {
+  desktopNotificationsEnabled,
+  showOnDesktop,
+} from "@/utils/desktop-notifications";
+import { notificationPath } from "@/utils/notification-path";
 
 // Infer types from tRPC router
 type RouterOutputs = inferRouterOutputs<AppRouter>;
@@ -39,6 +47,7 @@ export function useNotifications() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: user } = useUserQuery();
+  const t = useI18n();
 
   const {
     data: activitiesData,
@@ -76,6 +85,20 @@ export function useNotifications() {
         queryClient.invalidateQueries({
           queryKey: trpc.notifications.list.queryKey(),
         });
+
+        // In the desktop app, with the switch on. The shell shows it only
+        // while the window is not in use: in the tray, minimized, or behind
+        // another app.
+        if (isDesktopApp() && desktopNotificationsEnabled()) {
+          const metadata = newRecord.metadata ?? {};
+          const text = getNotificationDescription(
+            newRecord.type,
+            metadata,
+            user,
+            t,
+          );
+          showOnDesktop(text, notificationPath(newRecord.type, metadata));
+        }
       }
     },
   });

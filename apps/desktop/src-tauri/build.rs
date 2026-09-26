@@ -8,7 +8,7 @@ fn main() {
     // allow-<command> grant there.
     tauri_build::try_build(
         tauri_build::Attributes::new()
-            .app_manifest(tauri_build::AppManifest::new().commands(&["show_window"])),
+            .app_manifest(tauri_build::AppManifest::new().commands(&["show_window", "notify"])),
     )
     .expect("failed to run the tauri build script");
 }

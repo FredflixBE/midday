@@ -4,6 +4,21 @@ export { getCurrentWindow, Window } from "@tauri-apps/api/window";
 export { openUrl } from "@tauri-apps/plugin-opener";
 
 /**
+ * Show `text` as a native notification. Clicking it brings the window forward
+ * and opens `path` (a dashboard path such as `/inbox`), the way an hq:// link
+ * does. Handled by the shell's `notify` command, which shows nothing while the
+ * window is in use unless `evenInForeground`.
+ */
+export async function showDesktopNotification(
+  text: string,
+  path: string,
+  { evenInForeground = false }: { evenInForeground?: boolean } = {},
+) {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke("notify", { text, path, evenInForeground });
+}
+
+/**
  * Write a Blob to a user-selected location via save dialog.
  */
 export async function nativeSaveFile(blob: Blob, filename: string) {

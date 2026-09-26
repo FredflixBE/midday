@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { DesktopNotificationSettings } from "@/components/desktop-notification-settings";
 import { NotificationsSettingsList } from "@/components/notifications-settings-list";
 
 export const metadata: Metadata = {
@@ -8,8 +9,11 @@ export const metadata: Metadata = {
 
 export default async function Notifications() {
   return (
-    <Suspense>
-      <NotificationsSettingsList />
-    </Suspense>
+    <div className="space-y-12">
+      <DesktopNotificationSettings />
+      <Suspense>
+        <NotificationsSettingsList />
+      </Suspense>
+    </div>
   );
 }

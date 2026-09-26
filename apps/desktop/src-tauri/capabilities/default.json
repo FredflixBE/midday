@@ -5,6 +5,7 @@
   "windows": ["main", "search"],
   "permissions": [
     "allow-show-window",
+    "allow-notify",
     "core:window:default",
     "core:window:allow-hide",
     "core:window:allow-minimize",
