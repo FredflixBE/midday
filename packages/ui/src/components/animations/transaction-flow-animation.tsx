@@ -83,7 +83,7 @@ export function TransactionFlowAnimation({
       x: startX,
       y: topY,
       label: "Account",
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       icon: "account_balance",
     },
     {
@@ -91,7 +91,7 @@ export function TransactionFlowAnimation({
       x: startX + nodeSpacing,
       y: topY,
       label: "Account",
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       icon: "credit_card",
     },
     {
@@ -99,7 +99,7 @@ export function TransactionFlowAnimation({
       x: startX + nodeSpacing * 2,
       y: topY,
       label: "Account",
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       icon: "account_balance_wallet",
     },
     {
@@ -107,7 +107,7 @@ export function TransactionFlowAnimation({
       x: startX + nodeSpacing * 3,
       y: topY,
       label: "Account",
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       icon: "savings",
     },
   ];
@@ -334,8 +334,8 @@ export function TransactionFlowAnimation({
                   width={36}
                   height={36}
                   rx={0}
-                  fill="hsl(var(--secondary))"
-                  stroke="hsl(var(--border))"
+                  fill="var(--secondary)"
+                  stroke="var(--border)"
                   strokeWidth={1}
                   opacity={showAccounts ? 1 : 0}
                 />
@@ -357,7 +357,7 @@ export function TransactionFlowAnimation({
                   >
                     <div
                       style={{
-                        color: "hsl(var(--muted-foreground))",
+                        color: "var(--muted-foreground)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -373,7 +373,7 @@ export function TransactionFlowAnimation({
                   y={node.y - 25}
                   textAnchor="middle"
                   fontSize="9"
-                  fill="hsl(var(--muted-foreground))"
+                  fill="var(--muted-foreground)"
                   opacity={showAccounts ? 1 : 0}
                   className="hidden md:block"
                 >
@@ -393,7 +393,7 @@ export function TransactionFlowAnimation({
                 <motion.path
                   key={pathId}
                   d={pathD}
-                  stroke="hsl(var(--border))"
+                  stroke="var(--border)"
                   strokeWidth={1}
                   fill="none"
                   strokeDasharray={`${dashLength} ${gapLength}`}

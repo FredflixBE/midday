@@ -55,7 +55,7 @@ const CustomTooltip = ({
       }) ?? `${currency}${amount.toLocaleString()}`;
 
     return (
-      <div className="border p-2 text-[10px] font-hedvig-sans bg-white dark:bg-[#0c0c0c] border-[#e6e6e6] dark:border-[#1d1d1d] text-black dark:text-white shadow-xs">
+      <div className="border p-2 text-[10px] font-sans bg-white dark:bg-[#0c0c0c] border-[#e6e6e6] dark:border-[#1d1d1d] text-black dark:text-white shadow-xs">
         <p className="mb-1 text-[#707070] dark:text-[#666666]">{label}</p>
         {typeof current === "number" && (
           <p className="text-black dark:text-white">

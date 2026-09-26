@@ -142,11 +142,11 @@ export function TableSkeleton<TData>({
                       ...getStickyStyle(columnId),
                       ...(!isActions &&
                         !isStatus && {
-                          borderRight: "1px solid hsl(var(--border))",
+                          borderRight: "1px solid var(--border)",
                         }),
                       ...(isActions && {
-                        borderLeft: "1px solid hsl(var(--border))",
-                        borderTop: "1px solid hsl(var(--border))",
+                        borderLeft: "1px solid var(--border)",
+                        borderTop: "1px solid var(--border)",
                       }),
                     }}
                   >
@@ -207,8 +207,8 @@ export function TableSkeleton<TData>({
                         maxWidth,
                         ...getStickyStyle(columnId),
                         ...(isActions && {
-                          borderLeft: "1px solid hsl(var(--border))",
-                          borderBottom: "1px solid hsl(var(--border))",
+                          borderLeft: "1px solid var(--border)",
+                          borderBottom: "1px solid var(--border)",
                         }),
                       }}
                     >

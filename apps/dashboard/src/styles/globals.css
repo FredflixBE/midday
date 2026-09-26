@@ -62,8 +62,8 @@ body {
 }
 
 .skeleton-box {
-  background-color: hsl(var(--border));
-  color: hsl(var(--border));
+  background-color: var(--border);
+  color: var(--border);
   user-select: none;
   cursor: default;
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -71,9 +71,9 @@ body {
 }
 
 .skeleton-circle {
-  background-color: hsl(var(--border));
+  background-color: var(--border);
   border-radius: 1000px;
-  color: hsl(var(--border));
+  color: var(--border);
   user-select: none;
   cursor: default;
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -95,8 +95,8 @@ body {
 }
 
 .pin-field {
-  border: 1px solid hsl(var(--border));
-  background-color: hsl(var(--accent));
+  border: 1px solid var(--border);
+  background-color: var(--accent);
   border-right: none;
   font-size: 2rem;
   height: 4rem;
@@ -109,7 +109,7 @@ body {
 
 .pin-field:last-of-type {
   border-radius: 0 0.5rem 0.5rem 0;
-  border-right: 1px solid hsl(var(--border));
+  border-right: 1px solid var(--border);
 }
 
 .pin-field:focus {
@@ -165,7 +165,7 @@ html.desktop {
 
 html.desktop body {
   position: relative;
-  background: hsl(var(--background));
+  background: var(--background);
   overscroll-behavior: none;
   margin: 0;
   padding: 0;
@@ -310,7 +310,7 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 
 .desktop-search .search-container {
   border: none;
-  border-bottom: 0.5px solid hsl(var(--border));
+  border-bottom: 0.5px solid var(--border);
 }
 
 .desktop-search .search-footer {

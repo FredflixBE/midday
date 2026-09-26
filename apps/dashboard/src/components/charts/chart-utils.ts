@@ -20,7 +20,7 @@ export const chartClasses = {
 // Common chart configurations
 export const commonChartConfig = {
   margin: { top: 6, right: 20, left: 0, bottom: 6 },
-  fontFamily: "var(--font-hedvig-sans)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   animationDuration: 300,
 } as const;
@@ -133,7 +133,7 @@ export const calculateYAxisDomain = <
 // Font properties for axis labels
 export const AXIS_FONT_PROPS = {
   fontSize: 10,
-  className: "font-hedvig-sans",
+  className: "font-sans",
 };
 
 // Calculate Y-axis width based on font size and character count

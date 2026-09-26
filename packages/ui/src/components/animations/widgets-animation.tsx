@@ -218,7 +218,7 @@ export function WidgetsAnimation({
           <motion.polyline
             points="0,45 30,50 60,48 90,42 120,40 150,38 180,35 200,32"
             fill="none"
-            stroke="hsl(var(--foreground))"
+            stroke="var(--foreground)"
             strokeWidth="2"
             initial={{ pathLength: 0 }}
             animate={{ pathLength: showWidgets ? 1 : 0 }}

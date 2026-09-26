@@ -50,7 +50,7 @@ const donutTooltipFormatter = ({
 
 // Gray shades for categories (always use these, ignore color from data)
 export const grayShades = [
-  "hsl(var(--foreground))", // Foreground color - adapts to light/dark mode
+  "var(--foreground)", // Foreground color - adapts to light/dark mode
   "#707070", // Gray for second
   "#A0A0A0", // Light gray for third
   "#606060", // Dark gray for fourth
@@ -109,7 +109,7 @@ export function CategoryExpenseDonutChart({
               cy="50%"
               innerRadius={80} // Inner radius creates the donut hole
               outerRadius={120}
-              fill="hsl(var(--foreground))"
+              fill="var(--foreground)"
               dataKey="value"
               paddingAngle={1}
               stroke="none"

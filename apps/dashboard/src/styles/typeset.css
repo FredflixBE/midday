@@ -527,11 +527,11 @@
    * puts something between the container and the text.
    */
   .typeset-quote {
-    /* `--font-heading` is not a token this theme defines, and an undefined
-       one makes the whole `font-family` invalid. A quote is set in one face —
-       which is also why the mono face is left alone: the theme aliases
-       `--font-mono` to the body face on purpose, so a code block here is
-       tinted rather than monospaced, the way the rest of the app is. */
+    /* A quote is set in one face, headings included, because its PDF is
+       printed in a single face too. That is also why the mono face is left
+       alone: the theme aliases `--font-mono` to the body face on purpose,
+       so a code block here is tinted rather than monospaced, the way the
+       rest of the app is. */
     --typeset-font-heading: inherit;
 
     /* One size at every width. Upstream bumps the body 12.5% below 48rem,
