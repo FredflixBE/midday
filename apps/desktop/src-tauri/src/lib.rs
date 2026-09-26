@@ -294,6 +294,47 @@ fn deep_link_path<'a>(url: &'a str, schemes: &[String]) -> Option<&'a str> {
     Some(path.trim_start_matches('/'))
 }
 
+/// The main window's usual size, in logical pixels.
+const MAIN_WINDOW_SIZE: (f64, f64) = (1450.0, 910.0);
+
+/// How small the main window may get. Small enough for a 1366×768 Windows
+/// laptop at 125% scaling (about 1077×545 left inside the taskbar and title bar).
+const MAIN_WINDOW_MIN_SIZE: (f64, f64) = (1024.0, 540.0);
+
+/// The main window's size when it opens, given the room its screen has for the
+/// page (the work area less the window's own frame): the usual size, shrunk to
+/// fit, but never below the minimum.
+fn opening_size(available: (f64, f64)) -> (f64, f64) {
+    (
+        MAIN_WINDOW_SIZE.0.min(available.0).max(MAIN_WINDOW_MIN_SIZE.0),
+        MAIN_WINDOW_SIZE.1.min(available.1).max(MAIN_WINDOW_MIN_SIZE.1),
+    )
+}
+
+/// Shrinks a just-built, still hidden main window to fit the screen it opens on.
+fn fit_to_screen(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    let Some(monitor) = window.current_monitor()?.or(window.primary_monitor()?) else {
+        return Ok(());
+    };
+    let scale = monitor.scale_factor();
+    let work_area = monitor.work_area().size.to_logical::<f64>(scale);
+    // Whatever the window draws around the page: the title bar and borders on
+    // Windows, nothing on macOS, where the window is borderless.
+    let outer = window.outer_size()?.to_logical::<f64>(scale);
+    let inner = window.inner_size()?.to_logical::<f64>(scale);
+    let available = (
+        work_area.width - (outer.width - inner.width),
+        work_area.height - (outer.height - inner.height),
+    );
+
+    let size = opening_size(available);
+    if size != MAIN_WINDOW_SIZE {
+        window.set_size(tauri::LogicalSize::new(size.0, size.1))?;
+        window.center()?;
+    }
+    Ok(())
+}
+
 /// Brings the main window back from hidden or minimized and focuses it.
 fn bring_main_window_forward(app: &tauri::AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
@@ -445,8 +486,8 @@ pub fn run() {
                 WebviewUrl::External(start_url),
             )
             .title("Midday")
-            .inner_size(1450.0, 910.0)
-            .min_inner_size(1450.0, 910.0)
+            .inner_size(MAIN_WINDOW_SIZE.0, MAIN_WINDOW_SIZE.1)
+            .min_inner_size(MAIN_WINDOW_MIN_SIZE.0, MAIN_WINDOW_MIN_SIZE.1)
             .user_agent("Mozilla/5.0 (compatible; Midday Desktop App)")
             .visible(false)
             .shadow(true)
@@ -490,6 +531,9 @@ pub fn run() {
                 .title_bar_style(TitleBarStyle::Overlay);
 
             let window = win_builder.build().unwrap();
+            if let Err(error) = fit_to_screen(&window) {
+                eprintln!("Could not fit the main window to the screen: {}", error);
+            }
 
             // Closing the main window hides it, as the dashboard's own close button
             // does, so the tray and the global shortcut can bring it back. Destroyed,
@@ -740,6 +784,24 @@ mod tests {
             assert_eq!(dev[key], default[key], "dev.json {key} differ from default.json");
         }
         assert_eq!(dev["remote"]["urls"], json!(["http://localhost:3001/**"]));
+    }
+
+    #[test]
+    fn a_large_screen_opens_the_usual_size() {
+        assert_eq!(opening_size((2560.0, 1400.0)), MAIN_WINDOW_SIZE);
+    }
+
+    #[test]
+    fn a_small_screen_opens_a_window_that_fits_it() {
+        // A 1366×768 laptop at 100%, less the taskbar and the title bar.
+        assert_eq!(opening_size((1350.0, 681.0)), (1350.0, 681.0));
+        // The same laptop at 125%.
+        assert_eq!(opening_size((1077.0, 545.0)), (1077.0, 545.0));
+    }
+
+    #[test]
+    fn a_window_never_opens_below_its_minimum() {
+        assert_eq!(opening_size((800.0, 500.0)), MAIN_WINDOW_MIN_SIZE);
     }
 
     #[test]
