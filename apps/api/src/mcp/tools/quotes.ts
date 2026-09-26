@@ -289,7 +289,7 @@ function answerToRecord(held: StoredQuote["versions"][number], answer: Answer) {
 const quoteIdInput = z.string().uuid().describe("Quote ID");
 
 /** A refusal, said to the model in the words it can act on. */
-const refused = (text: string) => ({
+export const refused = (text: string) => ({
   content: [{ type: "text" as const, text }],
   isError: true as const,
 });
@@ -311,7 +311,7 @@ async function pricedQuote(ctx: McpContext, id: string) {
 }
 
 /** A write's answer: the quote it left behind, or why there is none. */
-async function afterWrite(
+export async function afterWrite(
   ctx: McpContext,
   written: { id: string } | null,
   missing = "Quote not found",
