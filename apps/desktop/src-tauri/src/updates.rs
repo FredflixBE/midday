@@ -170,13 +170,13 @@ mod tests {
     #[test]
     fn the_offer_names_both_versions() {
         assert_eq!(
-            offer("Midday", "0.5.12", "0.5.9", false),
-            "Midday 0.5.12 is available. You have 0.5.9."
+            offer("HQ", "0.5.12", "0.5.9", false),
+            "HQ 0.5.12 is available. You have 0.5.9."
         );
     }
 
     #[test]
     fn on_windows_the_offer_says_the_app_closes() {
-        assert!(offer("Midday", "0.5.12", "0.5.9", true).ends_with("Midday closes while the update installs."));
+        assert!(offer("HQ", "0.5.12", "0.5.9", true).ends_with("HQ closes while the update installs."));
     }
 }
