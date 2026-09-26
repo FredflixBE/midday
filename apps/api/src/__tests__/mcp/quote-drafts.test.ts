@@ -10,8 +10,9 @@ import {
 import { parseQuoteContent, type QuoteContent } from "@midday/quote";
 import { createMcpServer } from "../../mcp/server";
 import {
+  headerChanges,
   removeLine,
-  removeScenario,
+  requireScenario,
   resolveProduct,
   setRates,
   upsertLine,
@@ -21,8 +22,9 @@ import type { McpContext } from "../../mcp/types";
 import { asMock } from "../setup";
 
 const products = [
-  { id: "p-dev", name: "Development" },
-  { id: "p-design", name: "Design" },
+  { id: "p-dev", name: "Development", isActive: true },
+  { id: "p-design", name: "Design", isActive: true },
+  { id: "p-old", name: "Legacy support", isActive: false },
 ];
 
 /** Shown in days of 8 hours, one fixed scenario: a section and an item. */
@@ -77,6 +79,13 @@ describe("a product", () => {
   test("that is not there is refused with the ones that are", () => {
     expect(() => resolveProduct(products, "Hosting")).toThrow(
       'No product "Hosting". Products: Development, Design',
+    );
+  });
+
+  test("no longer offered is found by id only, as the dashboard's picker hides it", () => {
+    expect(resolveProduct(products, "p-old")).toBe("p-old");
+    expect(() => resolveProduct(products, "Legacy support")).toThrow(
+      'No product "Legacy support"',
     );
   });
 
@@ -193,11 +202,14 @@ describe("a scenario", () => {
     expect(() =>
       upsertScenario(content(), "project", { scenarioId: "s9", name: "X" }),
     ).toThrow("This draft has no scenario s9");
-    expect(() => removeScenario(content(), "s9")).toThrow(/no scenario s9/);
+    expect(() => requireScenario(content(), "s9")).toThrow(/no scenario s9/);
   });
 
-  test("removed takes its lines with it", () => {
-    expect(removeScenario(content(), "s1").scenarios).toEqual([]);
+  test("on a recurring quote cannot be stored without a period and term", () => {
+    const withoutOne = content();
+    expect(() => parseQuoteContent(withoutOne, "recurring")).toThrow(
+      "A scenario on a recurring quote needs a period and term",
+    );
   });
 });
 
@@ -288,6 +300,52 @@ describe("a line", () => {
     ).toThrow("An item line has no text");
   });
 
+  test("a new minimum above the maximum lifts the maximum; both the wrong way round is refused", () => {
+    const range = upsertScenario(content(), "project", {
+      scenarioId: "s1",
+      pricing: "range",
+    }).content;
+    const withMax = upsertLine(
+      range,
+      "project",
+      { lineId: "l1", quantityMax: 2 },
+      [],
+    ).content;
+
+    const lifted = upsertLine(
+      withMax,
+      "project",
+      { lineId: "l1", quantity: 3 },
+      [],
+    ).content;
+    expect(linesOf(lifted)[1]).toMatchObject({ hours: 24, hoursMax: 24 });
+
+    expect(() =>
+      upsertLine(
+        withMax,
+        "project",
+        { lineId: "l1", quantity: 3, quantityMax: 1 },
+        [],
+      ),
+    ).toThrow("The maximum quantity cannot be below the minimum");
+  });
+
+  test("a line waiting for its product can still have its title changed", () => {
+    const waiting = content();
+    const line = linesOf(waiting)[1] as { productId: string };
+    line.productId = "";
+    const next = upsertLine(
+      waiting,
+      "project",
+      { lineId: "l1", title: "Pages, later" },
+      [],
+    ).content;
+    expect(linesOf(next)[1]).toMatchObject({
+      title: "Pages, later",
+      productId: "",
+    });
+  });
+
   test("refuses what its scenario or quote cannot have", () => {
     expect(() =>
       upsertLine(content(), "project", { lineId: "l1", quantityMax: 3 }, []),
@@ -302,7 +360,7 @@ describe("a line", () => {
         { scenarioId: "s1", title: "No product" },
         products,
       ),
-    ).toThrow("An item line needs a product");
+    ).toThrow("A new item line needs a product");
     expect(() =>
       upsertLine(content(), "project", { title: "Where?" }, products),
     ).toThrow("A new line needs the scenario it goes in");
@@ -319,8 +377,27 @@ describe("a line", () => {
   });
 });
 
+describe("the header", () => {
+  test("keeps only what would change, so a sent quote's unchanged header is not refused", () => {
+    const stored = {
+      title: "Website",
+      customerId: "c1",
+      kind: "project" as const,
+      language: "en" as const,
+    };
+    expect(
+      headerChanges(stored, {
+        title: "Website",
+        kind: "project",
+        language: "nl",
+        customerId: undefined,
+      }),
+    ).toEqual({ language: "nl" });
+  });
+});
+
 describe("the rates", () => {
-  test("set a product's rate by name, take one away with null, and replace a tier list whole", () => {
+  test("set a product's rate by name, take one away with null, and replace a tier list whole, from a quantity in the quote's unit", () => {
     const start = content({
       rates: {
         productRates: { "p-design": 90 },
@@ -336,7 +413,7 @@ describe("the rates", () => {
           { product: "Development", hourlyRate: 110 },
           { product: "p-design", hourlyRate: null },
         ],
-        volumeTiers: [{ minHours: 80, percent: -10 }],
+        volumeTiers: [{ from: 10, percent: -10 }],
       },
       products,
     );
@@ -437,16 +514,20 @@ describe("the draft tools", () => {
     const params = asMock(updateQuoteDraft).mock.calls[0]?.[1] as {
       teamId: string;
       versionId: string;
-      content: QuoteContent;
+      content?: QuoteContent;
+      edit: (c: QuoteContent) => QuoteContent;
     };
     expect(params.teamId).toBe("test-team-id");
     expect(params.versionId).toBe("v2");
-    expect(linesOf(params.content).map((l) => l.id)).toEqual([
+    // Never the content read before: the change, made to it as it stands.
+    expect(params.content).toBeUndefined();
+    const written = params.edit(content());
+    expect(linesOf(written).map((l) => l.id)).toEqual([
       "sec",
       "l1",
       expect.any(String),
     ]);
-    expect(linesOf(params.content)[2]).toMatchObject({
+    expect(linesOf(written)[2]).toMatchObject({
       productId: "p-design",
       hours: 8,
     });
@@ -466,14 +547,15 @@ describe("the draft tools", () => {
     const params = asMock(updateQuoteDraft).mock.calls[0]?.[1] as {
       title: string;
       validUntil: string;
-      content: QuoteContent;
+      edit: (c: QuoteContent) => QuoteContent;
     };
     expect(params).toMatchObject({
       title: "Website, phase 2",
       validUntil: "2026-12-31",
     });
-    expect(params.content.displayUnit).toBe("hours");
-    expect(params.content.scenarios).toEqual(content().scenarios);
+    const written = params.edit(content());
+    expect(written.displayUnit).toBe("hours");
+    expect(written.scenarios).toEqual(content().scenarios);
   });
 
   test("leave the content alone when only the header changes", async () => {
@@ -484,7 +566,7 @@ describe("the draft tools", () => {
       unknown
     >;
     expect(params.mode).toBe("firm");
-    expect(params.content).toBeUndefined();
+    expect(params.edit).toBeUndefined();
   });
 
   test("switching a quote to recurring gives each scenario a period and term", async () => {
@@ -492,10 +574,10 @@ describe("the draft tools", () => {
 
     const params = asMock(updateQuoteDraft).mock.calls[0]?.[1] as {
       kind: string;
-      content: QuoteContent;
+      edit: (c: QuoteContent) => QuoteContent;
     };
     expect(params.kind).toBe("recurring");
-    expect(params.content.scenarios[0]!.recurrence).toMatchObject({
+    expect(params.edit(content()).scenarios[0]!.recurrence).toMatchObject({
       period: "month",
     });
   });
@@ -520,13 +602,21 @@ describe("the draft tools", () => {
   });
 
   test("an edit refused here, or by the query, comes back in its own words", async () => {
+    // The edit runs inside the query, so the mock runs it as the query does.
+    asMock(updateQuoteDraft).mockImplementation(
+      async (_db: unknown, p: { edit?: (c: QuoteContent) => QuoteContent }) => {
+        p.edit?.(content());
+        return { id: Q };
+      },
+    );
     const mine = await call("quotes_upsert_line", {
       quoteId: Q,
       lineId: "l1",
       quantityMax: 3,
     });
+    expect(mine).toMatchObject({ isError: true });
     expect(mine.content[0]!.text).toMatch(/fixed scenario has no maximum/);
-    expect(asMock(updateQuoteDraft).mock.calls).toHaveLength(0);
+    expect(asMock(getPricedQuote).mock.calls).toHaveLength(0);
 
     asMock(updateQuoteDraft).mockImplementation(() =>
       Promise.reject(new QuoteInputError("Only a draft can be edited")),
@@ -543,7 +633,7 @@ describe("the draft tools", () => {
     await call("quotes_upsert_line", { quoteId: Q, lineId: "l1", index: 0 });
     await call("quotes_set_rates", {
       quoteId: Q,
-      volumeTiers: [{ minHours: 40, percent: -5 }],
+      volumeTiers: [{ from: 5, percent: -5 }],
     });
     expect(asMock(getQuoteProducts).mock.calls).toHaveLength(0);
   });

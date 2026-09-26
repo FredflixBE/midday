@@ -1,3 +1,4 @@
+import { updateQuoteDraftSchema } from "@api/schemas/quotes";
 import {
   getQuote,
   getQuoteProducts,
@@ -13,8 +14,14 @@ import {
   newScenario,
   type QuoteContent,
   type QuoteKind,
+  quoteContentSchema,
   type Recurrence,
+  rateSettingsSchema,
+  recurrenceSchema,
+  removeScenario,
   type Scenario,
+  scenarioSchema,
+  type UnitSettings,
   unitToHours,
   withKind,
   withPricing,
@@ -27,7 +34,7 @@ import {
   WRITE_ANNOTATIONS,
 } from "../types";
 import { withErrorHandling } from "../utils";
-import { afterWrite, refused } from "./quotes";
+import { afterWrite, quoteIdInput, refused } from "./quotes";
 
 /**
  * Pricing a draft through the MCP (FF-1790): its header, its scenarios, their
@@ -35,24 +42,35 @@ import { afterWrite, refused } from "./quotes";
  *
  * A draft is stored as one `content` document whose ids tie it together: the
  * scenario an answer names, the optional lines that came along. So no tool
- * takes that document back from the model. Each one says what to change, the
- * change is made here to the draft as it is stored, and the whole goes back
- * through `updateQuoteDraft`, which checks it as it checks every save. The
+ * takes that document back from the model. Each one says what to change, and
+ * the change is handed to `updateQuoteDraft` as an edit, made to the content
+ * as it stands under the version's lock and checked as every save is. The
  * ids are made here; the model only ever names one it was given.
+ *
+ * The refusals here are about what was asked for, not what may be stored: a
+ * cap on a fixed scenario, say, is a request the dashboard cannot even make,
+ * because it only offers one where it applies. The stored rules stay in the
+ * content schema and the query.
  */
 
 type NewId = () => string;
-type Product = { id: string; name: string };
+type StoredQuote = NonNullable<Awaited<ReturnType<typeof getQuote>>>;
+type Product = { id: string; name: string; isActive?: boolean | null };
 
 const newId: NewId = () => crypto.randomUUID();
 
-/** The product a line names, by id or by its name, ignoring case. */
+/**
+ * The product a line names: by id, whatever its state, or by its name,
+ * ignoring case, among the products that can still be picked — an inactive
+ * one is hidden from the dashboard's picker too.
+ */
 export function resolveProduct(products: Product[], named: string): string {
   const byId = products.find((p) => p.id === named);
   if (byId) return byId.id;
 
+  const active = products.filter((p) => p.isActive !== false);
   const wanted = named.trim().toLowerCase();
-  const byName = products.filter((p) => p.name.toLowerCase() === wanted);
+  const byName = active.filter((p) => p.name.toLowerCase() === wanted);
   if (byName.length === 1) return byName[0]!.id;
   if (byName.length > 1) {
     throw new QuoteInputError(
@@ -60,11 +78,15 @@ export function resolveProduct(products: Product[], named: string): string {
     );
   }
 
-  const known = products.map((p) => p.name).join(", ") || "none";
+  const known = active.map((p) => p.name).join(", ") || "none";
   throw new QuoteInputError(`No product "${named}". Products: ${known}`);
 }
 
-function scenarioIn(content: QuoteContent, scenarioId: string): Scenario {
+/** The draft's scenario of this id, or a refusal naming it. */
+export function requireScenario(
+  content: QuoteContent,
+  scenarioId: string,
+): Scenario {
   const scenario = content.scenarios.find((s) => s.id === scenarioId);
   if (!scenario) {
     throw new QuoteInputError(`This draft has no scenario ${scenarioId}`);
@@ -102,7 +124,7 @@ export function upsertScenario(
   makeId: NewId = newId,
 ): { content: QuoteContent; scenarioId: string } {
   const existing = input.scenarioId
-    ? scenarioIn(content, input.scenarioId)
+    ? requireScenario(content, input.scenarioId)
     : null;
   let scenario =
     existing ??
@@ -144,17 +166,6 @@ export function upsertScenario(
     next = markRecommended(next, scenario.id, input.recommended);
   }
   return { content: next, scenarioId: scenario.id };
-}
-
-export function removeScenario(
-  content: QuoteContent,
-  scenarioId: string,
-): QuoteContent {
-  scenarioIn(content, scenarioId);
-  return {
-    ...content,
-    scenarios: content.scenarios.filter((s) => s.id !== scenarioId),
-  };
 }
 
 export type LineInput = {
@@ -207,27 +218,27 @@ function lineIn(content: QuoteContent, lineId: string) {
   throw new QuoteInputError(`This draft has no line ${lineId}`);
 }
 
+/** Where an item line sits: what decides which of its fields apply. */
+type ItemPlace = {
+  scenario: Scenario;
+  kind: QuoteKind;
+  unit: UnitSettings;
+};
+
 function editItem(
   line: ItemLine,
   input: LineInput,
-  context: {
-    scenario: Scenario;
-    kind: QuoteKind;
-    unit: QuoteContent;
-    products: Product[];
-  },
+  place: ItemPlace,
+  products: Product[],
 ): ItemLine {
   const next = { ...line };
   if (input.title !== undefined) next.title = input.title;
   if (input.description !== undefined) next.description = input.description;
   if (input.product !== undefined) {
-    next.productId = resolveProduct(context.products, input.product);
-  }
-  if (input.quantity !== undefined) {
-    next.hours = unitToHours(input.quantity, context.unit);
+    next.productId = resolveProduct(products, input.product);
   }
   if (input.quantityMax !== undefined) {
-    if (input.quantityMax !== null && context.scenario.pricing !== "range") {
+    if (input.quantityMax !== null && place.scenario.pricing !== "range") {
       throw new QuoteInputError(
         "A fixed scenario has no maximum; make the scenario a range first",
       );
@@ -235,19 +246,29 @@ function editItem(
     next.hoursMax =
       input.quantityMax === null
         ? null
-        : unitToHours(input.quantityMax, context.unit);
+        : unitToHours(input.quantityMax, place.unit);
+  }
+  if (input.quantity !== undefined) {
+    next.hours = unitToHours(input.quantity, place.unit);
+    // A new minimum above the maximum lifts the maximum with it, as the
+    // dashboard's field does. Both given the wrong way round is a mistake.
+    if (next.hoursMax !== null && next.hours > next.hoursMax) {
+      if (input.quantityMax != null) {
+        throw new QuoteInputError(
+          "The maximum quantity cannot be below the minimum",
+        );
+      }
+      next.hoursMax = next.hours;
+    }
   }
   if (input.optional !== undefined) next.optional = input.optional;
   if (input.once !== undefined) {
-    if (input.once && context.kind !== "recurring") {
+    if (input.once && place.kind !== "recurring") {
       throw new QuoteInputError(
         "Only a line on a recurring quote is charged once",
       );
     }
     next.once = input.once;
-  }
-  if (!next.productId) {
-    throw new QuoteInputError("An item line needs a product");
   }
   return next;
 }
@@ -285,8 +306,13 @@ export function upsertLine(
     if (!input.scenarioId) {
       throw new QuoteInputError("A new line needs the scenario it goes in");
     }
-    scenario = scenarioIn(content, input.scenarioId);
+    scenario = requireScenario(content, input.scenarioId);
     line = newLine(input.type ?? "item", { newId: makeId });
+    // The dashboard lets a line wait for its product; a line added here is
+    // meant to be priced now, and one without a product prices nothing.
+    if (line.type === "item" && input.product === undefined) {
+      throw new QuoteInputError("A new item line needs a product");
+    }
   }
 
   const allowed = LINE_FIELDS[line.type];
@@ -308,7 +334,7 @@ export function upsertLine(
       if (input.text !== undefined) line = { ...line, text: input.text };
       break;
     case "item":
-      line = editItem(line, input, { scenario, kind, unit: content, products });
+      line = editItem(line, input, { scenario, kind, unit: content }, products);
       break;
   }
 
@@ -337,14 +363,15 @@ export function removeLine(content: QuoteContent, lineId: string) {
 
 export type RatesInput = {
   productRates?: { product: string; hourlyRate: number | null }[];
-  volumeTiers?: QuoteContent["rates"]["volumeTiers"];
+  volumeTiers?: { from: number; percent: number }[];
   termTiers?: QuoteContent["rates"]["termTiers"];
 };
 
 /**
  * The quote's own rates: an hourly rate per product over the customer's and
  * the default, null to fall back to those again; and the volume and term
- * tiers, each list replaced whole when given.
+ * tiers, each list replaced whole when given. A volume tier starts from a
+ * quantity in the quote's unit, as the dashboard's does.
  */
 export function setRates(
   content: QuoteContent,
@@ -362,22 +389,45 @@ export function setRates(
     ...content,
     rates: {
       productRates,
-      volumeTiers: input.volumeTiers ?? content.rates.volumeTiers,
+      volumeTiers:
+        input.volumeTiers?.map((tier) => ({
+          minHours: unitToHours(tier.from, content),
+          percent: tier.percent,
+        })) ?? content.rates.volumeTiers,
       termTiers: input.termTiers ?? content.rates.termTiers,
     },
   };
+}
+
+type Header = Pick<
+  Parameters<typeof updateQuoteDraft>[1],
+  "title" | "customerId" | "kind" | "language"
+>;
+
+/**
+ * The header fields that would change something. A quote that has been sent
+ * keeps its header and the query refuses any attempt at it, so a field given
+ * as it already stands is dropped rather than refused.
+ */
+export function headerChanges(
+  stored: { [K in keyof Header]-?: unknown },
+  given: Header,
+): Header {
+  return Object.fromEntries(
+    Object.entries(given).filter(
+      ([key, value]) =>
+        value !== undefined && value !== stored[key as keyof typeof stored],
+    ),
+  );
 }
 
 /** Changes the quote's draft, or says why there is none to change. */
 async function editDraft(
   ctx: McpContext,
   quoteId: string,
-  edit: (draft: {
-    content: QuoteContent;
-    kind: QuoteKind;
-  }) => Promise<
-    Omit<Parameters<typeof updateQuoteDraft>[1], "teamId" | "versionId">
-  >,
+  change: (
+    quote: StoredQuote,
+  ) => Omit<Parameters<typeof updateQuoteDraft>[1], "teamId" | "versionId">,
 ) {
   const quote = await getQuote(ctx.db, { id: quoteId, teamId: ctx.teamId });
   if (!quote) return refused("Quote not found");
@@ -386,22 +436,20 @@ async function editDraft(
     return refused("This quote has no draft to change; revise it to start one");
   }
 
-  const change = await edit({
-    content: draft.content as QuoteContent,
-    kind: quote.kind,
-  });
   return afterWrite(
     ctx,
     await updateQuoteDraft(ctx.db, {
-      ...change,
+      ...change(quote),
       teamId: ctx.teamId,
       versionId: draft.id,
     }),
   );
 }
 
-const quoteId = z.string().uuid().describe("Quote ID");
-const percent = z.number().gt(-100).max(1000);
+const header = updateQuoteDraftSchema.shape;
+const contentFields = quoteContentSchema.shape;
+const scenarioFields = scenarioSchema.shape;
+const rateFields = rateSettingsSchema.shape;
 
 export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
   if (!hasScope(ctx, "invoices.write")) return;
@@ -415,56 +463,66 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
       description:
         "Change the header of a quote's draft: title, customer, kind and language (only before the quote is first sent), mode, issue and expiry dates, the internal note, and whether quantities are shown in hours or days. Only what is given changes. Returns the quote as quotes_get does.",
       inputSchema: {
-        quoteId,
-        title: z.string().trim().min(1).max(300).optional(),
-        customerId: z.string().uuid().optional(),
-        kind: z
-          .enum(["project", "recurring"])
-          .optional()
-          .describe(
-            "Switching gives every scenario a period and term, or takes them away",
-          ),
-        language: z.enum(["nl", "en"]).optional(),
-        mode: z
-          .enum(["estimate", "firm"])
-          .optional()
-          .describe("estimate: non-binding; firm: a binding offer"),
-        issueDate: z.iso.date().optional().describe("YYYY-MM-DD"),
-        validUntil: z.iso.date().optional().describe("YYYY-MM-DD"),
-        internalNote: z
-          .string()
-          .max(10_000)
-          .nullable()
-          .optional()
-          .describe("Never printed; null clears it"),
-        displayUnit: z
-          .enum(["hours", "days"])
+        quoteId: quoteIdInput,
+        title: header.title,
+        customerId: header.customerId,
+        kind: header.kind.describe(
+          "Switching gives every scenario a period and term, or takes them away",
+        ),
+        language: header.language,
+        mode: header.mode.describe(
+          "estimate: non-binding; firm: a binding offer",
+        ),
+        issueDate: header.issueDate.describe("YYYY-MM-DD"),
+        validUntil: header.validUntil.describe("YYYY-MM-DD"),
+        internalNote: header.internalNote.describe(
+          "Never printed; null clears it",
+        ),
+        displayUnit: contentFields.displayUnit
           .optional()
           .describe("Show and take quantities in hours or in days"),
-        hoursPerDay: z
-          .number()
-          .gt(0)
-          .max(24)
+        hoursPerDay: contentFields.hoursPerDay
           .optional()
           .describe("Hours in a day, when shown in days"),
       },
       annotations: WRITE_ANNOTATIONS,
     },
     withErrorHandling(
-      async ({ quoteId, kind, displayUnit, hoursPerDay, ...header }) =>
-        editDraft(ctx, quoteId, async (draft) => {
+      async ({
+        quoteId,
+        title,
+        customerId,
+        kind,
+        language,
+        displayUnit,
+        hoursPerDay,
+        ...rest
+      }) =>
+        editDraft(ctx, quoteId, (quote) => {
+          const changed = headerChanges(quote, {
+            title,
+            customerId,
+            kind,
+            language,
+          });
           const unitChange =
             displayUnit !== undefined || hoursPerDay !== undefined;
-          let content: QuoteContent | undefined;
-          if (unitChange || kind !== undefined) {
-            content = {
-              ...draft.content,
-              displayUnit: displayUnit ?? draft.content.displayUnit,
-              hoursPerDay: hoursPerDay ?? draft.content.hoursPerDay,
-            };
-            if (kind !== undefined) content = withKind(content, kind);
-          }
-          return { ...header, kind, content };
+          const kindChange = changed.kind;
+          return {
+            ...rest,
+            ...changed,
+            edit:
+              unitChange || kindChange
+                ? (content) => {
+                    const next = {
+                      ...content,
+                      displayUnit: displayUnit ?? content.displayUnit,
+                      hoursPerDay: hoursPerDay ?? content.hoursPerDay,
+                    };
+                    return kindChange ? withKind(next, kindChange) : next;
+                  }
+                : undefined,
+          };
         }),
       "Failed to update quote draft",
     ),
@@ -477,18 +535,17 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
       description:
         "Add a scenario to a quote's draft (leave scenarioId out), or change one (give its id from quotes_get). A scenario is one way the work could be done and priced: fixed hours, or a range from a minimum to a maximum that can be capped. On a recurring quote it has a period, term, billing and notice; on a project quote a payment schedule. Only what is given changes. Returns the quote as quotes_get does.",
       inputSchema: {
-        quoteId,
+        quoteId: quoteIdInput,
         scenarioId: z
           .string()
           .optional()
           .describe("The scenario to change; leave out to add one"),
-        name: z.string().max(200).optional(),
+        name: scenarioFields.name.optional(),
         recommended: z
           .boolean()
           .optional()
           .describe("Recommending one stops recommending the others"),
-        pricing: z
-          .enum(["fixed", "range"])
+        pricing: scenarioFields.pricing
           .optional()
           .describe(
             "fixed: one number of hours per line; range: a minimum and a maximum",
@@ -499,42 +556,18 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
           .describe(
             "Range only: the maximum is a ceiling the client pays at most",
           ),
-        recurrence: z
-          .object({
-            period: z.enum(["month", "quarter", "year"]).optional(),
-            termMonths: z
-              .number()
-              .int()
-              .min(1)
-              .max(1200)
-              .nullable()
-              .optional()
-              .describe("null: an indefinite term"),
-            billing: z.enum(["in_advance", "in_arrears"]).optional(),
-            autoRenew: z.boolean().optional(),
-            noticeMonths: z
-              .number()
-              .int()
-              .min(0)
-              .max(120)
-              .nullable()
-              .optional(),
-          })
+        recurrence: recurrenceSchema
+          .partial()
           .optional()
-          .describe("Recurring quotes only; only what is given changes"),
-        adjustmentOverride: percent
-          .nullable()
+          .describe(
+            "Recurring quotes only: period, termMonths (null: indefinite), billing, autoRenew, noticeMonths; only what is given changes",
+          ),
+        adjustmentOverride: scenarioFields.adjustmentOverride
           .optional()
           .describe(
             "Percent on every rate in this scenario, replacing the volume and term tiers; negative is a discount; null goes back to the tiers",
           ),
-        paymentSchedule: z
-          .array(
-            z.object({
-              label: z.string().max(200),
-              percent: z.number().min(0).max(100),
-            }),
-          )
+        paymentSchedule: scenarioFields.paymentSchedule
           .optional()
           .describe(
             "Project quotes only: when the total is paid, in percent of it; replaces the schedule",
@@ -544,8 +577,8 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
     },
     withErrorHandling(
       async ({ quoteId, ...input }) =>
-        editDraft(ctx, quoteId, async (draft) => ({
-          content: upsertScenario(draft.content, draft.kind, input).content,
+        editDraft(ctx, quoteId, (quote) => ({
+          edit: (content) => upsertScenario(content, quote.kind, input).content,
         })),
       "Failed to change the scenario",
     ),
@@ -557,13 +590,16 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
       title: "Remove a Quote Scenario",
       description:
         "Remove a scenario, with its lines, from a quote's draft. Returns the quote as quotes_get does.",
-      inputSchema: { quoteId, scenarioId: z.string() },
+      inputSchema: { quoteId: quoteIdInput, scenarioId: z.string() },
       annotations: WRITE_ANNOTATIONS,
     },
     withErrorHandling(
       async ({ quoteId, scenarioId }) =>
-        editDraft(ctx, quoteId, async (draft) => ({
-          content: removeScenario(draft.content, scenarioId),
+        editDraft(ctx, quoteId, () => ({
+          edit: (content) => {
+            requireScenario(content, scenarioId);
+            return removeScenario(content, scenarioId);
+          },
         })),
       "Failed to remove the scenario",
     ),
@@ -576,7 +612,7 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
       description:
         "Add a line to a scenario of a quote's draft (give scenarioId, leave lineId out), or change one (give its lineId from quotes_get). An item is work priced by a product's hourly rate; a section heads the items under it; a note is a remark. Quantities are in the quote's unit: days when it is shown in days, else hours. Only what is given changes; index moves the line to that position in its scenario, counted from 0. Returns the quote as quotes_get does.",
       inputSchema: {
-        quoteId,
+        quoteId: quoteIdInput,
         scenarioId: z
           .string()
           .optional()
@@ -601,7 +637,7 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
           .string()
           .optional()
           .describe(
-            "Item only: the product by name or id; its hourly rate prices the line",
+            "Item only, and needed for a new one: the product by name or id; its hourly rate prices the line",
           ),
         quantity: z
           .number()
@@ -628,18 +664,13 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
       },
       annotations: WRITE_ANNOTATIONS,
     },
-    withErrorHandling(
-      async ({ quoteId, ...input }) =>
-        editDraft(ctx, quoteId, async (draft) => ({
-          content: upsertLine(
-            draft.content,
-            draft.kind,
-            input,
-            input.product === undefined ? [] : await products(),
-          ).content,
-        })),
-      "Failed to change the line",
-    ),
+    withErrorHandling(async ({ quoteId, ...input }) => {
+      const named = input.product === undefined ? [] : await products();
+      return editDraft(ctx, quoteId, (quote) => ({
+        edit: (content) =>
+          upsertLine(content, quote.kind, input, named).content,
+      }));
+    }, "Failed to change the line"),
   );
 
   server.registerTool(
@@ -648,13 +679,13 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
       title: "Remove a Quote Line",
       description:
         "Remove a line from a quote's draft. Returns the quote as quotes_get does.",
-      inputSchema: { quoteId, lineId: z.string() },
+      inputSchema: { quoteId: quoteIdInput, lineId: z.string() },
       annotations: WRITE_ANNOTATIONS,
     },
     withErrorHandling(
       async ({ quoteId, lineId }) =>
-        editDraft(ctx, quoteId, async (draft) => ({
-          content: removeLine(draft.content, lineId),
+        editDraft(ctx, quoteId, () => ({
+          edit: (content) => removeLine(content, lineId),
         })),
       "Failed to remove the line",
     ),
@@ -665,9 +696,9 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
     {
       title: "Set a Quote's Rates",
       description:
-        "Set a quote draft's own rates. An hourly rate per product, in the quote's currency, goes before the customer's rate and the product's price; null takes it away again. Volume tiers adjust every rate once the committed hours reach a threshold; term tiers once a recurring scenario's term reaches a number of months. The volume and term adjustments add up, and a scenario's own adjustment replaces both. A list of tiers, when given, replaces the one there. Returns the quote as quotes_get does.",
+        "Set a quote draft's own rates; quotes_get shows the ones it has. An hourly rate per product, in the quote's currency, goes before the customer's rate and the product's price; null takes it away again. Volume tiers adjust every rate once the committed quantity reaches a threshold, in the quote's unit; term tiers once a recurring scenario's term reaches a number of months. The volume and term adjustments add up, and a scenario's own adjustment replaces both. A list of tiers, when given, replaces the one there. Returns the quote as quotes_get does.",
       inputSchema: {
-        quoteId,
+        quoteId: quoteIdInput,
         productRates: z
           .array(
             z.object({
@@ -677,26 +708,28 @@ export const registerQuoteDraftTools: RegisterTools = (server, ctx) => {
           )
           .optional(),
         volumeTiers: z
-          .array(z.object({ minHours: z.number().min(0), percent }))
+          .array(
+            z.object({
+              from: z
+                .number()
+                .min(0)
+                .describe("Committed quantity, in the quote's unit"),
+              percent: rateFields.volumeTiers.element.shape.percent,
+            }),
+          )
           .optional()
-          .describe("Percent from this many committed hours on"),
-        termTiers: z
-          .array(z.object({ minMonths: z.number().int().min(1), percent }))
+          .describe("Percent on every rate from this committed quantity on"),
+        termTiers: rateFields.termTiers
           .optional()
-          .describe("Percent from a term of this many months on"),
+          .describe("Percent on every rate from a term of this many months on"),
       },
       annotations: WRITE_ANNOTATIONS,
     },
-    withErrorHandling(
-      async ({ quoteId, ...input }) =>
-        editDraft(ctx, quoteId, async (draft) => ({
-          content: setRates(
-            draft.content,
-            input,
-            input.productRates?.length ? await products() : [],
-          ),
-        })),
-      "Failed to set the rates",
-    ),
+    withErrorHandling(async ({ quoteId, ...input }) => {
+      const named = input.productRates?.length ? await products() : [];
+      return editDraft(ctx, quoteId, () => ({
+        edit: (content) => setRates(content, input, named),
+      }));
+    }, "Failed to set the rates"),
   );
 };

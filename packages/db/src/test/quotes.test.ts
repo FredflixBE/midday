@@ -272,6 +272,64 @@ describe.skipIf(SKIP)("quotes", () => {
       );
     });
 
+    // FF-1790: the MCP says what to change rather than sending the content
+    // back, so the change must be made to the draft as it is when written.
+    // Read first and written after, one edit would overwrite the other.
+    test("an edit is made to the draft as it stands when it is written", async () => {
+      const draft = draftOf(await create());
+      const scenario = (id: string) => ({
+        id,
+        name: id,
+        recommended: false,
+        pricing: "fixed" as const,
+        capped: false,
+        recurrence: null,
+        adjustmentOverride: null,
+        paymentSchedule: [],
+        lines: [],
+      });
+      const adding = (id: string) =>
+        updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          edit: (content) => ({
+            ...content,
+            scenarios: [...content.scenarios, scenario(id)],
+          }),
+        });
+
+      await Promise.all([adding("a"), adding("b"), adding("c")]);
+
+      const stored = draftOf(
+        (await getQuote(db, {
+          id: draft.quoteId,
+          teamId: TEAM_USD_ID,
+        }))!,
+      ).content as QuoteContent;
+      expect(stored.scenarios.map((s) => s.id).sort()).toEqual(["a", "b", "c"]);
+    });
+
+    test("an edit that refuses writes nothing", async () => {
+      const draft = draftOf(await create());
+
+      await expect(
+        updateQuoteDraft(db, {
+          teamId: TEAM_USD_ID,
+          versionId: draft.id,
+          title: "Not saved",
+          edit: () => {
+            throw new QuoteInputError("No such line");
+          },
+        }),
+      ).rejects.toThrow("No such line");
+
+      const quote = await getQuote(db, {
+        id: draft.quoteId,
+        teamId: TEAM_USD_ID,
+      });
+      expect(quote?.title).not.toBe("Not saved");
+    });
+
     test("content that is not a QuoteContent is refused", async () => {
       const draft = draftOf(await create());
 
