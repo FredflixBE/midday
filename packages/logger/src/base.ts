@@ -39,13 +39,21 @@ export function createBaseLogger({
     },
   };
 
-  const stdout =
-    destination ??
-    (pretty
-      ? pino.transport({ target: "pino-pretty", options: prettyOptions })
-      : pino.destination(1));
+  const prettyTransport = {
+    target: "pino-pretty",
+    options: prettyOptions,
+  };
 
-  if (!betterStack) return pino(options, stdout);
+  if (!betterStack) {
+    if (destination) return pino(options, destination);
+    // No stream argument, as before Better Stack: pino then writes through
+    // `process.stdout` (Bun replaces its `write`), which keeps log lines in
+    // order with the `console.*` output around them.
+    return pino({ ...options, ...(pretty && { transport: prettyTransport }) });
+  }
+
+  const stdout =
+    destination ?? (pretty ? pino.transport(prettyTransport) : process.stdout);
 
   // A multistream output defaults to "info" and would drop debug lines the
   // logger let through, so both take everything and the logger's own level

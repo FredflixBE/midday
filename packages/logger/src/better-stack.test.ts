@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { gunzipSync } from "node:zlib";
 import { createBaseLogger } from "./base";
 import {
@@ -145,6 +145,73 @@ describe("a logger with Better Stack", () => {
   });
 });
 
+describe("stdout", () => {
+  const originalWrite = process.stdout.write;
+  afterEach(() => {
+    process.stdout.write = originalWrite;
+  });
+
+  // Capture what reaches process.stdout, the way Bun's console shares it.
+  function captureProcessStdout() {
+    const written: string[] = [];
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      written.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write;
+    return written;
+  }
+
+  test("without Better Stack, lines go through process.stdout as they always did", () => {
+    const written = captureProcessStdout();
+    const logger = createBaseLogger({ level: "info", pretty: false });
+
+    logger.info("in order");
+
+    expect(written.join("")).toContain('"msg":"in order"');
+  });
+
+  test("with Better Stack, stdout still goes through process.stdout", () => {
+    const written = captureProcessStdout();
+    const logger = createBaseLogger({
+      level: "info",
+      pretty: false,
+      betterStack: betterStackStream(fakeClient().client),
+    });
+
+    logger.info("in order");
+
+    expect(written.join("")).toContain('"msg":"in order"');
+  });
+});
+
+describe("betterStackStream", () => {
+  test("a line it cannot read is skipped rather than thrown into the caller", () => {
+    const { calls, client } = fakeClient();
+    const stream = betterStackStream(client);
+
+    expect(() => stream.write("not json\n")).not.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+
+  test("a caller's own `message` field survives beside the log message", () => {
+    const { calls, client } = fakeClient();
+    const logger = createBaseLogger({
+      level: "info",
+      pretty: false,
+      destination: captureStream().stream,
+      betterStack: betterStackStream(client),
+    });
+
+    logger.info({ message: "from the provider" }, "sync failed");
+
+    expect(calls[0]?.message).toBe("sync failed");
+    expect(calls[0]?.context).toMatchObject({
+      message_field: "from the provider",
+    });
+    expect(calls[0]?.context).not.toHaveProperty("message");
+  });
+});
+
 describe("flushWithin", () => {
   test("waits for Better Stack to take the batch", async () => {
     let flushed = false;
@@ -176,9 +243,9 @@ describe("flushWithin", () => {
   test("a failed flush does not throw into shutdown", async () => {
     const client: BetterStackClient = {
       log: async () => undefined,
-      flush: mock(async () => {
+      flush: async () => {
         throw new Error("network down");
-      }),
+      },
     };
 
     await expect(flushWithin(client, 1000)).resolves.toBeUndefined();

@@ -11,10 +11,9 @@ import {
  * Better Stack receives every line too when its source token and ingesting
  * host are set; without them, output is stdout only.
  */
-const betterStack = betterStackConfig(process.env);
-const betterStackClient = betterStack
-  ? createBetterStackClient(betterStack)
-  : null;
+const betterStackSettings = betterStackConfig(process.env);
+const betterStackClient =
+  betterStackSettings && createBetterStackClient(betterStackSettings);
 
 const baseLogger = createBaseLogger({
   level: process.env.LOG_LEVEL || "info",

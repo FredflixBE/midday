@@ -67,11 +67,24 @@ export function betterStackStream(
 ): DestinationStream {
   return {
     write(line: string) {
-      const fields: Record<string, unknown> = JSON.parse(line);
+      let fields: Record<string, unknown>;
+      try {
+        fields = JSON.parse(line);
+      } catch {
+        // Never throw into the code that was logging; stdout still has it.
+        return;
+      }
+
       const { msg, time, level } = fields;
       const context: Record<string, unknown> = { dt: new Date(Number(time)) };
       for (const [key, value] of Object.entries(fields)) {
         if (!PINO_OWN_FIELDS.has(key)) context[key] = value;
+      }
+      // Better Stack stores the message under `message`, which would silently
+      // replace a field of that name — keep it beside it instead.
+      if ("message" in context) {
+        context.message_field = context.message;
+        delete context.message;
       }
 
       // The client counts and reports its own send failures; this only keeps
