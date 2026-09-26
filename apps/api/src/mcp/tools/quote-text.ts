@@ -142,7 +142,7 @@ export const registerQuoteTextTools: RegisterTools = (server, ctx) => {
     {
       title: "Add or Change a Quote Text Block",
       description:
-        "Add a text block to a quote's draft (leave blockId out), or change one (give its id from quotes_get). The body is markdown: headings, paragraphs, **bold**, *italic*, ~~strike~~, <u>underline</u>, `code`, links, bullet and numbered lists, block quotes, code blocks, rules and GitHub tables (column alignment with :---:). Pictures and other HTML are refused; add pictures in Midday. A block quotes_get marks as not editable holds what markdown cannot say, so its body cannot be replaced here, only its heading. Only what is given changes; index moves the block to that position, counted from 0. Returns the quote as quotes_get does.",
+        "Add a text block to a quote's draft (leave blockId out), or change one (give its id from quotes_get). The body is markdown: headings, paragraphs, **bold**, *italic*, ~~strike~~, <u>underline</u>, `code`, links, bullet and numbered lists, block quotes, code blocks, rules and GitHub tables (column alignment with :---:). Pictures and other HTML are refused; add pictures in Midday. The quote's PDF does not print block quotes, code blocks or rules yet, so write what the client must read as paragraphs, lists or tables. A block quotes_get marks as not editable holds what markdown cannot say, so its body cannot be replaced here, only its heading. Only what is given changes; index moves the block to that position, counted from 0. Returns the quote as quotes_get does.",
       inputSchema: {
         quoteId: quoteIdInput,
         blockId: z
