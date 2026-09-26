@@ -53,7 +53,7 @@ export default defineConfig({
     },
     {
       name: "dashboard",
-      command: `next dev -p ${DASHBOARD_PORT} --turbopack`,
+      command: `bunx next dev -p ${DASHBOARD_PORT} --turbopack`,
       url: `${DASHBOARD_URL}/login`,
       reuseExistingServer: true,
       timeout: 180_000,
