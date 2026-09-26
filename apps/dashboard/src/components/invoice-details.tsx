@@ -298,11 +298,13 @@ export function InvoiceDetails() {
               <span className="text-sm font-medium">Recurring Series</span>
               <span
                 className={cn("text-xs px-2 py-0.5 rounded-full", {
-                  "bg-success/10 text-success": recurring.status === "active",
-                  "bg-warning/10 text-warning": recurring.status === "paused",
+                  "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400":
+                    recurring.status === "active",
+                  "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400":
+                    recurring.status === "paused",
                   "bg-muted text-muted-foreground":
                     recurring.status === "completed",
-                  "bg-destructive/10 text-destructive":
+                  "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400":
                     recurring.status === "canceled",
                 })}
               >

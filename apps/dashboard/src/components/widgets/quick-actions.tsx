@@ -29,7 +29,7 @@ const CHAT_ACTIONS = [
 ] as const;
 
 const buttonClassName =
-  "flex items-center gap-1.5 border bg-background border-border hover:bg-accent hover:border-border px-3 py-1.5 text-xs text-muted-foreground/60 hover:text-foreground transition-all duration-300 cursor-pointer group";
+  "flex items-center gap-1.5 border bg-background border-border hover:bg-accent hover:border-ring px-3 py-1.5 text-xs text-muted-foreground/60 hover:text-foreground transition-all duration-300 cursor-pointer group";
 
 const iconClassName =
   "text-muted-foreground/40 group-hover:text-foreground transition-colors duration-300";

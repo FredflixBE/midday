@@ -45,7 +45,7 @@ export function TrackerCalendarType({ selectedView }: Props) {
               className={cn(
                 "group relative flex items-center gap-1.5 px-2 py-1.5 text-[14px] transition-all whitespace-nowrap border border-transparent h-[36px] min-h-[36px]",
                 "text-muted-foreground hover:text-foreground bg-muted mb-0 relative z-[1]",
-                "data-[state=active]:text-foreground data-[state=active]:bg-accent data-[state=active]:mb-[-1px] data-[state=active]:z-10",
+                "data-[state=active]:text-foreground data-[state=active]:bg-background data-[state=active]:mb-[-1px] data-[state=active]:z-10",
               )}
             >
               {option.label}

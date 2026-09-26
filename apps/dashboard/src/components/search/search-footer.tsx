@@ -2,7 +2,7 @@ import { Icons } from "@midday/ui/icons";
 
 export function SearchFooter() {
   return (
-    <div className="search-footer flex px-3 h-[40px] w-full border border-border border-t-[0px] items-center backdrop-filter backdrop-blur-lg bg-background/[99]">
+    <div className="search-footer flex px-3 h-[40px] w-full border border-border border-t-[0px] items-center backdrop-filter backdrop-blur-lg bg-background">
       <div className="scale-50 dark:opacity-50 -ml-1">
         <Icons.LogoSmall />
       </div>

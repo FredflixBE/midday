@@ -129,9 +129,9 @@ export function MetricsFilter() {
                     className={cn(
                       "text-xs py-1.5 pl-4 pr-12 relative [&>svg]:hidden",
                       isCustomPeriod
-                        ? "dark:bg-card dark:data-[state=open]:bg-card text-foreground"
+                        ? "dark:bg-accent dark:data-[state=open]:bg-accent text-foreground"
                         : "text-muted-foreground",
-                      "hover:dark:bg-card hover:text-foreground",
+                      "hover:dark:bg-accent hover:text-foreground",
                     )}
                     onSelect={(e) => {
                       e.preventDefault();
@@ -198,9 +198,9 @@ export function MetricsFilter() {
                 className={cn(
                   "text-xs",
                   period === option.value
-                    ? "dark:bg-card text-foreground"
+                    ? "dark:bg-accent text-foreground"
                     : "text-muted-foreground",
-                  "hover:dark:bg-card",
+                  "hover:dark:bg-accent",
                 )}
               >
                 {option.label}
@@ -229,8 +229,8 @@ export function MetricsFilter() {
                 className={cn(
                   "text-xs",
                   revenueType === option.value &&
-                    "dark:bg-card dark:data-[state=checked]:bg-card",
-                  "hover:dark:bg-card",
+                    "dark:bg-accent dark:data-[state=checked]:bg-accent",
+                  "hover:dark:bg-accent",
                 )}
               >
                 {option.label}
@@ -259,8 +259,8 @@ export function MetricsFilter() {
                   className={cn(
                     "text-xs",
                     !effectiveCurrency &&
-                      "dark:bg-card dark:data-[state=checked]:bg-card",
-                    "hover:dark:bg-card",
+                      "dark:bg-accent dark:data-[state=checked]:bg-accent",
+                    "hover:dark:bg-accent",
                   )}
                 >
                   Base currency{baseCurrency ? ` (${baseCurrency})` : ""}
@@ -272,8 +272,8 @@ export function MetricsFilter() {
                     className={cn(
                       "text-xs",
                       effectiveCurrency === curr &&
-                        "dark:bg-card dark:data-[state=checked]:bg-card",
-                      "hover:dark:bg-card",
+                        "dark:bg-accent dark:data-[state=checked]:bg-accent",
+                      "hover:dark:bg-accent",
                     )}
                   >
                     {curr}

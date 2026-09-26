@@ -534,7 +534,7 @@ function Handle({
           // being written keeps it, and the action puts the selection
           // exactly where it needs it.
           onMouseDown={(event) => event.preventDefault()}
-          className="pointer-events-auto fixed bg-muted transition-colors hover:bg-muted-foreground focus-visible:bg-muted-foreground focus-visible:outline-hidden"
+          className="pointer-events-auto fixed bg-border transition-colors hover:bg-muted-foreground focus-visible:bg-muted-foreground focus-visible:outline-hidden"
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-44">

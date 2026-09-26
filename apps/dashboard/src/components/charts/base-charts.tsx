@@ -96,7 +96,7 @@ export function StyledTooltip({
   if (active && payload?.length) {
     return (
       <div
-        className="p-2 text-[10px] font-sans border bg-popover border-border text-foreground"
+        className="p-2 text-[10px] font-sans border bg-background border-border text-foreground"
         style={{
           borderRadius: "0px",
           fontFamily: commonChartConfig.fontFamily,

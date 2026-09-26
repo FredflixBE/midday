@@ -116,9 +116,9 @@ export function TemplateSelector() {
                 className={cn(
                   "text-xs",
                   currentTemplateId === template.id
-                    ? "dark:bg-card text-foreground"
+                    ? "dark:bg-accent text-foreground"
                     : "text-muted-foreground",
-                  "hover:dark:bg-card",
+                  "hover:dark:bg-accent",
                 )}
               >
                 <span className="flex items-center gap-1">

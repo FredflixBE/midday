@@ -418,7 +418,7 @@ const DayEntries = memo(
               className={cn(
                 "absolute text-xs p-2 overflow-hidden cursor-pointer transition-colors",
                 // Same styling for all events
-                "bg-muted text-muted-foreground hover:bg-accent",
+                "bg-muted text-muted-foreground hover:bg-border",
                 entry.totalColumns > 1 && entry.column > 0
                   ? "border border-border"
                   : "",
@@ -443,7 +443,7 @@ const DayEntries = memo(
                     `[data-event-id="${entry.event.id}"]`,
                   );
                   for (const part of allParts) {
-                    part.classList.add("!bg-accent");
+                    part.classList.add("!bg-border");
                   }
                 }
                 handleMouseEnter(day);
@@ -454,7 +454,7 @@ const DayEntries = memo(
                     `[data-event-id="${entry.event.id}"]`,
                   );
                   for (const part of allParts) {
-                    part.classList.remove("!bg-accent");
+                    part.classList.remove("!bg-border");
                   }
                 }
               }}
