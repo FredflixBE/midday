@@ -19,6 +19,7 @@ import {
 import {
   type Amount,
   acceptedVersion,
+  type Block,
   draftVersion,
   heldVersion,
   hoursToUnit,
@@ -26,6 +27,7 @@ import {
   quoteState,
   type ScenarioPricing,
 } from "@midday/quote";
+import { editorDocToMarkdown } from "@midday/ui/editor/markdown";
 import { z } from "zod";
 import {
   DESTRUCTIVE_ANNOTATIONS,
@@ -194,6 +196,27 @@ function scenarioDetail(
   };
 }
 
+/** A block as `quotes_get` shows it. */
+export function blockDetail(block: Block) {
+  if (block.type !== "text") return { id: block.id, type: block.type };
+
+  let read: { markdown: string | null; exact: boolean };
+  try {
+    read = editorDocToMarkdown(block.body);
+  } catch {
+    // Saved by a build that knew a node this one does not.
+    read = { markdown: null, exact: false };
+  }
+  return {
+    id: block.id,
+    type: block.type,
+    heading: block.heading,
+    markdown: read.markdown,
+    /** Whether the markdown says the whole body, and so can be written back. */
+    editable: read.exact,
+  };
+}
+
 /**
  * The quote's own rates, as `quotes_set_rates` takes them: hourly rates by
  * product, and volume tiers from a quantity in the quote's unit.
@@ -266,6 +289,8 @@ export function quoteDetail(quote: PricedQuote) {
         displayUnit: version.content.displayUnit,
         hoursPerDay: version.content.hoursPerDay,
         rates: ratesDetail(version.content, quote.productNames),
+        /** The text, in order; `pricing` marks where the scenarios appear. */
+        blocks: version.content.blocks.map(blockDetail),
         scenarios: version.content.scenarios.map((scenario) =>
           scenarioDetail(
             scenario,
@@ -381,7 +406,7 @@ const registerReadTools: RegisterTools = (server, ctx) => {
     {
       title: "Get Quote",
       description:
-        "Get one quote with all its versions, newest first. Each version has its status, mode, dates, who it was sent to, and its scenarios with their lines (named by product), rates, totals and payment schedule. A sent version is priced as it was sent; a draft at today's rates. Amounts are in the quote's currency excluding VAT; quantities are hours, and also in the quote's unit (days when it is shown in days). Each version also has the quote's own rates: hourly rates by product, and the volume and term tiers. Versions, scenarios and lines carry the ids the quote write tools take; an accepted version says what was accepted.",
+        "Get one quote with all its versions, newest first. Each version has its status, mode, dates, who it was sent to, and its scenarios with their lines (named by product), rates, totals and payment schedule. A sent version is priced as it was sent; a draft at today's rates. Amounts are in the quote's currency excluding VAT; quantities are hours, and also in the quote's unit (days when it is shown in days). Each version also has the quote's own rates (hourly rates by product, volume and term tiers) and its text: blocks in order, a text block's body as markdown, with pricing and contents marking where the scenarios and the list of sections appear. Versions, scenarios and lines carry the ids the quote write tools take; an accepted version says what was accepted.",
       inputSchema: {
         id: z.string().uuid().describe("Quote ID"),
       },
