@@ -52,7 +52,7 @@ describe("a block, read", () => {
       type: "text",
       heading: "Introduction",
       markdown: "We propose **two** phases.",
-      editable: true,
+      exact: true,
     });
   });
 
@@ -66,7 +66,7 @@ describe("a block, read", () => {
   test("with a picture reads whole, and says it cannot be written back", () => {
     expect(blockDetail(content().blocks[2]!)).toMatchObject({
       markdown: "See below\n\n![](team/quotes/a.png)",
-      editable: false,
+      exact: false,
     });
   });
 
@@ -79,7 +79,7 @@ describe("a block, read", () => {
     };
     expect(blockDetail(unknown)).toMatchObject({
       markdown: null,
-      editable: false,
+      exact: false,
     });
   });
 });

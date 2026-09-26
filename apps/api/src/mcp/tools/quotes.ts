@@ -212,8 +212,11 @@ export function blockDetail(block: Block) {
     type: block.type,
     heading: block.heading,
     markdown: read.markdown,
-    /** Whether the markdown says the whole body, and so can be written back. */
-    editable: read.exact,
+    /**
+     * Whether the markdown says the whole body, so writing it back loses
+     * nothing. A body holding a picture or a diagram, say, is only read.
+     */
+    exact: read.exact,
   };
 }
 
@@ -406,7 +409,7 @@ const registerReadTools: RegisterTools = (server, ctx) => {
     {
       title: "Get Quote",
       description:
-        "Get one quote with all its versions, newest first. Each version has its status, mode, dates, who it was sent to, and its scenarios with their lines (named by product), rates, totals and payment schedule. A sent version is priced as it was sent; a draft at today's rates. Amounts are in the quote's currency excluding VAT; quantities are hours, and also in the quote's unit (days when it is shown in days). Each version also has the quote's own rates (hourly rates by product, volume and term tiers) and its text: blocks in order, a text block's body as markdown, with pricing and contents marking where the scenarios and the list of sections appear. Versions, scenarios and lines carry the ids the quote write tools take; an accepted version says what was accepted.",
+        "Get one quote with all its versions, newest first. Each version has its status, mode, dates, who it was sent to, and its scenarios with their lines (named by product), rates, totals and payment schedule. A sent version is priced as it was sent; a draft at today's rates. Amounts are in the quote's currency excluding VAT; quantities are hours, and also in the quote's unit (days when it is shown in days). Each version also has the quote's own rates (hourly rates by product, volume and term tiers) and its text: blocks in order, a text block's body as markdown and whether that markdown is exact, with pricing and contents marking where the scenarios and the list of sections appear. Versions, scenarios and lines carry the ids the quote write tools take; an accepted version says what was accepted.",
       inputSchema: {
         id: z.string().uuid().describe("Quote ID"),
       },

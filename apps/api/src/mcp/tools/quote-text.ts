@@ -2,16 +2,19 @@ import { dropQuoteImages } from "@api/services/quote-images";
 import { QuoteInputError } from "@midday/db/queries";
 import {
   type Block,
-  blockSchema,
   type EditorDoc,
   type QuoteContent,
+  textBlockSchema,
 } from "@midday/quote";
-import { markdownToEditorDoc } from "@midday/ui/editor/markdown";
+import {
+  editorDocToMarkdown,
+  markdownToEditorDoc,
+} from "@midday/ui/editor/markdown";
 import { z } from "zod";
 import { hasScope, type RegisterTools, WRITE_ANNOTATIONS } from "../types";
 import { withErrorHandling } from "../utils";
 import { editDraft } from "./quote-drafts";
-import { blockDetail, quoteIdInput } from "./quotes";
+import { quoteIdInput } from "./quotes";
 
 /**
  * A quote's text through the MCP (FF-1791). The text is a list of blocks: a
@@ -28,6 +31,15 @@ import { blockDetail, quoteIdInput } from "./quotes";
 
 type NewId = () => string;
 const newId: NewId = () => crypto.randomUUID();
+
+/** Whether a body's markdown says all of it, so that writing it loses nothing. */
+function writesBack(body: EditorDoc) {
+  try {
+    return editorDocToMarkdown(body).exact;
+  } catch {
+    return false;
+  }
+}
 
 function blockIn(content: QuoteContent, blockId: string) {
   const block = content.blocks.find((b) => b.id === blockId);
@@ -72,7 +84,7 @@ export function upsertTextBlock(
         `Block ${input.blockId} marks where the ${found.type} goes; it can be moved, not written`,
       );
     }
-    if (input.markdown !== undefined && !blockDetail(found).editable) {
+    if (input.markdown !== undefined && !writesBack(found.body)) {
       throw new QuoteInputError(
         "This block holds what markdown cannot say, such as a picture or a diagram; change its text in Midday",
       );
@@ -128,13 +140,14 @@ export function removeTextBlock(
   };
 }
 
-const textBlock = blockSchema.options[0].shape;
+const textBlock = textBlockSchema.shape;
 
 export const registerQuoteTextTools: RegisterTools = (server, ctx) => {
   if (!hasScope(ctx, "invoices.write")) return;
 
   // A picture that leaves the text with its block leaves storage too, once
   // nothing else names it — as when a block is removed in Midday (FF-1626).
+  // Only removing can take one out: a body holding one is not rewritten.
   const dropImages = dropQuoteImages(ctx.teamId);
 
   server.registerTool(
@@ -142,7 +155,7 @@ export const registerQuoteTextTools: RegisterTools = (server, ctx) => {
     {
       title: "Add or Change a Quote Text Block",
       description:
-        "Add a text block to a quote's draft (leave blockId out), or change one (give its id from quotes_get). The body is markdown: headings, paragraphs, **bold**, *italic*, ~~strike~~, <u>underline</u>, `code`, links, bullet and numbered lists, block quotes, code blocks, rules and GitHub tables (column alignment with :---:). Pictures and other HTML are refused; add pictures in Midday. The quote's PDF does not print block quotes, code blocks or rules yet, so write what the client must read as paragraphs, lists or tables. A block quotes_get marks as not editable holds what markdown cannot say, so its body cannot be replaced here, only its heading. Only what is given changes; index moves the block to that position, counted from 0. Returns the quote as quotes_get does.",
+        "Add a text block to a quote's draft (leave blockId out), or change one (give its id from quotes_get). The body is markdown: headings, paragraphs, **bold**, *italic*, ~~strike~~, <u>underline</u>, `code`, links, bullet and numbered lists, block quotes, code blocks, rules and GitHub tables (column alignment with :---:). Pictures and other HTML are refused; add pictures in Midday. The quote's PDF does not print block quotes, code blocks or rules yet, so write what the client must read as paragraphs, lists or tables. Separate paragraphs with a blank line; a single line break is a space, a line ending in \\ is a line break, and a line holding only <br> is a blank line. A block quotes_get marks as not exact holds what markdown cannot say, such as a picture, so its body cannot be replaced here, only its heading. Only what is given changes; index moves the block to that position, counted from 0. Returns the quote as quotes_get does.",
       inputSchema: {
         quoteId: quoteIdInput,
         blockId: z
@@ -165,7 +178,6 @@ export const registerQuoteTextTools: RegisterTools = (server, ctx) => {
       async ({ quoteId, ...input }) =>
         editDraft(ctx, quoteId, () => ({
           edit: (content) => upsertTextBlock(content, input).content,
-          dropImages,
         })),
       "Failed to change the text block",
     ),

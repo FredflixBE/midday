@@ -31,7 +31,11 @@ const everything: JSONContent = {
   type: "doc",
   content: [
     { type: "heading", attrs: { level: 1 }, content: [text("Proposal")] },
-    { type: "heading", attrs: { level: 3 }, content: [text("Scope")] },
+    ...[2, 3, 4, 5, 6].map((level) => ({
+      type: "heading",
+      attrs: { level },
+      content: [text(`Level ${level}`)],
+    })),
     paragraph(
       text("Plain, "),
       text("bold", [{ type: "bold" }]),
@@ -55,8 +59,24 @@ const everything: JSONContent = {
           },
         },
       ]),
-      text(". Stars * and _underscores_ stay text."),
+      text(". Stars * and _underscores_ stay text. "),
+      text("Bold and italic", [{ type: "bold" }, { type: "italic" }]),
+      text(" and "),
+      text("https://example.com", [
+        {
+          type: "link",
+          attrs: {
+            href: "https://example.com",
+            target: "_blank",
+            rel: "noopener noreferrer nofollow",
+            class: null,
+          },
+        },
+      ]),
+      text("."),
     ),
+    // A blank line typed in the editor: an empty paragraph.
+    { type: "paragraph" },
     paragraph(text("One line"), { type: "hardBreak" }, text("and the next")),
     {
       type: "bulletList",
@@ -78,6 +98,11 @@ const everything: JSONContent = {
     },
     {
       type: "orderedList",
+      content: [{ type: "listItem", content: [paragraph(text("One"))] }],
+    },
+    paragraph(text("Between the lists")),
+    {
+      type: "orderedList",
       attrs: { start: 3 },
       content: [
         { type: "listItem", content: [paragraph(text("Third"))] },
@@ -90,6 +115,7 @@ const everything: JSONContent = {
       attrs: { language: "ts" },
       content: [text("const a = 1;\nconst b = `x`;")],
     },
+    { type: "codeBlock", content: [text("no language")] },
     { type: "horizontalRule" },
     {
       type: "table",
@@ -97,7 +123,7 @@ const everything: JSONContent = {
         {
           type: "tableRow",
           content: [
-            cell("tableHeader", "Phase"),
+            cell("tableHeader", "Phase", "left"),
             cell("tableHeader", "Who", "center"),
             cell("tableHeader", "Days", "right"),
           ],
@@ -105,7 +131,7 @@ const everything: JSONContent = {
         {
           type: "tableRow",
           content: [
-            cell("tableCell", "Design | build"),
+            cell("tableCell", "Design | build", "left"),
             cell("tableCell", "Us", "center"),
             cell("tableCell", "4", "right"),
           ],
@@ -130,7 +156,7 @@ describe("a document the editor saved", () => {
   test("reads as the markdown a person would write", () => {
     const { markdown } = editorDocToMarkdown(everything);
 
-    expect(markdown).toContain("# Proposal\n\n### Scope");
+    expect(markdown).toContain("# Proposal\n\n## Level 2");
     expect(markdown).toContain(
       "**bold**, *italic*, <u>underlined</u>, ~~struck~~, `code` and [a link](https://example.com/terms)",
     );
@@ -138,8 +164,56 @@ describe("a document the editor saved", () => {
     expect(markdown).toContain("3. Third\n4. Fourth");
     expect(markdown).toContain("```ts\nconst a = 1;");
     expect(markdown).toContain(
-      "| Phase | Who | Days |\n| --- | :---: | ---: |\n| Design \\| build | Us | 4 |",
+      "| Phase | Who | Days |\n| :--- | :---: | ---: |\n| Design \\| build | Us | 4 |",
     );
+    expect(markdown).toContain("and <https://example.com>.\n\n<br>\n\n");
+  });
+
+  test("empty, as the dashboard saves a new block, reads as nothing and can be written", () => {
+    expect(editorDocToMarkdown({ type: "doc", content: [] })).toEqual({
+      markdown: "",
+      exact: true,
+    });
+    expect(
+      editorDocToMarkdown({ type: "doc", content: [{ type: "paragraph" }] }),
+    ).toEqual({ markdown: "", exact: true });
+  });
+
+  test("with text that looks like markup keeps it as text", () => {
+    const literal = {
+      type: "doc",
+      content: [paragraph(text("Use <b> & &amp; as typed, and a | b"))],
+    };
+    const { markdown, exact } = editorDocToMarkdown(literal);
+    expect(exact).toBe(true);
+    expect(markdownToEditorDoc(markdown)).toEqual(saved(literal));
+  });
+
+  test("with an empty table cell keeps it empty", () => {
+    const table = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                cell("tableHeader", "A"),
+                {
+                  type: "tableHeader",
+                  attrs: { align: null },
+                  content: [{ type: "paragraph" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const { markdown, exact } = editorDocToMarkdown(table);
+    expect(markdown).toBe("| A |  |\n| --- | --- |");
+    expect(exact).toBe(true);
   });
 
   test("that is only paragraphs, saved without attrs, is exact too", () => {
@@ -271,10 +345,53 @@ describe("markdown written by the assistant", () => {
     }
   });
 
-  test("with nothing in it is an empty paragraph, as an empty editor saves", () => {
-    expect(markdownToEditorDoc("")).toEqual(
-      saved({ type: "doc", content: [{ type: "paragraph" }] }),
+  test("a bare address becomes a link, as the editor links one typed", () => {
+    const doc = markdownToEditorDoc("See https://example.com/terms");
+    const link = (doc.content?.[0]?.content?.[1]?.marks ?? [])[0];
+    expect(link).toMatchObject({
+      type: "link",
+      attrs: { href: "https://example.com/terms" },
+    });
+  });
+
+  test("a line of only <br> is a blank line, as the editor keeps one", () => {
+    expect(markdownToEditorDoc("One\n\n<br>\n\nTwo")).toEqual(
+      saved({
+        type: "doc",
+        content: [
+          paragraph(text("One")),
+          { type: "paragraph" },
+          paragraph(text("Two")),
+        ],
+      }),
     );
+  });
+
+  // Code takes no other mark in the editor, so a link or strike around it
+  // would be dropped as it was saved — the address with it.
+  test("a mark the text cannot keep as written is refused, not dropped", () => {
+    for (const markdown of ["[`x`](https://a.test)", "~~`c`~~"]) {
+      expect(() => markdownToEditorDoc(markdown)).toThrow(MarkdownInputError);
+    }
+  });
+
+  test("a link needs words to show and an address to go to", () => {
+    expect(() => markdownToEditorDoc("[](https://a.test)")).toThrow(
+      /needs words/,
+    );
+    expect(() => markdownToEditorDoc("[terms]()")).toThrow(/needs an address/);
+  });
+
+  test("with nothing in it is an empty block, as the dashboard saves a new one", () => {
+    expect(markdownToEditorDoc("")).toEqual({ type: "doc", content: [] });
+    expect(markdownToEditorDoc("  \n")).toEqual({ type: "doc", content: [] });
+  });
+
+  test("what would be dropped as it was saved is refused: a link's title, an unclosed <u>", () => {
+    expect(() =>
+      markdownToEditorDoc('[terms](https://a.test "Terms")'),
+    ).toThrow(/title/);
+    expect(() => markdownToEditorDoc("an <u>open underline")).toThrow(/<\/u>/);
   });
 
   test("with a picture is refused, not saved without it", () => {

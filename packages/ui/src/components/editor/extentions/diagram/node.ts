@@ -1,8 +1,6 @@
 import { Node } from "@tiptap/core";
+import type { MarkupElement } from "../markup";
 import type { StoredImages } from "../stored-image";
-
-/** What reading an attr off the markup needs of an element, typed without the DOM. */
-type MarkupElement = { getAttribute(name: string): string | null };
 
 export type DiagramOptions = {
   /** Where the picture a diagram was drawn into is stored and shown from. */

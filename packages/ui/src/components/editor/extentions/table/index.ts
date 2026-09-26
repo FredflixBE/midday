@@ -1,5 +1,5 @@
 import Table from "@tiptap/extension-table";
-import { tableNodes, tableOptions } from "./node";
+import { tableCellNodes, tableOptions } from "./node";
 
 /**
  * Tables (FF-1642), part of the schema wherever `registerExtensions` builds
@@ -38,5 +38,5 @@ export const tableExtensions = [
       };
     },
   }).configure(tableOptions),
-  ...tableNodes.slice(1),
+  ...tableCellNodes,
 ];

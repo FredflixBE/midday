@@ -2,9 +2,7 @@ import Table from "@tiptap/extension-table";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
-
-/** What reading an attr off the markup needs of an element, typed without the DOM. */
-type MarkupElement = { getAttribute(name: string): string | null };
+import type { MarkupElement } from "../markup";
 
 /**
  * What a cell carries, for both kinds of cell.
@@ -46,14 +44,16 @@ export const cellAttributes = {
  */
 export const tableOptions = { resizable: false };
 
+/** A table's rows and both kinds of cell, as every table has them. */
+export const tableCellNodes = [
+  TableRow,
+  TableHeader.extend({ addAttributes: () => cellAttributes }),
+  TableCell.extend({ addAttributes: () => cellAttributes }),
+];
+
 /**
  * The four table nodes as the schema knows them, without the view the editor
  * draws a table with (`./index.ts`): what a server needs to read and write a
  * table (FF-1791), and all it can build without a browser.
  */
-export const tableNodes = [
-  Table.configure(tableOptions),
-  TableRow,
-  TableHeader.extend({ addAttributes: () => cellAttributes }),
-  TableCell.extend({ addAttributes: () => cellAttributes }),
-];
+export const tableNodes = [Table.configure(tableOptions), ...tableCellNodes];

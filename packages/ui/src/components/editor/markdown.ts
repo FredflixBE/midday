@@ -24,15 +24,27 @@ import { editorSchema } from "./extentions/schema";
  * - bullet and numbered lists: CommonMark, written tight;
  * - strikethrough (`~~`) and tables: GitHub's markdown, a table's column
  *   alignment standing for its cells';
- * - underline, which markdown has none of: `<u>…</u>`, the only HTML taken.
+ * - underline, which markdown has none of: `<u>…</u>`;
+ * - a blank line typed in the editor, an empty paragraph, which markdown
+ *   folds away: a line holding only `<br>`, as `<br>` inside a line is a
+ *   hard break. Those two are the only HTML taken.
+ *
+ * An address written with its protocol becomes a link, as one typed in the
+ * editor does.
  */
 
 export class MarkdownInputError extends Error {}
 
-const tokenizer = new MarkdownIt("commonmark", { html: true }).enable([
-  "table",
-  "strikethrough",
-]);
+const tokenizer = new MarkdownIt("commonmark", {
+  html: true,
+  linkify: true,
+}).enable(["table", "strikethrough", "linkify"]);
+// Only what carries its protocol: the editor would link `example.com` to
+// https, markdown-it to http, and a link to the wrong one is worse than none.
+tokenizer.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
+
+const HTML_TAKEN = "Only markdown is taken, <u> for underline and <br>";
+const isBreak = (html: string) => /^<br\s*\/?>$/i.test(html.trim());
 
 const ALIGNS = ["left", "center", "right"] as const;
 type Align = (typeof ALIGNS)[number] | null;
@@ -48,13 +60,34 @@ const made = (type: string, nesting: 1 | -1) =>
 
 /**
  * markdown-it's tokens, shaped for the parser below: a table cell gets the
- * paragraph the schema puts in every cell, `<u>` becomes underline, and what
- * has no place in the text is refused rather than dropped.
+ * paragraph the schema puts in every cell, `<u>` becomes underline, `<br>`
+ * a break or a blank line, and what has no place in the text is refused
+ * rather than dropped.
  */
 function shaped(tokens: Token[]): Token[] {
-  return tokens.flatMap((token): Token[] => {
+  const opened = tokens.filter((t) => /^<u>$/i.test(t.content.trim())).length;
+  const closed = tokens.filter((t) => /^<\/u>$/i.test(t.content.trim())).length;
+  if (opened !== closed) {
+    throw new MarkdownInputError(
+      "Each <u> needs its </u>, in the same paragraph",
+    );
+  }
+  return tokens.flatMap((token, index): Token[] => {
     if (token.children) token.children = shaped(token.children);
     switch (token.type) {
+      case "link_open":
+        if (!token.attrGet("href")) {
+          throw new MarkdownInputError("A link needs an address to go to");
+        }
+        if (tokens[index + 1]?.type === "link_close") {
+          throw new MarkdownInputError("A link needs words to show");
+        }
+        if (token.attrGet("title")) {
+          throw new MarkdownInputError(
+            "A link's title is not kept in the text; leave it out",
+          );
+        }
+        return [token];
       case "th_open":
       case "td_open":
         return [token, made("paragraph_open", 1)];
@@ -71,14 +104,17 @@ function shaped(tokens: Token[]): Token[] {
           token.type = tag === "<u>" ? "u_open" : "u_close";
           return [token];
         }
-        throw new MarkdownInputError(
-          `Only markdown is taken, and <u> for underline: ${token.content}`,
-        );
+        if (isBreak(tag)) {
+          token.type = "hardbreak";
+          return [token];
+        }
+        throw new MarkdownInputError(`${HTML_TAKEN}: ${token.content}`);
       }
       case "html_block":
-        throw new MarkdownInputError(
-          `Only markdown is taken, and <u> for underline: ${token.content.trim()}`,
-        );
+        if (isBreak(token.content)) {
+          return [made("paragraph_open", 1), made("paragraph_close", -1)];
+        }
+        throw new MarkdownInputError(`${HTML_TAKEN}: ${token.content.trim()}`);
       default:
         return [token];
     }
@@ -150,12 +186,70 @@ function wordsOf(tokens: Token[]): string {
 
 const withoutSpace = (text: string) => text.replace(/\s+/g, "");
 
+/** Which mark each of markdown-it's inline tokens opens or closes. */
+const MARK_TOKENS: Record<string, string> = {
+  em: "italic",
+  strong: "bold",
+  s: "strike",
+  u: "underline",
+  link: "link",
+};
+
+/**
+ * The words each mark covers, as the markdown asks for them and as the
+ * document holds them. Code takes no other mark in the editor, so a link or
+ * a strike around it is dropped as it is saved; this is where that shows.
+ */
+function markedInTokens(tokens: Token[], marked = new Map<string, string>()) {
+  const open = new Map<string, number>();
+  const add = (mark: string, words: string) =>
+    marked.set(mark, (marked.get(mark) ?? "") + words);
+
+  for (const token of tokens) {
+    if (token.children) {
+      markedInTokens(token.children, marked);
+      continue;
+    }
+    const [, name, side] = /^(.*)_(open|close)$/.exec(token.type) ?? [];
+    const mark = name ? MARK_TOKENS[name] : undefined;
+    if (mark) {
+      open.set(mark, (open.get(mark) ?? 0) + (side === "open" ? 1 : -1));
+      continue;
+    }
+    if (token.type !== "text" && token.type !== "code_inline") continue;
+    for (const [mark, depth] of open) if (depth > 0) add(mark, token.content);
+    if (token.type === "code_inline") add("code", token.content);
+  }
+  return marked;
+}
+
+function markedInDoc(doc: ProseMirrorNode) {
+  const marked = new Map<string, string>();
+  doc.descendants((node) => {
+    for (const mark of node.isText ? node.marks : []) {
+      marked.set(
+        mark.type.name,
+        (marked.get(mark.type.name) ?? "") + node.text,
+      );
+    }
+  });
+  return marked;
+}
+
 const d = defaultMarkdownSerializer;
+
+/**
+ * Written tight, and with `<` and `&` escaped: HTML and entities are read
+ * back as such, so text that only looks like them must say it is text.
+ */
+const SERIALIZE = { tightLists: true, escapeExtraCharacters: /[<&]/g };
 
 /** A table's cell as one line of inline markdown, its pipes escaped. */
 function cellText(cell: ProseMirrorNode) {
+  // An empty cell is an empty paragraph, which is not a blank line here.
+  if (cell.childCount === 1 && cell.firstChild?.content.size === 0) return "";
   return serializer
-    .serialize(cell, { tightLists: true })
+    .serialize(cell, SERIALIZE)
     .trim()
     .replace(/\|/g, "\\|")
     .replace(/\n+/g, " ");
@@ -164,7 +258,12 @@ function cellText(cell: ProseMirrorNode) {
 const serializer: MarkdownSerializer = new MarkdownSerializer(
   {
     doc: (state, node) => state.renderContent(node),
-    paragraph: d.nodes.paragraph!,
+    paragraph: (state, node, parent, index) => {
+      if (node.childCount > 0)
+        return d.nodes.paragraph!(state, node, parent, index);
+      state.write("<br>");
+      state.closeBlock(node);
+    },
     heading: d.nodes.heading!,
     blockquote: d.nodes.blockquote!,
     horizontalRule: d.nodes.horizontal_rule!,
@@ -261,10 +360,20 @@ export function editorDocToMarkdown(doc: JSONContent): {
   markdown: string;
   exact: boolean;
 } {
+  // Empty two ways, both read as "": a block added in the dashboard holds no
+  // content at all, one emptied in the editor a single empty paragraph.
+  // "" writes the first, which is the one the PDF knows to leave out.
+  const content = doc.content ?? [];
+  const lone = content.length === 1 ? content[0] : undefined;
+  if (
+    content.length === 0 ||
+    (lone?.type === "paragraph" && !lone.content?.length)
+  ) {
+    return { markdown: "", exact: true };
+  }
+
   const node = editorSchema.nodeFromJSON(doc);
-  const markdown = serializer
-    .serialize(node, { tightLists: true })
-    .replace(/\n+$/, "");
+  const markdown = serializer.serialize(node, SERIALIZE).replace(/\n+$/, "");
 
   let exact = false;
   try {
@@ -282,9 +391,12 @@ export function editorDocToMarkdown(doc: JSONContent): {
  * the document without it.
  */
 export function markdownToEditorDoc(markdown: string): JSONContent {
+  if (!markdown.trim()) return { type: "doc", content: [] };
+
   const doc = parser.parse(markdown);
 
-  const given = withoutSpace(wordsOf(shaped(tokenizer.parse(markdown, {}))));
+  const tokens = shaped(tokenizer.parse(markdown, {}));
+  const given = withoutSpace(wordsOf(tokens));
   let kept = "";
   doc.descendants((node) => {
     if (node.isText) kept += node.text;
@@ -293,6 +405,39 @@ export function markdownToEditorDoc(markdown: string): JSONContent {
     throw new MarkdownInputError(
       "Part of this markdown has no place in the text; write it more simply",
     );
+  }
+
+  // A node the schema needs where the markdown put none, such as a
+  // paragraph before a heading that opens a list item, is filled in as the
+  // text is saved: a blank line nobody wrote.
+  let paragraphsAsked = 0;
+  const count = (list: Token[]) => {
+    for (const token of list) {
+      if (token.type === "paragraph_open") paragraphsAsked++;
+      if (token.children) count(token.children);
+    }
+  };
+  count(tokens);
+  let paragraphsHeld = 0;
+  doc.descendants((node) => {
+    if (node.type.name === "paragraph") paragraphsHeld++;
+  });
+  if (paragraphsHeld !== paragraphsAsked) {
+    throw new MarkdownInputError(
+      "This markdown nests what the text cannot hold as written, such as a heading inside a list or code inside bold; write it more simply",
+    );
+  }
+
+  const asked = markedInTokens(tokens);
+  const held = markedInDoc(doc);
+  for (const mark of new Set([...asked.keys(), ...held.keys()])) {
+    if (
+      withoutSpace(asked.get(mark) ?? "") !== withoutSpace(held.get(mark) ?? "")
+    ) {
+      throw new MarkdownInputError(
+        `The ${mark} mark cannot be kept as written here; code takes no other mark, so write it more simply`,
+      );
+    }
   }
 
   // What the editor cannot nest as written — a heading or a table first in
