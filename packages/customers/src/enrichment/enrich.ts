@@ -35,7 +35,7 @@ export async function enrichCustomer(
   try {
     const domain = deriveDomain(params.website, params.email);
 
-    logger.info("Starting enrichment", {
+    logger.debug("Starting enrichment", {
       companyName: params.companyName,
       domain,
     });
@@ -45,7 +45,7 @@ export async function enrichCustomer(
     });
 
     if (!result) {
-      logger.info("Company not found in CompanyEnrich", {
+      logger.debug("Company not found in CompanyEnrich", {
         companyName: params.companyName,
       });
       return emptyResult(Date.now() - startTime);
@@ -59,7 +59,7 @@ export async function enrichCustomer(
       result.data.domain &&
       !domainsMatch(domain, result.data.domain)
     ) {
-      logger.info("Domain mismatch on name lookup, discarding result", {
+      logger.debug("Domain mismatch on name lookup, discarding result", {
         companyName: params.companyName,
         expected: domain,
         got: result.data.domain,
@@ -75,7 +75,7 @@ export async function enrichCustomer(
     const verifiedFieldCount = countPresentFields(verified);
     const durationMs = Date.now() - startTime;
 
-    logger.info("Enrichment complete", {
+    logger.debug("Enrichment complete", {
       companyName: params.companyName,
       verifiedFieldCount,
       durationMs,

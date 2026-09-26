@@ -154,7 +154,6 @@ app.openapi(
     logger.info("Inbox webhook received", {
       messageId: MessageID,
       inboxId,
-      senderEmail: FromFull.Email,
       attachmentCount: Attachments?.length ?? 0,
     });
 

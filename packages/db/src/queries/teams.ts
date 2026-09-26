@@ -263,7 +263,6 @@ export const createTeam = async (db: Database, params: CreateTeamParams) => {
     teamName: params.name,
     baseCurrency: params.baseCurrency,
     countryCode: params.countryCode,
-    email: params.email,
     switchTeam: params.switchTeam,
   });
 

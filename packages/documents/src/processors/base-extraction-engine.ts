@@ -849,12 +849,16 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
 
       // Log consistency issues
       if (consistencyResult.issues.length > 0) {
+        // Each issue's text quotes the document's amounts and dates, so the
+        // warning names the fields and the full text is only in debug.
         logger.warn("Cross-field consistency issues found", {
           issues: consistencyResult.issues.map((i) => ({
             field: i.field,
-            issue: i.issue,
             severity: i.severity,
           })),
+        });
+        logger.debug("Cross-field consistency issue details", {
+          issues: consistencyResult.issues.map((i) => i.issue),
         });
       }
     }

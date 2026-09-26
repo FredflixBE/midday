@@ -1172,7 +1172,7 @@ export async function getSimilarTransactions(
     .filter((r) => r.score >= MIN_SIMILARITY_THRESHOLD)
     .sort((a, b) => b.score - a.score);
 
-  logger.info("getSimilarTransactions completed", {
+  logger.debug("getSimilarTransactions completed", {
     name,
     teamId,
     sourceMerchantName,
