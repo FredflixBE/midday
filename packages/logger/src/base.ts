@@ -11,6 +11,33 @@ const prettyOptions = {
   levelFirst: true,
 };
 
+// Field names that hold a credential. Masked wherever a caller puts one, at
+// the top of a log line or one object down, because once Better Stack is on a
+// line leaves our host. pino cannot match a key at any depth; two levels
+// cover every logger call in the repo today.
+const SECRET_KEYS = [
+  "authorization",
+  "Authorization",
+  "cookie",
+  "password",
+  "secret",
+  "clientSecret",
+  "client_secret",
+  "token",
+  "accessToken",
+  "access_token",
+  "refreshToken",
+  "refresh_token",
+  "idToken",
+  "id_token",
+  "apiKey",
+  "api_key",
+  "privateKey",
+  "private_key",
+];
+
+const REDACT_PATHS = SECRET_KEYS.flatMap((key) => [key, `*.${key}`]);
+
 type BaseLoggerOptions = {
   level: string;
   /** Pretty-print to stdout for development instead of structured JSON. */
@@ -37,6 +64,7 @@ export function createBaseLogger({
       res: pino.stdSerializers.res,
       err: pino.stdSerializers.err,
     },
+    redact: { paths: REDACT_PATHS, censor: "[redacted]" },
   };
 
   const prettyTransport = {

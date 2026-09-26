@@ -514,12 +514,7 @@ export function computeSlots(
   // Case 1: If expenses is 0 but profit < revenue, derive expenses
   const impliedExpenses = revenueRaw - profitRaw;
   if (expensesRaw === 0 && impliedExpenses > 0) {
-    logger.warn("Data fix: expenses derived in slots", {
-      originalExpenses: 0,
-      derivedExpenses: impliedExpenses,
-      revenue: revenueRaw,
-      profit: profitRaw,
-    });
+    logger.warn("Data fix: expenses derived in slots");
     expensesRaw = impliedExpenses;
   }
 
@@ -527,12 +522,7 @@ export function computeSlots(
   // This happens when transactions aren't categorized as revenue but show up in profit
   const impliedRevenue = profitRaw + expensesRaw;
   if (revenueRaw === 0 && impliedRevenue > 0 && profitRaw > 0) {
-    logger.warn("Data fix: revenue derived in slots", {
-      originalRevenue: 0,
-      derivedRevenue: impliedRevenue,
-      profit: profitRaw,
-      expenses: expensesRaw,
-    });
+    logger.warn("Data fix: revenue derived in slots");
     revenueRaw = impliedRevenue;
   }
 

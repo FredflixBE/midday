@@ -279,7 +279,7 @@ export function isCrossCurrencyMatch(
   const actualTolerancePercent = adjustedTolerance / avgAmount;
 
   // Enhanced logging with risk assessment
-  logger.info("CROSS-CURRENCY MATCH DEBUG", {
+  logger.debug("CROSS-CURRENCY MATCH DEBUG", {
     item1: {
       currency: item1.currency,
       amount: item1.amount,
