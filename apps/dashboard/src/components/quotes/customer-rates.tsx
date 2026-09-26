@@ -38,7 +38,7 @@ export function CustomerRates({ customerId }: { customerId: string }) {
   const shown = products.filter((p) => p.isActive || own.has(p.id));
 
   if (shown.length === 0) {
-    return <div className="text-[14px] text-[#606060]">-</div>;
+    return <div className="text-[14px] text-muted-foreground">-</div>;
   }
 
   return (
@@ -96,7 +96,9 @@ function RateField({
 
   return (
     <div>
-      <div className="text-[12px] mb-2 text-[#606060]">{product.name}</div>
+      <div className="text-[12px] mb-2 text-muted-foreground">
+        {product.name}
+      </div>
       <CurrencyInput
         aria-label={`${product.name} hourly rate`}
         value={value ?? ""}

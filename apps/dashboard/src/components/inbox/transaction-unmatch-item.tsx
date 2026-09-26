@@ -93,7 +93,7 @@ export function TransactionUnmatchItem() {
         }}
         type="button"
       >
-        <Icons.Delete className="w-4 h-4 text-[#878787]" />
+        <Icons.Delete className="w-4 h-4 text-muted-foreground" />
       </button>
     </div>
   );

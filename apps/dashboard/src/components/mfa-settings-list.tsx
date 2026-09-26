@@ -29,7 +29,7 @@ export async function MfaSettingsList() {
       <CardContent>
         {hasMfaFactors && <UnenrollMFA />}
         {!hasMfaFactors && (
-          <p className="text-sm text-[#606060]">
+          <p className="text-sm text-muted-foreground">
             Multi-factor authentication is not enabled. Enable it to add an
             additional layer of security to your account.
           </p>

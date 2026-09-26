@@ -130,7 +130,10 @@ const ActionsCell = memo(
               </DropdownMenuItem>
             )}
 
-            <DropdownMenuItem onClick={handleDelete} className="text-[#FF3638]">
+            <DropdownMenuItem
+              onClick={handleDelete}
+              className="text-destructive"
+            >
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -152,7 +155,7 @@ const EnrichingCell = memo(() => (
       <TooltipTrigger asChild>
         <div className="flex items-center space-x-2 cursor-help">
           <Spinner size={14} className="stroke-primary" />
-          <span className="text-[#878787] text-sm">Enriching</span>
+          <span className="text-muted-foreground text-sm">Enriching</span>
         </div>
       </TooltipTrigger>
       <TooltipContent
@@ -180,7 +183,7 @@ const WebsiteCell = memo(({ website }: { website: string | null }) => {
       href={website.startsWith("http") ? website : `https://${website}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-primary hover:underline truncate block"
+      className="text-foreground hover:underline truncate block"
       onClick={(e) => e.stopPropagation()}
     >
       {displayUrl}
@@ -204,7 +207,7 @@ export const columns: ColumnDef<Customer>[] = [
       skeleton: { type: "avatar-text", width: "w-32" },
       headerLabel: "Name",
       className:
-        "w-[320px] min-w-[240px] md:sticky md:left-0 bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f] z-20",
+        "w-[320px] min-w-[240px] md:sticky md:left-0 bg-background group-hover:bg-accent z-20",
     },
     cell: ({ row }) => (
       <NameCell name={row.original.name} website={row.original.website} />
@@ -363,7 +366,7 @@ export const columns: ColumnDef<Customer>[] = [
       return (
         <a
           href={`mailto:${email}`}
-          className="text-primary hover:underline truncate block"
+          className="text-foreground hover:underline truncate block"
           onClick={(e) => e.stopPropagation()}
         >
           {email}
@@ -502,7 +505,7 @@ export const columns: ColumnDef<Customer>[] = [
       skeleton: { type: "icon" },
       headerLabel: "Actions",
       className:
-        "text-right sticky right-0 bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f] z-30 justify-center !border-l !border-border",
+        "text-right sticky right-0 bg-background group-hover:bg-accent z-30 justify-center !border-l !border-border",
     },
     cell: ({ row, table }) => (
       <ActionsCell

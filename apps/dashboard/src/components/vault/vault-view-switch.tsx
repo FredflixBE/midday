@@ -9,11 +9,13 @@ export function VaultViewSwitch() {
   const { params, setParams } = useDocumentParams();
 
   return (
-    <div className="flex gap-2 text-[#878787]">
+    <div className="flex gap-2 text-muted-foreground">
       <Button
         variant="outline"
         size="icon"
-        className={cn(params.view === "grid" && "border-primary text-primary")}
+        className={cn(
+          params.view === "grid" && "border-foreground text-foreground",
+        )}
         onClick={() => setParams({ view: "grid" })}
       >
         <Icons.GridView size={18} />
@@ -22,7 +24,9 @@ export function VaultViewSwitch() {
       <Button
         variant="outline"
         size="icon"
-        className={cn(params.view === "list" && "border-primary text-primary")}
+        className={cn(
+          params.view === "list" && "border-foreground text-foreground",
+        )}
         onClick={() => setParams({ view: "list" })}
       >
         <Icons.ListView size={18} />

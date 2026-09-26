@@ -255,7 +255,7 @@ export function TrackerTimer({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className={`p-1 h-6 rounded-sm transition-all text-[#666] duration-200 ease-in-out hover:bg-accent flex items-center justify-center overflow-hidden ${
+                className={`p-1 h-6 rounded-sm transition-all text-muted-foreground duration-200 ease-in-out hover:bg-accent flex items-center justify-center overflow-hidden ${
                   isThisProjectRunning
                     ? "w-6 mr-1 opacity-100 scale-100"
                     : alwaysShowButton
@@ -278,7 +278,7 @@ export function TrackerTimer({
               <TooltipContent
                 side="top"
                 sideOffset={5}
-                className="text-xs px-2 py-1 text-[#878787]"
+                className="text-xs px-2 py-1 text-muted-foreground"
               >
                 <p>Stop timer</p>
               </TooltipContent>
@@ -291,7 +291,7 @@ export function TrackerTimer({
         <div className="flex items-center gap-2">
           <span>{projectName}</span>
           <div
-            className={`flex items-center gap-px text-xs text-[#666] ml-auto transition-all duration-300 ease-in-out ${
+            className={`flex items-center gap-px text-xs text-muted-foreground ml-auto transition-all duration-300 ease-in-out ${
               isThisProjectRunning
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-2"
@@ -301,8 +301,8 @@ export function TrackerTimer({
               <>
                 <div className="flex items-center mr-[5px]">
                   <span className="relative flex h-[5px] w-[5px]">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00C969] opacity-75" />
-                    <span className="relative inline-flex rounded-full h-[5px] w-[5px] bg-[#00C969]" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+                    <span className="relative inline-flex rounded-full h-[5px] w-[5px] bg-success" />
                   </span>
                 </div>
                 <NumberFlow

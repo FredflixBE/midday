@@ -24,7 +24,7 @@ export function ImageViewer({ url }: { url: string }) {
   if (!url) return <ErrorImage />;
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center bg-primary/10">
+    <div className="relative flex h-full w-full items-center justify-center bg-muted">
       {isLoading && !isError && (
         <Skeleton className="absolute inset-0 h-full w-full" />
       )}

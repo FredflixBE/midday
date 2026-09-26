@@ -131,7 +131,7 @@ export function ChatView({ header }: { header?: React.ReactNode }) {
                 className="overflow-hidden"
               >
                 <div className="bg-[rgba(247,247,247,0.85)] dark:bg-[rgba(19,19,19,0.7)] backdrop-blur-lg px-4 py-1.5 mb-0.5">
-                  <p className="text-center text-[11px] text-[#878787]/50">
+                  <p className="text-center text-[11px] text-muted-foreground/50">
                     {rateLimitExceeded
                       ? "Message limit reached. Please wait a few minutes."
                       : rateLimit?.remaining === 0
@@ -159,7 +159,7 @@ export function ChatView({ header }: { header?: React.ReactNode }) {
               sendMessage({ text });
             }}
           />
-          <p className="text-center text-[11px] text-[#878787]/50 pt-1.5">
+          <p className="text-center text-[11px] text-muted-foreground/50 pt-1.5">
             Midday AI can make mistakes. Please double-check responses.
           </p>
         </div>

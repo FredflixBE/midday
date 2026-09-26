@@ -78,7 +78,7 @@ export const InboxItem = memo(
         className={cn(
           "flex flex-col w-full items-start gap-2 border p-4 text-left text-sm h-[90px] transition-colors",
           (isNavigationSelected && !isSelectionMode) || isBulkSelected
-            ? "bg-accent border-[#DCDAD2] dark:border-[#2C2C2C]"
+            ? "bg-accent border-border"
             : "",
         )}
       >

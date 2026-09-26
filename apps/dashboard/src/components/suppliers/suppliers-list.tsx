@@ -89,7 +89,7 @@ export function SuppliersList() {
       <div className="flex items-end justify-between gap-4 border-b border-border pb-4">
         <div>
           <h1 className="text-2xl font-serif">Suppliers</h1>
-          <p className="mt-1 text-sm text-[#878787]">
+          <p className="mt-1 text-sm text-muted-foreground">
             {suppliers.length}{" "}
             {suppliers.length === 1 ? "supplier" : "suppliers"}
           </p>
@@ -140,7 +140,7 @@ export function SuppliersList() {
             <TableRow>
               <TableCell
                 colSpan={5}
-                className="py-8 text-center text-[#878787]"
+                className="py-8 text-center text-muted-foreground"
               >
                 {suppliers.length === 0
                   ? "No suppliers yet."
@@ -170,7 +170,7 @@ export function SuppliersList() {
                       }
                     />
                   ) : supplier.categoryMixed ? (
-                    <span className="text-[#878787]">Mixed</span>
+                    <span className="text-muted-foreground">Mixed</span>
                   ) : null}
                 </TableCell>
                 <TableCell className="text-right">
@@ -188,7 +188,7 @@ export function SuppliersList() {
                     </span>
                   ))}
                 </TableCell>
-                <TableCell className="text-right whitespace-nowrap text-[#878787]">
+                <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                   {supplier.lastPaymentDate
                     ? formatDate(supplier.lastPaymentDate, user?.dateFormat)
                     : null}
@@ -226,7 +226,7 @@ function SortableHead({
         onClick={() => onSort(sortKey)}
         className={cn(
           "inline-flex items-center gap-1",
-          active ? "text-primary" : "text-[#878787]",
+          active ? "text-foreground" : "text-muted-foreground",
         )}
       >
         {children}

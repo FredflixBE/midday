@@ -1378,8 +1378,8 @@ export function TrackerSchedule() {
               className={cn(
                 "absolute transition-colors",
                 // Same styling for all events
-                "bg-[#F0F0F0]/[0.95] dark:bg-[#1D1D1D]/[0.95] text-[#606060] dark:text-[#878787] border-t border-border",
-                selectedEvent?.id === event.id && "!text-primary",
+                "bg-muted/[0.95] text-muted-foreground border-t border-border",
+                selectedEvent?.id === event.id && "!text-foreground",
                 event.id !== NEW_EVENT_ID && "cursor-move",
                 event.totalColumns > 1 && event.column > 0
                   ? "border border-border"
@@ -1464,7 +1464,7 @@ export function TrackerSchedule() {
   return (
     <div className="w-full">
       <div className="text-left mb-8">
-        <h2 className="text-xl text-[#878787]">
+        <h2 className="text-xl text-muted-foreground">
           {secondsToHoursAndMinutes(totalDuration)}
         </h2>
       </div>
@@ -1472,7 +1472,7 @@ export function TrackerSchedule() {
       <TrackerDaySelect />
 
       <ScrollArea ref={scrollRef} className="h-[calc(100vh-530px)] mt-8">
-        <div className="flex text-[#878787] text-xs">
+        <div className="flex text-muted-foreground text-xs">
           <div className="w-20 shrink-0 select-none">
             {hours.map((hour) => (
               <div

@@ -175,7 +175,7 @@ export function ScenarioLines({
             // element is set in — so this grid has to be set in the same size
             // as the rows or its hours track comes out narrower. The heading's
             // own size lives on the labels (FF-1671).
-            className={`grid ${columns(range)} min-w-[600px] items-center gap-2 border-b border-border px-3 py-2 text-sm text-[#606060]`}
+            className={`grid ${columns(range)} min-w-[600px] items-center gap-2 border-b border-border px-3 py-2 text-sm text-muted-foreground`}
           >
             <span />
             <span className="px-3 text-[12px]">Item</span>
@@ -381,7 +381,7 @@ function Money({
   return (
     <div className={cn(body, "grid grid-cols-[1fr_auto_1fr] gap-1")}>
       <span>{figure(min)}</span>
-      <span className="text-[#878787]">{spread ? "–" : ""}</span>
+      <span className="text-muted-foreground">{spread ? "–" : ""}</span>
       <span>{spread ? figure(max) : ""}</span>
     </div>
   );
@@ -456,7 +456,7 @@ function RowMenu({
 /** A flag the row carries, said the way the printed quote says it. */
 function Tag({ children }: { children: ReactNode }) {
   return (
-    <span className="shrink-0 whitespace-nowrap border border-border px-1 py-0.5 text-[10px] uppercase tracking-wide text-[#878787]">
+    <span className="shrink-0 whitespace-nowrap border border-border px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
       {children}
     </span>
   );
@@ -524,7 +524,10 @@ function ItemFields({
             maxLength={5000}
             rows={1}
             autoFocus={line.description === ""}
-            className={cn(QUIET, "min-h-9 resize-y text-[13px] text-[#606060]")}
+            className={cn(
+              QUIET,
+              "min-h-9 resize-y text-[13px] text-muted-foreground",
+            )}
             onChange={(e) => onChange({ description: e.target.value })}
           />
         ) : null}
@@ -567,7 +570,7 @@ function ItemFields({
             max={shown(1_000_000)}
             className="border-0 px-0 text-left"
           />
-          <span className="text-center text-[#878787]">–</span>
+          <span className="text-center text-muted-foreground">–</span>
           <NumberInput
             aria-label={`Maximum ${noun}`}
             pad={2}
@@ -602,7 +605,7 @@ function ItemFields({
           min={priced?.amount}
           max={priced?.amountMax}
           figure={figure}
-          className={cn(line.optional && "text-[#878787]")}
+          className={cn(line.optional && "text-muted-foreground")}
         />
       )}
     </>

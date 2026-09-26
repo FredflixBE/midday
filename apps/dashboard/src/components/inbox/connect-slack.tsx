@@ -156,7 +156,7 @@ export function ConnectSlack() {
             )}
           </Button>
 
-          <p className="text-xs text-[#878787] text-center">
+          <p className="text-xs text-muted-foreground text-center">
             This links your Slack user to your current Midday user. Workspace
             installation and disconnect still live in the Slack app settings.
           </p>

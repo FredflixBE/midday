@@ -80,7 +80,7 @@ function SetupStep({
       <span className="shrink-0 w-5 h-5 bg-secondary border border-border flex items-center justify-center font-mono text-[10px] text-muted-foreground">
         {number}
       </span>
-      <span className="text-xs text-[#878787] pt-0.5">{children}</span>
+      <span className="text-xs text-muted-foreground pt-0.5">{children}</span>
     </li>
   );
 }
@@ -88,27 +88,28 @@ function SetupStep({
 export function ChatGPTSetupInstructions() {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Connect ChatGPT to your Midday account via MCP. No API key needed —
         authentication is handled automatically via OAuth.
       </p>
 
       <div className="space-y-2">
-        <p className="text-xs text-[#878787]">
+        <p className="text-xs text-muted-foreground">
           Copy this URL and add it as a connector in ChatGPT:
         </p>
         <CopyableUrl url={mcpServerUrl} />
       </div>
 
       <div className="space-y-2.5">
-        <p className="text-xs font-medium text-primary">Setup steps</p>
+        <p className="text-xs font-medium text-foreground">Setup steps</p>
         <ol className="space-y-2.5">
           <SetupStep number={1}>
             In ChatGPT, go to{" "}
-            <span className="font-medium text-primary">
+            <span className="font-medium text-foreground">
               Settings → Connectors
             </span>{" "}
-            and click <span className="font-medium text-primary">Create</span>
+            and click{" "}
+            <span className="font-medium text-foreground">Create</span>
           </SetupStep>
           <SetupStep number={2}>
             Paste the URL above as the connector URL
@@ -121,8 +122,8 @@ export function ChatGPTSetupInstructions() {
       </div>
 
       <div className="bg-secondary border border-border p-3">
-        <p className="text-[11px] text-[#878787]">
-          <span className="font-medium text-primary">Requirements:</span>{" "}
+        <p className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Requirements:</span>{" "}
           ChatGPT Pro, Plus, Business, Enterprise, or Education account. Enable
           developer mode in Settings → Apps & Connectors → Advanced settings.
         </p>
@@ -134,13 +135,13 @@ export function ChatGPTSetupInstructions() {
 export function GeminiSetupInstructions() {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Connect Gemini CLI to your Midday account via MCP. No API key needed —
         authentication is handled automatically via OAuth.
       </p>
 
       <div className="space-y-2">
-        <p className="text-xs text-[#878787]">
+        <p className="text-xs text-muted-foreground">
           Run this command to add the Midday MCP server:
         </p>
         <CopyableCode
@@ -149,7 +150,7 @@ export function GeminiSetupInstructions() {
       </div>
 
       <div className="space-y-2.5">
-        <p className="text-xs font-medium text-primary">Setup steps</p>
+        <p className="text-xs font-medium text-foreground">Setup steps</p>
         <ol className="space-y-2.5">
           <SetupStep number={1}>
             Run the command above in your terminal
@@ -164,14 +165,14 @@ export function GeminiSetupInstructions() {
       </div>
 
       <div className="bg-secondary border border-border p-3">
-        <p className="text-[11px] text-[#878787]">
-          <span className="font-medium text-primary">Requirements:</span> Gemini
-          CLI installed. See the{" "}
+        <p className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Requirements:</span>{" "}
+          Gemini CLI installed. See the{" "}
           <a
             href="https://github.com/google-gemini/gemini-cli"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline hover:text-primary"
+            className="underline hover:text-foreground"
           >
             Gemini CLI docs
           </a>{" "}
@@ -185,21 +186,21 @@ export function GeminiSetupInstructions() {
 export function WindsurfSetupInstructions() {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Connect Windsurf to your Midday account via MCP. No API key needed —
         authentication is handled automatically via OAuth.
       </p>
 
       <div className="space-y-2.5">
-        <p className="text-xs font-medium text-primary">Setup steps</p>
+        <p className="text-xs font-medium text-foreground">Setup steps</p>
         <ol className="space-y-2.5">
           <SetupStep number={1}>
             Open Windsurf and go to{" "}
-            <span className="font-medium text-primary">
+            <span className="font-medium text-foreground">
               Settings → MCP Marketplace
             </span>{" "}
             (or edit{" "}
-            <span className="font-mono text-primary">mcp_config.json</span>)
+            <span className="font-mono text-foreground">mcp_config.json</span>)
           </SetupStep>
           <SetupStep number={2}>
             Add a new server with URL:
@@ -217,32 +218,34 @@ export function WindsurfSetupInstructions() {
 export function ClineSetupInstructions() {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Connect Cline to your Midday account via MCP. No API key needed —
         authentication is handled automatically via OAuth.
       </p>
 
       <div className="space-y-2.5">
-        <p className="text-xs font-medium text-primary">Setup steps</p>
+        <p className="text-xs font-medium text-foreground">Setup steps</p>
         <ol className="space-y-2.5">
           <SetupStep number={1}>
             In the Cline sidebar, go to the{" "}
-            <span className="font-medium text-primary">Remote Servers</span> tab
+            <span className="font-medium text-foreground">Remote Servers</span>{" "}
+            tab
           </SetupStep>
           <SetupStep number={2}>
             Add the server URL:
             <CopyableUrl url={mcpServerUrl} />
           </SetupStep>
           <SetupStep number={3}>
-            Click <span className="font-medium text-primary">Authenticate</span>{" "}
+            Click{" "}
+            <span className="font-medium text-foreground">Authenticate</span>{" "}
             and sign in to Midday in your browser
           </SetupStep>
         </ol>
       </div>
 
       <div className="bg-secondary border border-border p-3">
-        <p className="text-[11px] text-[#878787]">
-          <span className="font-medium text-primary">Requirements:</span> VS
+        <p className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Requirements:</span> VS
           Code with the Cline extension installed.
         </p>
       </div>
@@ -253,21 +256,23 @@ export function ClineSetupInstructions() {
 export function ZedSetupInstructions() {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Connect Zed to your Midday account via MCP. No API key needed —
         authentication is handled automatically via OAuth.
       </p>
 
       <div className="space-y-2.5">
-        <p className="text-xs font-medium text-primary">Setup steps</p>
+        <p className="text-xs font-medium text-foreground">Setup steps</p>
         <ol className="space-y-2.5">
           <SetupStep number={1}>
             Open the{" "}
-            <span className="font-medium text-primary">
+            <span className="font-medium text-foreground">
               Agent Panel settings
             </span>{" "}
             and click{" "}
-            <span className="font-medium text-primary">Add Custom Server</span>
+            <span className="font-medium text-foreground">
+              Add Custom Server
+            </span>
           </SetupStep>
           <SetupStep number={2}>
             Enter the URL:
@@ -280,8 +285,8 @@ export function ZedSetupInstructions() {
       </div>
 
       <div className="bg-secondary border border-border p-3">
-        <p className="text-[11px] text-[#878787]">
-          <span className="font-medium text-primary">Requirements:</span> Zed
+        <p className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Requirements:</span> Zed
           editor installed.
         </p>
       </div>
@@ -292,17 +297,17 @@ export function ZedSetupInstructions() {
 export function ManusSetupInstructions() {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Connect Manus to your Midday account via MCP.
       </p>
 
       <div className="space-y-2.5">
-        <p className="text-xs font-medium text-primary">Setup steps</p>
+        <p className="text-xs font-medium text-foreground">Setup steps</p>
         <ol className="space-y-2.5">
           <SetupStep number={1}>
             In Manus, go to{" "}
-            <span className="font-medium text-primary">Settings</span> and add a
-            new MCP connector
+            <span className="font-medium text-foreground">Settings</span> and
+            add a new MCP connector
           </SetupStep>
           <SetupStep number={2}>
             Enter the server URL:
@@ -315,9 +320,9 @@ export function ManusSetupInstructions() {
       </div>
 
       <div className="bg-secondary border border-border p-3">
-        <p className="text-[11px] text-[#878787]">
-          <span className="font-medium text-primary">Requirements:</span> Manus
-          account with MCP connector support.
+        <p className="text-[11px] text-muted-foreground">
+          <span className="font-medium text-foreground">Requirements:</span>{" "}
+          Manus account with MCP connector support.
         </p>
       </div>
     </div>
@@ -327,7 +332,7 @@ export function ManusSetupInstructions() {
 export function ClaudeSetupInstructions() {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Connect Claude to your Midday account via MCP. No API key needed —
         authentication is handled automatically via OAuth.
       </p>
@@ -344,22 +349,22 @@ export function ClaudeSetupInstructions() {
 
         <TabsContent value="connect" className="space-y-4 mt-3">
           <div className="space-y-2">
-            <p className="text-xs text-[#878787]">
+            <p className="text-xs text-muted-foreground">
               Copy this URL and add it as a connector in Claude:
             </p>
             <CopyableUrl url={mcpServerUrl} />
           </div>
 
           <div className="space-y-2.5">
-            <p className="text-xs font-medium text-primary">Setup steps</p>
+            <p className="text-xs font-medium text-foreground">Setup steps</p>
             <ol className="space-y-2.5">
               <SetupStep number={1}>
                 Go to{" "}
-                <span className="font-medium text-primary">
+                <span className="font-medium text-foreground">
                   Settings → Connectors
                 </span>{" "}
                 and click{" "}
-                <span className="font-medium text-primary">
+                <span className="font-medium text-foreground">
                   Add custom connector
                 </span>
               </SetupStep>
@@ -376,7 +381,7 @@ export function ClaudeSetupInstructions() {
 
         <TabsContent value="code" className="space-y-4 mt-3">
           <div className="space-y-2">
-            <p className="text-xs text-[#878787]">
+            <p className="text-xs text-muted-foreground">
               Run this command to add the Midday MCP server. OAuth will be
               handled automatically in your browser:
             </p>
@@ -386,7 +391,7 @@ export function ClaudeSetupInstructions() {
           </div>
 
           <div className="space-y-2.5">
-            <p className="text-xs font-medium text-primary">Setup steps</p>
+            <p className="text-xs font-medium text-foreground">Setup steps</p>
             <ol className="space-y-2.5">
               <SetupStep number={1}>
                 Run the command above in your terminal

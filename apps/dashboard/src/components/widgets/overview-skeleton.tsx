@@ -10,7 +10,7 @@ export function SummarySkeleton() {
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={`dot-${i}`}
-            className="h-[2px] w-4 rounded-full bg-primary/10"
+            className="h-[2px] w-4 rounded-full bg-foreground/10"
           />
         ))}
       </div>

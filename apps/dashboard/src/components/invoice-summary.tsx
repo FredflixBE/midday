@@ -70,18 +70,22 @@ export function InvoiceSummary({ data, title }: Props) {
                 </span>
               </TooltipTrigger>
               <TooltipContent
-                className="text-xs text-[#878787] max-w-[240px] p-4 space-y-2"
+                className="text-xs text-muted-foreground max-w-[240px] p-4 space-y-2"
                 side="bottom"
                 sideOffset={10}
               >
-                <h3 className="font-medium text-primary">Currency Breakdown</h3>
+                <h3 className="font-medium text-foreground">
+                  Currency Breakdown
+                </h3>
                 <div className="space-y-1.5">
                   {data.breakdown?.map((item, index) => (
                     <div key={item.currency}>
                       <div className="flex items-center justify-between text-xs py-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{item.currency}</span>
-                          <span className="text-[#878787]">({item.count})</span>
+                          <span className="text-muted-foreground">
+                            ({item.count})
+                          </span>
                         </div>
                         <div className="text-right">
                           <FormatAmount
@@ -91,7 +95,7 @@ export function InvoiceSummary({ data, title }: Props) {
                             minimumFractionDigits={0}
                           />
                           {item.currency !== data.currency && (
-                            <div className="text-[#878787] text-xs mt-1">
+                            <div className="text-muted-foreground text-xs mt-1">
                               ≈{" "}
                               <FormatAmount
                                 amount={item.convertedAmount}
@@ -109,7 +113,7 @@ export function InvoiceSummary({ data, title }: Props) {
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-[#878787]">
+                <p className="text-xs text-muted-foreground">
                   All amounts are converted into your base currency.
                 </p>
               </TooltipContent>

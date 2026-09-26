@@ -201,7 +201,7 @@ export const columns: ColumnDef<any>[] = [
 
           {row.original.system && (
             <div className="pl-2">
-              <span className="border border-border rounded-full py-1 px-2 text-[10px] text-[#878787] font-mono">
+              <span className="border border-border rounded-full py-1 px-2 text-[10px] text-muted-foreground font-mono">
                 System
               </span>
             </div>

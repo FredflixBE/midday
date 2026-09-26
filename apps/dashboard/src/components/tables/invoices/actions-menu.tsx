@@ -316,7 +316,7 @@ export function ActionsMenu({ row }: Props) {
           {row.status === "scheduled" && row.scheduledJobId && (
             <DropdownMenuItem
               onClick={() => cancelScheduleMutation.mutate({ id: row.id })}
-              className="text-[#FF3638]"
+              className="text-destructive"
             >
               Cancel schedule
             </DropdownMenuItem>
@@ -374,7 +374,7 @@ export function ActionsMenu({ row }: Props) {
                     status: "canceled",
                   })
                 }
-                className="text-[#FF3638]"
+                className="text-destructive"
               >
                 Cancel
               </DropdownMenuItem>
@@ -384,7 +384,7 @@ export function ActionsMenu({ row }: Props) {
           {row.status === "canceled" && (
             <DropdownMenuItem
               onClick={() => deleteInvoiceMutation.mutate({ id: row.id })}
-              className="text-[#FF3638]"
+              className="text-destructive"
             >
               Delete
             </DropdownMenuItem>
@@ -393,7 +393,7 @@ export function ActionsMenu({ row }: Props) {
           {row.status === "draft" && (
             <DropdownMenuItem
               onClick={() => deleteInvoiceMutation.mutate({ id: row.id })}
-              className="text-[#FF3638]"
+              className="text-destructive"
             >
               Delete
             </DropdownMenuItem>
@@ -443,7 +443,7 @@ export function ActionsMenu({ row }: Props) {
               {canCancelSeries && (
                 <DropdownMenuItem
                   onClick={() => setCancelSeriesOpen(true)}
-                  className="text-[#FF3638]"
+                  className="text-destructive"
                 >
                   Cancel series
                 </DropdownMenuItem>

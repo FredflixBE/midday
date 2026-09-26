@@ -151,7 +151,7 @@ export function SuggestedMatch() {
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className="bg-white/95 dark:bg-black/95 p-4 space-y-4 border dark:border-[#2C2C2C] border-[#DCDAD2] shadow-xs"
+      className="bg-white/95 dark:bg-black/95 p-4 space-y-4 border border-border shadow-xs"
     >
       <div className="flex items-start justify-between gap-2 text-sm bg-muted/50">
         <div className="flex flex-col gap-2 min-w-0 flex-1">

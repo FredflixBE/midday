@@ -13,7 +13,9 @@ export function NoResults() {
         <Icons.Transactions2 className="mb-4" />
         <div className="text-center mb-6 space-y-2">
           <h2 className="font-medium text-lg">No results</h2>
-          <p className="text-[#606060] text-sm">Try another search term</p>
+          <p className="text-muted-foreground text-sm">
+            Try another search term
+          </p>
         </div>
 
         <Button variant="outline" onClick={() => setFilter(null)}>

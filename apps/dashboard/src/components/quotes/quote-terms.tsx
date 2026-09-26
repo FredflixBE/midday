@@ -251,7 +251,7 @@ function TermsDialog({
           {terms ? null : (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2 text-sm">
-                <label htmlFor="terms-label" className="text-[#606060]">
+                <label htmlFor="terms-label" className="text-muted-foreground">
                   Version
                 </label>
                 <Input
@@ -263,7 +263,10 @@ function TermsDialog({
                 />
               </div>
               <div className="space-y-2 text-sm">
-                <label htmlFor="terms-language" className="text-[#606060]">
+                <label
+                  htmlFor="terms-language"
+                  className="text-muted-foreground"
+                >
                   Language
                 </label>
                 <Select

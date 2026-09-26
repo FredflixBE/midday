@@ -29,7 +29,7 @@ export function EmptyState({
       <div className="flex flex-col items-center mt-40">
         <div className="text-center mb-6 space-y-2">
           <h2 className="font-medium text-lg">{title}</h2>
-          <p className="text-[#606060] text-sm">{description}</p>
+          <p className="text-muted-foreground text-sm">{description}</p>
         </div>
 
         <Button variant="outline" onClick={onAction}>

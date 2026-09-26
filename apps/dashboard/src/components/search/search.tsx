@@ -80,9 +80,9 @@ function CopyButton({ path }: { path: string }) {
   return (
     <button type="button" onClick={handleCopy}>
       {isCopied ? (
-        <Icons.Check className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+        <Icons.Check className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
       ) : (
-        <Icons.Copy className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+        <Icons.Copy className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
       )}
     </button>
   );
@@ -145,7 +145,7 @@ function DownloadButton({
       {isDownloading || isLoading ? (
         <Spinner size={16} />
       ) : (
-        <Icons.ArrowCoolDown className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+        <Icons.ArrowCoolDown className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
       )}
     </button>
   );
@@ -345,7 +345,9 @@ const SearchResultItemDisplay = ({
 
   if (!item.data) {
     // This is an action item (e.g., "Create Invoice", "View Documents")
-    icon = <Icons.Shortcut className="size-4 dark:text-[#666] text-primary" />;
+    icon = (
+      <Icons.Shortcut className="size-4 text-foreground dark:text-muted-foreground" />
+    );
     resultDisplay = item.title;
   } else {
     icon = null;
@@ -358,7 +360,7 @@ const SearchResultItemDisplay = ({
         icon = (
           <FilePreviewIcon
             mimetype={item.data?.metadata?.mimetype}
-            className="size-4 dark:text-[#666] text-primary"
+            className="size-4 text-foreground dark:text-muted-foreground"
           />
         );
         resultDisplay = (
@@ -384,7 +386,7 @@ const SearchResultItemDisplay = ({
                     "") as string
                 }
               />
-              <Icons.ArrowOutward className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+              <Icons.ArrowOutward className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
             </div>
           </div>
         );
@@ -394,7 +396,7 @@ const SearchResultItemDisplay = ({
         onSelect = () => nav.navigateToCustomer({ customerId: item.id });
 
         icon = (
-          <Icons.Customers className="size-4 dark:text-[#666] text-primary" />
+          <Icons.Customers className="size-4 text-foreground dark:text-muted-foreground" />
         );
         resultDisplay = (
           <div className="flex items-center w-full">
@@ -406,7 +408,7 @@ const SearchResultItemDisplay = ({
             </div>
             <div className="flex items-center gap-2 invisible group-hover/item:visible group-focus/item:visible group-aria-selected/item:visible">
               <CopyButton path={`?customerId=${item.id}`} />
-              <Icons.ArrowOutward className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+              <Icons.ArrowOutward className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
             </div>
           </div>
         );
@@ -418,7 +420,7 @@ const SearchResultItemDisplay = ({
           nav.navigateToInvoice({ invoiceId: item.id, invoiceType: "details" });
 
         icon = (
-          <Icons.Invoice className="size-4 dark:text-[#666] text-primary" />
+          <Icons.Invoice className="size-4 text-foreground dark:text-muted-foreground" />
         );
         resultDisplay = (
           <div className="flex items-center w-full">
@@ -433,7 +435,7 @@ const SearchResultItemDisplay = ({
                 href={`${process.env.NEXT_PUBLIC_API_URL}/files/download/invoice?id=${item.id}&size=${item?.data?.template?.size}`}
                 filename={`${item.data.invoice_number || "invoice"}.pdf`}
               />
-              <Icons.ArrowOutward className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+              <Icons.ArrowOutward className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
             </div>
           </div>
         );
@@ -443,7 +445,10 @@ const SearchResultItemDisplay = ({
         onSelect = () => nav.navigateToPath(`/inbox?inboxId=${item.id}`);
 
         icon = (
-          <Icons.Inbox2 size={14} className="dark:text-[#666] text-primary" />
+          <Icons.Inbox2
+            size={14}
+            className="text-foreground dark:text-muted-foreground"
+          />
         );
         resultDisplay = (
           <div className="flex items-center justify-between w-full">
@@ -473,7 +478,7 @@ const SearchResultItemDisplay = ({
                 href={`${process.env.NEXT_PUBLIC_API_URL}/files/download/file?path=${item.data?.file_path?.join("/")}&filename=${item.data?.file_name || ""}`}
                 filename={item.data?.file_name || "download"}
               />
-              <Icons.ArrowOutward className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+              <Icons.ArrowOutward className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
             </div>
           </div>
         );
@@ -504,7 +509,7 @@ const SearchResultItemDisplay = ({
         onSelect = () => nav.navigateToTransaction({ transactionId: item.id });
 
         icon = (
-          <Icons.Transactions className="size-4 dark:text-[#666] text-primary" />
+          <Icons.Transactions className="size-4 text-foreground dark:text-muted-foreground" />
         );
         resultDisplay = (
           <div className="flex items-center justify-between w-full">
@@ -524,7 +529,7 @@ const SearchResultItemDisplay = ({
             </div>
             <div className="flex items-center gap-2 invisible group-hover/item:visible group-focus/item:visible group-aria-selected/item:visible">
               <CopyButton path={item.data?.url as string} />
-              <Icons.ArrowOutward className="size-4 dark:text-[#666] text-primary hover:!text-primary cursor-pointer" />
+              <Icons.ArrowOutward className="size-4 text-foreground dark:text-muted-foreground hover:!text-foreground cursor-pointer" />
             </div>
           </div>
         );
@@ -826,7 +831,7 @@ export function Search() {
   return (
     <Command
       shouldFilter={false}
-      className="search-container overflow-hidden p-0 relative w-full bg-background backdrop-filter backdrop-blur-lg dark:bg-[#0C0C0C]/[99] h-auto border border-border"
+      className="search-container overflow-hidden p-0 relative w-full backdrop-filter backdrop-blur-lg bg-background h-auto border border-border"
     >
       <div className="border-b border-border relative">
         <CommandInput
@@ -846,7 +851,7 @@ export function Search() {
         />
         {isFetching && (
           <div className="absolute bottom-0 h-[2px] w-full overflow-hidden">
-            <div className="absolute top-[1px] h-full w-40 animate-slide-effect bg-gradient-to-r dark:from-gray-800 dark:via-white dark:via-80% dark:to-gray-800 from-gray-200 via-black via-80% to-gray-200" />
+            <div className="absolute top-[1px] h-full w-40 animate-slide-effect bg-gradient-to-r from-muted via-foreground via-80% to-muted" />
           </div>
         )}
       </div>

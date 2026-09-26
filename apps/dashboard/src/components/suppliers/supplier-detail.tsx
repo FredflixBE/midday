@@ -114,7 +114,7 @@ export function SupplierDetail({ id }: { id: string }) {
     return (
       <div className="space-y-4">
         <BackLink />
-        <p className="text-sm text-[#878787]">
+        <p className="text-sm text-muted-foreground">
           This supplier no longer exists. It may have been merged into another.
         </p>
       </div>
@@ -142,7 +142,7 @@ function BackLink() {
   return (
     <Link
       href="/transactions/suppliers"
-      className="inline-flex items-center gap-1 text-sm text-[#878787] hover:text-primary"
+      className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
     >
       <Icons.ArrowBack className="size-4" />
       Suppliers
@@ -202,7 +202,7 @@ function SupplierName({ supplier }: { supplier: Supplier }) {
       className="group flex min-w-0 items-center gap-2 text-left"
     >
       <h1 className="truncate font-serif text-2xl">{name}</h1>
-      <Pencil className="size-4 shrink-0 text-[#878787] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+      <Pencil className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
     </button>
   );
 }
@@ -230,7 +230,7 @@ function SupplierRules({ supplier }: { supplier: Supplier }) {
             >
               <div className="min-w-0 truncate">
                 <RuleLabel field={rule.field} value={rule.value} />
-                <span className="text-[#878787]">
+                <span className="text-muted-foreground">
                   {" · "}
                   {rule.matchedCount}{" "}
                   {rule.matchedCount === 1 ? "payment" : "payments"}
@@ -551,7 +551,7 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
             <TableRow>
               <TableCell
                 colSpan={6}
-                className="py-8 text-center text-[#878787]"
+                className="py-8 text-center text-muted-foreground"
               >
                 No payments yet.
               </TableCell>
@@ -577,7 +577,7 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
                     />
                   </CheckboxBox>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-[#878787]">
+                <TableCell className="whitespace-nowrap text-muted-foreground">
                   {formatDate(row.date, user?.dateFormat)}
                 </TableCell>
                 <TableCell className="max-w-0 truncate">{row.name}</TableCell>
@@ -595,7 +595,7 @@ function SupplierPayments({ supplierId }: { supplierId: string }) {
                 <TableCell className="whitespace-nowrap text-right">
                   <FormatAmount amount={row.amount} currency={row.currency} />
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-right text-[#878787]">
+                <TableCell className="whitespace-nowrap text-right text-muted-foreground">
                   {row.supplierLink ? LINK_LABELS[row.supplierLink] : null}
                 </TableCell>
               </TableRow>

@@ -86,7 +86,7 @@ export function ConnectionStatus() {
     return null;
   }
 
-  const iconColor = severity === "error" ? "text-[#FF3638]" : "text-[#FFD02B]";
+  const iconColor = severity === "error" ? "text-destructive" : "text-warning";
 
   return (
     <HoverCard openDelay={100} closeDelay={200}>

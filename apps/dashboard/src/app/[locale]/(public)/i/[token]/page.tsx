@@ -156,9 +156,9 @@ export default async function Page(props: Props) {
           href="https://midday.ai?utm_source=invoice"
           target="_blank"
           rel="noreferrer"
-          className="text-[9px] text-[#878787]"
+          className="text-[9px] text-muted-foreground"
         >
-          Powered by <span className="text-primary">midday</span>
+          Powered by <span className="text-foreground">midday</span>
         </a>
       </div>
     </>

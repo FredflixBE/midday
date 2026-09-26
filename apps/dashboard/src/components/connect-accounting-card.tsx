@@ -70,7 +70,9 @@ export function ConnectAccountingCard({ enabled, onConnected }: Props) {
 
   return (
     <div className="pb-4 mb-4 border-b">
-      <h3 className="text-xs text-[#878787] mb-2">From your accounting</h3>
+      <h3 className="text-xs text-muted-foreground mb-2">
+        From your accounting
+      </h3>
 
       <div className="space-y-0.5">
         {accounts.map((account) => {
@@ -90,7 +92,7 @@ export function ConnectAccountingCard({ enabled, onConnected }: Props) {
                   <p className="text-sm font-medium leading-none truncate">
                     {account.name}
                   </p>
-                  <span className="text-[#878787] text-xs mt-0.5 block">
+                  <span className="text-muted-foreground text-xs mt-0.5 block">
                     Via your bookkeeping
                   </span>
                 </div>

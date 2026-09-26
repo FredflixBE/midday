@@ -100,7 +100,7 @@ export function TemplateSelector() {
             <span className="max-w-[120px] truncate">
               {currentTemplateName}
             </span>
-            <Icons.ChevronDown className="size-4 text-[#666]" />
+            <Icons.ChevronDown className="size-4 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="start" sideOffset={10}>
@@ -116,9 +116,9 @@ export function TemplateSelector() {
                 className={cn(
                   "text-xs",
                   currentTemplateId === template.id
-                    ? "dark:bg-[#131313] text-primary"
-                    : "text-[#666]",
-                  "hover:dark:bg-[#131313]",
+                    ? "dark:bg-accent text-foreground"
+                    : "text-muted-foreground",
+                  "hover:dark:bg-accent",
                 )}
               >
                 <span className="flex items-center gap-1">

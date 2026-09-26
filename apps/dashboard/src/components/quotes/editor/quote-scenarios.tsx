@@ -465,7 +465,7 @@ function PaymentSchedule({
 
   return (
     <div className="space-y-2">
-      <div className="text-[12px] text-[#606060]">Payment schedule</div>
+      <div className="text-[12px] text-muted-foreground">Payment schedule</div>
       {rows.map((row, index) => (
         // Rows have no id of their own; their order is what they are.
         <div key={index} className="flex items-center gap-3">
@@ -484,7 +484,7 @@ function PaymentSchedule({
               value={row.percent}
               onChange={(percent) => update(index, { percent: percent ?? 0 })}
             />
-            <span className="text-sm text-[#878787]">%</span>
+            <span className="text-sm text-muted-foreground">%</span>
           </div>
           <span className="w-[120px] text-right text-sm tabular-nums">
             {pricing?.paymentSchedule[index]
@@ -629,7 +629,7 @@ export function ScenarioTotals({
           <div className="truncate text-[22px] font-medium tabular-nums leading-tight">
             {headline.value}
           </div>
-          <div className="truncate pt-0.5 text-[12px] text-[#878787]">
+          <div className="truncate pt-0.5 text-[12px] text-muted-foreground">
             {[headline.label, quantity?.value].filter(Boolean).join(" · ")}
           </div>
         </>
@@ -749,7 +749,7 @@ function Total({
       className={cn(
         "flex justify-between gap-3 tabular-nums",
         strong && "font-medium",
-        muted && "text-[#878787]",
+        muted && "text-muted-foreground",
       )}
     >
       {/* The figure is the row; the label gives way to it. Without this the

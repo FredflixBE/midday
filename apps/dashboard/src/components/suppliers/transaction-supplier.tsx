@@ -134,7 +134,7 @@ export function TransactionSupplier({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-xs text-[#878787]"
+            className="h-6 px-2 text-xs text-muted-foreground"
             disabled={reset.isPending}
             onClick={() => reset.mutate({ transactionId: transaction.id })}
           >

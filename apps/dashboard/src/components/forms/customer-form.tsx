@@ -246,7 +246,7 @@ export function CustomerForm({ data }: Props) {
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Name
                           </FormLabel>
                           <FormControl>
@@ -268,7 +268,7 @@ export function CustomerForm({ data }: Props) {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Email
                           </FormLabel>
                           <FormControl>
@@ -291,7 +291,7 @@ export function CustomerForm({ data }: Props) {
                       name="billingEmail"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Billing Email
                           </FormLabel>
                           <FormControl>
@@ -315,7 +315,7 @@ export function CustomerForm({ data }: Props) {
                       name="phone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Phone
                           </FormLabel>
                           <FormControl>
@@ -337,7 +337,7 @@ export function CustomerForm({ data }: Props) {
                       name="website"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Website
                           </FormLabel>
                           <FormControl>
@@ -358,7 +358,7 @@ export function CustomerForm({ data }: Props) {
                       name="contact"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Contact person
                           </FormLabel>
                           <FormControl>
@@ -392,7 +392,7 @@ export function CustomerForm({ data }: Props) {
                       name="addressLine1"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Address Line 1
                           </FormLabel>
                           <FormControl>
@@ -413,7 +413,7 @@ export function CustomerForm({ data }: Props) {
                       name="addressLine2"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Address Line 2
                           </FormLabel>
                           <FormControl>
@@ -435,7 +435,7 @@ export function CustomerForm({ data }: Props) {
                         name="country"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-[#878787] font-normal">
+                            <FormLabel className="text-xs text-muted-foreground font-normal">
                               Country
                             </FormLabel>
                             <FormControl>
@@ -457,7 +457,7 @@ export function CustomerForm({ data }: Props) {
                         name="city"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-[#878787] font-normal">
+                            <FormLabel className="text-xs text-muted-foreground font-normal">
                               City
                             </FormLabel>
                             <FormControl>
@@ -480,7 +480,7 @@ export function CustomerForm({ data }: Props) {
                         name="state"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-[#878787] font-normal">
+                            <FormLabel className="text-xs text-muted-foreground font-normal">
                               State / Province
                             </FormLabel>
                             <FormControl>
@@ -501,7 +501,7 @@ export function CustomerForm({ data }: Props) {
                         name="zip"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-[#878787] font-normal">
+                            <FormLabel className="text-xs text-muted-foreground font-normal">
                               ZIP Code / Postal Code
                             </FormLabel>
                             <FormControl>
@@ -521,7 +521,7 @@ export function CustomerForm({ data }: Props) {
                     <div className="mt-6">
                       <Label
                         htmlFor="tags"
-                        className="mb-2 text-xs text-[#878787] font-normal block"
+                        className="mb-2 text-xs text-muted-foreground font-normal block"
                       >
                         Expense Tags
                       </Label>
@@ -573,7 +573,7 @@ export function CustomerForm({ data }: Props) {
                         name="vatNumber"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-xs text-[#878787] font-normal">
+                            <FormLabel className="text-xs text-muted-foreground font-normal">
                               Tax ID / VAT Number
                             </FormLabel>
                             <FormControl>
@@ -593,7 +593,7 @@ export function CustomerForm({ data }: Props) {
                       name="note"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-[#878787] font-normal">
+                          <FormLabel className="text-xs text-muted-foreground font-normal">
                             Note
                           </FormLabel>
                           <FormControl>

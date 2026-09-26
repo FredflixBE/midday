@@ -72,7 +72,7 @@ export function RailCard({
     // the document it is just the first thing in the rail.
     <div className="hidden bg-background pb-5 xl:sticky xl:top-0 xl:z-10 xl:block xl:max-h-[40vh] xl:overflow-y-auto">
       {title || action ? (
-        <div className="flex items-center justify-between gap-2 pb-2 text-[12px] text-[#606060]">
+        <div className="flex items-center justify-between gap-2 pb-2 text-[12px] text-muted-foreground">
           <span className="truncate" title={title}>
             {title}
           </span>

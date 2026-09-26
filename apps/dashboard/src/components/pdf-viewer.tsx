@@ -202,10 +202,10 @@ export function PdfViewer({ url, maxWidth }: PdfViewerProps) {
         <div className="absolute inset-0 flex items-center justify-center p-8">
           <div className="max-w-md w-full space-y-6 text-center">
             <div className="space-y-1">
-              <h3 className="text-[#878787]">
+              <h3 className="text-muted-foreground">
                 This document is password protected.
               </h3>
-              <p className="text-xs text-[#878787]">
+              <p className="text-xs text-muted-foreground">
                 Please enter the password below.
               </p>
             </div>

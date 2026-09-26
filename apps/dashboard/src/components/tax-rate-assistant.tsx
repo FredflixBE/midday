@@ -94,7 +94,7 @@ export function TaxRateAssistant({
             <div className="flex space-x-2 items-center">
               <span>Tax Rate Assistant</span>
             </div>
-            <span className="text-xs text-[#878787]">
+            <span className="text-xs text-muted-foreground">
               {`The tax rate for ${name} in ${result.country} is generally ${result.taxRate}%. This value has been automatically filled in the input field. Please remember to confirm this with your local Tax office.`}
             </span>
 

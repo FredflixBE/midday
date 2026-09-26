@@ -233,7 +233,7 @@ export function TransactionsUploadZone({ children }: Props) {
             Drop your receipts here. <br />
             They will be matched to transactions automatically.
             <br />
-            <span className="text-[#878787]">
+            <span className="text-muted-foreground">
               Maximum of 25 files at a time.
             </span>
           </p>

@@ -57,7 +57,7 @@ export function NotificationItem({
         >
           {description}
         </p>
-        <span className="text-xs text-[#606060]">
+        <span className="text-xs text-muted-foreground">
           {t("notifications.time_ago", {
             time: formatDistanceToNow(new Date(activity.createdAt)),
           })}
@@ -71,7 +71,7 @@ export function NotificationItem({
       <Button
         size="icon"
         variant="secondary"
-        className="rounded-full bg-transparent dark:hover:bg-[#1A1A1A] hover:bg-[#F6F6F3]"
+        className="rounded-full bg-transparent hover:bg-accent"
         onClick={() => markMessageAsRead(id)}
         title={t("notifications.archive_button")}
       >

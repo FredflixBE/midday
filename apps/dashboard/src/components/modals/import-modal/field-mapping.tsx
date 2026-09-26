@@ -208,7 +208,7 @@ export function FieldMapping({ currencies }: { currencies: string[] }) {
                 render={({ field: { onChange, value } }) => (
                   <div className="space-y-1">
                     <Label htmlFor="inverted">Inverted amount</Label>
-                    <p className="text-sm text-[#606060]">
+                    <p className="text-sm text-muted-foreground">
                       If the transactions are from credit account, you can
                       invert the amount.
                     </p>
@@ -449,7 +449,7 @@ function FieldRow({
         />
 
         <div className="flex items-center justify-end">
-          <Icons.ArrowRightAlt className="size-4 text-[#878787]" />
+          <Icons.ArrowRightAlt className="size-4 text-muted-foreground" />
         </div>
       </div>
 

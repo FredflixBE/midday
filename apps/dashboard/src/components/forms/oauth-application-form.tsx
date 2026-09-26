@@ -637,7 +637,7 @@ export function OAuthApplicationForm({ data }: Props) {
                   type="button"
                   variant="outline"
                   onClick={() => append({ url: "" })}
-                  className="border-none bg-[#F2F1EF] text-[11px] dark:bg-[#1D1D1D] mt-2"
+                  className="border-none bg-muted text-[11px] mt-2"
                 >
                   Add more
                 </Button>
@@ -675,7 +675,7 @@ export function OAuthApplicationForm({ data }: Props) {
                   </TabsList>
                 </Tabs>
 
-                <p className="text-sm text-[#878787] mt-4">
+                <p className="text-sm text-muted-foreground mt-4">
                   This OAuth application will have{" "}
                   <span className="font-semibold">
                     {
@@ -714,8 +714,8 @@ export function OAuthApplicationForm({ data }: Props) {
                 <div className="space-y-4 mt-3">
                   <div
                     className={cn(
-                      "w-full h-[120px] border-dotted border-2 border-border text-center flex flex-col justify-center space-y-1 transition-colors text-[#606060]",
-                      isDragActive && "bg-secondary text-primary",
+                      "w-full h-[120px] border-dotted border-2 border-border text-center flex flex-col justify-center space-y-1 transition-colors text-muted-foreground",
+                      isDragActive && "bg-secondary text-foreground",
                     )}
                     {...getRootProps()}
                   >
@@ -839,7 +839,7 @@ export function OAuthApplicationForm({ data }: Props) {
           </Accordion>
         </div>
 
-        <div className="sticky bottom-0 bg-[#FAFAF9] dark:bg-[#0C0C0C] border-t pt-3 mt-4">
+        <div className="sticky bottom-0 bg-background border-t pt-3 mt-4">
           <SubmitButton
             type="submit"
             className="w-full"

@@ -279,7 +279,7 @@ export function Form() {
         className="h-[calc(100vh-110px)] p-6 [&>div>div]:h-full"
         hideScrollbar
       >
-        <div className="p-8 pb-4 h-full flex flex-col bg-[#fcfcfc] dark:bg-[#0f0f0f]">
+        <div className="p-8 pb-4 h-full flex flex-col bg-background">
           <div className="flex justify-between items-start">
             <div className="flex-1 min-w-0 mr-5">
               <Meta />
