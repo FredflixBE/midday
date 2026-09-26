@@ -11,6 +11,7 @@
     "format": "biome format --write .",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test:smoke": "playwright test",
     "test": "find src -name '*.test.ts' -o -name '*.spec.ts' | grep -q . && bun test --exit src || echo 'No tests yet'"
   },
   "dependencies": {
@@ -88,6 +89,8 @@
   },
   "devDependencies": {
     "@midday/tsconfig": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@supabase/supabase-js": "2.101.1",
     "@types/file-saver": "^2.0.7",
     "@types/node": "25.5.2",
     "@types/papaparse": "^5.5.2",
