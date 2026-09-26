@@ -26,13 +26,16 @@ export const editorDocSchema = z.object({
   content: z.array(z.record(z.string(), z.unknown())),
 });
 
+/** A block of the proposal's text: a heading and what was written under it. */
+export const textBlockSchema = z.object({
+  id,
+  type: z.literal("text"),
+  heading: z.string().max(500).nullable(),
+  body: editorDocSchema,
+});
+
 export const blockSchema = z.discriminatedUnion("type", [
-  z.object({
-    id,
-    type: z.literal("text"),
-    heading: z.string().max(500).nullable(),
-    body: editorDocSchema,
-  }),
+  textBlockSchema,
   /** Where the scenarios appear among the text. */
   z.object({ id, type: z.literal("pricing") }),
   /**

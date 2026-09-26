@@ -422,7 +422,7 @@ export function headerChanges(
 }
 
 /** Changes the quote's draft, or says why there is none to change. */
-async function editDraft(
+export async function editDraft(
   ctx: McpContext,
   quoteId: string,
   change: (
