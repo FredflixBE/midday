@@ -78,7 +78,8 @@ describe("effort", () => {
       await generateText({ model: languageModelFor(choice), prompt: "hi" });
     } finally {
       globalThis.fetch = realFetch;
-      process.env.ANTHROPIC_API_KEY = realKey;
+      if (realKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = realKey;
     }
 
     return body;

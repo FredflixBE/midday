@@ -33,7 +33,12 @@ import { generateObject } from "ai";
 
 const BATCH_SIZE = 50;
 
-/** Which model names merchants, suppliers and categories: `@midday/ai` decides. */
+/**
+ * Which model names merchants, suppliers and categories: `@midday/ai` decides.
+ * Speed matters here more than anywhere else: a batch is 50 payments inside a
+ * 300s task, and FF-1470 measured one model at 199s for 14. Opus 5.5 took 13s
+ * for 14 at its default effort and 6s at "low" (FF-2273).
+ */
 const PURPOSE = "transaction-enrichment" as const;
 
 /**
