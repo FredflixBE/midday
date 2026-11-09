@@ -533,6 +533,13 @@ export async function updateQuoteDraft(
     issueDate?: string;
     validUntil?: string;
     content?: QuoteContent;
+    /**
+     * A change to the content as it is stored, made under the version's lock
+     * (FF-1790): what the MCP tools send, since they say what to change and
+     * never hold the whole. Content read first and written after would undo
+     * whatever was saved in between. Throw to refuse; nothing is written.
+     */
+    edit?: (content: QuoteContent) => QuoteContent;
     internalNote?: string | null;
     /**
      * Lets go of the pictures this edit took out of the text and nothing
@@ -564,9 +571,12 @@ export async function updateQuoteDraft(
     }
 
     const kind = params.kind ?? quote.kind;
+    const edited = params.edit
+      ? params.edit(version.content as QuoteContent)
+      : params.content;
     const content =
-      params.content !== undefined || params.kind !== undefined
-        ? checkContent(params.content ?? version.content, kind)
+      edited !== undefined || params.kind !== undefined
+        ? checkContent(edited ?? version.content, kind)
         : undefined;
 
     const issueDate = params.issueDate ?? version.issueDate;

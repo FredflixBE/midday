@@ -14,6 +14,8 @@ import {
   registerInvoiceRecurringTools,
   registerInvoiceTemplateTools,
   registerInvoiceTools,
+  registerQuoteDraftTools,
+  registerQuoteTextTools,
   registerQuoteTools,
   registerReportTools,
   registerSearchTools,
@@ -67,7 +69,7 @@ Tools are namespaced by domain — use the prefix to discover related tools:
 - invoice_template_* — Invoice template labels and settings (title, customerLabel, vatLabel, currency, etc.)
 - invoice_products_* — Reusable line item product catalog
 - invoice_recurring_* — Recurring invoice schedules
-- quotes_* — Quotes (proposals priced in hours) and which await an answer; read only
+- quotes_* — Quotes (proposals priced in hours): read them, see which await an answer, move one through its life (create, revise, mark sent, accept, lost), price its draft (scenarios, lines, rates), and read and write its text as markdown. Marking a quote sent records it; it sends nothing
 - tags_* — Reusable labels for organizing records
 - team_* — Team metadata and member information
 - search_global — Full-text search across all data types
@@ -118,6 +120,8 @@ export function createMcpServer(ctx: McpContext): McpServer {
   registerInvoiceRecurringTools(server, ctx);
   registerInvoiceTemplateTools(server, ctx);
   registerQuoteTools(server, ctx);
+  registerQuoteDraftTools(server, ctx);
+  registerQuoteTextTools(server, ctx);
   registerCustomerTools(server, ctx);
   registerBankAccountTools(server, ctx);
   registerDocumentTools(server, ctx);

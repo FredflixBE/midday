@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { getSchema } from "@tiptap/core";
 import { registerExtensions } from "./register";
+import { editorSchema } from "./schema";
 
 // What a quote's text holds once a table has been written in it.
 const withTable = {
@@ -92,5 +93,50 @@ describe("the shared schema", () => {
     expect(drawn.type).toBe("diagram");
     expect(drawn.attrs.source).toBe("flowchart LR\n A --> B");
     expect(drawn.attrs.path).toBe("team/quotes/d.png");
+  });
+});
+
+/** A schema as what it can hold: each node's content, group and attrs, each mark's attrs. */
+function holds(schema: ReturnType<typeof getSchema>) {
+  const attrs = (type: {
+    spec: { attrs?: Record<string, { default?: unknown }> };
+  }) =>
+    Object.fromEntries(
+      Object.entries(type.spec.attrs ?? {}).map(([name, spec]) => [
+        name,
+        spec.default,
+      ]),
+    );
+  return {
+    nodes: Object.fromEntries(
+      Object.values(schema.nodes).map((node) => [
+        node.name,
+        {
+          content: node.spec.content ?? "",
+          group: node.spec.group ?? "",
+          marks: node.spec.marks ?? null,
+          attrs: attrs(node),
+        },
+      ]),
+    ),
+    marks: Object.fromEntries(
+      Object.values(schema.marks).map((mark) => [mark.name, attrs(mark)]),
+    ),
+  };
+}
+
+describe("the schema a server builds (FF-1791)", () => {
+  // What the MCP writes into a quote's text is built on this schema, so it
+  // must hold exactly what every editor holds, or a server would write what
+  // the editor then strips, or refuse what it keeps.
+  test("holds exactly what every editor holds", () => {
+    for (const options of [
+      {},
+      { images: { srcOf: () => null }, diagrams: true },
+    ]) {
+      expect(holds(editorSchema)).toEqual(
+        holds(getSchema(registerExtensions(options))),
+      );
+    }
   });
 });

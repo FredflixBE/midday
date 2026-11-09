@@ -1,4 +1,5 @@
 import { defineConfig } from "@trigger.dev/sdk";
+import { betterStackLogExporters } from "./src/better-stack-logs";
 
 export default defineConfig({
   // The project ref, literally, the way `trigger init` writes it. It is an
@@ -27,6 +28,12 @@ export default defineConfig({
   },
   build: {
     external: ["sharp", "canvas", "pino"],
+  },
+  // Task logs also go to Better Stack when its OpenTelemetry source is set in
+  // the Trigger.dev environment. The run worker evaluates this file at run
+  // time, so `process.env` here is that environment, not the deploy machine's.
+  telemetry: {
+    logExporters: betterStackLogExporters(process.env),
   },
   dirs: ["./src/tasks"],
 });

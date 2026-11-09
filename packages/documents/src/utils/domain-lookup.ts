@@ -33,7 +33,9 @@ export async function lookupDomainByCompanyName(
     return null;
   }
 
-  logger?.info("Attempting domain lookup", { companyName: cleanedCompanyName });
+  logger?.debug("Attempting domain lookup", {
+    companyName: cleanedCompanyName,
+  });
 
   try {
     // Use AbortSignal for timeout
@@ -70,7 +72,7 @@ Domain:`;
       responseText === "n/a" ||
       responseText.length === 0
     ) {
-      logger?.info("Domain lookup returned unknown", {
+      logger?.debug("Domain lookup returned unknown", {
         companyName: cleanedCompanyName,
       });
       return null;
@@ -87,7 +89,7 @@ Domain:`;
       return null;
     }
 
-    logger?.info("Domain lookup successful", {
+    logger?.debug("Domain lookup successful", {
       companyName: cleanedCompanyName,
       domain,
     });

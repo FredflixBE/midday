@@ -456,7 +456,6 @@ export class InsightsService {
 
     // Get expenses from spending
     let expenses = spendingData?.totalSpending ?? 0;
-    const originalExpenses = expenses;
 
     // CRITICAL: Ensure data consistency
     // The math MUST hold: profit = revenue - expenses
@@ -467,13 +466,7 @@ export class InsightsService {
       expenses = impliedExpenses;
       logger.warn(
         "Data consistency fix applied: expenses derived from profit",
-        {
-          originalExpenses,
-          derivedExpenses: expenses,
-          revenue: revenueTotal,
-          profit: profitTotal,
-          teamId,
-        },
+        { teamId },
       );
     } else if (expenses > 0 && Math.abs(expenses - impliedExpenses) > 1) {
       // Data mismatch - trust the profit calculation and derive expenses
@@ -481,14 +474,7 @@ export class InsightsService {
       expenses = Math.max(expenses, impliedExpenses);
       logger.warn(
         "Data consistency fix applied: expenses adjusted for mismatch",
-        {
-          originalExpenses,
-          adjustedExpenses: expenses,
-          impliedExpenses,
-          revenue: revenueTotal,
-          profit: profitTotal,
-          teamId,
-        },
+        { teamId },
       );
     }
 

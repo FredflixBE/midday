@@ -7,6 +7,8 @@ export { registerInvoiceProductTools } from "./invoice-products";
 export { registerInvoiceRecurringTools } from "./invoice-recurring";
 export { registerInvoiceTemplateTools } from "./invoice-templates";
 export { registerInvoiceTools } from "./invoices";
+export { registerQuoteDraftTools } from "./quote-drafts";
+export { registerQuoteTextTools } from "./quote-text";
 export { registerQuoteTools } from "./quotes";
 export { registerReportTools } from "./reports";
 export { registerSearchTools } from "./search";

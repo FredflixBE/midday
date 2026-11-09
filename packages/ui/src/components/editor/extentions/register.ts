@@ -1,24 +1,11 @@
 // You can find the list of extensions here: https://tiptap.dev/docs/editor/extensions/functionality
 
-import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import Underline from "@tiptap/extension-underline";
 import type { Extensions } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import { diagram } from "./diagram";
+import { textExtensions } from "./schema";
 import { type StoredImages, storedImage } from "./stored-image";
 import { tableExtensions } from "./table";
-
-// Add your extensions here
-const extensions = [
-  StarterKit,
-  Underline,
-  Link.configure({
-    openOnClick: false,
-    autolink: true,
-    defaultProtocol: "https",
-  }),
-];
 
 export function registerExtensions(options?: {
   placeholder?: string;
@@ -31,7 +18,7 @@ export function registerExtensions(options?: {
 }) {
   const { placeholder, images, diagrams, extra } = options ?? {};
   return [
-    ...extensions,
+    ...textExtensions,
     storedImage(images),
     ...tableExtensions,
     // Always in the schema; only the quote document may write one.
