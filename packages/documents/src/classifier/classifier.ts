@@ -1,4 +1,4 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { languageModel } from "@midday/ai";
 import { generateObject } from "ai";
 import { documentClassifierPrompt, imageClassifierPrompt } from "../prompt";
 import { documentClassifierSchema, imageClassifierSchema } from "../schema";
@@ -7,18 +7,11 @@ import type {
   DocumentClassifierRequest,
 } from "../types";
 
-const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY!;
-
-const google = createGoogleGenerativeAI({
-  apiKey: GOOGLE_API_KEY,
-});
-
 export class DocumentClassifier {
   async #processDocument({ content }: DocumentClassifierRequest) {
     const result = await generateObject({
-      model: google("gemini-3-flash-preview"),
+      model: languageModel("document-classification"),
       schema: documentClassifierSchema,
-      temperature: 0.1,
       messages: [
         {
           role: "system",
@@ -43,9 +36,8 @@ CRITICAL: The previous attempt returned a null title, which is not acceptable. Y
 Never return null for the title field.`;
 
       const retryResult = await generateObject({
-        model: google("gemini-3-flash-preview"),
+        model: languageModel("document-classification"),
         schema: documentClassifierSchema,
-        temperature: 0.1,
         messages: [
           {
             role: "system",
@@ -66,9 +58,8 @@ Never return null for the title field.`;
 
   async #processImage(request: DocumentClassifierImageRequest) {
     const result = await generateObject({
-      model: google("gemini-3-flash-preview"),
+      model: languageModel("document-classification"),
       schema: imageClassifierSchema,
-      temperature: 0.1, // Lower temperature for more consistent, deterministic title extraction
       messages: [
         {
           role: "system",
@@ -98,9 +89,8 @@ CRITICAL: The previous attempt returned a null title, which is not acceptable. Y
 Never return null for the title field.`;
 
       const retryResult = await generateObject({
-        model: google("gemini-3-flash-preview"),
+        model: languageModel("document-classification"),
         schema: imageClassifierSchema,
-        temperature: 0.1,
         messages: [
           {
             role: "system",

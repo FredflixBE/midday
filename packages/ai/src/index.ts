@@ -11,4 +11,12 @@ export {
   languageModel,
   type ModelChoice,
   modelIdFor,
+  webSearch,
 } from "./models";
+export {
+  forClaude,
+  MAX_OPTIONAL_FIELDS,
+  MAX_UNION_FIELDS,
+  optionalFieldCount,
+  unionFieldCount,
+} from "./structured";

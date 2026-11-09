@@ -7,20 +7,14 @@ import {
 import { invoiceSchema, receiptSchema } from "../schema";
 import type { DocumentFormat } from "../utils/format-detection";
 
-export type AIProvider = "mistral" | "google";
-
-export interface ModelConfig {
-  provider: AIProvider;
-  model: string;
-}
-
+/**
+ * How one kind of document is read.
+ *
+ * Which model reads it is not here: every pass asks `@midday/ai` for the
+ * "document-extraction" model, so changing it is one line there.
+ */
 export interface ExtractionConfig<T extends z.ZodSchema> {
   schema: T;
-  models: {
-    primary: ModelConfig;
-    secondary: ModelConfig;
-    tertiary: ModelConfig;
-  };
   timeout: number;
   retries: number;
   contentType: "file" | "image";
@@ -39,11 +33,6 @@ export interface ExtractionConfig<T extends z.ZodSchema> {
  */
 export const invoiceConfig: ExtractionConfig<typeof invoiceSchema> = {
   schema: invoiceSchema,
-  models: {
-    primary: { provider: "mistral", model: "mistral-small-latest" },
-    secondary: { provider: "google", model: "gemini-3-flash-preview" },
-    tertiary: { provider: "google", model: "gemini-3-pro-preview" },
-  },
   timeout: 180000, // 3 minutes
   retries: 2, // 2 retries (3 total attempts)
   contentType: "file",
@@ -84,12 +73,9 @@ export const invoiceConfig: ExtractionConfig<typeof invoiceSchema> = {
  */
 export const receiptConfig: ExtractionConfig<typeof receiptSchema> = {
   schema: receiptSchema,
-  models: {
-    primary: { provider: "mistral", model: "mistral-small-latest" },
-    secondary: { provider: "google", model: "gemini-3-flash-preview" },
-    tertiary: { provider: "google", model: "gemini-3-pro-preview" },
-  },
-  timeout: 20000, // 20s for image processing
+  // Per attempt. Claude read rendered receipts in 3-9s; a phone photo is
+  // larger, and with one model there is no other to fall back to.
+  timeout: 60000,
   retries: 2, // 2 retries (3 total attempts)
   contentType: "image",
   mediaType: "image/jpeg", // Will be determined dynamically

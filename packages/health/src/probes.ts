@@ -347,25 +347,6 @@ export function plainProbe(): Dependency {
   };
 }
 
-/** Mistral AI: models list */
-export function mistralProbe(): Dependency {
-  return {
-    name: "mistral",
-    tier: 4,
-    cacheTtlMs: 300_000,
-    timeoutMs: 5_000,
-    probe: async () => {
-      const key = process.env.MISTRAL_API_KEY;
-      if (!key) return false;
-      const res = await fetch("https://api.mistral.ai/v1/models", {
-        headers: { Authorization: `Bearer ${key}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-      return res.ok;
-    },
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Pre-built registry sets for each service
 // ---------------------------------------------------------------------------
@@ -391,7 +372,6 @@ export function apiDependencies(): Dependency[] {
     fortnoxProbe(),
     // Tier 4 — Optional
     googleAiProbe(),
-    mistralProbe(),
     plainProbe(),
   ];
 }

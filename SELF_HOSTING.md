@@ -206,7 +206,7 @@ same value everywhere the name appears.
 | `INBOX_FORWARDING_DOMAIN` | no | Domain receipts may be forwarded to, e.g. `inbox.fredflix.be`. Requires an inbound email provider posting to `/webhooks/inbox`. Unset means that route is not mounted and the dashboard hides the address; Gmail sync and manual upload are unaffected. Set `NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN` to the same value for the dashboard. |
 | `ALLOWED_ASSET_HOSTS` | no | Extra hostnames the renderer may fetch a logo or avatar from, comma-separated. The Supabase storage host and your own `CDN_URL`, `DASHBOARD_URL` and `API_URL` are always allowed. |
 | `ANTHROPIC_API_KEY` | yes | A Claude Console API key (console.anthropic.com > API keys), paid from the Console's API credits. The AI features run on Claude, and `packages/ai/src/models.ts` names the model each one uses. `/health/dependencies` reports it as `anthropic`, and names any model id Anthropic no longer serves. |
-| `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY` | yes / yes / no | The assistant, embeddings, and document OCR. |
+| `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` | yes / yes | The assistant; embeddings (document tags, categories, search). |
 | `COMPOSIO_API_KEY` | no | AI tool connectors. |
 | `EXA_API_KEY` | no | Exa web search. Only the health probe reads it; unset means that probe reports the integration as unconfigured. |
 | `COMPANY_ENRICH_API_KEY` | no | CompanyEnrich customer enrichment. Leave unset — the service refuses registration from Belgium, and every entry point is gated behind the key, so unset hides the feature rather than offering a button that only errors. |
@@ -260,7 +260,7 @@ Runtime environment:
 | `INVOICE_JWT_SECRET` | for invoicing | Signs the public invoice links in invoice emails. Same value as the API. |
 | `GMAIL_*` / `OUTLOOK_*` | for inbox sync | Same OAuth client as the API. |
 | `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | for accounting export | Token refresh needs the client credentials. |
-| `MISTRAL_API_KEY`, `OPENAI_API_KEY` | no | Document OCR fallback; Slack receipt summaries. |
+| `OPENAI_API_KEY` | no | Slack receipt summaries. |
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. The bank sync jobs call the API at `API_URL`. |
 | `API_INTERNAL_URL` | no | A private address for the API that the jobs can reach, used instead of `API_URL` for their calls to it. Trigger.dev Cloud reaches only the public URL, so leave it unset there. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. Same key and permission as the API. |

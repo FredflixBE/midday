@@ -1,16 +1,12 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { languageModel, webSearch } from "@midday/ai";
 import type { createLoggerWithContext } from "@midday/logger";
 import { generateText } from "ai";
 import { removeProtocolFromDomain } from "../utils";
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
-});
-
 const DOMAIN_LOOKUP_TIMEOUT = 8000; // 8 seconds
 
 /**
- * Lookup company domain using Gemini Grounding with Google Search
+ * Lookup company domain with a model that may search the web
  * This function searches for the official website domain of a company by name
  *
  * @param companyName - The company/vendor name to lookup
@@ -52,12 +48,9 @@ If you cannot find the official website, respond with "unknown".
 Domain:`;
 
     const result = await generateText({
-      model: google("gemini-3-flash-preview"),
-      tools: {
-        google_search: google.tools.googleSearch({}),
-      } as any,
+      model: languageModel("helper"),
+      tools: { web_search: webSearch() },
       prompt,
-      temperature: 0.1,
       abortSignal: controller.signal,
     });
 
