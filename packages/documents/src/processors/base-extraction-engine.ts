@@ -1,4 +1,4 @@
-import { languageModel, modelIdFor } from "@midday/ai";
+import { forClaude, languageModel, modelIdFor } from "@midday/ai";
 import { createLoggerWithContext } from "@midday/logger";
 import { generateObject, type ModelMessage } from "ai";
 import type { z } from "zod/v4";
@@ -164,21 +164,29 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   ): Promise<z.infer<T>> {
     // No temperature: the Claude 5.5 models reject it, and the schema is
     // returned as native structured output rather than a forced tool call.
+    // `forClaude` because the schemas have more nullable fields than Claude's
+    // structured output accepts.
+    const { schema, restore, providerOptions } = forClaude(this.config.schema);
     const result = await retryCall(
-      () =>
-        generateObject({
-          model: languageModel(PURPOSE),
-          schema: this.config.schema,
-          abortSignal: AbortSignal.timeout(
-            options.timeout ?? this.config.timeout,
-          ),
-          messages,
-        }),
+      async () =>
+        restore(
+          (
+            await generateObject({
+              model: languageModel(PURPOSE),
+              schema,
+              providerOptions,
+              abortSignal: AbortSignal.timeout(
+                options.timeout ?? this.config.timeout,
+              ),
+              messages,
+            })
+          ).object,
+        ),
       options.retries ?? this.config.retries,
       options.retryDelay ?? 2000, // Start with 2s delay
     );
 
-    return result.object as z.infer<T>;
+    return result as z.infer<T>;
   }
 
   /**

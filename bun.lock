@@ -213,6 +213,7 @@
         "@ai-sdk/anthropic": "catalog:",
         "@ai-sdk/google": "catalog:",
         "ai": "catalog:",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "1.4.2",
