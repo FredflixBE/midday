@@ -1,15 +1,22 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
 import { CSVLoader } from "@langchain/community/document_loaders/fs/csv";
 import { PPTXLoader } from "@langchain/community/document_loaders/fs/pptx";
+import { languageModel } from "@midday/ai";
 import { generateText } from "ai";
 import { parseOfficeAsync } from "officeparser";
 import { cleanText, extractTextFromRtf } from "../utils";
 import { retryCall } from "../utils/retry";
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
-});
+/**
+ * How much of a PDF's text to ask for.
+ *
+ * The text is only used to classify the document, and the classifier is given
+ * the first ~1,600 words of it (`getContentSample`). Transcribing the rest of a
+ * long PDF would spend output tokens and time on words nothing reads, and
+ * could run past the caller's 60-second limit.
+ */
+const PDF_TEXT_WORDS = 1500;
+const PDF_TEXT_MAX_TOKENS = 4000;
 
 export async function loadDocument({
   content,
@@ -23,12 +30,6 @@ export async function loadDocument({
   switch (metadata.mimetype) {
     case "application/pdf":
     case "application/x-pdf": {
-      if (!google) {
-        throw new Error(
-          "GOOGLE_GENERATIVE_AI_API_KEY environment variable is required for PDF extraction",
-        );
-      }
-
       try {
         const arrayBuffer = await content.arrayBuffer();
         const base64Content = Buffer.from(arrayBuffer).toString("base64");
@@ -37,15 +38,16 @@ export async function loadDocument({
         const result = await retryCall(
           () =>
             generateText({
-              model: google("gemini-3-flash-preview"),
+              model: languageModel("document-classification"),
               abortSignal: AbortSignal.timeout(60000), // 60s timeout for PDF extraction
+              maxOutputTokens: PDF_TEXT_MAX_TOKENS,
               messages: [
                 {
                   role: "user",
                   content: [
                     {
                       type: "text",
-                      text: "Extract all text from this PDF document. Return only the extracted text, preserving the structure and formatting as much as possible.",
+                      text: `Extract the text of this PDF document, from the beginning, up to about ${PDF_TEXT_WORDS} words. Return only the extracted text, preserving the structure and formatting as much as possible.`,
                     },
                     {
                       type: "file",
@@ -71,7 +73,7 @@ export async function loadDocument({
           errorDetails.errorStack = error.stack;
         }
         console.error(
-          "Gemini PDF extraction failed after retries:",
+          "PDF text extraction failed after retries:",
           errorDetails,
         );
         // Return null instead of throwing to allow the process to continue

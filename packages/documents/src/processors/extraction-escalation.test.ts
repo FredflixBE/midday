@@ -55,9 +55,16 @@ class ScriptedReceiptProcessor extends ReceiptProcessor {
   peakParallelFieldCalls = 0;
   #fieldCallsInFlight = 0;
 
-  protected override async extractWithProvider(): Promise<ReceiptData> {
+  /** Set to make every whole-document read fail with this error. */
+  readError: Error | null = null;
+
+  protected override async read(): Promise<ReceiptData> {
     const response = this.passResponses[this.passCount];
     this.passCount += 1;
+
+    if (this.readError) {
+      throw this.readError;
+    }
 
     if (!response) {
       throw new Error(`No scripted response for pass ${this.passCount}`);
@@ -86,28 +93,26 @@ class ScriptedReceiptProcessor extends ReceiptProcessor {
 }
 
 /**
- * The same engine with only the provider seam replaced, so the options the
- * field batches pass down are the ones under test rather than stubbed over.
+ * The same engine with only the read seam replaced, so the options the field
+ * batches pass down are the ones under test rather than stubbed over.
  */
 class ProviderRecordingProcessor extends ReceiptProcessor {
   passResponses: ReceiptData[] = [];
   fieldResponse: ReceiptData = emptyReceipt();
   providerCalls: Array<{
-    model: string;
     options: { timeout?: number; retries?: number; retryDelay?: number };
   }> = [];
 
-  protected override async extractWithProvider(
+  protected override async read(
     _documentUrl: string,
     _prompt: string,
-    modelConfig: { provider: string; model: string },
     options: {
       timeout?: number;
       retries?: number;
       retryDelay?: number;
     } = {},
   ): Promise<ReceiptData> {
-    this.providerCalls.push({ model: modelConfig.model, options });
+    this.providerCalls.push({ options });
 
     // The whole-document passes come first; everything after is Pass 3 asking
     // for one field at a time.
@@ -141,9 +146,37 @@ describe("extraction escalation", () => {
 
     await processor.extract("https://example.com/invoice.jpg");
 
-    // The smallest of the three models does not get to end the extraction on
-    // its own when it has read something off the page.
+    // "other" does not end the extraction on its own when the model has read
+    // something off the page.
     expect(processor.passCount).toBe(2);
+  });
+
+  test("stops after one read when the document reads well", async () => {
+    processor.passResponses = [
+      emptyReceipt({
+        date: "2026-11-02",
+        currency: "EUR",
+        total_amount: 12.5,
+        tax_amount: 2.17,
+        store_name: "Coffee Bar",
+      }),
+    ];
+
+    const result = await processor.extract("https://example.com/receipt.jpg");
+
+    expect(processor.passCount).toBe(1);
+    expect(processor.fieldCalls).toEqual([]);
+    expect(result.data.total_amount).toBe(12.5);
+  });
+
+  test("a read that fails fails the extraction, with no second model to hide it", async () => {
+    processor.readError = new Error("invalid x-api-key");
+
+    await expect(
+      processor.extract("https://example.com/receipt.jpg"),
+    ).rejects.toThrow("invalid x-api-key");
+
+    expect(processor.passCount).toBe(1);
   });
 
   test("stops before Pass 3 when two passes found nothing at all", async () => {

@@ -22,7 +22,7 @@
 
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
-import type { EmbeddingModel, LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel, Tool } from "ai";
 
 /** The Claude models this deployment may use. */
 export type ClaudeModel =
@@ -46,7 +46,7 @@ export const DEFAULT_MODEL: ClaudeModel = "claude-opus-5-5";
 export const GENERATION = {
   /** Reading a receipt or an invoice: the PDF or image in, its fields out. */
   "document-extraction": { model: DEFAULT_MODEL },
-  /** Sorting a document once it is read: its kind, title and tags. */
+  /** Sorting a document: transcribing a PDF's text, then its kind, title and tags. */
   "document-classification": { model: DEFAULT_MODEL },
   /** Naming a payment's merchant, category and supplier during a bank sync. */
   "transaction-enrichment": { model: DEFAULT_MODEL },
@@ -72,6 +72,21 @@ export function languageModel(purpose: GenerationPurpose): LanguageModel {
   // The provider reads ANTHROPIC_API_KEY when a request is made, not here, so
   // importing this module never needs the key.
   return anthropic(modelIdFor(purpose));
+}
+
+/**
+ * A web search the model may run while it answers, on Anthropic's side.
+ *
+ * Here rather than at the call site because the tool belongs to the provider,
+ * and only this module imports one. Billed per search on top of the tokens,
+ * so `maxUses` bounds what one answer can cost.
+ */
+export function webSearch(maxUses = 1): Tool {
+  // Typed as `ai`'s own Tool: @ai-sdk/anthropic 3.0.140 is built on a newer
+  // @ai-sdk/provider-utils than `ai` 6.0.141, so the two Tool types differ in
+  // their optional hooks while the object `generateText` receives is the same
+  // provider-defined tool. Moving `ai` to 6.0.325 would align them.
+  return anthropic.tools.webSearch_20260209({ maxUses }) as unknown as Tool;
 }
 
 /** Every distinct Claude model in use, each once. */

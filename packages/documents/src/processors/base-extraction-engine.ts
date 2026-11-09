@@ -1,12 +1,8 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createMistral } from "@ai-sdk/mistral";
+import { languageModel, modelIdFor } from "@midday/ai";
 import { createLoggerWithContext } from "@midday/logger";
-import { generateObject } from "ai";
+import { generateObject, type ModelMessage } from "ai";
 import type { z } from "zod/v4";
-import type {
-  ExtractionConfig,
-  ModelConfig,
-} from "../config/extraction-config";
+import type { ExtractionConfig } from "../config/extraction-config";
 import type { PromptComponents } from "../prompts/factory";
 import { createFieldSpecificPrompt } from "../prompts/field-specific";
 import { mapWithConcurrency } from "../utils/concurrency";
@@ -14,13 +10,8 @@ import type { DocumentFormat } from "../utils/format-detection";
 import { extractTextFromPdf } from "../utils/pdf-text-extract";
 import { retryCall } from "../utils/retry";
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
-});
-
-const mistral = createMistral({
-  apiKey: process.env.MISTRAL_API_KEY!,
-});
+/** Every pass reads with the same model; `@midday/ai` says which. */
+const PURPOSE = "document-extraction" as const;
 
 /**
  * How many single-field re-extractions may be in the air at once.
@@ -69,23 +60,6 @@ const NOT_EVIDENCE_OF_CONTENT = new Set([
   "website",
 ]);
 
-/**
- * Check if an error is a rate limit error
- */
-function isRateLimitError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("rate limit") ||
-    message.includes("rate_limit") ||
-    message.includes("too many requests") ||
-    message.includes("quota") ||
-    message.includes("429") ||
-    message.includes("resource_exhausted")
-  );
-}
-
 export interface ExtractionResult<T> {
   data: T;
   qualityScore: {
@@ -126,19 +100,20 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   }
 
   /**
-   * Extract data using a specific provider and model
+   * One read of the whole document: the PDF or image in, the schema out.
+   *
+   * The seam every pass goes through, and the one the tests replace.
    */
-  protected async extractWithProvider(
+  protected async read(
     documentUrl: string,
     prompt: string,
-    modelConfig: ModelConfig,
     options: {
       timeout?: number;
       retries?: number;
       retryDelay?: number;
     } = {},
   ): Promise<z.infer<T>> {
-    const contentField =
+    const document =
       this.config.contentType === "file"
         ? {
             type: "file" as const,
@@ -150,152 +125,23 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
             image: documentUrl,
           };
 
-    const model =
-      modelConfig.provider === "mistral"
-        ? mistral(modelConfig.model)
-        : google(modelConfig.model);
-
-    // Provider-specific options
-    const providerOptions =
-      modelConfig.provider === "mistral"
-        ? {
-            mistral: {
-              documentPageLimit: 10,
-            },
-          }
-        : undefined;
-
-    const result = await retryCall(
-      () =>
-        generateObject({
-          model,
-          schema: this.config.schema,
-          temperature: 0.1,
-          abortSignal: AbortSignal.timeout(
-            options.timeout ?? this.config.timeout,
-          ),
-          messages: [
-            {
-              role: "system",
-              content: prompt,
-            },
-            {
-              role: "user",
-              content: [contentField],
-            },
-          ],
-          ...(providerOptions && { providerOptions }),
-        }),
-      options.retries ?? this.config.retries,
-      options.retryDelay ?? 2000, // Start with 2s delay
+    return this.generate(
+      [
+        { role: "system", content: prompt },
+        { role: "user", content: [document] },
+      ],
+      options,
     );
-
-    return result.object as z.infer<T>;
   }
 
   /**
-   * Extract with cascading fallback across providers
-   * Tries primary -> secondary -> tertiary with rate limit detection
+   * The same read from the PDF's text layer, for a PDF the model could not
+   * read in time.
    */
-  protected async extractWithCascadingFallback(
-    documentUrl: string,
-    prompt: string,
-  ): Promise<{ result: z.infer<T>; usedModel: ModelConfig }> {
-    const models = [
-      { config: this.config.models.primary, name: "primary" },
-      { config: this.config.models.secondary, name: "secondary" },
-      { config: this.config.models.tertiary, name: "tertiary" },
-    ];
-
-    let lastError: Error | null = null;
-
-    for (const { config: modelConfig, name } of models) {
-      try {
-        this.logger.info(`Attempting extraction with ${name} model`, {
-          provider: modelConfig.provider,
-          model: modelConfig.model,
-        });
-
-        const result = await this.extractWithProvider(
-          documentUrl,
-          prompt,
-          modelConfig,
-        );
-
-        this.logger.info(`Extraction succeeded with ${name} model`, {
-          provider: modelConfig.provider,
-          model: modelConfig.model,
-        });
-
-        return { result, usedModel: modelConfig };
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        const isRateLimit = isRateLimitError(error);
-        this.logger.warn(`${name} model extraction failed`, {
-          provider: modelConfig.provider,
-          model: modelConfig.model,
-          isRateLimit,
-          error: lastError.message,
-        });
-        // Continue to next model on rate limit or any error
-      }
-    }
-
-    // All models failed
-    throw lastError || new Error("All extraction models failed");
-  }
-
-  /**
-   * Extract with primary model (uses cascading fallback)
-   */
-  protected async extractWithPrimaryModel(
+  protected async readText(
     documentUrl: string,
     prompt: string,
   ): Promise<z.infer<T>> {
-    const { result } = await this.extractWithCascadingFallback(
-      documentUrl,
-      prompt,
-    );
-    return result;
-  }
-
-  /**
-   * Extract with secondary/fallback model (skips primary)
-   */
-  protected async extractWithFallbackModel(
-    documentUrl: string,
-    prompt: string,
-  ): Promise<z.infer<T>> {
-    // Try secondary first, then tertiary
-    try {
-      return await this.extractWithProvider(
-        documentUrl,
-        prompt,
-        this.config.models.secondary,
-      );
-    } catch (error) {
-      this.logger.warn("Secondary model failed, trying tertiary", {
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-      return await this.extractWithProvider(
-        documentUrl,
-        prompt,
-        this.config.models.tertiary,
-      );
-    }
-  }
-
-  /**
-   * Extract using text fallback - extracts text from PDF and sends as text input
-   * Used as last resort when PDF processing times out
-   */
-  protected async extractWithTextFallback(
-    documentUrl: string,
-    prompt: string,
-    modelConfig: ModelConfig,
-  ): Promise<z.infer<T>> {
-    // Extract text from PDF
     const extractedText = await extractTextFromPdf(documentUrl);
 
     if (!extractedText) {
@@ -304,40 +150,32 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       );
     }
 
-    // Modify prompt to indicate text was extracted from PDF
     const modifiedPrompt = `${prompt}\n\nNOTE: The document content below was extracted as text from a PDF. Some formatting, layout, or visual elements may be missing. Please extract the requested information from the text content.`;
 
-    const model =
-      modelConfig.provider === "mistral"
-        ? mistral(modelConfig.model)
-        : google(modelConfig.model);
+    return this.generate([
+      { role: "system", content: modifiedPrompt },
+      { role: "user", content: [{ type: "text", text: extractedText }] },
+    ]);
+  }
 
-    // Send extracted text as text content (not file)
+  private async generate(
+    messages: ModelMessage[],
+    options: { timeout?: number; retries?: number; retryDelay?: number } = {},
+  ): Promise<z.infer<T>> {
+    // No temperature: the Claude 5.5 models reject it, and the schema is
+    // returned as native structured output rather than a forced tool call.
     const result = await retryCall(
       () =>
         generateObject({
-          model,
+          model: languageModel(PURPOSE),
           schema: this.config.schema,
-          temperature: 0.1,
-          abortSignal: AbortSignal.timeout(this.config.timeout),
-          messages: [
-            {
-              role: "system",
-              content: modifiedPrompt,
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text" as const,
-                  text: extractedText,
-                },
-              ],
-            },
-          ],
+          abortSignal: AbortSignal.timeout(
+            options.timeout ?? this.config.timeout,
+          ),
+          messages,
         }),
-      this.config.retries,
-      2000, // Start with 2s delay
+      options.retries ?? this.config.retries,
+      options.retryDelay ?? 2000, // Start with 2s delay
     );
 
     return result.object as z.infer<T>;
@@ -512,17 +350,11 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
         }
       }
 
-      // Use secondary model (Google) for field re-extraction for reliability
-      const result = await this.extractWithProvider(
-        documentUrl,
-        fieldPrompt,
-        this.config.models.secondary,
-        {
-          timeout: options.timeout,
-          retries: 1, // 1 retry (2 total attempts) for field-specific extraction
-          retryDelay: 1000,
-        },
-      );
+      const result = await this.read(documentUrl, fieldPrompt, {
+        timeout: options.timeout,
+        retries: 1, // 1 retry (2 total attempts) for field-specific extraction
+        retryDelay: 1000,
+      });
 
       const fieldValue = (result as Record<string, unknown>)[field];
       if (fieldValue !== null && fieldValue !== undefined) {
@@ -593,7 +425,8 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
     // Get prompt factory
     const promptFactory = this.config.promptFactory;
 
-    // Pass 1: Extract with primary model and standard prompt
+    // Pass 1: one read with the standard prompt. A document that reads well
+    // stops here, so this is the only call most documents cost.
     let result: z.infer<T>;
 
     try {
@@ -601,12 +434,12 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       const promptComponents = promptFactory(companyName);
       const prompt = this.composePrompt(promptComponents, false);
 
-      logger.info("Pass 1: Extracting with cascading fallback", {
+      logger.info("Pass 1: Extracting", {
         pass: 1,
-        primaryModel: `${this.config.models.primary.provider}:${this.config.models.primary.model}`,
+        model: modelIdFor(PURPOSE),
       });
 
-      result = await this.extractWithPrimaryModel(documentUrl, prompt);
+      result = await this.read(documentUrl, prompt);
     } catch (error) {
       // Check if this is a timeout error and we're processing a PDF
       const isTimeoutError =
@@ -633,11 +466,7 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
           const promptComponents = promptFactory(companyName);
           const prompt = this.composePrompt(promptComponents, false);
 
-          result = await this.extractWithTextFallback(
-            documentUrl,
-            prompt,
-            this.config.models.secondary,
-          );
+          result = await this.readText(documentUrl, prompt);
 
           logger.info("Text extraction fallback succeeded", {
             pass: 1,
@@ -655,21 +484,14 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
                 ? textFallbackError.message
                 : "Unknown error",
           });
-          // Fall through to try fallback model
         }
       }
 
-      logger.warn("Pass 1 failed, trying fallback model immediately", {
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-      // If primary fails completely, try fallback model immediately
-      const fallbackPromptComponents = promptFactory(companyName, undefined);
-      const fallbackPrompt = this.composePrompt(fallbackPromptComponents, true);
-      result = await this.extractWithFallbackModel(documentUrl, fallbackPrompt);
-      return {
-        data: result,
-        qualityScore: this.calculateQualityScore(result),
-      };
+      // There is no other model to fall back to, and the read was already
+      // retried. Failing here is what makes a dead key or a retired model show
+      // as a failed run, instead of a chain that hides every error but the
+      // last.
+      throw error;
     }
 
     // Check data quality (subclasses will provide these functions)
@@ -692,10 +514,9 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
     // call per missing field re-reading a photo of something else, which is
     // the most expensive path in the engine taken for the least useful input.
     //
-    // Both halves are required. The primary model is the smallest of the three
-    // and "other" is a judgement it can get wrong; when it says so but still
-    // read an amount or a vendor off the page, the later passes are what
-    // recover the rest, so they still run.
+    // Both halves are required. "other" is a judgement the model can get
+    // wrong; when it says so but still read an amount or a vendor off the
+    // page, the later passes are what recover the rest, so they still run.
     if (this.isClassifiedAsOther(result) && !this.hasExtractedContent(result)) {
       logger.info("Pass 1 read nothing off a non-financial document", {
         pass: 1,
@@ -704,14 +525,11 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       return { data: result, qualityScore };
     }
 
-    // Pass 2: Re-extract with fallback model and chain-of-thought prompt
-    logger.info(
-      "Pass 1 quality poor, running Pass 2 with fallback model and chain-of-thought",
-      {
-        pass: 2,
-        model: `${this.config.models.secondary.provider}:${this.config.models.secondary.model}`,
-      },
-    );
+    // Pass 2: read again, asking the model to reason it through first
+    logger.info("Pass 1 quality poor, running Pass 2 with chain-of-thought", {
+      pass: 2,
+      model: modelIdFor(PURPOSE),
+    });
     try {
       // Detect format from initial extraction for adaptive prompts
       const detectedFormat = this.detectFormat(result);
@@ -725,10 +543,7 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
         true,
       );
 
-      const fallbackResult = await this.extractWithFallbackModel(
-        documentUrl,
-        chainOfThoughtPrompt,
-      );
+      const fallbackResult = await this.read(documentUrl, chainOfThoughtPrompt);
 
       // Calculate confidence scores for both extractions
       const primaryQuality = this.calculateQualityScore(result);

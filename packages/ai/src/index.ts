@@ -11,4 +11,5 @@ export {
   languageModel,
   type ModelChoice,
   modelIdFor,
+  webSearch,
 } from "./models";
