@@ -8,7 +8,7 @@
 import { languageModel } from "@midday/ai";
 import { generateObject, type LanguageModel } from "ai";
 import { z } from "zod";
-import { buildCsvMappingPrompt, normalizeColumns } from "./csv-mapping-prompt";
+import { buildCsvMappingPrompt } from "./csv-mapping-prompt";
 
 export const csvMappingSchema = z.object({
   date: z.string().optional(),
@@ -27,22 +27,33 @@ const ISO_CURRENCY = /^[A-Z]{3}$/;
 /**
  * The mapping with every answer the file cannot honour removed: a column it
  * does not have, and a counterparty that is the description's own column.
+ * Each kept answer is the file's own column name, exactly as its header has it.
  * The prompt asks for both already; this is what holds when the model forgets.
  */
 export function keepRealColumns(
   mapping: CsvMapping,
   fieldColumns: string[],
 ): CsvMapping {
-  const columns = new Set(normalizeColumns(fieldColumns));
+  // The prompt shows trimmed names, and the dashboard looks the answer up in
+  // the file's raw header, so a trimmed answer goes back to the raw name.
+  const rawByName = new Map<string, string>();
+  for (const column of fieldColumns) {
+    const name = column.trim();
+    if (name && !rawByName.has(name)) rawByName.set(name, column);
+  }
+
   const kept: CsvMapping = {};
 
   for (const [field, value] of Object.entries(mapping) as Array<
     [keyof CsvMapping, string | undefined]
   >) {
     if (!value) continue;
-    const real =
-      columns.has(value) || (field === "currency" && ISO_CURRENCY.test(value));
-    if (real) kept[field] = value;
+    const column = rawByName.get(value.trim());
+    if (column) {
+      kept[field] = column;
+    } else if (field === "currency" && ISO_CURRENCY.test(value)) {
+      kept[field] = value;
+    }
   }
 
   if (kept.counterparty && kept.counterparty === kept.description) {

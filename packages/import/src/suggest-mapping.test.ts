@@ -72,6 +72,18 @@ describe("keepRealColumns", () => {
     expect(keepRealColumns({ currency: "euros" }, ["Date"])).toEqual({});
   });
 
+  test("answers with the file's own column name, spaces and all", () => {
+    // The prompt shows trimmed names; the dashboard looks the answer up in the
+    // file's raw header, where " Munt " is not "Munt".
+    expect(
+      keepRealColumns({ amount: "Bedrag", currency: "Munt" }, [
+        " Datum",
+        " Bedrag ",
+        " Munt ",
+      ]),
+    ).toEqual({ amount: " Bedrag ", currency: " Munt " });
+  });
+
   test("never maps description and counterparty to the same column", () => {
     expect(
       keepRealColumns(
