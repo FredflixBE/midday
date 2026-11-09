@@ -77,7 +77,7 @@ export function VerifyMfa() {
           <h1 className="text-lg lg:text-xl mb-2 font-serif">
             Verify your identity.
           </h1>
-          <p className="text-[#878787] text-sm mb-8">
+          <p className="text-muted-foreground text-sm mb-8">
             Please enter the code from your authenticator app.
           </p>
         </div>
@@ -88,7 +88,7 @@ export function VerifyMfa() {
           {isValidating || isRedirecting ? (
             <div className="flex items-center justify-center h-full bg-background/95 border border-input w-full">
               <div className="flex items-center space-x-2 bg-background px-4 py-2 rounded-md shadow-xs">
-                <Spinner size={16} className="text-primary" />
+                <Spinner size={16} className="text-foreground" />
                 <span className="text-sm text-foreground font-medium">
                   {isRedirecting ? "Redirecting..." : "Verifying..."}
                 </span>
@@ -113,7 +113,7 @@ export function VerifyMfa() {
         </div>
       </div>
 
-      <p className="text-xs text-[#878787] text-center font-mono">
+      <p className="text-xs text-muted-foreground text-center font-mono">
         Open your authenticator apps like 1Password, Authy, etc. to verify your
         identity.
       </p>

@@ -16,14 +16,16 @@ export default async function ConnectorCallbackPage(props: Props) {
         {isSuccess ? (
           <>
             <h1 className="text-lg font-medium mb-2">Connected</h1>
-            <p className="text-sm text-[#606060]">You may close this window.</p>
+            <p className="text-sm text-muted-foreground">
+              You may close this window.
+            </p>
           </>
         ) : (
           <>
             <h1 className="text-lg font-medium mb-2">
               Connection {status === "failed" ? "failed" : "pending"}
             </h1>
-            <p className="text-sm text-[#606060]">
+            <p className="text-sm text-muted-foreground">
               {status === "failed"
                 ? "Something went wrong. Please try again."
                 : "Waiting for connection..."}

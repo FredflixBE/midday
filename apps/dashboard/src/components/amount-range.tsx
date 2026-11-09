@@ -66,7 +66,7 @@ export function AmountRange() {
     <div className="space-y-5">
       {/* Direction */}
       <div className="space-y-3">
-        <Label className="text-xs text-[#878787]">Direction</Label>
+        <Label className="text-xs text-muted-foreground">Direction</Label>
         <RadioGroup
           value={typeValue}
           onValueChange={(value) => setTypeValue(value as TypeValue)}
@@ -79,7 +79,9 @@ export function AmountRange() {
               className="text-sm font-normal cursor-pointer"
             >
               In{" "}
-              <span className="text-[#878787]">(e.g. deposits, refunds)</span>
+              <span className="text-muted-foreground">
+                (e.g. deposits, refunds)
+              </span>
             </Label>
           </div>
           <div className="flex items-center space-x-2">
@@ -89,7 +91,9 @@ export function AmountRange() {
               className="text-sm font-normal cursor-pointer"
             >
               Out{" "}
-              <span className="text-[#878787]">(e.g. purchases, charges)</span>
+              <span className="text-muted-foreground">
+                (e.g. purchases, charges)
+              </span>
             </Label>
           </div>
           <div className="flex items-center space-x-2">
@@ -98,7 +102,8 @@ export function AmountRange() {
               htmlFor="type-any"
               className="text-sm font-normal cursor-pointer"
             >
-              Not specified <span className="text-[#878787]">(both)</span>
+              Not specified{" "}
+              <span className="text-muted-foreground">(both)</span>
             </Label>
           </div>
         </RadioGroup>
@@ -106,9 +111,9 @@ export function AmountRange() {
 
       {/* At least... */}
       <div className="space-y-2">
-        <Label className="text-xs text-[#878787]">At least...</Label>
+        <Label className="text-xs text-muted-foreground">At least...</Label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#878787] text-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
             ≥
           </span>
           <CurrencyInput
@@ -126,9 +131,9 @@ export function AmountRange() {
 
       {/* No more than... */}
       <div className="space-y-2">
-        <Label className="text-xs text-[#878787]">No more than...</Label>
+        <Label className="text-xs text-muted-foreground">No more than...</Label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#878787] text-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
             ≤
           </span>
           <CurrencyInput

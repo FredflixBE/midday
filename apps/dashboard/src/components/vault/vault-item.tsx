@@ -129,7 +129,7 @@ export const VaultItem = memo(function VaultItem({ data, small }: Props) {
   return (
     <div
       className={cn(
-        "h-72 border relative flex text-muted-foreground p-4 flex-col gap-3 hover:bg-muted dark:hover:bg-[#141414] transition-colors duration-200 group cursor-pointer",
+        "h-72 border relative flex text-muted-foreground p-4 flex-col gap-3 hover:bg-muted transition-colors duration-200 group cursor-pointer",
         small && "h-48",
       )}
       onClick={() => {
@@ -139,7 +139,7 @@ export const VaultItem = memo(function VaultItem({ data, small }: Props) {
       {/* Status badge - top right */}
       {showRetry && !showSkeleton && (
         <div className="absolute top-4 right-4 z-10">
-          <span className="px-2 py-0.5 rounded-full text-[11px] bg-[#FFD02B]/10 text-[#FFD02B] dark:bg-[#FFD02B]/10 dark:text-[#FFD02B]">
+          <span className="px-2 py-0.5 rounded-full text-[11px] bg-warning/10 text-warning">
             Processing incomplete
           </span>
         </div>
@@ -185,7 +185,7 @@ export const VaultItem = memo(function VaultItem({ data, small }: Props) {
       </div>
 
       <div className="flex flex-col text-left flex-1">
-        <h2 className="text-sm text-primary line-clamp-1 mb-2 mt-3">
+        <h2 className="text-sm text-foreground line-clamp-1 mb-2 mt-3">
           {showSkeleton ? <Skeleton className="w-[80%] h-4" /> : displayName}
         </h2>
 
@@ -210,7 +210,7 @@ export const VaultItem = memo(function VaultItem({ data, small }: Props) {
               size="sm"
               onClick={handleReprocess}
               disabled={reprocessMutation.isPending}
-              className="gap-2 w-full text-primary"
+              className="gap-2 w-full text-foreground"
             >
               <Icons.Refresh className="size-3" />
               Re-analyze document

@@ -76,7 +76,7 @@ export function LinkItem({ editor, open, setOpen }: LinkItemProps) {
             ref={inputRef}
             type="text"
             placeholder="Paste a link"
-            className="flex-1 bg-background p-0.5 h-7 text-xs outline-hidden placeholder:text-[#878787]"
+            className="flex-1 bg-background p-0.5 h-7 text-xs outline-hidden placeholder:text-muted-foreground"
             defaultValue={linkValue || ""}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {

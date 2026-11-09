@@ -103,20 +103,20 @@ const CustomTooltip = ({
 
     return (
       <div
-        className="bg-white dark:bg-[#0c0c0c] border border-[#e6e6e6] dark:border-[#1d1d1d] p-2 text-[10px] font-stack-sans-slashed-zero min-w-[180px]"
+        className="bg-background border border-border p-2 text-[10px] font-stack-sans-slashed-zero min-w-[180px]"
         style={{
           opacity: 1,
           boxShadow: "0 2px 6px rgba(0, 0, 0, 0.1)",
           borderRadius: "0px",
         }}
       >
-        <p className="mb-1 text-[#707070] dark:text-[#666666]">
+        <p className="mb-1 text-muted-foreground">
           {data?.month} {year}
         </p>
-        <p className="text-black dark:text-white font-medium">
+        <p className="text-foreground font-medium">
           Revenue: {value != null ? formatCurrency(value) : "-"}
         </p>
-        <p className="text-[#707070] dark:text-[#666666] mb-1">
+        <p className="text-muted-foreground mb-1">
           {isForecastStart
             ? isActual
               ? "Actual (Baseline)"
@@ -128,13 +128,13 @@ const CustomTooltip = ({
 
         {/* Confidence band info for forecasts */}
         {!isActual && optimistic != null && pessimistic != null && (
-          <div className="mt-1.5 pt-1.5 border-t border-[#e6e6e6] dark:border-[#1d1d1d]">
-            <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+          <div className="mt-1.5 pt-1.5 border-t border-border">
+            <p className="text-muted-foreground text-[9px]">
               Range: {formatCurrency(pessimistic)} -{" "}
               {formatCurrency(optimistic)}
             </p>
             {confidence != null && (
-              <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+              <p className="text-muted-foreground text-[9px]">
                 Confidence: {confidence}%
               </p>
             )}
@@ -143,39 +143,39 @@ const CustomTooltip = ({
 
         {/* Breakdown of revenue sources */}
         {hasBreakdown && breakdown && (
-          <div className="mt-1.5 pt-1.5 border-t border-[#e6e6e6] dark:border-[#1d1d1d]">
-            <p className="text-[#888] dark:text-[#555] text-[9px] mb-0.5 uppercase tracking-wider">
+          <div className="mt-1.5 pt-1.5 border-t border-border">
+            <p className="text-muted-foreground text-[9px] mb-0.5 uppercase tracking-wider">
               Sources
             </p>
             {breakdown.recurringInvoices > 0 && (
-              <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+              <p className="text-muted-foreground text-[9px]">
                 Recurring Invoices:{" "}
                 {formatCurrency(breakdown.recurringInvoices)}
               </p>
             )}
             {breakdown.recurringTransactions > 0 && (
-              <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+              <p className="text-muted-foreground text-[9px]">
                 Recurring Deposits:{" "}
                 {formatCurrency(breakdown.recurringTransactions)}
               </p>
             )}
             {breakdown.scheduled > 0 && (
-              <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+              <p className="text-muted-foreground text-[9px]">
                 Scheduled: {formatCurrency(breakdown.scheduled)}
               </p>
             )}
             {breakdown.collections > 0 && (
-              <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+              <p className="text-muted-foreground text-[9px]">
                 Collections: {formatCurrency(breakdown.collections)}
               </p>
             )}
             {breakdown.billableHours > 0 && (
-              <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+              <p className="text-muted-foreground text-[9px]">
                 Billable Hours: {formatCurrency(breakdown.billableHours)}
               </p>
             )}
             {breakdown.newBusiness > 0 && (
-              <p className="text-[#707070] dark:text-[#666666] text-[9px]">
+              <p className="text-muted-foreground text-[9px]">
                 New Business: {formatCurrency(breakdown.newBusiness)}
               </p>
             )}

@@ -34,7 +34,7 @@ type Insight = {
 };
 
 const linkClass =
-  "border-b border-dashed border-[#878787]/30 hover:text-foreground transition-colors";
+  "border-b border-dashed border-muted-foreground/30 hover:text-foreground transition-colors";
 
 type SummaryData = {
   openInvoices: { count: number; totalAmount: number; currency: string };
@@ -274,9 +274,9 @@ function SummaryTicker({ insights }: { insights: Insight[] }) {
             onClick={() => goTo(i)}
             onMouseEnter={() => goTo(i)}
           >
-            <div className="relative h-[2px] w-4 rounded-full bg-primary/10 overflow-hidden">
+            <div className="relative h-[2px] w-4 rounded-full bg-foreground/10 overflow-hidden">
               <div
-                className="absolute inset-0 bg-primary/40 rounded-full origin-left group-hover/bar:!scale-x-100"
+                className="absolute inset-0 bg-foreground/40 rounded-full origin-left group-hover/bar:!scale-x-100"
                 style={{
                   transform: `scaleX(${i === index ? progress : 0})`,
                 }}

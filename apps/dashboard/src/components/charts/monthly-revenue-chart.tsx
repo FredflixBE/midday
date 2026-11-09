@@ -58,22 +58,18 @@ const CustomTooltip = ({
       }) ?? `${currency}${amount.toLocaleString()}`;
 
     return (
-      <div className="border p-2 text-[10px] font-sans bg-white dark:bg-[#0c0c0c] border-[#e6e6e6] dark:border-[#1d1d1d] text-black dark:text-white shadow-xs">
-        <p className="mb-1 text-[#707070] dark:text-[#666666]">{label}</p>
+      <div className="border p-2 text-[10px] font-sans bg-background border-border text-foreground shadow-xs">
+        <p className="mb-1 text-muted-foreground">{label}</p>
         {typeof thisYear === "number" && (
-          <p className="text-black dark:text-white">
-            Current: {formatCurrency(thisYear)}
-          </p>
+          <p className="text-foreground">Current: {formatCurrency(thisYear)}</p>
         )}
         {typeof lastYear === "number" && (
-          <p className="text-black dark:text-white">
+          <p className="text-foreground">
             Previous: {formatCurrency(lastYear)}
           </p>
         )}
         {typeof average === "number" && (
-          <p className="text-black dark:text-white">
-            Average: {formatCurrency(average)}
-          </p>
+          <p className="text-foreground">Average: {formatCurrency(average)}</p>
         )}
       </div>
     );

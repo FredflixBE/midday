@@ -19,7 +19,7 @@ function MfaStart({ setEnroll }: Props) {
             <h1 className="text-lg lg:text-xl mb-2 font-serif">
               Multi-factor authentication
             </h1>
-            <p className="text-[#878787] text-sm">
+            <p className="text-muted-foreground text-sm">
               Add an additional layer of security to your account.
             </p>
           </div>
@@ -38,7 +38,7 @@ function MfaStart({ setEnroll }: Props) {
         </Link>
       </div>
 
-      <p className="text-xs text-[#878787]">
+      <p className="text-xs text-muted-foreground">
         Generate one-time passwords via authenticator apps like 1Password,
         Authy, etc. as a second factor to verify your identity during sign-in.
       </p>

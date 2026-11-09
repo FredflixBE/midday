@@ -106,7 +106,7 @@ export function AddNewDeviceModal() {
           </div>
 
           <div className="my-8">
-            <p className="font-medium pb-1 text-2xl text-[#606060]">
+            <p className="font-medium pb-1 text-2xl text-muted-foreground">
               Use an authenticator app to scan the following QR code, and
               provide the code to complete the setup.
             </p>
@@ -117,7 +117,7 @@ export function AddNewDeviceModal() {
               {isValidating || isRedirecting ? (
                 <div className="flex items-center justify-center h-full bg-background/95 border border-input px-4">
                   <div className="flex items-center space-x-2 bg-background px-4 py-2 rounded-md shadow-xs">
-                    <Spinner size={16} className="text-primary" />
+                    <Spinner size={16} className="text-foreground" />
                     <span className="text-sm text-foreground font-medium">
                       {isRedirecting ? "Closing..." : "Adding device..."}
                     </span>

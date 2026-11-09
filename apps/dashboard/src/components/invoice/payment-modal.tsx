@@ -574,7 +574,7 @@ export function PaymentModal({
           data-payment-panel
           className={cn(
             "fixed z-40 scrollbar-hide overflow-y-auto",
-            "bg-white dark:bg-[#0C0C0C] border border-[#e6e6e6] dark:border-[#1d1d1d]",
+            "bg-background border border-border",
             "overflow-x-hidden transition-all duration-300 ease-in-out",
             "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] max-w-[90vw]",
             "max-h-[90vh] shadow-lg",
@@ -600,7 +600,7 @@ export function PaymentModal({
       data-payment-panel
       className={cn(
         "fixed z-30 scrollbar-hide overflow-y-auto",
-        "bg-white dark:bg-[#0C0C0C] border border-[#e6e6e6] dark:border-[#1d1d1d]",
+        "bg-background border border-border",
         "overflow-x-hidden transition-transform duration-300 ease-in-out",
         "top-0 bottom-0 right-0 w-[520px]",
         open ? "translate-x-0" : "translate-x-full",

@@ -37,8 +37,10 @@ function AppSettingsItem({
       return (
         <div className="flex items-center justify-between">
           <div className="pr-4 space-y-1">
-            <Label className="text-[#878787]">{setting.label}</Label>
-            <p className="text-xs text-[#878787]">{setting.description}</p>
+            <Label className="text-muted-foreground">{setting.label}</Label>
+            <p className="text-xs text-muted-foreground">
+              {setting.description}
+            </p>
           </div>
           <Switch
             disabled={updateAppSettingsMutation.isPending}

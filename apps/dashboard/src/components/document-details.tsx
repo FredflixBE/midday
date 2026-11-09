@@ -74,7 +74,7 @@ export function DocumentDetails() {
 
       <div>
         {data?.summary && (
-          <p className="text-sm text-[#878787] mb-4 line-clamp-2">
+          <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
             {data?.summary}
           </p>
         )}

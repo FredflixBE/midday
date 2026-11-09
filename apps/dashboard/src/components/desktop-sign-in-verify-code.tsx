@@ -24,7 +24,7 @@ export function DesktopSignInVerifyCode({
 
   return (
     <div>
-      <div className="h-screen flex flex-col items-center justify-center text-center text-sm text-[#606060]">
+      <div className="h-screen flex flex-col items-center justify-center text-center text-sm text-muted-foreground">
         <Image
           src={appIcon}
           width={80}

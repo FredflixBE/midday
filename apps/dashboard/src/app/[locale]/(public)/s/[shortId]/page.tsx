@@ -58,7 +58,7 @@ export default async function Page({ params }: Props) {
           <div className="text-center">
             <h1 className="text-lg mb-2 font-serif">Download File</h1>
 
-            <p className="text-[#878787] text-sm mb-8">
+            <p className="text-muted-foreground text-sm mb-8">
               {shortLink.teamName} has shared a file with you
             </p>
           </div>

@@ -82,7 +82,7 @@ function SearchResult({
 
         <div className="ml-3 min-w-0">
           <p className="text-sm font-medium leading-none truncate">{name}</p>
-          <span className="text-[#878787] text-xs capitalize mt-0.5 block">
+          <span className="text-muted-foreground text-xs capitalize mt-0.5 block">
             Via {formatProvider(provider)}
             {type ? ` · ${type}` : ""}
           </span>
@@ -209,7 +209,7 @@ export function BankSearchContent({
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[350px]">
                 <p className="font-medium mb-2">No banks found</p>
-                <p className="text-sm text-center text-[#878787]">
+                <p className="text-sm text-center text-muted-foreground">
                   We couldn't find a bank matching your criteria.
                   <br /> Let us know, or start with manual import.
                 </p>

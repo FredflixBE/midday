@@ -46,7 +46,9 @@ export const columns: ColumnDef<TeamInvite>[] = [
           </Avatar>
           <div className="flex flex-col">
             <span className="font-medium text-sm">Pending Invitation</span>
-            <span className="text-sm text-[#606060]">{row.original.email}</span>
+            <span className="text-sm text-muted-foreground">
+              {row.original.email}
+            </span>
           </div>
         </div>
       );
@@ -79,7 +81,7 @@ function InviteActionsCell({ row }: CellContext<TeamInvite, unknown>) {
   return (
     <div className="flex justify-end">
       <div className="flex space-x-2 items-center">
-        <span className="text-[#606060]">
+        <span className="text-muted-foreground">
           {t(`roles.${row.original.role || "member"}`)}
         </span>
 

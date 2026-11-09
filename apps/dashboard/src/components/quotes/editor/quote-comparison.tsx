@@ -87,7 +87,7 @@ export function QuoteComparison({
         <div className="overflow-x-auto border border-border px-3">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-[#606060]">
+              <tr className="border-b border-border text-muted-foreground">
                 <th className="py-2 pr-4 text-left font-normal">Scenario</th>
                 <th className="py-2 pl-4 text-right font-normal">Pricing</th>
                 <th className="py-2 pl-4 text-right font-normal">
@@ -164,7 +164,7 @@ export function QuoteComparison({
           <div className="overflow-x-auto border border-border px-3">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-[#606060]">
+                <tr className="border-b border-border text-muted-foreground">
                   <th className="py-2 pr-4 text-left font-normal">
                     Fixed price
                   </th>
@@ -186,7 +186,7 @@ export function QuoteComparison({
                     <th className="py-2 pr-4 text-left font-normal">
                       {scenarioName(fixed)}
                     </th>
-                    <td className="py-2 pl-4 text-left text-[#606060]">
+                    <td className="py-2 pl-4 text-left text-muted-foreground">
                       {nameOf(premium.rangeScenarioId)}
                     </td>
                     <td className="py-2 pl-4 text-right tabular-nums whitespace-nowrap">

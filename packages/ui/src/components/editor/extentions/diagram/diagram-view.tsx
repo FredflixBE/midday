@@ -55,12 +55,12 @@ export function DiagramView(props: NodeViewProps) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-24 w-full items-center justify-center border border-dashed border-border text-[11px] text-[#878787] hover:text-primary"
+          className="flex h-24 w-full items-center justify-center border border-dashed border-border text-[11px] text-muted-foreground hover:text-foreground"
         >
           Write a diagram
         </button>
       ) : (
-        <div className="flex h-24 items-center justify-center border border-dashed border-border text-[11px] text-[#878787]">
+        <div className="flex h-24 items-center justify-center border border-dashed border-border text-[11px] text-muted-foreground">
           Diagram
         </div>
       )}
@@ -200,7 +200,7 @@ function DiagramDialog({
                   dangerouslySetInnerHTML={{ __html: drawn }}
                 />
               ) : (
-                <span className="text-[11px] text-[#878787]">
+                <span className="text-[11px] text-muted-foreground">
                   Nothing drawn yet
                 </span>
               )}
@@ -208,7 +208,7 @@ function DiagramDialog({
           </div>
 
           {problem ? (
-            <p className="text-[11px] text-[#FF3638]">{problem}</p>
+            <p className="text-[11px] text-destructive">{problem}</p>
           ) : null}
 
           <DialogFooter>

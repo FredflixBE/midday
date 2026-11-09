@@ -42,7 +42,7 @@ export function DataTable() {
           <h3 className="text-lg font-medium leading-none tracking-tight mb-2">
             API Keys
           </h3>
-          <p className="text-sm text-[#606060]">
+          <p className="text-sm text-muted-foreground">
             These API keys allow other apps to access your team. Use it with
             caution – do not share your API key with others, or expose it in the
             browser or other client-side code.

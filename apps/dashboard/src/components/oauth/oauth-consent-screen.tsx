@@ -151,7 +151,7 @@ export function OAuthConsentScreen() {
                   <div className="w-8 h-8 bg-muted rounded-full" />
                 )}
               </div>
-              <Icons.SyncAlt className="size-4 text-[#666666]" />
+              <Icons.SyncAlt className="size-4 text-muted-foreground" />
               <div className="w-16 h-16 rounded-full bg-background border border-border flex items-center justify-center overflow-hidden">
                 <Icons.LogoSmall className="h-8 w-8" />
               </div>
@@ -228,7 +228,7 @@ export function OAuthConsentScreen() {
                 <div className="w-8 h-8 bg-muted rounded-full" />
               )}
             </div>
-            <Icons.SyncAlt className="size-4 text-[#666666]" />
+            <Icons.SyncAlt className="size-4 text-muted-foreground" />
             <div className="w-16 h-16 rounded-full bg-background border border-border flex items-center justify-center overflow-hidden">
               <Icons.LogoSmall className="h-8 w-8" />
             </div>
@@ -240,7 +240,7 @@ export function OAuthConsentScreen() {
           </CardTitle>
 
           <CardDescription className="text-sm text-muted-foreground text-center">
-            <span className="flex items-center justify-center gap-1 text-[#878787] text-sm mb-8">
+            <span className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-8">
               Built by{" "}
               <a
                 href={
@@ -289,9 +289,9 @@ export function OAuthConsentScreen() {
                   return (
                     <div key={scope} className="flex items-center gap-3">
                       <div className="shrink-0">
-                        <Check className="size-3.5 text-[#878787]" />
+                        <Check className="size-3.5 text-muted-foreground" />
                       </div>
-                      <span className="text-sm text-[#878787]">
+                      <span className="text-sm text-muted-foreground">
                         {description.label}
                       </span>
                     </div>

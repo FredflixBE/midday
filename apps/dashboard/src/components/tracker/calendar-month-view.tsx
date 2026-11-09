@@ -38,7 +38,7 @@ export function CalendarMonthView({
       {firstWeek.map((day) => (
         <div
           key={day.toString()}
-          className="py-4 px-3 bg-background text-xs font-medium text-[#878787] font-mono"
+          className="py-4 px-3 bg-background text-xs font-medium text-muted-foreground font-mono"
         >
           {format(day, "EEE").toUpperCase()}
         </div>

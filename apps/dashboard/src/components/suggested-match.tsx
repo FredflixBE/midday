@@ -141,7 +141,7 @@ export function SuggestedMatch({
 
         <div className="border border-border overflow-hidden">
           {/* Document Preview Skeleton */}
-          <div className="relative bg-[#F6F6F3] dark:bg-[#1A1A1A] p-4 h-[300px] flex items-center justify-center">
+          <div className="relative bg-muted p-4 h-[300px] flex items-center justify-center">
             <Skeleton className="w-full h-full max-w-[190px]" />
           </div>
 
@@ -168,7 +168,7 @@ export function SuggestedMatch({
     <div className={cn("space-y-4", className)}>
       <div className="flex items-center space-x-2 text-sm">
         <span>Suggested match</span>
-        <span className="text-xs text-[#878787]">
+        <span className="text-xs text-muted-foreground">
           ({Math.round((suggestion?.confidenceScore || 0) * 100)}% confidence)
         </span>
       </div>
@@ -177,14 +177,14 @@ export function SuggestedMatch({
         {/* Document Preview */}
         <div
           className={cn(
-            "relative bg-[#F6F6F3] dark:bg-[#1A1A1A] p-4 h-[300px] flex items-center justify-center",
+            "relative bg-muted p-4 h-[300px] flex items-center justify-center",
             filePath && "cursor-pointer group",
           )}
           onClick={filePath ? handleExpandDocument : undefined}
         >
           {filePath && (
             <div className="absolute top-2 right-2 z-10 h-8 w-8 flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity">
-              <Icons.ExpandContent className="h-4 w-4 text-[#878787]" />
+              <Icons.ExpandContent className="h-4 w-4 text-muted-foreground" />
             </div>
           )}
           {filePath ? (
@@ -198,8 +198,8 @@ export function SuggestedMatch({
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-2">
-              <Icons.Description className="h-12 w-12 text-[#878787]" />
-              <span className="text-sm text-[#878787]">
+              <Icons.Description className="h-12 w-12 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
                 No preview available
               </span>
             </div>
@@ -212,7 +212,7 @@ export function SuggestedMatch({
               <h4 className="font-medium text-sm">{documentName}</h4>
               {suggestion?.documentAmount != null &&
               suggestion?.documentCurrency ? (
-                <p className="text-[#606060] text-xs mt-1">
+                <p className="text-muted-foreground text-xs mt-1">
                   <FormatAmount
                     amount={suggestion.documentAmount}
                     currency={suggestion.documentCurrency}

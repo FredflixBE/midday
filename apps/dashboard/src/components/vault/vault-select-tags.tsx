@@ -70,7 +70,7 @@ export function VaultSelectTags({ tags, onSelect, onRemove, onChange }: Props) {
                     id: option.id as string,
                   });
                 }}
-                className="text-gray-500"
+                className="text-muted-foreground"
               >
                 <Icons.Delete className="h-4 w-4" />
               </button>

@@ -166,7 +166,7 @@ export function RuleEditor({
 
       {debounced.length >= 2 && preview.data ? (
         <div className="border border-border">
-          <div className="px-3 py-2 text-xs text-[#878787]">
+          <div className="px-3 py-2 text-xs text-muted-foreground">
             {preview.data.total === 0
               ? "No payment matches this yet. It will apply to the ones that arrive."
               : `Matches ${preview.data.total} ${
@@ -187,7 +187,7 @@ export function RuleEditor({
                   key={row.id}
                   className="flex items-center gap-3 px-3 py-1.5 text-xs"
                 >
-                  <span className="w-20 shrink-0 text-[#878787]">
+                  <span className="w-20 shrink-0 text-muted-foreground">
                     {formatDate(row.date, user?.dateFormat)}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{row.name}</span>
@@ -198,10 +198,10 @@ export function RuleEditor({
                     className={cn(
                       "w-72 shrink-0 truncate text-right",
                       row.effect === "move" || row.effect === "unlink"
-                        ? "text-[#FF3638]"
+                        ? "text-destructive"
                         : row.effect === "link"
-                          ? "text-primary"
-                          : "text-[#878787]",
+                          ? "text-foreground"
+                          : "text-muted-foreground",
                     )}
                   >
                     {effectLabel(row)}

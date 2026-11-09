@@ -109,9 +109,9 @@ export function MetricsFilter() {
     <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="gap-2 px-2">
-          <Icons.Filter size={16} className="text-[#666]" />
+          <Icons.Filter size={16} className="text-muted-foreground" />
           <span className="hidden sm:inline">{getButtonLabel()}</span>
-          <Icons.ChevronDown size={16} className="text-[#666]" />
+          <Icons.ChevronDown size={16} className="text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64" align="end" sideOffset={10}>
@@ -129,9 +129,9 @@ export function MetricsFilter() {
                     className={cn(
                       "text-xs py-1.5 pl-4 pr-12 relative [&>svg]:hidden",
                       isCustomPeriod
-                        ? "dark:bg-[#131313] dark:data-[state=open]:bg-[#131313] text-primary"
-                        : "text-[#666]",
-                      "hover:dark:bg-[#131313] hover:text-primary",
+                        ? "dark:bg-accent dark:data-[state=open]:bg-accent text-foreground"
+                        : "text-muted-foreground",
+                      "hover:dark:bg-accent hover:text-foreground",
                     )}
                     onSelect={(e) => {
                       e.preventDefault();
@@ -198,9 +198,9 @@ export function MetricsFilter() {
                 className={cn(
                   "text-xs",
                   period === option.value
-                    ? "dark:bg-[#131313] text-primary"
-                    : "text-[#666]",
-                  "hover:dark:bg-[#131313]",
+                    ? "dark:bg-accent text-foreground"
+                    : "text-muted-foreground",
+                  "hover:dark:bg-accent",
                 )}
               >
                 {option.label}
@@ -229,8 +229,8 @@ export function MetricsFilter() {
                 className={cn(
                   "text-xs",
                   revenueType === option.value &&
-                    "dark:bg-[#131313] dark:data-[state=checked]:bg-[#131313]",
-                  "hover:dark:bg-[#131313]",
+                    "dark:bg-accent dark:data-[state=checked]:bg-accent",
+                  "hover:dark:bg-accent",
                 )}
               >
                 {option.label}
@@ -259,8 +259,8 @@ export function MetricsFilter() {
                   className={cn(
                     "text-xs",
                     !effectiveCurrency &&
-                      "dark:bg-[#131313] dark:data-[state=checked]:bg-[#131313]",
-                    "hover:dark:bg-[#131313]",
+                      "dark:bg-accent dark:data-[state=checked]:bg-accent",
+                    "hover:dark:bg-accent",
                   )}
                 >
                   Base currency{baseCurrency ? ` (${baseCurrency})` : ""}
@@ -272,8 +272,8 @@ export function MetricsFilter() {
                     className={cn(
                       "text-xs",
                       effectiveCurrency === curr &&
-                        "dark:bg-[#131313] dark:data-[state=checked]:bg-[#131313]",
-                      "hover:dark:bg-[#131313]",
+                        "dark:bg-accent dark:data-[state=checked]:bg-accent",
+                      "hover:dark:bg-accent",
                     )}
                   >
                     {curr}

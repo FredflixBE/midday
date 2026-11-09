@@ -22,9 +22,9 @@ export function OAuthApplicationStatusBadge({ status, className }: Props) {
       case "pending":
         return "bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400";
       case "draft":
-        return "text-[#878787] bg-[#F2F1EF] text-[10px] dark:bg-[#1D1D1D]";
+        return "text-muted-foreground bg-muted text-[10px]";
       default:
-        return "text-[#878787] bg-[#F2F1EF] text-[10px] dark:bg-[#1D1D1D]";
+        return "text-muted-foreground bg-muted text-[10px]";
     }
   };
 

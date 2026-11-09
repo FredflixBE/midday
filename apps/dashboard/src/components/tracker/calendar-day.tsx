@@ -98,11 +98,9 @@ export function CalendarDay({
       onMouseUp={handleMouseUp}
       className={cn(
         "aspect-square md:aspect-[4/2] pt-2 pb-10 px-3 text-lg relative transition-all duration-100 text-left flex space-x-2 select-none",
-        isCurrentMonth && isToday(date)
-          ? "bg-[#f0f0f0] dark:bg-[#202020]"
-          : "bg-background",
+        isCurrentMonth && isToday(date) ? "bg-muted" : "bg-background",
         !isCurrentMonth &&
-          "bg-[repeating-linear-gradient(-60deg,#DBDBDB,#DBDBDB_1px,transparent_1px,transparent_5px)] dark:bg-[repeating-linear-gradient(-60deg,#2C2C2C,#2C2C2C_1px,transparent_1px,transparent_5px)] text-[#878787]",
+          "bg-[repeating-linear-gradient(-60deg,#DBDBDB,#DBDBDB_1px,transparent_1px,transparent_5px)] dark:bg-[repeating-linear-gradient(-60deg,#2C2C2C,#2C2C2C_1px,transparent_1px,transparent_5px)] text-muted-foreground",
         selectedDate === formattedDate && "ring-1 ring-primary",
         isInRange(date) && "ring-1 ring-primary",
         isFirstSelectedDate(date) && "ring-1 ring-primary",

@@ -48,7 +48,7 @@ function Heading({ count, readyToConfirm, groups }: MissingInvoices) {
         <h1 className="text-2xl font-serif">Missing invoices</h1>
         <DownloadBooksZip />
       </div>
-      <p className="mt-1 text-sm text-[#878787]">
+      <p className="mt-1 text-sm text-muted-foreground">
         {count === 0
           ? "Every payment that needs an invoice has one."
           : `${count} ${count === 1 ? "payment" : "payments"} across ${suppliers} ${
@@ -75,7 +75,7 @@ function Marker({
   return (
     <span
       title={title}
-      className="ml-2 inline-flex h-[18px] shrink-0 items-center bg-[#f7f7f7] px-1.5 text-[10px] text-[#878787] dark:bg-[#1d1d1d]"
+      className="ml-2 inline-flex h-[18px] shrink-0 items-center bg-muted px-1.5 text-[10px] text-muted-foreground"
     >
       {children}
     </span>
@@ -181,7 +181,7 @@ function GroupCard({ group }: { group: Group }) {
           <div className="truncate text-sm font-medium">
             {group.name ?? "No supplier"}
           </div>
-          <div className="mt-0.5 text-xs text-[#878787]">
+          <div className="mt-0.5 text-xs text-muted-foreground">
             {group.count} {group.count === 1 ? "payment" : "payments"}
             {group.readyToConfirm > 0
               ? ` · ${group.readyToConfirm} to confirm`
@@ -239,11 +239,11 @@ function GroupCard({ group }: { group: Group }) {
             className={cn(
               "flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left",
               "border-b border-border last:border-b-0",
-              "hover:bg-[#f7f7f7] dark:hover:bg-[#1d1d1d]",
+              "hover:bg-accent",
             )}
           >
             <span className="flex min-w-0 items-center">
-              <span className="w-[100px] shrink-0 text-xs text-[#878787]">
+              <span className="w-[100px] shrink-0 text-xs text-muted-foreground">
                 {formatDate(transaction.date, user?.dateFormat)}
               </span>
               <span className="truncate text-sm">{transaction.name}</span>
@@ -309,9 +309,9 @@ export function MissingInvoicesList() {
 
       {data.groups.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16 text-center">
-          <Icons.Check className="size-8 text-[#878787]" />
+          <Icons.Check className="size-8 text-muted-foreground" />
           <div className="text-sm font-medium">Nothing to fetch</div>
-          <p className="max-w-[360px] text-xs text-[#878787]">
+          <p className="max-w-[360px] text-xs text-muted-foreground">
             Payments that can never have a supplier invoice — taxes, owner
             draws, transfers — are not counted here. Categories decide that, and
             you can change the answer per category.

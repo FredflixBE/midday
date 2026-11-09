@@ -461,7 +461,7 @@ export function TransactionFlowAnimation({
                   <td
                     className={`w-[140px] md:w-[160px] px-1.5 md:px-2 text-[10px] md:text-[11px] border-r border-border ${
                       transaction.amount > 0
-                        ? "text-[#4CAF50]"
+                        ? "text-success"
                         : "text-foreground"
                     }`}
                   >
@@ -472,7 +472,7 @@ export function TransactionFlowAnimation({
                   <td
                     className={`w-[90px] md:w-[100px] px-1.5 md:px-2 text-[10px] md:text-[11px] border-r border-border ${
                       transaction.amount > 0
-                        ? "text-[#4CAF50]"
+                        ? "text-success"
                         : "text-foreground"
                     }`}
                   >

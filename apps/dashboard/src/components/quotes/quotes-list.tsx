@@ -68,7 +68,7 @@ export function QuotesList() {
       </Tabs>
 
       {rows.length === 0 ? (
-        <div className="py-16 text-center text-sm text-[#878787]">
+        <div className="py-16 text-center text-sm text-muted-foreground">
           No quotes
         </div>
       ) : (

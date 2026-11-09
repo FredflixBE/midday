@@ -38,10 +38,10 @@ export function InvoiceStatus({
       <span
         className={cn(
           (status === "draft" || status === "canceled") &&
-            "text-[#878787] dark:text-[#878787]",
-          status === "overdue" && "text-[#FFD02B] dark:text-[#FFD02B]",
-          status === "paid" && "text-[#00C969] dark:text-[#00C969]",
-          status === "unpaid" && "text-[#1D1D1D] dark:text-[#F5F5F3]",
+            "text-muted-foreground",
+          status === "overdue" && "text-warning",
+          status === "paid" && "text-success",
+          status === "unpaid" && "text-foreground",
           status === "scheduled" && "text-[#1F6FEB] dark:text-[#1F6FEB]",
           status === "refunded" && "text-[#F97316] dark:text-[#F97316]",
           className,
@@ -57,13 +57,10 @@ export function InvoiceStatus({
       className={cn(
         "px-2 py-0.5 rounded-full cursor-default inline-flex max-w-full text-[11px]",
         (status === "draft" || status === "canceled") &&
-          "text-[#878787] bg-[#F2F1EF] text-[10px] dark:text-[#878787] dark:bg-[#1D1D1D]",
-        status === "overdue" &&
-          "bg-[#FFD02B]/10 text-[#FFD02B] dark:bg-[#FFD02B]/10 dark:text-[#FFD02B]",
-        status === "paid" &&
-          "text-[#00C969] bg-[#DDF1E4] dark:text-[#00C969] dark:bg-[#00C969]/10",
-        status === "unpaid" &&
-          "text-[#1D1D1D] bg-[#878787]/10 dark:text-[#F5F5F3] dark:bg-[#F5F5F3]/10",
+          "text-muted-foreground bg-muted text-[10px]",
+        status === "overdue" && "bg-warning/10 text-warning",
+        status === "paid" && "text-success bg-success/10",
+        status === "unpaid" && "text-foreground bg-muted",
         status === "scheduled" &&
           "text-[#1F6FEB] bg-[#DDEBFF] dark:text-[#1F6FEB] dark:bg-[#1F6FEB]/10",
         status === "refunded" &&

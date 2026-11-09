@@ -146,7 +146,7 @@ export function InviteForm({ onSuccess, skippable = true }: InviteFormProps) {
         <Button
           variant="outline"
           type="button"
-          className="mt-4 border-none bg-[#F2F1EF] text-[11px] dark:bg-[#1D1D1D]"
+          className="mt-4 border-none bg-muted text-[11px]"
           onClick={() => append({ email: "", role: "member" })}
         >
           Add more

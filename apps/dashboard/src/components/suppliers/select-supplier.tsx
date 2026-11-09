@@ -75,7 +75,7 @@ export function SelectSupplier({
       renderListItem={({ item }) => (
         <span
           className={
-            item.id === NO_SUPPLIER ? "text-[#878787]" : "line-clamp-1"
+            item.id === NO_SUPPLIER ? "text-muted-foreground" : "line-clamp-1"
           }
         >
           {item.label}

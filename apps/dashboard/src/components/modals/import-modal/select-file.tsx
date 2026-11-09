@@ -126,11 +126,11 @@ export function SelectFile() {
                 {...getRootProps()}
                 className={cn(
                   "w-full border border-dashed h-[200px] mt-8 mb-8 flex items-center justify-center",
-                  isDragActive && "bg-secondary text-primary",
+                  isDragActive && "bg-secondary text-foreground",
                   isDragReject && "border-destructive",
                 )}
               >
-                <div className="text-center flex items-center justify-center flex-col text-xs text-[#878787]">
+                <div className="text-center flex items-center justify-center flex-col text-xs text-muted-foreground">
                   <input {...getInputProps()} onBlur={onBlur} />
 
                   {isLoading ? (

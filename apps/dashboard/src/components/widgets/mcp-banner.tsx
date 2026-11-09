@@ -52,7 +52,7 @@ export function McpBanner() {
                 e.stopPropagation();
                 setDismissed(true);
               }}
-              className="absolute top-2 right-2 z-10 text-muted-foreground hover:text-primary p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-2 right-2 z-10 text-muted-foreground hover:text-foreground p-1 opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <Icons.Close size={14} />
             </button>

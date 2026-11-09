@@ -80,7 +80,7 @@ function TeamNameCell({ row }: CellContext<Team, unknown>) {
       </Avatar>
       <div className="flex flex-col">
         <span className="font-medium text-sm">{row.original.name}</span>
-        <span className="text-sm text-[#606060]">
+        <span className="text-sm text-muted-foreground">
           {/* @ts-expect-error */}
           {t(`roles.${row.original.role}`)}
         </span>

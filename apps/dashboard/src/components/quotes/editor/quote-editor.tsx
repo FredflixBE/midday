@@ -270,7 +270,7 @@ function VersionEditor({
                 headerLocked={version.version > 1}
                 disabled={!editable}
               />
-              <span className="shrink-0 text-sm text-[#878787]">
+              <span className="shrink-0 text-sm text-muted-foreground">
                 {formatQuoteVersion(quote.quoteNumber, version.version)}
               </span>
               <Badge variant="tag-rounded" className="shrink-0">
@@ -297,7 +297,7 @@ function VersionEditor({
           {/* Nothing to say leaves no element behind, and so no line. */}
           <div className="mt-1 flex min-w-0 items-center gap-3 empty:hidden">
             {quote.outcomeReason ? (
-              <span className="truncate text-sm text-[#878787]">
+              <span className="truncate text-sm text-muted-foreground">
                 {quote.outcomeReason}
               </span>
             ) : null}

@@ -31,7 +31,7 @@ export async function MFAList() {
               Added on {format(new Date(factor.created_at), "pppp")}
             </p>
 
-            <p className="text-xs text-[#606060] mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {t(`mfa_status.${factor.status}`)}
             </p>
           </div>

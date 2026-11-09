@@ -310,7 +310,7 @@ export function AcceptanceNote({
   const path = version.acceptanceFilePath?.join("/");
 
   return (
-    <span className="truncate text-sm text-[#878787]">
+    <span className="truncate text-sm text-muted-foreground">
       {said}
       {path && user?.fileKey ? (
         <>

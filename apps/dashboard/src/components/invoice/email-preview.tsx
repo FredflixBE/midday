@@ -233,7 +233,7 @@ export function EmailPreview() {
       <SheetContent
         stack
         style={{ maxWidth: 580 }}
-        className="bg-white dark:bg-[#080808] p-0"
+        className="bg-background p-0"
       >
         <SheetTitle className="sr-only">Email preview</SheetTitle>
 
@@ -256,7 +256,7 @@ export function EmailPreview() {
           <div className="p-6 pb-4 shrink-0">
             {/* Sender info */}
             <div className="flex items-start gap-3">
-              <div className="size-10 rounded-full bg-white dark:bg-[#1a1a1a] border border-border flex items-center justify-center shrink-0">
+              <div className="size-10 rounded-full bg-card border border-border flex items-center justify-center shrink-0">
                 <img
                   src={`${getEmailUrl()}/email/logo.png`}
                   alt="Midday"
@@ -270,13 +270,15 @@ export function EmailPreview() {
                     onChange={handleSubjectChange}
                   />
                 </div>
-                <div className="text-xs text-[#878787]">to {customerName}</div>
+                <div className="text-xs text-muted-foreground">
+                  to {customerName}
+                </div>
               </div>
             </div>
           </div>
 
           {/* Email body card — fills remaining space */}
-          <div className="flex-1 mx-6 mb-6 border border-border bg-[#fcfcfc] dark:bg-[#0f0f0f]">
+          <div className="flex-1 mx-6 mb-6 border border-border bg-background">
             <div className="p-10">
               {/* Logo */}
               <div className="flex justify-center mb-8">
@@ -296,7 +298,7 @@ export function EmailPreview() {
               </div>
 
               {/* Heading */}
-              <h2 className="text-[21px] font-normal text-center text-[#0e0e0e] dark:text-[#fefefe] mb-[30px]">
+              <h2 className="text-[21px] font-normal text-center text-foreground mb-[30px]">
                 <EditableText
                   tag="span"
                   value={displayHeading}
@@ -306,7 +308,7 @@ export function EmailPreview() {
 
               {/* Amount */}
               {formattedAmount && (
-                <p className="text-[32px] font-normal text-center text-[#0e0e0e] dark:text-[#fefefe] m-0">
+                <p className="text-[32px] font-normal text-center text-foreground m-0">
                   {formattedAmount}
                 </p>
               )}
@@ -315,12 +317,12 @@ export function EmailPreview() {
               {(formattedDueDate || invoiceNumber) && (
                 <div className="text-center mt-2">
                   {formattedDueDate && (
-                    <p className="text-[14px] text-[#606060] dark:text-[#878787] m-0">
+                    <p className="text-[14px] text-muted-foreground m-0">
                       {dueDateLabel} {formattedDueDate}
                     </p>
                   )}
                   {invoiceNumber && (
-                    <p className="text-[13px] text-[#606060] dark:text-[#878787] m-0">
+                    <p className="text-[13px] text-muted-foreground m-0">
                       {invoiceNoLabel} #{invoiceNumber}
                     </p>
                   )}
@@ -329,7 +331,7 @@ export function EmailPreview() {
 
               {/* CTA Button */}
               <div className="text-center mt-[40px] mb-[40px]">
-                <span className="inline-block border border-[#0e0e0e] dark:border-[#fefefe] text-[#0e0e0e] dark:text-[#fefefe] px-6 py-3 text-sm font-medium no-underline">
+                <span className="inline-block border border-foreground text-foreground px-6 py-3 text-sm font-medium no-underline">
                   <EditableText
                     value={displayButtonText}
                     onChange={handleButtonTextChange}
@@ -344,7 +346,7 @@ export function EmailPreview() {
               <EditableMultilineText
                 value={displayBody}
                 onChange={handleBodyChange}
-                className="text-[13px] text-[#606060] dark:text-[#878787] leading-relaxed mt-4"
+                className="text-[13px] text-muted-foreground leading-relaxed mt-4"
               />
             </div>
           </div>
@@ -365,15 +367,15 @@ export function EmailPreview() {
               }}
               className="mx-6 mb-4 flex items-center gap-2 px-3 py-2 border border-border hover:bg-accent transition-colors cursor-pointer text-left w-auto"
             >
-              <Icons.Attachments className="size-4 text-[#878787]" />
-              <span className="text-xs text-[#606060] dark:text-[#878787]">
+              <Icons.Attachments className="size-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
                 {invoiceNumber ? `invoice-${invoiceNumber}.pdf` : "invoice.pdf"}
               </span>
             </button>
           )}
 
           {/* Description */}
-          <p className="text-[11px] text-[#878787] mx-6 mb-6 text-center">
+          <p className="text-[11px] text-muted-foreground mx-6 mb-6 text-center">
             This is the email your customer will receive. Labels, dates and
             currency are based on your invoice template. Click on any text to
             customize it.

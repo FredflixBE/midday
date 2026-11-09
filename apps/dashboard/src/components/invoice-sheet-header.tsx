@@ -26,7 +26,7 @@ export function InvoiceSheetHeader({ invoiceId }: Props) {
     return (
       <SheetHeader className="mb-6 flex flex-col">
         <h2 className="text-xl">Created & Sent</h2>
-        <p className="text-sm text-[#808080]">
+        <p className="text-sm text-muted-foreground">
           Your invoice was created and sent successfully
         </p>
       </SheetHeader>
@@ -37,7 +37,7 @@ export function InvoiceSheetHeader({ invoiceId }: Props) {
     return (
       <SheetHeader className="mb-6 flex flex-col">
         <h2 className="text-xl">Scheduled</h2>
-        <p className="text-sm text-[#808080]">
+        <p className="text-sm text-muted-foreground">
           Your invoice was scheduled successfully
         </p>
       </SheetHeader>
@@ -48,7 +48,7 @@ export function InvoiceSheetHeader({ invoiceId }: Props) {
   return (
     <SheetHeader className="mb-6 flex flex-col">
       <h2 className="text-xl">Created</h2>
-      <p className="text-sm text-[#808080]">
+      <p className="text-sm text-muted-foreground">
         Your invoice was created successfully
       </p>
     </SheetHeader>

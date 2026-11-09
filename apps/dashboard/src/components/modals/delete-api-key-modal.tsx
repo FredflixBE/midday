@@ -37,8 +37,9 @@ export function DeleteApiKeyModal() {
             <DialogTitle>Delete API Key</DialogTitle>
             <DialogDescription>
               This will permanently delete the API key{" "}
-              <span className="text-primary">{data?.name}</span> for and revoke
-              all access to your account. Are you sure you want to continue?
+              <span className="text-foreground">{data?.name}</span> for and
+              revoke all access to your account. Are you sure you want to
+              continue?
             </DialogDescription>
           </DialogHeader>
 
