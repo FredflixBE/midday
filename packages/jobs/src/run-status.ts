@@ -86,3 +86,67 @@ export function toTriggeredRun(handle: {
 }): TriggeredRun {
   return { id: handle.id, publicAccessToken: handle.publicAccessToken };
 }
+
+/** What the UI needs from a run, from either the live connection or a lookup. */
+export interface RunView {
+  status?: string;
+  output?: unknown;
+  error?: { message?: string } | null;
+  metadata?: unknown;
+}
+
+export interface SettledRun {
+  status: JobStatus | undefined;
+  result: unknown;
+  error: string | undefined;
+  progress: RunProgress;
+  /** Neither the live connection nor a direct lookup can see the run. */
+  lostTrack: boolean;
+}
+
+function isFinished(status: JobStatus | undefined): boolean {
+  return status === "completed" || status === "failed";
+}
+
+/**
+ * One answer about a run from the two ways a page can follow it.
+ *
+ * The live connection is the normal path. When it reports an error, the page
+ * looks the run up directly with the same run-scoped token (FF-2282): in
+ * production a connection error once replaced a run that had already answered
+ * with "lost track". A finished run wins from whichever source has it, and the
+ * page has lost track only when the lookup fails as well.
+ */
+export function settleRun({
+  live,
+  liveError,
+  lookup,
+  lookupError,
+}: {
+  live?: RunView;
+  liveError?: unknown;
+  lookup?: RunView;
+  lookupError?: unknown;
+}): SettledRun {
+  const liveStatus = toJobStatus(live?.status);
+  const lookupStatus = toJobStatus(lookup?.status);
+
+  const source =
+    isFinished(liveStatus) || !liveError
+      ? live
+      : lookup && (isFinished(lookupStatus) || !live)
+        ? lookup
+        : (live ?? lookup);
+
+  return {
+    status: toJobStatus(source?.status),
+    result: source?.output,
+    error: source?.error?.message ?? undefined,
+    progress: readRunProgress(source?.metadata),
+    lostTrack:
+      !!liveError &&
+      !isFinished(liveStatus) &&
+      !isFinished(lookupStatus) &&
+      !!lookupError,
+  };
+}
