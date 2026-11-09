@@ -33,6 +33,7 @@ export const MAINTENANCE_ACTION_IDS = [
   "run-recurring-invoices",
   "sync-yuki",
   "pull-invoices",
+  "check-ai-models",
 ] as const;
 
 export type MaintenanceActionId = (typeof MAINTENANCE_ACTION_IDS)[number];
@@ -299,6 +300,39 @@ export const MAINTENANCE_ACTIONS: readonly MaintenanceAction[] = [
       return trouble.length > 0
         ? `${summary} ${trouble.join(", ")} — see the run's logs.`
         : summary;
+    },
+  },
+  {
+    id: "check-ai-models",
+    task: "check-ai-models",
+    title: "Check the AI models",
+    description:
+      "Ask each AI model in Midday's model list for one short answer, from the jobs' own environment. Proves the keys and the model names work before a document or a bank sync depends on them. Costs a few cents.",
+    label: "Check models",
+    repeatable: true,
+    summarize: (output) => {
+      const checks = fields(output).checks;
+      if (!Array.isArray(checks) || checks.length === 0) {
+        return "No model was checked.";
+      }
+
+      const results = checks.map(fields);
+      const failed = results.filter(({ ok }) => ok !== true);
+
+      // The job fails the run when a model fails, so this branch is the
+      // backstop for a result that arrives anyway, not the usual path.
+      if (failed.length > 0) {
+        return `${plural(failed.length, "model", "models")} failed: ${failed
+          .map(({ model, error }) => `${String(model)} (${String(error)})`)
+          .join(", ")}.`;
+      }
+
+      const answered = results.map(
+        ({ model, ms }) =>
+          `${String(model)} in ${(count(ms) / 1000).toFixed(1)} s`,
+      );
+
+      return `Every model answered: ${answered.join(", ")}.`;
     },
   },
 ];

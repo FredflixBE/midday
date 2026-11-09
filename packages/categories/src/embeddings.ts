@@ -1,21 +1,10 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { EMBEDDING, embeddingModel } from "@midday/ai";
 import { embed, embedMany } from "ai";
 
-const GOOGLE_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY!;
-
-const google = createGoogleGenerativeAI({
-  apiKey: GOOGLE_API_KEY,
-});
-
 const EMBEDDING_CONFIG = {
-  model: google.textEmbedding("gemini-embedding-001"),
-  providerOptions: {
-    google: {
-      outputDimensionality: 768,
-      taskType: "SEMANTIC_SIMILARITY",
-    },
-  },
-  modelName: "gemini-embedding-001",
+  model: embeddingModel(),
+  providerOptions: EMBEDDING.providerOptions,
+  modelName: EMBEDDING.id,
 };
 
 /**

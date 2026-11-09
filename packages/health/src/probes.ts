@@ -7,6 +7,7 @@
  * - Fast timeout
  */
 
+import { claudeModelsInUse } from "@midday/ai";
 import { isGoCardlessConfigured, Provider } from "@midday/banking";
 import { checkHealth as checkDbHealth } from "@midday/db/utils/health";
 import type { Dependency } from "./registry";
@@ -189,6 +190,49 @@ export function openaiProbe(): Dependency {
   };
 }
 
+/**
+ * Anthropic: asks whether each Claude model the config uses still exists.
+ *
+ * Retrieving a model costs nothing and needs a valid key, so this proves the
+ * key and every model id at once — a retired id fails here, by name, instead
+ * of in the first feature that calls it. Cached five minutes like the other
+ * AI probes, since it asks once per model.
+ */
+export function anthropicProbe(): Dependency {
+  return {
+    name: "anthropic",
+    tier: 2,
+    cacheTtlMs: 300_000,
+    timeoutMs: 5_000,
+    probe: async () => {
+      const key = process.env.ANTHROPIC_API_KEY;
+      if (!key) return false;
+
+      const answers = await Promise.all(
+        claudeModelsInUse().map(async (model) => {
+          const res = await fetch(
+            `https://api.anthropic.com/v1/models/${model}`,
+            {
+              headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+              signal: AbortSignal.timeout(5_000),
+            },
+          );
+          return { model, status: res.status, ok: res.ok };
+        }),
+      );
+
+      const failed = answers.filter((answer) => !answer.ok);
+      if (failed.length > 0) {
+        throw new Error(
+          failed.map(({ model, status }) => `${model}: ${status}`).join(", "),
+        );
+      }
+
+      return true;
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tier 3 — Integrations (check token endpoint reachability)
 // ---------------------------------------------------------------------------
@@ -338,6 +382,7 @@ export function apiDependencies(): Dependency[] {
     stripeProbe(),
     resendProbe(),
     triggerDevProbe(),
+    anthropicProbe(),
     openaiProbe(),
     // Tier 3 — Integrations
     slackProbe(),

@@ -40,6 +40,7 @@
     "@ai-sdk/openai": "catalog:",
     "@fast-csv/format": "catalog:",
     "@midday/accounting": "workspace:*",
+    "@midday/ai": "workspace:*",
     "@midday/app-store": "workspace:*",
     "@midday/banking": "workspace:*",
     "@midday/bot": "workspace:*",
