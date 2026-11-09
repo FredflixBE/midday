@@ -1,36 +1,26 @@
-import pino from "pino";
+import type pino from "pino";
+import { createBaseLogger } from "./base.js";
+import {
+  betterStackConfig,
+  betterStackStream,
+  createBetterStackClient,
+  flushWithin,
+} from "./better-stack.js";
 
 /**
- * Check if we're in pretty mode
+ * Better Stack receives every line too when its source token and ingesting
+ * host are set; without them, output is stdout only.
  */
-const isPretty = process.env.LOG_PRETTY === "true";
+const betterStackSettings = betterStackConfig(process.env);
+const betterStackClient =
+  betterStackSettings && createBetterStackClient(betterStackSettings);
 
-/**
- * Create the base pino logger instance
- */
-const baseLogger = pino({
+const baseLogger = createBaseLogger({
   level: process.env.LOG_LEVEL || "info",
-  serializers: {
-    req: pino.stdSerializers.req,
-    res: pino.stdSerializers.res,
-    err: pino.stdSerializers.err,
-  },
-  // Use pretty printing in development, structured JSON in production
-  ...(isPretty && {
-    transport: {
-      target: "pino-pretty",
-      options: {
-        colorize: true,
-        translateTime: "HH:MM:ss",
-        ignore: "pid,hostname",
-        messageFormat: "{msg}",
-        hideObject: false,
-        singleLine: false,
-        useLevelLabels: true,
-        levelFirst: true,
-      },
-    },
-  }),
+  pretty: process.env.LOG_PRETTY === "true",
+  betterStack: betterStackClient
+    ? betterStackStream(betterStackClient)
+    : undefined,
 });
 
 /**
@@ -139,6 +129,15 @@ export function createLoggerWithContext(context: string) {
  */
 export function setLogLevel(level: string) {
   baseLogger.level = level;
+}
+
+/**
+ * Send any lines still batched for Better Stack. Await this before
+ * `process.exit`, or the last lines — the ones that say why the process
+ * stopped — are lost. Waits at most `timeoutMs`; a no-op without Better Stack.
+ */
+export async function flushLogs(timeoutMs = 2000): Promise<void> {
+  if (betterStackClient) await flushWithin(betterStackClient, timeoutMs);
 }
 
 export default logger;

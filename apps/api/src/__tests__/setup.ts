@@ -1297,6 +1297,7 @@ mock.module("@midday/logger", () => ({
   default: mockLogger,
   createLoggerWithContext: () => createMockLogger(),
   setLogLevel: mock(noop),
+  flushLogs: mock(() => Promise.resolve()),
 }));
 
 mock.module("@midday/cache/api-key-cache", () => ({

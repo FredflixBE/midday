@@ -188,6 +188,7 @@ same value everywhere the name appears.
 | Variable | Required | Where it comes from |
 | --- | --- | --- |
 | `NODE_ENV`, `LOG_LEVEL`, `LOG_PRETTY` | yes | `production`, `info`, `false` in Dokploy. |
+| `BETTER_STACK_SOURCE_TOKEN`, `BETTER_STACK_INGESTING_HOST` | no | A Better Stack log source's token and ingesting host (the host without `https://`). With both set, every log line also goes to Better Stack; unset means stdout only. On shutdown the API waits up to 2s for the last lines to send. |
 | `PORT` | no | Defaults to 3000; the Dockerfile sets 8080. |
 | `DASHBOARD_URL`, `ALLOWED_API_ORIGINS` | yes | The dashboard's public URL (`https://midday.fredflix.be`). The API throws at startup if `DASHBOARD_URL` is unset in production. |
 | `API_URL` | yes | The API's public URL (`https://api.midday.fredflix.be`). OAuth redirect URLs, the OpenAPI document and the MCP metadata are built from it. |
@@ -268,6 +269,7 @@ Runtime environment:
 | `INVOICE_JOBS_DRY_RUN` | no | Off unless set. Makes the two recurring-invoice jobs log which invoices they would generate and who they would email, and send nothing. Worth one run before letting invoicing send for real. |
 | `INSIGHTS_ENABLED` | no | Weekly insight emails, off unless exactly `true`. No schedule is registered for the dispatcher, so this alone starts nothing. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings. |
+| `BETTER_STACK_JOBS_SOURCE_TOKEN`, `BETTER_STACK_JOBS_INGESTING_HOST` | no | A Better Stack source created with the **OpenTelemetry** platform (the host without `https://`). With both set, every task log line at `info` and above (the `logLevel` in `trigger.config.ts`) also goes to Better Stack, carrying the run ID as `$metadata.ctx.run.id`. Unset means the Trigger.dev run view only. Each line is sent as its own request unless the environment has `TRIGGER_OTEL_BATCH_PROCESSING_ENABLED=1`, which batches up to 64 lines every 200 ms. Whether Trigger.dev Cloud sets that for you is not visible from the code, so check the first runs. A log call never waits for the send, but the end of a run waits for what is still in flight (Trigger caps that flush at 10 s). Leave the API's `BETTER_STACK_SOURCE_TOKEN` unset here: `@midday/logger` lines from shared packages would then go to Better Stack too, and a run has no step that waits for them to send. |
 
 ### Repository secrets (GitHub Actions)
 
