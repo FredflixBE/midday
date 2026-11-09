@@ -226,7 +226,7 @@ export function MetricsView({
             <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 pointer-events-none group-hover/connect:opacity-100 transition-opacity duration-200">
               <div className="text-center flex flex-col items-center">
                 <h2 className="text-lg font-medium mb-2">No data available</h2>
-                <p className="text-sm text-[#878787] mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   Connect your bank account to unlock this metric.
                 </p>
                 <Button>Connect Bank</Button>

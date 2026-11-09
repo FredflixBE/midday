@@ -10,7 +10,7 @@ export function EmptyState({ description }: EmptyStateProps) {
       <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center">
         <Icons.Inbox className="w-[18px] h-[18px]" />
       </div>
-      <p className="text-[#606060] text-sm">{description}</p>
+      <p className="text-muted-foreground text-sm">{description}</p>
     </div>
   );
 }

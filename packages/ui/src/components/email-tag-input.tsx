@@ -103,7 +103,7 @@ export function EmailTagInput({
           {!disabled && (
             <button
               type="button"
-              className="ml-0.5 outline-hidden hover:text-primary"
+              className="ml-0.5 outline-hidden hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation();
                 removeEmail(email);

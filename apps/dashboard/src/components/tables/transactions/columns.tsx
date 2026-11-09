@@ -81,14 +81,14 @@ const DescriptionCell = memo(
     <div className="flex items-center space-x-2">
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className={cn(amount > 0 && "text-[#00C969]")}>
+          <span className={cn(amount > 0 && "text-success")}>
             <div className="flex space-x-2 items-center">
               <span className="line-clamp-1 text-ellipsis max-w-[100px] md:max-w-none">
                 {name}
               </span>
 
               {status === "pending" && (
-                <div className="flex space-x-1 items-center border rounded-md text-[10px] py-1 px-2 h-[22px] text-[#878787]">
+                <div className="flex space-x-1 items-center border rounded-md text-[10px] py-1 px-2 h-[22px] text-muted-foreground">
                   <span>Pending</span>
                 </div>
               )}
@@ -114,7 +114,7 @@ DescriptionCell.displayName = "DescriptionCell";
 
 const AmountCell = memo(
   ({ amount, currency }: { amount: number; currency: string }) => (
-    <span className={cn("text-sm", amount > 0 && "text-[#00C969]")}>
+    <span className={cn("text-sm", amount > 0 && "text-success")}>
       <FormatAmount amount={amount} currency={currency} />
     </span>
   ),
@@ -290,7 +290,7 @@ export const columns: ColumnDef<Transaction>[] = [
       sticky: true,
       skeleton: { type: "checkbox" },
       className:
-        "w-[50px] min-w-[50px] md:sticky md:left-[var(--stick-left)] bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f] z-10",
+        "w-[50px] min-w-[50px] md:sticky md:left-[var(--stick-left)] bg-background group-hover:bg-accent z-10",
     },
     cell: ({ row, table }) => {
       // Read the anchor when the click happens, not when the row rendered:
@@ -340,7 +340,7 @@ export const columns: ColumnDef<Transaction>[] = [
       skeleton: { type: "text", width: "w-16" },
       headerLabel: "Date",
       className:
-        "w-[110px] min-w-[110px] md:sticky md:left-[var(--stick-left)] bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f] z-10",
+        "w-[110px] min-w-[110px] md:sticky md:left-[var(--stick-left)] bg-background group-hover:bg-accent z-10",
     },
     cell: ({ row, table }) => (
       <DateCell
@@ -361,7 +361,7 @@ export const columns: ColumnDef<Transaction>[] = [
       skeleton: { type: "text", width: "w-40" },
       headerLabel: "Description",
       className:
-        "w-[320px] min-w-[200px] md:sticky md:left-[var(--stick-left)] bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f] z-10",
+        "w-[320px] min-w-[200px] md:sticky md:left-[var(--stick-left)] bg-background group-hover:bg-accent z-10",
     },
     cell: ({ row }) => (
       <DescriptionCell
@@ -441,7 +441,7 @@ export const columns: ColumnDef<Transaction>[] = [
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className={cn("text-sm", baseAmount > 0 && "text-[#00C969]")}>
+            <span className={cn("text-sm", baseAmount > 0 && "text-success")}>
               <FormatAmount amount={baseAmount} currency={baseCurrency} />
             </span>
           </TooltipTrigger>
@@ -536,7 +536,7 @@ export const columns: ColumnDef<Transaction>[] = [
             <TooltipTrigger asChild>
               <div className="flex items-center space-x-2 cursor-help">
                 <Spinner size={14} className="stroke-primary" />
-                <span className="text-[#878787] text-sm">Analyzing</span>
+                <span className="text-muted-foreground text-sm">Analyzing</span>
               </div>
             </TooltipTrigger>
             <TooltipContent
@@ -693,7 +693,7 @@ export const columns: ColumnDef<Transaction>[] = [
         return (
           <div className="flex items-center space-x-2">
             <Spinner size={14} className="stroke-primary" />
-            <span className="text-[#878787] text-sm">Exporting</span>
+            <span className="text-muted-foreground text-sm">Exporting</span>
           </div>
         );
       }
@@ -728,7 +728,7 @@ export const columns: ColumnDef<Transaction>[] = [
       skeleton: { type: "icon" },
       headerLabel: "Actions",
       className:
-        "w-[100px] min-w-[100px] md:sticky md:right-0 bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f] z-10 justify-center !border-l !border-border",
+        "w-[100px] min-w-[100px] md:sticky md:right-0 bg-background group-hover:bg-accent z-10 justify-center !border-l !border-border",
     },
     cell: ({ row, table }) => {
       const meta = table.options.meta;

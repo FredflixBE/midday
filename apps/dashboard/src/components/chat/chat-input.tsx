@@ -599,7 +599,7 @@ export function ChatInput({
               <button
                 key={action}
                 type="button"
-                className="w-full text-left px-2.5 py-2.5 text-xs text-[#666] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                className="w-full text-left px-2.5 py-2.5 text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSuggestionClick(action)}
               >
@@ -619,14 +619,14 @@ export function ChatInput({
           )}
         >
           <div className="p-1">
-            <p className="px-2 py-1 text-[10px] text-[#878787]">
+            <p className="px-2 py-1 text-[10px] text-muted-foreground">
               Connected apps
             </p>
             {!connectedApps || connectedApps.length === 0 ? (
               <div className="px-2 pt-3 pb-4 flex justify-center">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1 text-xs text-[#878787] hover:text-foreground transition-colors"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => {
                     closeMentionPanel();
                     setConnectorsModalOpen(true);
@@ -642,7 +642,7 @@ export function ChatInput({
                   key={app.slug}
                   type="button"
                   className={cn(
-                    "flex items-center gap-2 w-full px-2.5 py-2.5 text-xs text-[#666] transition-colors",
+                    "flex items-center gap-2 w-full px-2.5 py-2.5 text-xs text-muted-foreground transition-colors",
                     i === highlightedIndex
                       ? "bg-black/5 dark:bg-white/5"
                       : "hover:bg-black/5 dark:hover:bg-white/5",
@@ -656,7 +656,7 @@ export function ChatInput({
                 </button>
               ))
             ) : (
-              <p className="px-2.5 py-2.5 text-xs text-[#878787]">
+              <p className="px-2.5 py-2.5 text-xs text-muted-foreground">
                 {mentionQuery ? "No matching apps" : "All apps are mentioned"}
               </p>
             )}
@@ -682,7 +682,7 @@ export function ChatInput({
           className="w-full text-sm leading-[22px] outline-hidden max-h-[150px] overflow-y-auto whitespace-pre-wrap break-words"
         />
         {!value.trim() && (
-          <div className="absolute top-4 left-4 text-sm leading-[22px] text-[#878787]/60 pointer-events-none">
+          <div className="absolute top-4 left-4 text-sm leading-[22px] text-muted-foreground/60 pointer-events-none">
             {placeholder}
           </div>
         )}
@@ -697,7 +697,7 @@ export function ChatInput({
           >
             <Icons.Add
               size={16}
-              className="text-[#878787]/60 hover:text-foreground transition-colors"
+              className="text-muted-foreground/60 hover:text-foreground transition-colors"
             />
           </button>
 
@@ -717,7 +717,7 @@ export function ChatInput({
                 "transition-colors",
                 showSuggestions
                   ? "text-foreground"
-                  : "text-[#878787]/60 hover:text-foreground",
+                  : "text-muted-foreground/60 hover:text-foreground",
               )}
             />
           </button>
@@ -739,7 +739,7 @@ export function ChatInput({
               "flex items-center h-6 cursor-pointer text-sm font-medium transition-colors",
               showAppsPanel
                 ? "text-foreground"
-                : "text-[#878787]/60 hover:text-foreground",
+                : "text-muted-foreground/60 hover:text-foreground",
             )}
           >
             @
@@ -766,7 +766,7 @@ export function ChatInput({
                     "-rotate-45 transition-colors",
                     mcpOpen
                       ? "text-foreground"
-                      : "text-[#878787]/60 hover:text-foreground",
+                      : "text-muted-foreground/60 hover:text-foreground",
                   )}
                 />
               </button>
@@ -777,7 +777,7 @@ export function ChatInput({
               sideOffset={12}
               className="w-[180px] p-1 bg-[rgba(247,247,247,0.96)] dark:bg-[rgba(19,19,19,0.98)] backdrop-blur-lg border-border shadow-xs"
             >
-              <p className="px-2 py-1 text-[10px] text-[#878787]">
+              <p className="px-2 py-1 text-[10px] text-muted-foreground">
                 Use Midday in
               </p>
               {MCP_CLIENTS.map(({ id, name, Logo }) => (
@@ -786,7 +786,7 @@ export function ChatInput({
                   type="button"
                   data-track="MCP App Selected"
                   data-app={name}
-                  className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-[#666] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                   onClick={() => {
                     setMcpOpen(false);
                     setParams({ "mcp-app": id });

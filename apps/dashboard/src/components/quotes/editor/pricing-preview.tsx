@@ -96,7 +96,7 @@ function Options({
             "hover:bg-accent/30",
           )}
         >
-          <span className="pb-1 text-[11px] uppercase tracking-wider text-[#606060]">
+          <span className="pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
             {column.recommended ? "Recommended" : "\u00a0"}
           </span>
           <span className="font-medium">{column.name}</span>
@@ -105,7 +105,7 @@ function Options({
               {lead.values[index]}
             </span>
           ) : null}
-          <span className="text-[12px] text-[#606060]">
+          <span className="text-[12px] text-muted-foreground">
             {rest
               .map((row) =>
                 row.unit
@@ -139,13 +139,13 @@ function Scenario({ scenario }: { scenario: ScenarioView }) {
         {scenario.name}
       </div>
       {scenario.conditions ? (
-        <p className="pb-1 text-[#606060]">{scenario.conditions}</p>
+        <p className="pb-1 text-muted-foreground">{scenario.conditions}</p>
       ) : null}
 
       <div
         className={cn(
           FIGURES,
-          "border-b border-border pb-1 text-[12px] text-[#606060]",
+          "border-b border-border pb-1 text-[12px] text-muted-foreground",
         )}
       >
         {/* The same four headings the PDF prints (FF-1675). */}
@@ -168,7 +168,7 @@ function Scenario({ scenario }: { scenario: ScenarioView }) {
         }
         if (row.type === "note") {
           return (
-            <p key={key} className="text-[12px] italic text-[#606060]">
+            <p key={key} className="text-[12px] italic text-muted-foreground">
               {row.text}
             </p>
           );
@@ -179,7 +179,7 @@ function Scenario({ scenario }: { scenario: ScenarioView }) {
               key={key}
               className={cn(FIGURES, "border-t border-border pt-1")}
             >
-              <span className="text-[#606060]">{row.label}</span>
+              <span className="text-muted-foreground">{row.label}</span>
               <span />
               <span />
               <span className="text-right tabular-nums">{row.amount}</span>
@@ -191,13 +191,13 @@ function Scenario({ scenario }: { scenario: ScenarioView }) {
             <div className="min-w-0">
               <div>{row.title}</div>
               {row.description ? (
-                <div className="text-[12px] text-[#606060]">
+                <div className="text-[12px] text-muted-foreground">
                   {row.description}
                 </div>
               ) : null}
             </div>
             <span className="text-right tabular-nums">{row.quantity}</span>
-            <span className="text-right tabular-nums text-[#606060]">
+            <span className="text-right tabular-nums text-muted-foreground">
               {row.rate}
             </span>
             <span className="text-right tabular-nums">{row.amount}</span>
@@ -208,7 +208,10 @@ function Scenario({ scenario }: { scenario: ScenarioView }) {
       {scenario.products.length > 0 ? (
         <div className="space-y-0.5 pt-2">
           {scenario.products.map((product) => (
-            <div key={product.name} className={cn(FIGURES, "text-[#606060]")}>
+            <div
+              key={product.name}
+              className={cn(FIGURES, "text-muted-foreground")}
+            >
               <span className="truncate">{product.name}</span>
               <span className="text-right tabular-nums">
                 {product.quantity}
@@ -237,7 +240,7 @@ function Scenario({ scenario }: { scenario: ScenarioView }) {
         ))}
       </div>
       {scenario.cappedNote ? (
-        <p className="text-right text-[12px] text-[#606060]">
+        <p className="text-right text-[12px] text-muted-foreground">
           {scenario.cappedNote}
         </p>
       ) : null}

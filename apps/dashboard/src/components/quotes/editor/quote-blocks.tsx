@@ -239,14 +239,14 @@ function ContentsBlock({
 
   return (
     <div className="border border-dashed border-border">
-      <div className="flex items-center gap-3 px-3 py-2 text-sm text-[#878787]">
+      <div className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground">
         {handle}
         <span className="flex-1">Contents</span>
         {onRemove ? (
           <button
             type="button"
             aria-label="Remove contents"
-            className="shrink-0 hover:text-primary focus-visible:text-primary focus-visible:outline-hidden"
+            className="shrink-0 hover:text-foreground focus-visible:text-foreground focus-visible:outline-hidden"
             onClick={onRemove}
           >
             <Trash2 size={14} />
@@ -256,14 +256,14 @@ function ContentsBlock({
       <div className="border-t border-dashed border-border px-3 py-3">
         {listed.length < 3 ? (
           // The print leaves it out below three: a list of two is furniture.
-          <p className="text-sm text-[#878787]">
+          <p className="text-sm text-muted-foreground">
             Nothing is listed until the document has three titled sections.
           </p>
         ) : (
           <ol className="space-y-1">
             {listed.map((block, index) => (
               <li key={block.id} className="flex gap-3 text-sm">
-                <span className="w-6 shrink-0 text-[#878787] tabular-nums">
+                <span className="w-6 shrink-0 text-muted-foreground tabular-nums">
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <span>{block.heading}</span>
@@ -292,7 +292,7 @@ function PricingBlock({
 
   return (
     <div className="border border-dashed border-border">
-      <div className="flex items-center gap-3 px-3 py-2 text-sm text-[#878787]">
+      <div className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground">
         {handle}
         <span className="flex-1">Pricing</span>
         {/* On the right, where every other thing that opens and shuts on
@@ -300,7 +300,7 @@ function PricingBlock({
         <button
           type="button"
           aria-label={open ? "Collapse the pricing" : "Expand the pricing"}
-          className="shrink-0 hover:text-primary focus-visible:text-primary focus-visible:outline-hidden"
+          className="shrink-0 hover:text-foreground focus-visible:text-foreground focus-visible:outline-hidden"
           onClick={() => setOpen(!open)}
         >
           <ChevronDown

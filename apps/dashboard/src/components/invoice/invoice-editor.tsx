@@ -294,7 +294,7 @@ export function InvoiceEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          "text-[11px] text-primary leading-[18px] invoice-editor",
+          "text-[11px] text-foreground leading-[18px] invoice-editor",
           showStripedBackground &&
             "w-full bg-[repeating-linear-gradient(-60deg,#DBDBDB,#DBDBDB_1px,transparent_1px,transparent_5px)] dark:bg-[repeating-linear-gradient(-60deg,#2C2C2C,#2C2C2C_1px,transparent_1px,transparent_5px)]",
           className,

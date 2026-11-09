@@ -72,7 +72,7 @@ export function Invites() {
                   <span className="font-medium text-sm">
                     {invite.team?.name}
                   </span>
-                  <span className="text-sm text-[#606060]">
+                  <span className="text-sm text-muted-foreground">
                     {/* @ts-expect-error */}
                     {t(`roles.${invite.role}`)}
                   </span>

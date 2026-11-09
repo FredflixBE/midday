@@ -110,4 +110,4 @@ export const ACTIONS_STICKY_HEADER_CLASS =
  * Actions cell class when it should be full width
  */
 export const ACTIONS_FULL_WIDTH_CELL_CLASS =
-  "bg-background group-hover:bg-[#F2F1EF] group-hover:dark:bg-[#0f0f0f]";
+  "bg-background group-hover:bg-accent";

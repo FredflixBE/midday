@@ -9,7 +9,7 @@ export function VaultGetStarted() {
             <h2 className="font-medium text-lg">Always find what you need</h2>
           </div>
 
-          <p className="pb-6 text-sm text-[#878787]">
+          <p className="pb-6 text-sm text-muted-foreground">
             Drag & drop or upload your documents. We'll automatically organize
             them with tags based on content, making them easy and secure to
             find.

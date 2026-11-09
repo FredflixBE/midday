@@ -8,19 +8,19 @@ import { format, parseISO } from "date-fns";
 export const chartClasses = {
   container: "w-full h-full",
   tooltip: {
-    light: "bg-white border border-gray-200 rounded-none shadow-xs",
-    dark: "bg-[#0c0c0c] border border-[#1d1d1d] rounded-none shadow-xs",
+    light: "bg-popover border border-border rounded-none shadow-xs",
+    dark: "bg-popover border border-border rounded-none shadow-xs",
   },
   text: {
-    light: "fill-gray-500",
-    dark: "fill-gray-400",
+    light: "fill-muted-foreground",
+    dark: "fill-muted-foreground",
   },
 } as const;
 
 // Common chart configurations
 export const commonChartConfig = {
   margin: { top: 6, right: 20, left: 0, bottom: 6 },
-  fontFamily: "var(--font-hedvig-sans)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   animationDuration: 300,
 } as const;
@@ -133,7 +133,7 @@ export const calculateYAxisDomain = <
 // Font properties for axis labels
 export const AXIS_FONT_PROPS = {
   fontSize: 10,
-  className: "font-hedvig-sans",
+  className: "font-sans",
 };
 
 // Calculate Y-axis width based on font size and character count

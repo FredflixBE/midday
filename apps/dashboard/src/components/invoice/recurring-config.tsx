@@ -295,7 +295,7 @@ export function RecurringConfigPanel({
             <RadioGroupItem value="on_date" id="on_date" />
             <Label
               htmlFor="on_date"
-              className="font-normal text-sm text-primary"
+              className="font-normal text-sm text-foreground"
             >
               On
             </Label>
@@ -304,7 +304,7 @@ export function RecurringConfigPanel({
                 <button
                   type="button"
                   disabled={config.endType !== "on_date"}
-                  className="h-9 px-3 border border-border bg-transparent text-sm text-primary disabled:opacity-50"
+                  className="h-9 px-3 border border-border bg-transparent text-sm text-foreground disabled:opacity-50"
                 >
                   {config.endDate
                     ? format(new TZDate(config.endDate, "UTC"), "MMM d, yyyy")
@@ -335,7 +335,7 @@ export function RecurringConfigPanel({
             <RadioGroupItem value="after_count" id="after_count" />
             <Label
               htmlFor="after_count"
-              className="font-normal text-sm text-primary"
+              className="font-normal text-sm text-foreground"
             >
               After
             </Label>
@@ -349,11 +349,14 @@ export function RecurringConfigPanel({
               disabled={config.endType !== "after_count"}
               className="w-16"
             />
-            <span className="text-sm text-primary">invoices</span>
+            <span className="text-sm text-foreground">invoices</span>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="never" id="never" />
-            <Label htmlFor="never" className="font-normal text-sm text-primary">
+            <Label
+              htmlFor="never"
+              className="font-normal text-sm text-foreground"
+            >
               Never
             </Label>
           </div>

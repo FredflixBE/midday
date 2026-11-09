@@ -20,7 +20,7 @@ import {
 function AppHeroBanner({ app }: { app: (typeof appStoreApps)[number] }) {
   return (
     <div
-      className="relative w-full flex items-center justify-center overflow-hidden bg-[#fafafa] dark:bg-[#0c0c0c]"
+      className="relative w-full flex items-center justify-center overflow-hidden bg-background"
       style={{ height: 200 }}
     >
       <div
@@ -81,7 +81,7 @@ export function AppDetailSheet() {
           <div className="flex items-center justify-between border-b border-border pb-2">
             <div>
               <h3 className="text-lg leading-none">{app.name}</h3>
-              <span className="text-xs text-[#878787]">
+              <span className="text-xs text-muted-foreground">
                 {"category" in app ? app.category : "Integration"} • By Midday
               </span>
             </div>
@@ -96,13 +96,13 @@ export function AppDetailSheet() {
               >
                 <AccordionItem value="description" className="border-none">
                   <AccordionTrigger>How it works</AccordionTrigger>
-                  <AccordionContent className="text-[#878787] text-sm">
+                  <AccordionContent className="text-muted-foreground text-sm">
                     {app.id === "chatgpt-mcp" ? (
                       <ChatGPTSetupInstructions />
                     ) : app.id === "claude-mcp" ? (
                       <ClaudeSetupInstructions />
                     ) : (
-                      <div className="prose prose-sm prose-invert prose-p:text-[#878787] prose-p:my-3 [&_strong]:text-primary [&_strong]:font-normal max-w-none">
+                      <div className="prose prose-sm prose-invert prose-p:text-muted-foreground prose-p:my-3 [&_strong]:text-foreground [&_strong]:font-normal max-w-none">
                         <MemoizedReactMarkdown>
                           {app.description || ""}
                         </MemoizedReactMarkdown>

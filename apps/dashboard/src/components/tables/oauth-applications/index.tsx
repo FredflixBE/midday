@@ -44,7 +44,7 @@ export function OAuthDataTable() {
           <h3 className="text-lg font-medium leading-none tracking-tight mb-2">
             OAuth Applications
           </h3>
-          <p className="text-sm text-[#606060]">
+          <p className="text-sm text-muted-foreground">
             These OAuth applications allow other apps to access your team data
             on behalf of users. Manage client credentials and permissions
             carefully.

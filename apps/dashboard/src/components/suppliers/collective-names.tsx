@@ -45,7 +45,7 @@ export function CollectiveNames() {
       <Label className="mb-1 block text-base">
         Names that are not a supplier
       </Label>
-      <p className="mb-3 text-xs text-[#878787]">
+      <p className="mb-3 text-xs text-muted-foreground">
         A collective name the accountant uses for many businesses, or a payment
         processor's. Payments carrying one are recognised from the rest of their
         text instead.

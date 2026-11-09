@@ -110,7 +110,9 @@ export function MaintenanceActionCard({ id }: Props) {
             />
           ))}
 
-          {message && <p className="text-sm text-[#606060]">{message}</p>}
+          {message && (
+            <p className="text-sm text-muted-foreground">{message}</p>
+          )}
         </CardContent>
       )}
 
@@ -198,7 +200,7 @@ function MaintenanceInput({
         />
       )}
 
-      <p className="text-xs text-[#606060]">{field.hint}</p>
+      <p className="text-xs text-muted-foreground">{field.hint}</p>
     </div>
   );
 }

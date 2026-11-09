@@ -85,7 +85,7 @@ export function TransactionShortcuts({ isFulfilled, status }: Props) {
   };
 
   return (
-    <div className="absolute bottom-4 right-4 left-4 bg-[#FAFAF9] dark:bg-[#0C0C0C]">
+    <div className="absolute bottom-4 right-4 left-4 bg-background">
       <div className="flex justify-between">
         {!isFulfilled && (
           <button
@@ -94,10 +94,10 @@ export function TransactionShortcuts({ isFulfilled, status }: Props) {
             onClick={toggleReviewReady}
             disabled={!canToggleReviewReady}
           >
-            <span className="text-[10px] h-6 flex items-center justify-center text-[#666] border border-border px-2">
+            <span className="text-[10px] h-6 flex items-center justify-center text-muted-foreground border border-border px-2">
               ⌘ M
             </span>
-            <span className="text-[10px] text-[#666]">
+            <span className="text-[10px] text-muted-foreground">
               {isReviewReadyFromStatus ? "Unmark ready" : "Mark ready"}
             </span>
           </button>
@@ -106,7 +106,7 @@ export function TransactionShortcuts({ isFulfilled, status }: Props) {
         <div className="flex gap-2 ml-auto">
           <button
             type="button"
-            className="flex h-6 w-6 items-center justify-center border border-border text-[#666] cursor-pointer hover:bg-accent"
+            className="flex h-6 w-6 items-center justify-center border border-border text-muted-foreground cursor-pointer hover:bg-accent"
             onClick={() => navigate("up")}
           >
             <Icons.ArrowUpward className="size-3.5" />
@@ -114,7 +114,7 @@ export function TransactionShortcuts({ isFulfilled, status }: Props) {
 
           <button
             type="button"
-            className="flex h-6 w-6 items-center justify-center border border-border text-[#666] cursor-pointer hover:bg-accent"
+            className="flex h-6 w-6 items-center justify-center border border-border text-muted-foreground cursor-pointer hover:bg-accent"
             onClick={() => navigate("down")}
           >
             <Icons.ArrowDownward className="size-3.5" />
@@ -125,7 +125,7 @@ export function TransactionShortcuts({ isFulfilled, status }: Props) {
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => setParams(null)}
           >
-            <span className="text-[10px] h-6 flex items-center justify-center text-[#666] border border-border px-2 hover:bg-accent">
+            <span className="text-[10px] h-6 flex items-center justify-center text-muted-foreground border border-border px-2 hover:bg-accent">
               Esc
             </span>
           </button>

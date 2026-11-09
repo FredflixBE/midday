@@ -23,7 +23,7 @@ type Props = {
 
 function ErrorPreview() {
   return (
-    <div className="w-full h-full flex items-center justify-center bg-primary/10">
+    <div className="w-full h-full flex items-center justify-center bg-muted">
       <div className="flex flex-col items-center justify-center">
         <Icons.BrokenImage className="size-4" />
       </div>

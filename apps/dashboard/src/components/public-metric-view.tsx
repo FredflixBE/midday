@@ -147,7 +147,7 @@ function BurnRateChartView({ linkId }: { linkId: string }) {
           <div className="flex gap-2 items-center">
             <div
               className="w-4 h-0.5"
-              style={{ borderTop: "2px dashed hsl(var(--muted-foreground))" }}
+              style={{ borderTop: "2px dashed var(--muted-foreground)" }}
             />
             <span className="text-xs text-muted-foreground">Average</span>
           </div>
@@ -430,7 +430,7 @@ function RevenueForecastChartView({ linkId }: { linkId: string }) {
               className="w-4 h-0.5"
               style={{
                 backgroundImage:
-                  "repeating-linear-gradient(90deg, hsl(var(--muted-foreground)), hsl(var(--muted-foreground)) 4px, transparent 4px, transparent 8px)",
+                  "repeating-linear-gradient(90deg, var(--muted-foreground), var(--muted-foreground) 4px, transparent 4px, transparent 8px)",
               }}
             />
             <span className="text-xs text-muted-foreground">Forecast</span>

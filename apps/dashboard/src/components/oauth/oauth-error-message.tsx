@@ -202,7 +202,7 @@ export function OAuthErrorMessage({
         <CardHeader className="text-center pb-8">
           <div className="flex items-center justify-center gap-4 mb-8">
             <div className="w-16 h-16 rounded-full bg-background border border-border flex items-center justify-center">
-              <Icons.Close className="size-5 text-[#666666]" />
+              <Icons.Close className="size-5 text-muted-foreground" />
             </div>
           </div>
           <CardTitle className="text-lg mb-2 font-serif">{title}</CardTitle>

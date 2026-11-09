@@ -157,7 +157,7 @@ export function YukiConnectModal({ open, onOpenChange }: Props) {
                   <p id="yuki-administration" className="text-sm">
                     {chosen.name}
                     {chosen.vatNumber && (
-                      <span className="text-[#878787]">
+                      <span className="text-muted-foreground">
                         {" "}
                         · {chosen.vatNumber}
                       </span>

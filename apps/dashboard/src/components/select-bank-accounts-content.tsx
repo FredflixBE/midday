@@ -85,7 +85,7 @@ function SupportForm() {
     return (
       <div className="h-[250px] flex items-center justify-center flex-col space-y-1">
         <p className="font-medium text-sm">Thank you!</p>
-        <p className="text-sm text-[#4C4C4C]">
+        <p className="text-sm text-muted-foreground">
           We will be back with you as soon as possible.
         </p>
       </div>
@@ -334,7 +334,7 @@ export function SelectBankAccountsContent({
       <TabsContent value="select-accounts">
         <div className="mb-8">
           <h2 className="text-lg font-serif">Select Accounts</h2>
-          <p className="text-sm text-[#878787] mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Select the accounts to receive transactions. You can enable or
             disable them later in settings if needed. Note: Initial loading may
             take some time.
@@ -376,13 +376,13 @@ export function SelectBankAccountsContent({
                                     {account.name}
                                   </p>
                                   {accountIdentifier && (
-                                    <span className="text-xs text-[#878787] font-normal shrink-0">
+                                    <span className="text-xs text-muted-foreground font-normal shrink-0">
                                       ····{accountIdentifier}
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex items-center justify-between mt-1">
-                                  <span className="text-xs text-[#878787] font-normal">
+                                  <span className="text-xs text-muted-foreground font-normal">
                                     {account.type
                                       ? t(`account_type.${account.type}`)
                                       : t("account_type.depository")}
@@ -464,7 +464,7 @@ export function SelectBankAccountsContent({
               <div className="flex justify-center mt-4">
                 <button
                   type="button"
-                  className="text-xs text-[#878787]"
+                  className="text-xs text-muted-foreground"
                   onClick={() => setActiveTab("support")}
                 >
                   Need support

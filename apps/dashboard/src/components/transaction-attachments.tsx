@@ -486,8 +486,8 @@ export function TransactionAttachments({
       />
       <div
         className={cn(
-          "mt-4 w-full h-[120px] border-dotted border-2 border-border text-center flex flex-col justify-center space-y-1 transition-colors text-[#606060]",
-          isDragActive && "bg-secondary text-primary",
+          "mt-4 w-full h-[120px] border-dotted border-2 border-border text-center flex flex-col justify-center space-y-1 transition-colors text-muted-foreground",
+          isDragActive && "bg-secondary text-foreground",
         )}
         {...getRootProps()}
       >

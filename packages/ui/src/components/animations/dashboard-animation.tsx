@@ -50,29 +50,29 @@ export function DashboardAnimation({
   }, [showWidgets]);
 
   const categoryData = [
-    { name: "Marketing", value: 2100, color: "hsl(var(--foreground))" },
+    { name: "Marketing", value: 2100, color: "var(--foreground)" },
     {
       name: "SaaS",
       value: 1300,
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       opacity: 0.8,
     },
     {
       name: "Payroll",
       value: 800,
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       opacity: 0.6,
     },
     {
       name: "Operations",
       value: 600,
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       opacity: 0.4,
     },
     {
       name: "Other",
       value: 900,
-      color: "hsl(var(--muted-foreground))",
+      color: "var(--muted-foreground)",
       opacity: 0.5,
     },
   ];
@@ -161,7 +161,7 @@ export function DashboardAnimation({
                 d={pathData}
                 fill={item.color}
                 opacity={item.opacity ?? 1}
-                stroke="hsl(var(--background))"
+                stroke="var(--background)"
                 strokeWidth="2"
                 initial={{ opacity: 0 }}
                 animate={{

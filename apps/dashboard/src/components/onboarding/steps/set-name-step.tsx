@@ -109,7 +109,7 @@ export function SetNameStep({
               name="fullName"
               render={({ field }) => (
                 <FormItem className="w-full">
-                  <FormLabel className="text-xs text-primary font-normal">
+                  <FormLabel className="text-xs text-foreground font-normal">
                     Full name
                   </FormLabel>
                   <FormControl>

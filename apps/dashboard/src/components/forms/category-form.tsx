@@ -99,7 +99,7 @@ export function CategoryForm({ data }: Props) {
               name="name"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-[#878787] font-normal">
+                  <FormLabel className="text-xs text-muted-foreground font-normal">
                     Name
                   </FormLabel>
                   <FormControl>
@@ -124,7 +124,7 @@ export function CategoryForm({ data }: Props) {
               name="parentId"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-[#878787] font-normal">
+                  <FormLabel className="text-xs text-muted-foreground font-normal">
                     Parent Category (Optional)
                   </FormLabel>
                   <FormControl>
@@ -145,7 +145,7 @@ export function CategoryForm({ data }: Props) {
               name="description"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-[#878787] font-normal">
+                  <FormLabel className="text-xs text-muted-foreground font-normal">
                     Description
                   </FormLabel>
                   <FormControl>
@@ -164,7 +164,7 @@ export function CategoryForm({ data }: Props) {
               name="taxReportingCode"
               render={({ field }) => (
                 <FormItem className="space-y-1">
-                  <FormLabel className="text-xs text-[#878787] font-normal">
+                  <FormLabel className="text-xs text-muted-foreground font-normal">
                     Report Code
                   </FormLabel>
                   <FormControl>
@@ -189,7 +189,7 @@ export function CategoryForm({ data }: Props) {
                 name="taxType"
                 render={({ field }) => (
                   <FormItem className="w-[300px] space-y-1">
-                    <FormLabel className="text-xs text-[#878787] font-normal">
+                    <FormLabel className="text-xs text-muted-foreground font-normal">
                       Tax Type
                     </FormLabel>
                     <FormControl>
@@ -209,7 +209,7 @@ export function CategoryForm({ data }: Props) {
                 name="taxRate"
                 render={({ field }) => (
                   <FormItem className="flex-1 space-y-1">
-                    <FormLabel className="text-xs text-[#878787] font-normal">
+                    <FormLabel className="text-xs text-muted-foreground font-normal">
                       Tax Rate
                     </FormLabel>
                     <FormControl>
@@ -251,7 +251,7 @@ export function CategoryForm({ data }: Props) {
                 <div className="border border-border p-3 mt-2 pt-1.5">
                   <div className="flex items-center justify-between space-x-2">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-xs text-[#878787] font-normal">
+                      <FormLabel className="text-xs text-muted-foreground font-normal">
                         Can have a supplier invoice
                       </FormLabel>
                       <div className="text-xs text-muted-foreground">
@@ -282,7 +282,7 @@ export function CategoryForm({ data }: Props) {
                 <div className="border border-border p-3 mt-2 pt-1.5">
                   <div className="flex items-center justify-between space-x-2">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-xs text-[#878787] font-normal">
+                      <FormLabel className="text-xs text-muted-foreground font-normal">
                         Exclude from reports
                       </FormLabel>
                       <div className="text-xs text-muted-foreground">

@@ -37,7 +37,7 @@ export default function Page() {
               <h1 className="text-lg lg:text-xl mb-4 font-serif">
                 Welcome to Midday
               </h1>
-              <p className="font-sans text-sm text-[#878787]">
+              <p className="font-sans text-sm text-muted-foreground">
                 Sign in or create an account
               </p>
             </div>
@@ -50,18 +50,18 @@ export default function Page() {
 
           {/* Terms and Privacy Policy - Bottom aligned */}
           <div className="text-center mt-auto">
-            <p className="font-sans text-xs text-[#878787]">
+            <p className="font-sans text-xs text-muted-foreground">
               By signing in you agree to our{" "}
               <Link
                 href="https://midday.ai/terms"
-                className="text-[#878787] hover:text-foreground transition-colors underline"
+                className="text-muted-foreground hover:text-foreground transition-colors underline"
               >
                 Terms of service
               </Link>{" "}
               &{" "}
               <Link
                 href="https://midday.ai/policy"
-                className="text-[#878787] hover:text-foreground transition-colors underline"
+                className="text-muted-foreground hover:text-foreground transition-colors underline"
               >
                 Privacy policy
               </Link>

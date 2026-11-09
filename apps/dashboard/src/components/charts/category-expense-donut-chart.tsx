@@ -28,20 +28,16 @@ const donutTooltipFormatter = ({
   if (active && payload?.length) {
     const data = payload[0].payload;
     return (
-      <div className="border p-2 text-[10px] bg-white dark:bg-[#0c0c0c] border-[#e6e6e6] dark:border-[#1d1d1d] text-black dark:text-white shadow-xs">
-        <p className="mb-1 text-[#707070] dark:text-[#666666]">
-          {data.category}
-        </p>
-        <p className="text-black dark:text-white">
+      <div className="border p-2 text-[10px] bg-background border-border text-foreground shadow-xs">
+        <p className="mb-1 text-muted-foreground">{data.category}</p>
+        <p className="text-foreground">
           {formatAmount({
             amount: data.amount,
             currency,
             locale,
           })}
         </p>
-        <p className="text-[#707070] dark:text-[#666666]">
-          {data.percentage.toFixed(1)}%
-        </p>
+        <p className="text-muted-foreground">{data.percentage.toFixed(1)}%</p>
       </div>
     );
   }
@@ -50,7 +46,7 @@ const donutTooltipFormatter = ({
 
 // Gray shades for categories (always use these, ignore color from data)
 export const grayShades = [
-  "hsl(var(--foreground))", // Foreground color - adapts to light/dark mode
+  "var(--foreground)", // Foreground color - adapts to light/dark mode
   "#707070", // Gray for second
   "#A0A0A0", // Light gray for third
   "#606060", // Dark gray for fourth
@@ -109,7 +105,7 @@ export function CategoryExpenseDonutChart({
               cy="50%"
               innerRadius={80} // Inner radius creates the donut hole
               outerRadius={120}
-              fill="hsl(var(--foreground))"
+              fill="var(--foreground)"
               dataKey="value"
               paddingAngle={1}
               stroke="none"

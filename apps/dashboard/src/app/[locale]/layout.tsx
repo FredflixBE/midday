@@ -2,7 +2,7 @@ import "@/styles/globals.css";
 import { cn } from "@midday/ui/cn";
 import { Toaster } from "@midday/ui/toaster";
 import type { Metadata } from "next";
-import { Hedvig_Letters_Sans, Hedvig_Letters_Serif } from "next/font/google";
+import { Geist, Outfit } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactElement } from "react";
 import { isDesktopApp } from "@/utils/desktop";
@@ -32,18 +32,18 @@ export const metadata: Metadata = {
   },
 };
 
-const hedvigSans = Hedvig_Letters_Sans({
-  weight: "400",
+// The preset's faces (FF-1774): Geist for text, Outfit for headings. The
+// theme reads both variables; `font-serif` is the heading face too.
+const geist = Geist({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-hedvig-sans",
+  variable: "--font-sans",
 });
 
-const hedvigSerif = Hedvig_Letters_Serif({
-  weight: "400",
+const outfit = Outfit({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-hedvig-serif",
+  variable: "--font-heading",
 });
 
 export const viewport = {
@@ -71,11 +71,11 @@ export default async function Layout({
     <html
       lang={locale}
       suppressHydrationWarning
-      className={cn(isDesktop && "desktop")}
+      className={cn(geist.variable, outfit.variable, isDesktop && "desktop")}
     >
       <body
         className={cn(
-          `${hedvigSans.variable} ${hedvigSerif.variable} font-sans`,
+          "font-sans",
           "whitespace-pre-line overscroll-none antialiased",
         )}
       >

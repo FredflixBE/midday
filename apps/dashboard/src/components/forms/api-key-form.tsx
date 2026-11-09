@@ -191,7 +191,7 @@ export function ApiKeyForm({ onSuccess }: Props) {
           </TabsList>
         </Tabs>
 
-        <p className="text-sm text-[#878787] mt-4">
+        <p className="text-sm text-muted-foreground mt-4">
           This API key will have{" "}
           <span className="font-semibold">
             {scopePresets.find((scope) => scope.value === preset)?.description}

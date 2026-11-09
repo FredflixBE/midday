@@ -418,7 +418,7 @@ const DayEntries = memo(
               className={cn(
                 "absolute text-xs p-2 overflow-hidden cursor-pointer transition-colors",
                 // Same styling for all events
-                "bg-[#F0F0F0] dark:bg-[#1D1D1D] text-[#606060] dark:text-[#878787] hover:bg-[#E8E8E8] dark:hover:bg-[#252525]",
+                "bg-muted text-muted-foreground hover:bg-border",
                 entry.totalColumns > 1 && entry.column > 0
                   ? "border border-border"
                   : "",
@@ -443,7 +443,7 @@ const DayEntries = memo(
                     `[data-event-id="${entry.event.id}"]`,
                   );
                   for (const part of allParts) {
-                    part.classList.add("!bg-[#E8E8E8]", "dark:!bg-[#252525]");
+                    part.classList.add("!bg-border");
                   }
                 }
                 handleMouseEnter(day);
@@ -454,10 +454,7 @@ const DayEntries = memo(
                     `[data-event-id="${entry.event.id}"]`,
                   );
                   for (const part of allParts) {
-                    part.classList.remove(
-                      "!bg-[#E8E8E8]",
-                      "dark:!bg-[#252525]",
-                    );
+                    part.classList.remove("!bg-border");
                   }
                 }
               }}
@@ -478,7 +475,7 @@ const DayEntries = memo(
                   {entry.isContinuation && " ←"}
                 </span>
                 {height <= 40 && height > 16 && (
-                  <span className="font-normal text-[#878787] dark:text-[#606060] shrink-0">
+                  <span className="font-normal text-muted-foreground shrink-0">
                     {" ("}
                     {isRunningTimer
                       ? secondsToHoursAndMinutes(
@@ -503,7 +500,7 @@ const DayEntries = memo(
                 )}
               </div>
               {height > 40 && (
-                <div className="truncate text-[#878787] dark:text-[#606060]">
+                <div className="truncate text-muted-foreground">
                   (
                   {isRunningTimer
                     ? secondsToHoursAndMinutes(
@@ -588,7 +585,7 @@ export const CalendarWeekView = memo(
           {weekDays.map((day) => (
             <div
               key={`header-${day.toString()}`}
-              className="py-4 px-2 bg-background text-xs font-medium text-[#878787] text-center"
+              className="py-4 px-2 bg-background text-xs font-medium text-muted-foreground text-center"
             >
               <div className="flex flex-row items-end justify-center gap-2">
                 <span className="uppercase">{format(day, "EEE")}</span>
@@ -596,7 +593,7 @@ export const CalendarWeekView = memo(
                   {format(day, "d")}
                 </span>
                 {day.getMonth() !== currentDate.getMonth() && (
-                  <span className="text-[[10px] text-[#878787] uppercase">
+                  <span className="text-[[10px] text-muted-foreground uppercase">
                     {format(day, "MMM")}
                   </span>
                 )}
@@ -622,7 +619,7 @@ export const CalendarWeekView = memo(
               ) => (
                 <div
                   key={hour}
-                  className="flex items-center justify-center text-[12px] text-[#878787] border-b border-border"
+                  className="flex items-center justify-center text-[12px] text-muted-foreground border-b border-border"
                   style={{ height: `${HOUR_HEIGHT}px` }}
                 >
                   {hour < 24 && formatHour(hour, user?.timeFormat)}

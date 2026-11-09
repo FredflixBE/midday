@@ -171,7 +171,7 @@ export function TeamDropdown({ isExpanded = false }: Props) {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Avatar
-                            className="w-[32px] h-[32px] rounded-none border border-[#DCDAD2] dark:border-[#2C2C2C] cursor-pointer"
+                            className="w-[32px] h-[32px] rounded-none border border-border cursor-pointer"
                             onClick={() => {
                               if (index === 0) {
                                 toggleActive();
@@ -205,7 +205,7 @@ export function TeamDropdown({ isExpanded = false }: Props) {
                       </Tooltip>
                     ) : (
                       <Avatar
-                        className="w-[32px] h-[32px] rounded-none border border-[#DCDAD2] dark:border-[#2C2C2C] cursor-pointer"
+                        className="w-[32px] h-[32px] rounded-none border border-border cursor-pointer"
                         onClick={() => {
                           if (index === 0) {
                             toggleActive();
@@ -240,7 +240,7 @@ export function TeamDropdown({ isExpanded = false }: Props) {
         {isExpanded && sortedTeams[0] && (
           <div className="fixed left-[62px] bottom-4 h-[32px] flex items-center">
             <span
-              className="text-sm text-primary truncate transition-opacity duration-200 ease-in-out cursor-pointer hover:opacity-80"
+              className="text-sm text-foreground truncate transition-opacity duration-200 ease-in-out cursor-pointer hover:opacity-80"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleActive();

@@ -102,7 +102,7 @@ export function BurnRateCard({
             <div
               className="w-4 h-0.5"
               style={{
-                borderTop: "2px dashed hsl(var(--muted-foreground))",
+                borderTop: "2px dashed var(--muted-foreground)",
               }}
             />
             <span className="text-xs text-muted-foreground">Average</span>

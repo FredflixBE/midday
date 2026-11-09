@@ -78,7 +78,7 @@ export function QuoteRates({
             <div
               className={cn(
                 RATE_COLUMNS,
-                "items-center border-b border-border pb-2 text-[11px] text-[#606060]",
+                "items-center border-b border-border pb-2 text-[11px] text-muted-foreground",
               )}
             >
               <span>Product</span>
@@ -206,9 +206,9 @@ function RateRow({
   const cell = (rate: number | undefined, source: typeof applies) => (
     <span
       className={cn(
-        "truncate text-right text-[11px] tabular-nums text-[#878787]",
+        "truncate text-right text-[11px] tabular-nums text-muted-foreground",
         rate !== undefined &&
-          (source === applies ? "text-primary" : "line-through"),
+          (source === applies ? "text-foreground" : "line-through"),
       )}
     >
       {rate === undefined ? "–" : formatHourlyRate(rate, currency)}
@@ -270,7 +270,7 @@ function Tiers({
     <div className="space-y-2">
       {tiers.length > 0 ? (
         <>
-          <div className="grid grid-cols-[1fr_1fr_32px] gap-2 text-[11px] text-[#606060]">
+          <div className="grid grid-cols-[1fr_1fr_32px] gap-2 text-[11px] text-muted-foreground">
             <span>{threshold}</span>
             <span>Adjustment (%)</span>
             <span />

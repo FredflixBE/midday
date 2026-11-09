@@ -25,9 +25,9 @@ export function SecondaryMenu({ items }: Props) {
             href={item.path}
             prefetch
             className={cn(
-              "text-[#606060]",
+              "text-muted-foreground",
               pathname === item.path &&
-                "text-primary font-medium underline underline-offset-8",
+                "text-foreground font-medium underline underline-offset-8",
             )}
           >
             <span>{item.label}</span>

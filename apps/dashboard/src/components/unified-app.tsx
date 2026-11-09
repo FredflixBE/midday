@@ -83,7 +83,7 @@ function ConnectorDetailContent({ slug }: { slug: string }) {
     >
       <AccordionItem value="about" className="border-none">
         <AccordionTrigger>About</AccordionTrigger>
-        <AccordionContent className="text-[#878787] text-sm">
+        <AccordionContent className="text-muted-foreground text-sm">
           <p>{data.description}</p>
 
           <div className="flex flex-wrap gap-1.5 mt-3">
@@ -130,7 +130,7 @@ function ConnectorDetailContent({ slug }: { slug: string }) {
                       <p className="text-sm font-medium truncate">
                         {tool.name}
                       </p>
-                      <p className="text-xs text-[#878787] line-clamp-2">
+                      <p className="text-xs text-muted-foreground line-clamp-2">
                         {tool.description}
                       </p>
                     </div>
@@ -168,7 +168,7 @@ interface UnifiedAppProps {
 function AppHeroBanner({ app }: { app: UnifiedApp }) {
   return (
     <div
-      className="relative w-full flex items-center justify-center overflow-hidden bg-[#fafafa] dark:bg-[#0c0c0c]"
+      className="relative w-full flex items-center justify-center overflow-hidden bg-background"
       style={{ height: 200 }}
     >
       <div
@@ -500,21 +500,23 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
               {app.name}
             </CardTitle>
             {!app.active && (
-              <span className="text-[#878787] bg-[#F2F1EF] text-[10px] dark:bg-[#1D1D1D] px-3 py-1 rounded-full font-mono">
+              <span className="text-muted-foreground bg-muted text-[10px] px-3 py-1 rounded-full font-mono">
                 Coming soon
               </span>
             )}
             {app.active && app.beta && (
-              <span className="text-[#1D1D1D] bg-[#e6e6e6] text-[10px] dark:bg-[#2c2c2c] dark:text-[#F2F1EF] px-3 py-1 rounded-full font-mono">
+              <span className="text-foreground bg-muted text-[10px] px-3 py-1 rounded-full font-mono">
                 Beta
               </span>
             )}
           </div>
         </CardHeader>
-        <CardContent className="text-xs text-[#878787] pb-4">
+        <CardContent className="text-xs text-muted-foreground pb-4">
           <p>{app.short_description}</p>
           {app.installed && app.connectedAs && (
-            <p className="mt-2 text-primary">Connected to {app.connectedAs}</p>
+            <p className="mt-2 text-foreground">
+              Connected to {app.connectedAs}
+            </p>
           )}
         </CardContent>
 
@@ -577,7 +579,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
                   )}
                 </div>
 
-                <span className="text-xs text-[#878787]">
+                <span className="text-xs text-muted-foreground">
                   {app.category} •{" "}
                   {app.type === "connector"
                     ? "Connected app"
@@ -628,7 +630,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
                   >
                     <AccordionItem value="description" className="border-none">
                       <AccordionTrigger>How it works</AccordionTrigger>
-                      <AccordionContent className="text-[#878787] text-sm">
+                      <AccordionContent className="text-muted-foreground text-sm">
                         {app.id === "chatgpt-mcp" ? (
                           <ChatGPTSetupInstructions />
                         ) : app.id === "claude-mcp" ? (
@@ -644,7 +646,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
                         ) : app.id === "manus-mcp" ? (
                           <ManusSetupInstructions />
                         ) : (
-                          <div className="prose prose-sm prose-invert prose-p:text-[#878787] prose-p:my-3 [&_strong]:text-primary [&_strong]:font-normal max-w-none">
+                          <div className="prose prose-sm prose-invert prose-p:text-muted-foreground prose-p:my-3 [&_strong]:text-foreground [&_strong]:font-normal max-w-none">
                             <MemoizedReactMarkdown>
                               {app.description || app.overview || ""}
                             </MemoizedReactMarkdown>
@@ -658,7 +660,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
                       app.settings.length > 0 && (
                         <AccordionItem value="settings" className="border-none">
                           <AccordionTrigger>Settings</AccordionTrigger>
-                          <AccordionContent className="text-[#878787] text-sm">
+                          <AccordionContent className="text-muted-foreground text-sm">
                             <AppSettings
                               appId={app.id}
                               settings={app.settings.map((setting) => {
@@ -697,7 +699,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
                                 href={app.website}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-sm hover:underline text-[#878787]"
+                                className="text-sm hover:underline text-muted-foreground"
                               >
                                 {app.website}
                               </a>
@@ -729,7 +731,7 @@ export function UnifiedAppComponent({ app }: UnifiedAppProps) {
               </ScrollArea>
 
               <div className="shrink-0 pt-4 border-t border-border">
-                <p className="text-[10px] text-[#878787]">
+                <p className="text-[10px] text-muted-foreground">
                   All apps on the Midday App Store are open-source and
                   peer-reviewed. Midday Labs AB maintains high standards but
                   doesn't endorse third-party apps. Apps published by Midday are

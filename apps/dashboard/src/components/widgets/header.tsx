@@ -22,9 +22,12 @@ export function WidgetsHeader({
         onClick={onToggleEditing}
       >
         {isEditing ? (
-          <Check size={16} className="text-[#666]" />
+          <Check size={16} className="text-muted-foreground" />
         ) : (
-          <Icons.DashboardCustomize size={16} className="text-[#666]" />
+          <Icons.DashboardCustomize
+            size={16}
+            className="text-muted-foreground"
+          />
         )}
         <span className="hidden sm:inline">
           {isEditing ? "Done" : "Customize"}

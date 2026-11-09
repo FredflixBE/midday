@@ -48,11 +48,11 @@ export default async function Teams() {
                 Welcome, {user?.fullName?.split(" ").at(0)}
               </h1>
               {invites?.length > 0 ? (
-                <p className="text-[#878787] text-sm mb-8">
+                <p className="text-muted-foreground text-sm mb-8">
                   Join a team you’ve been invited to or create a new one.
                 </p>
               ) : (
-                <p className="text-[#878787] text-sm mb-8">
+                <p className="text-muted-foreground text-sm mb-8">
                   Select a team or create a new one.
                 </p>
               )}
@@ -62,7 +62,7 @@ export default async function Teams() {
           {/* If there are teams, show them */}
           {teams?.length > 0 ? (
             <>
-              <span className="text-sm text-[#878787] mb-4">Teams</span>
+              <span className="text-sm text-muted-foreground mb-4">Teams</span>
               <div className="max-h-[260px] overflow-y-auto">
                 <SelectTeamTable data={teams} />
               </div>
@@ -73,7 +73,7 @@ export default async function Teams() {
           {invites?.length > 0 && <TeamInvites />}
 
           <div className="text-center mt-12 border-t-[1px] border-border pt-6 w-full relative border-dashed">
-            <span className="absolute left-1/2 -translate-x-1/2 text-sm text-[#878787] bg-background -top-3 px-4">
+            <span className="absolute left-1/2 -translate-x-1/2 text-sm text-muted-foreground bg-background -top-3 px-4">
               Or
             </span>
             <Link href="/onboarding" className="w-full">

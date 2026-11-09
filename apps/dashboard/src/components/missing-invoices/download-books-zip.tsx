@@ -133,7 +133,7 @@ export function DownloadBooksZip() {
               Leave out what the books already have
             </Label>
           </div>
-          <p className="text-xs leading-snug text-[#878787]">
+          <p className="text-xs leading-snug text-muted-foreground">
             A folder per supplier, for every payment of the period with an
             invoice. Left out: invoices the books hold a copy of, and card
             payments they have settled. _Not included.txt lists both.

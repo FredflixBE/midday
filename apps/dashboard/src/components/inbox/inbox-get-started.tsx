@@ -81,7 +81,7 @@ export function InboxGetStarted() {
           <div className="flex w-full flex-col relative">
             <div className="pb-4 text-center">
               <h2 className="font-medium text-lg">Connect Your Inbox</h2>
-              <p className="pb-6 text-sm text-[#878787]">
+              <p className="pb-6 text-sm text-muted-foreground">
                 Connect your email or messaging apps to automatically import
                 receipts and invoices. We'll extract the data and match it to
                 your transactions.
@@ -111,7 +111,7 @@ export function InboxGetStarted() {
             </div>
 
             <div className="text-center mt-8">
-              <p className="text-xs text-[#878787]">
+              <p className="text-xs text-muted-foreground">
                 You can also just drag and drop files here for automatic
                 reconciliation.
               </p>

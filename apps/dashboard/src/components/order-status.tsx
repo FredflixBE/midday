@@ -24,16 +24,12 @@ export function OrderStatus({
     <div
       className={cn(
         "px-2 py-0.5 rounded-full cursor-default inline-flex max-w-full text-[11px]",
-        status === "paid" &&
-          "text-[#00C969] bg-[#DDF1E4] dark:text-[#00C969] dark:bg-[#00C969]/10",
-        status === "pending" &&
-          "bg-[#FFD02B]/10 text-[#FFD02B] dark:bg-[#FFD02B]/10 dark:text-[#FFD02B]",
+        status === "paid" && "text-success bg-success/10",
+        status === "pending" && "bg-warning/10 text-warning",
         (status === "cancelled" || status === "canceled") &&
-          "text-[#878787] bg-[#F2F1EF] text-[10px] dark:text-[#878787] dark:bg-[#1D1D1D]",
-        status === "failed" &&
-          "text-[#1D1D1D] bg-[#878787]/10 dark:text-[#F5F5F3] dark:bg-[#F5F5F3]/10",
-        status === "refunded" &&
-          "text-[#878787] bg-[#F2F1EF] text-[10px] dark:text-[#878787] dark:bg-[#1D1D1D]",
+          "text-muted-foreground bg-muted text-[10px]",
+        status === "failed" && "text-foreground bg-muted",
+        status === "refunded" && "text-muted-foreground bg-muted text-[10px]",
         className,
       )}
     >

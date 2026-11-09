@@ -206,7 +206,9 @@ export function VaultUploadZone({ onUpload, children }: Props) {
               Maximum of 25 files at a time.
             </p>
 
-            <span className="text-xs text-[#878787]">Max file size 5MB</span>
+            <span className="text-xs text-muted-foreground">
+              Max file size 5MB
+            </span>
           </div>
         </div>
       </div>
