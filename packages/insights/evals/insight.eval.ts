@@ -4,7 +4,7 @@
  * Tests that generated insights are personal, well-formatted, and have appropriate tone
  */
 import "dotenv/config";
-import { createOpenAI } from "@ai-sdk/openai";
+import { languageModel } from "@midday/ai";
 import { generateText } from "ai";
 import { evalite } from "evalite";
 import {
@@ -16,11 +16,8 @@ import type { InsightSlots } from "../src/content/prompts/slots";
 import { allFixtures } from "./fixtures";
 import { allScorers } from "./scorers";
 
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
-
-const MODEL = "gpt-4.1-mini";
+/** What production writes insights with. */
+const model = languageModel("assistant");
 
 /**
  * Generate a complete insight from slots
@@ -28,19 +25,16 @@ const MODEL = "gpt-4.1-mini";
 async function generateInsight(slots: InsightSlots) {
   const [title, summary, story] = await Promise.all([
     generateText({
-      model: openai(MODEL),
+      model,
       prompt: buildTitlePrompt(slots),
-      temperature: 0.25,
     }),
     generateText({
-      model: openai(MODEL),
+      model,
       prompt: buildSummaryPrompt(slots),
-      temperature: 0.25,
     }),
     generateText({
-      model: openai(MODEL),
+      model,
       prompt: buildStoryPrompt(slots),
-      temperature: 0.3,
     }),
   ]);
 

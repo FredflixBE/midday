@@ -1,4 +1,4 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import { languageModel } from "@midday/ai";
 /**
  * AI content generation for insights
  *
@@ -9,7 +9,7 @@ import { createOpenAI } from "@ai-sdk/openai";
  * - Actions: Specific actionable items with exact names/amounts
  */
 import { createLoggerWithContext } from "@midday/logger";
-import { generateObject, generateText } from "ai";
+import { generateObject, generateText, type LanguageModel } from "ai";
 import { z } from "zod/v4";
 
 const logger = createLoggerWithContext("insights:generator");
@@ -34,12 +34,9 @@ import {
   computeSlots,
 } from "./prompts/index";
 
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
-
 export type ContentGeneratorOptions = {
-  model?: string;
+  /** The assistant model from `@midday/ai` unless an eval passes another. */
+  model?: LanguageModel;
 };
 
 /**
@@ -100,11 +97,10 @@ export type ContentGenerationContext = {
  * 3. Actions generated in parallel with story (only needs slots)
  */
 export class ContentGenerator {
-  private model: string;
+  private model: LanguageModel;
 
   constructor(options: ContentGeneratorOptions = {}) {
-    // gpt-4.1-mini: best instruction following + cost efficiency for text generation
-    this.model = options.model ?? "gpt-4.1-mini";
+    this.model = options.model ?? languageModel("assistant");
   }
 
   /**
@@ -194,8 +190,7 @@ export class ContentGenerator {
     const prompt = buildTitlePrompt(slots);
 
     const { text } = await generateText({
-      model: openai(this.model),
-      temperature: 0.3, // Lower for consistency
+      model: this.model,
       prompt,
     });
 
@@ -211,8 +206,7 @@ export class ContentGenerator {
     const prompt = buildSummaryPrompt(slots);
 
     const { text } = await generateText({
-      model: openai(this.model),
-      temperature: 0.3,
+      model: this.model,
       prompt,
     });
 
@@ -228,8 +222,7 @@ export class ContentGenerator {
     const prompt = buildStoryPrompt(slots);
 
     const { text } = await generateText({
-      model: openai(this.model),
-      temperature: 0.4, // Slightly higher for creative forward-looking content
+      model: this.model,
       prompt,
     });
 
@@ -258,8 +251,7 @@ export class ContentGenerator {
     }
 
     const { object } = await generateObject({
-      model: openai(this.model),
-      temperature: 0.2, // Low for consistent structured output
+      model: this.model,
       schema: z.object({
         actions: z.array(z.object({ text: z.string() })),
       }),

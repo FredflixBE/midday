@@ -2,6 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { getFeatureAvailability } from "@api/utils/availability";
 
 const VARS = [
+  "ANTHROPIC_API_KEY",
+  "GOOGLE_GENERATIVE_AI_API_KEY",
   "OPENAI_API_KEY",
   "COMPOSIO_API_KEY",
   "COMPANY_ENRICH_API_KEY",
@@ -72,10 +74,17 @@ describe("getFeatureAvailability", () => {
     expect(getFeatureAvailability().insights).toBe(true);
   });
 
-  test("the assistant follows the OpenAI key", () => {
+  test("the assistant needs Claude, and Gemini for its tool search", () => {
     clear();
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
     expect(getFeatureAvailability().assistant).toBe(false);
-    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "google-test";
     expect(getFeatureAvailability().assistant).toBe(true);
+  });
+
+  test("an OpenAI key no longer switches anything on", () => {
+    clear();
+    process.env.OPENAI_API_KEY = "sk-test";
+    expect(getFeatureAvailability().assistant).toBe(false);
   });
 });

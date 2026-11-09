@@ -15,7 +15,6 @@
     "test": "find src -name '*.test.ts' -o -name '*.spec.ts' | grep -q . && bun test --exit src || echo 'No tests yet'"
   },
   "dependencies": {
-    "@ai-sdk/openai": "catalog:",
     "@ai-sdk/react": "^3.0.143",
     "@date-fns/tz": "catalog:",
     "@date-fns/utc": "^2.1.1",
@@ -23,6 +22,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
+    "@midday/ai": "workspace:*",
     "@midday/api": "workspace:*",
     "@midday/app-store": "workspace:*",
     "@midday/connectors": "workspace:*",

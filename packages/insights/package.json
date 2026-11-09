@@ -19,7 +19,7 @@
     "eval:run": "bunx evalite"
   },
   "dependencies": {
-    "@ai-sdk/openai": "catalog:",
+    "@midday/ai": "workspace:*",
     "@midday/db": "workspace:*",
     "@midday/logger": "workspace:*",
     "ai": "catalog:",

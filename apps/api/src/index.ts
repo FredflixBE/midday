@@ -414,12 +414,14 @@ process.on("unhandledRejection", (reason, promise) => {
 });
 
 // Pre-warm the chat tool index in the background so the first request is fast.
-// It embeds the tool descriptions, so it needs OpenAI; without a key it would
-// only log a failure at every boot. Once per process, not once per hot reload —
-// every save would otherwise embed them against OpenAI again.
+// It embeds the tool descriptions with Gemini, and is only worth doing when the
+// assistant can run at all; without the keys it would only log a failure at
+// every boot. Once per process, not once per hot reload — every save would
+// otherwise embed them again.
 import { warmToolIndex } from "./chat/tools";
+import { isAssistantConfigured } from "./utils/availability";
 
-if (process.env.OPENAI_API_KEY && processLifecycle.claim("warm-tool-index")) {
+if (isAssistantConfigured() && processLifecycle.claim("warm-tool-index")) {
   warmToolIndex();
 }
 

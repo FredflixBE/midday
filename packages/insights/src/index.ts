@@ -1,5 +1,6 @@
 import type { Database } from "@midday/db/client";
 import { createLoggerWithContext } from "@midday/logger";
+import type { LanguageModel } from "ai";
 
 const logger = createLoggerWithContext("insights");
 
@@ -54,7 +55,8 @@ import type {
 } from "./types";
 
 export type InsightsServiceOptions = {
-  model?: string;
+  /** The assistant model from `@midday/ai` unless a caller passes another. */
+  model?: LanguageModel;
 };
 
 /**

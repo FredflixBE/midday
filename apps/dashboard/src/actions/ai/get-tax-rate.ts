@@ -1,6 +1,6 @@
 "use server";
 
-import { openai } from "@ai-sdk/openai";
+import { languageModel } from "@midday/ai";
 import { getCountry } from "@midday/location";
 import { generateObject } from "ai";
 import { z } from "zod";
@@ -19,7 +19,7 @@ export const getTaxRateAction = authActionClient
     const country = await getCountry();
 
     const { object } = await generateObject({
-      model: openai("gpt-5-nano"),
+      model: languageModel("helper"),
       schema: z.object({
         taxRate: z.number().min(5).max(50),
       }),

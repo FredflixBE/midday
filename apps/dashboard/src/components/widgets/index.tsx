@@ -18,8 +18,8 @@ const OverviewAssistant = dynamic(
 
 export function OverviewView() {
   const [assistant] = useQueryState("assistant", parseAsBoolean);
-  // Without an OpenAI key every chat request fails, so the assistant is not
-  // offered at all on this instance.
+  // Without the Claude and Gemini keys every chat request fails, so the
+  // assistant is not offered at all on this instance.
   const { assistant: assistantAvailable } = useFeatureAvailability();
   // Where the Ask bar goes on the overview. The assistant renders it there
   // through a portal, so the overview below never remounts when the

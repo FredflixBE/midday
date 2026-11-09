@@ -115,12 +115,26 @@ export function languageModelFor(choice: ModelChoice): LanguageModel {
  * and only this module imports one. Billed per search on top of the tokens,
  * so `maxUses` bounds what one answer can cost.
  */
-export function webSearch(maxUses = 1): Tool {
+export function webSearch({
+  maxUses = 1,
+  userLocation,
+}: {
+  maxUses?: number;
+  /** Where the asker is, so "near me" and local prices mean something. */
+  userLocation?: {
+    type: "approximate";
+    country?: string;
+    timezone?: string;
+  };
+} = {}): Tool {
   // Typed as `ai`'s own Tool: @ai-sdk/anthropic 3.0.140 is built on a newer
   // @ai-sdk/provider-utils than `ai` 6.0.141, so the two Tool types differ in
   // their optional hooks while the object `generateText` receives is the same
   // provider-defined tool. Moving `ai` to 6.0.325 would align them.
-  return anthropic.tools.webSearch_20260209({ maxUses }) as unknown as Tool;
+  return anthropic.tools.webSearch_20260209({
+    maxUses,
+    userLocation,
+  }) as unknown as Tool;
 }
 
 /** Every distinct Claude model in use, each once. */

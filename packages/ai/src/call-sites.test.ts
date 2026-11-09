@@ -8,9 +8,8 @@
  * 1. Only this package imports an AI SDK model provider.
  * 2. Only this package spells a model id.
  *
- * `PENDING` is the call sites the epic (FF-2269) has not moved yet, each with
- * the ticket that moves it. The list may only shrink: an entry that no longer
- * breaks a rule fails the test, so it is removed in the change that moves it.
+ * There are no exceptions. Epic FF-2269 moved every call site here one ticket
+ * at a time; a new one that names its own model fails this test.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -32,19 +31,6 @@ const MODEL_ID =
 
 /** App-store ids such as "claude-mcp" share the prefix and name no model. */
 const NOT_A_MODEL = /-mcp$/;
-
-const PENDING: Record<string, string> = {
-  "apps/api/evals/tool-selection.eval.ts": "FF-2274",
-  "apps/api/src/chat/assistant-runtime.ts": "FF-2274",
-  "apps/api/src/chat/tools.ts": "FF-2274",
-  "apps/api/src/chat/utils.ts": "FF-2274",
-  "apps/api/src/utils/search-filters.ts": "FF-2274",
-  "apps/dashboard/src/actions/ai/get-tax-rate.ts": "FF-2274",
-  "packages/insights/evals/insight.eval.ts": "FF-2274",
-  "packages/insights/evals/scorers.ts": "FF-2274",
-  "packages/insights/src/content/generator.ts": "FF-2274",
-  "packages/jobs/src/tasks/inbox/slack-upload.ts": "FF-2274",
-};
 
 /**
  * Files that spell a model id without calling a model. The database stores
@@ -117,21 +103,12 @@ describe("AI call sites", () => {
     expect(files.length).toBeGreaterThan(500);
   });
 
-  test("get their model from @midday/ai, except the ones still to move", () => {
+  test("get their model from @midday/ai", () => {
     const offenders = files
-      .filter((file) => !(file in PENDING))
       .map((file) => [file, breaksARule(file)] as const)
       .filter(([, reason]) => reason !== null)
       .map(([file, reason]) => `${file} ${reason}`);
 
     expect(offenders).toEqual([]);
-  });
-
-  test("the list still to move only names files that still need it", () => {
-    const moved = Object.entries(PENDING)
-      .filter(([file]) => breaksARule(file) === null)
-      .map(([file, ticket]) => `${file} (${ticket})`);
-
-    expect(moved).toEqual([]);
   });
 });
