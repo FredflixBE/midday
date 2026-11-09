@@ -36,7 +36,6 @@
     "./schemas/transactions": "./src/schemas/transactions.ts"
   },
   "dependencies": {
-    "@ai-sdk/google": "catalog:",
     "@ai-sdk/openai": "catalog:",
     "@fast-csv/format": "catalog:",
     "@midday/accounting": "workspace:*",

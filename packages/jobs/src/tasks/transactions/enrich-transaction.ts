@@ -1,4 +1,3 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { getDb } from "@jobs/init";
 import { BaseProcessor } from "@jobs/processors/base";
 import { runProcessor } from "@jobs/processors/run";
@@ -18,6 +17,7 @@ import {
 import { enrichmentSchema } from "@jobs/utils/enrichment-schema";
 import { processBatch } from "@jobs/utils/process-batch";
 import { askSuppliersWith } from "@jobs/utils/supplier-question";
+import { languageModel } from "@midday/ai";
 import {
   detectCommitments,
   getTransactionsForEnrichment,
@@ -33,15 +33,13 @@ import { generateObject } from "ai";
 
 const BATCH_SIZE = 50;
 
-// gemini-2.5-flash-lite was retired: Google returns "no longer available to
-// new users" and names this as its successor. It is also the right size for
-// the job — gemini-3-flash-preview handles the same batch correctly but takes
-// ~200s to 3.5-flash-lite's ~2s.
-const MODEL = "gemini-3.5-flash-lite";
-
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
-});
+/**
+ * Which model names merchants, suppliers and categories: `@midday/ai` decides.
+ * Speed matters here more than anywhere else: a batch is 50 payments inside a
+ * 300s task, and FF-1470 measured one model at 199s for 14. Opus 5.5 took 13s
+ * for 14 at its default effort and 6s at "low" (FF-2273).
+ */
+const PURPOSE = "transaction-enrichment" as const;
 
 /**
  * What a run did, counted honestly.
@@ -68,7 +66,7 @@ type BatchFailure = {
 
 /**
  * Enriches transactions with AI (merchant names, categories)
- * Uses Google Generative AI (Gemini) to extract merchant names and categorize transactions
+ * Asks the transaction-enrichment model for merchant names and categories
  */
 export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactionsPayload> {
   async process(job: JobContext<EnrichTransactionsPayload>): Promise<{
@@ -119,7 +117,7 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
       const recognition = await recogniseSuppliers(db, {
         teamId,
         transactions: eligible,
-        ask: askSuppliersWith(google(MODEL)),
+        ask: askSuppliersWith(languageModel(PURPOSE)),
       });
 
       this.logger.info("Suppliers recognised", {
@@ -206,11 +204,10 @@ export class EnrichTransactionProcessor extends BaseProcessor<EnrichTransactions
 
         try {
           const { object } = await generateObject({
-            model: google(MODEL),
+            model: languageModel(PURPOSE),
             prompt,
             output: "array",
             schema: enrichmentSchema,
-            temperature: 0.1, // Low temperature for consistency
           });
 
           // Prepare updates for batch processing

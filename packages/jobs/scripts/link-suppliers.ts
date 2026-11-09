@@ -23,8 +23,8 @@
  * Prints no supplier names or amounts: this repository is public.
  */
 
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { askSuppliersWith } from "@jobs/utils/supplier-question";
+import { languageModel } from "@midday/ai";
 import { closeDb, connectDb } from "@midday/db/client";
 import {
   groupForSupplierQuestions,
@@ -55,10 +55,9 @@ async function main() {
     console.log("Every payment already has a supplier, or a person's answer.");
   }
 
-  const google = createGoogleGenerativeAI({
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-  });
-  const ask = askSuppliersWith(google("gemini-3.5-flash-lite"));
+  // The same model the bank sync asks, so a rule this run keeps is one the
+  // daily enrichment would have made.
+  const ask = askSuppliersWith(languageModel("transaction-enrichment"));
 
   for (const { teamId } of teams) {
     const rows = await db

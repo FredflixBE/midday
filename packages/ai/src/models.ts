@@ -22,7 +22,13 @@
 
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
-import type { EmbeddingModel, LanguageModel, Tool } from "ai";
+import {
+  defaultSettingsMiddleware,
+  type EmbeddingModel,
+  type LanguageModel,
+  type Tool,
+  wrapLanguageModel,
+} from "ai";
 
 /** The Claude models this deployment may use. */
 export type ClaudeModel =
@@ -30,8 +36,16 @@ export type ClaudeModel =
   | "claude-sonnet-5-5"
   | "claude-haiku-5-5";
 
+/**
+ * How much Claude thinks before it answers. Lower is faster and cheaper; the
+ * Claude 5.5 models cannot turn thinking off, so this is the only lever.
+ */
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+
 export interface ModelChoice {
   model: ClaudeModel;
+  /** Leave unset for the model's own default (`medium` on Opus 5.5). */
+  effort?: Effort;
 }
 
 /** What every purpose uses unless a measurement shows a cheaper model holds. */
@@ -69,9 +83,29 @@ export function modelIdFor(purpose: GenerationPurpose): ClaudeModel {
 
 /** The model to hand the AI SDK for a purpose. */
 export function languageModel(purpose: GenerationPurpose): LanguageModel {
+  return languageModelFor(GENERATION[purpose]);
+}
+
+/** The model for a choice, with its effort applied to every call. */
+export function languageModelFor(choice: ModelChoice): LanguageModel {
   // The provider reads ANTHROPIC_API_KEY when a request is made, not here, so
   // importing this module never needs the key.
-  return anthropic(modelIdFor(purpose));
+  const model = anthropic(choice.model);
+
+  if (!choice.effort) {
+    return model;
+  }
+
+  // Applied here rather than at each call site, so that changing a purpose's
+  // effort is the same one-line edit as changing its model.
+  return wrapLanguageModel({
+    model,
+    middleware: defaultSettingsMiddleware({
+      settings: {
+        providerOptions: { anthropic: { effort: choice.effort } },
+      },
+    }),
+  });
 }
 
 /**
