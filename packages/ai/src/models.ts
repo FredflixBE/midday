@@ -1,5 +1,5 @@
 /**
- * Which AI model each feature uses — the only place a model is named.
+ * Which AI model each feature uses, named in one place.
  *
  * Features ask for a purpose (`languageModel("document-extraction")`), never
  * for a model id. Two models were retired under this deployment without anyone
@@ -12,8 +12,11 @@
  * The model union is closed, so a typo or an id this deployment has not
  * chosen fails the typecheck rather than the first production call.
  *
- * Generation runs on Claude, paid from the Console API credits behind
- * `ANTHROPIC_API_KEY`. Embeddings stay on Gemini (`GOOGLE_GENERATIVE_AI_API_KEY`)
+ * The call sites that still name their own model are listed, with the ticket
+ * that moves each, in `call-sites.test.ts`; that list only shrinks.
+ *
+ * Generation through this module runs on Claude, paid from the Console API
+ * credits behind `ANTHROPIC_API_KEY`. Embeddings stay on Gemini (`GOOGLE_GENERATIVE_AI_API_KEY`)
  * because Anthropic has no embeddings API.
  */
 

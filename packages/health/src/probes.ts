@@ -195,7 +195,8 @@ export function openaiProbe(): Dependency {
  *
  * Retrieving a model costs nothing and needs a valid key, so this proves the
  * key and every model id at once — a retired id fails here, by name, instead
- * of in the first feature that calls it. Every generation call runs on Claude.
+ * of in the first feature that calls it. Cached five minutes like the other
+ * AI probes, since it asks once per model.
  */
 export function anthropicProbe(): Dependency {
   return {
