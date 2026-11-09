@@ -1,4 +1,3 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import {
   createTransactionSchema,
   deleteTransactionsSchema,
@@ -36,11 +35,11 @@ import {
   updateTransactions,
 } from "@midday/db/queries";
 import {
-  buildCsvMappingPrompt,
   compactSampleRows,
   formatAmountValue,
   selectPromptColumns,
 } from "@midday/import";
+import { suggestCsvMapping } from "@midday/import/suggest-mapping";
 import type { MatchTransactionsBidirectionalPayload } from "@midday/jobs/schemas/inbox";
 import type {
   EnrichTransactionsPayload,
@@ -49,7 +48,6 @@ import type {
 } from "@midday/jobs/schemas/transactions";
 import { tasks } from "@trigger.dev/sdk";
 import { TRPCError } from "@trpc/server";
-import { generateObject } from "ai";
 
 const csvMappingInFlight = new Map<
   string,
@@ -278,7 +276,6 @@ export const transactionsRouter = createTRPCRouter({
       const requestStartedAt = Date.now();
       const promptColumns = selectPromptColumns(input.fieldColumns);
       const sampleRows = compactSampleRows(input.firstRows, promptColumns);
-      const prompt = buildCsvMappingPrompt(promptColumns, sampleRows);
       const requestKey = JSON.stringify({
         teamId,
         columns: promptColumns,
@@ -297,13 +294,12 @@ export const transactionsRouter = createTRPCRouter({
 
       const mappingPromise = (async () => {
         try {
-          const { object } = await generateObject({
-            model: anthropic("claude-3-haiku-20240307"),
-            schema: generateCsvMappingResponseSchema,
-            prompt,
+          const mapping = await suggestCsvMapping({
+            fieldColumns: input.fieldColumns,
+            firstRows: input.firstRows,
           });
 
-          return generateCsvMappingResponseSchema.parse(object);
+          return generateCsvMappingResponseSchema.parse(mapping);
         } catch (error) {
           console.error("Error generating CSV mapping:", {
             mode: "object",

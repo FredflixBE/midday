@@ -11,14 +11,18 @@
     "test": "bun test --exit src"
   },
   "dependencies": {
+    "@midday/ai": "workspace:*",
+    "ai": "catalog:",
     "change-case": "catalog:",
     "chrono-node": "^2.9.0",
-    "date-fns": "catalog:"
+    "date-fns": "catalog:",
+    "zod": "catalog:"
   },
   "exports": {
     ".": "./src/index.ts",
     "./mappings": "./src/mappings.ts",
     "./transform": "./src/transform.ts",
-    "./validate": "./src/validate.ts"
+    "./validate": "./src/validate.ts",
+    "./suggest-mapping": "./src/suggest-mapping.ts"
   }
 }
