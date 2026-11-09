@@ -84,12 +84,19 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   protected logger: ReturnType<typeof createLoggerWithContext>;
   /** A field, so a test can watch the budget run out without waiting for it. */
   protected fieldReExtractionBudget = FIELD_REEXTRACTION_BUDGET;
+  /**
+   * The schema as Claude's structured output will take it: the extraction
+   * schemas have more nullable fields than it accepts. Built once, not per
+   * call.
+   */
+  private structured: ReturnType<typeof forClaude<T>>;
 
   constructor(
     config: ExtractionConfig<T>,
     logger?: ReturnType<typeof createLoggerWithContext>,
   ) {
     this.config = config;
+    this.structured = forClaude(config.schema);
     this.logger =
       logger ||
       createLoggerWithContext(`BaseExtractionEngine:${this.getDocumentType()}`);
@@ -164,9 +171,7 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
   ): Promise<z.infer<T>> {
     // No temperature: the Claude 5.5 models reject it, and the schema is
     // returned as native structured output rather than a forced tool call.
-    // `forClaude` because the schemas have more nullable fields than Claude's
-    // structured output accepts.
-    const { schema, restore, providerOptions } = forClaude(this.config.schema);
+    const { schema, restore, providerOptions } = this.structured;
     const result = await retryCall(
       async () =>
         restore(
@@ -186,7 +191,7 @@ export abstract class BaseExtractionEngine<T extends z.ZodSchema> {
       options.retryDelay ?? 2000, // Start with 2s delay
     );
 
-    return result as z.infer<T>;
+    return result;
   }
 
   /**

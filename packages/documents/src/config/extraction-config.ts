@@ -73,7 +73,9 @@ export const invoiceConfig: ExtractionConfig<typeof invoiceSchema> = {
  */
 export const receiptConfig: ExtractionConfig<typeof receiptSchema> = {
   schema: receiptSchema,
-  timeout: 20000, // 20s for image processing
+  // Per attempt. Claude read rendered receipts in 3-9s; a phone photo is
+  // larger, and with one model there is no other to fall back to.
+  timeout: 60000,
   retries: 2, // 2 retries (3 total attempts)
   contentType: "image",
   mediaType: "image/jpeg", // Will be determined dynamically

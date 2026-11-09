@@ -96,10 +96,10 @@ class ScriptedReceiptProcessor extends ReceiptProcessor {
  * The same engine with only the read seam replaced, so the options the field
  * batches pass down are the ones under test rather than stubbed over.
  */
-class ProviderRecordingProcessor extends ReceiptProcessor {
+class ReadRecordingProcessor extends ReceiptProcessor {
   passResponses: ReceiptData[] = [];
   fieldResponse: ReceiptData = emptyReceipt();
-  providerCalls: Array<{
+  reads: Array<{
     options: { timeout?: number; retries?: number; retryDelay?: number };
   }> = [];
 
@@ -112,11 +112,11 @@ class ProviderRecordingProcessor extends ReceiptProcessor {
       retryDelay?: number;
     } = {},
   ): Promise<ReceiptData> {
-    this.providerCalls.push({ options });
+    this.reads.push({ options });
 
     // The whole-document passes come first; everything after is Pass 3 asking
     // for one field at a time.
-    const response = this.passResponses[this.providerCalls.length - 1];
+    const response = this.passResponses[this.reads.length - 1];
     return response ?? this.fieldResponse;
   }
 }
@@ -237,7 +237,7 @@ describe("extraction escalation", () => {
   });
 
   test("keeps each batch's own timeout and retry count", async () => {
-    const recorder = new ProviderRecordingProcessor();
+    const recorder = new ReadRecordingProcessor();
     recorder.passResponses = [
       emptyReceipt(),
       emptyReceipt({ store_name: "Coffee Bar" }),
@@ -247,7 +247,7 @@ describe("extraction escalation", () => {
 
     // Two whole-document passes, then total_amount, currency, date (critical)
     // and tax_amount (not).
-    const fieldCalls = recorder.providerCalls.slice(2);
+    const fieldCalls = recorder.reads.slice(2);
     expect(fieldCalls).toHaveLength(4);
 
     for (const call of fieldCalls.slice(0, 3)) {

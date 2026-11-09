@@ -6,7 +6,10 @@
  * parameters with unions)", a 400 on every call — and `@ai-sdk/anthropic`
  * only sends a schema natively when it has at most 10 optional fields; past
  * that it falls back to a JSON tool the model is merely invited to call.
- * A nullable field counts as a union, and the invoice schema has 21.
+ * A nullable field counts as a union, and the invoice schema has 21. Whether
+ * the API itself also refuses more than 10 optional fields is not documented
+ * where we could check; staying under the provider's number means not finding
+ * out in production.
  *
  * `forClaude` makes just enough nullable fields optional instead, starting
  * from the last one declared (schemas here list the fields that matter
@@ -44,7 +47,12 @@ function nullablePaths(field: z.ZodType, path: Path = ""): Path[] {
     );
   }
   if (field instanceof z.ZodArray) {
-    return nullablePaths(field.element as z.ZodType, `${path}/*`);
+    // An array item cannot be optional, so a nullable item is never relaxed;
+    // only the fields of an object item are.
+    const element = field.element as z.ZodType;
+    return element instanceof z.ZodObject
+      ? nullablePaths(element, `${path}/*`)
+      : [];
   }
   return [];
 }

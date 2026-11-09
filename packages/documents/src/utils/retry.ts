@@ -1,6 +1,9 @@
 /**
- * Retry wrapper for calls with exponential backoff
- * Only retries on timeout/network errors, not on other errors
+ * Retry wrapper for calls with exponential backoff.
+ *
+ * Retries timeouts and network errors, and an answer that did not fit the
+ * schema: there is one model now, so a second try is the only second opinion
+ * a malformed answer gets. A request the API refused is not retried.
  */
 export async function retryCall<T>(
   operation: () => Promise<T>,
@@ -29,6 +32,8 @@ export async function retryCall<T>(
         errorMessage.includes("503 Service Unavailable") ||
         errorMessage.includes("goaway") ||
         errorName === "AbortError" ||
+        errorName === "ZodError" ||
+        errorName === "AI_NoObjectGeneratedError" ||
         errorName === "TimeoutError" ||
         (error instanceof DOMException && error.code === 23);
 

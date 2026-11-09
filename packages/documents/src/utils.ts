@@ -161,7 +161,7 @@ export async function extractWebsite(
     }
   }
 
-  // Third priority: lookup domain by company name using Gemini Grounding
+  // Third priority: lookup domain by company name with a model that may search the web
   if (vendorName) {
     try {
       const lookedUpDomain = await lookupDomainByCompanyName(
