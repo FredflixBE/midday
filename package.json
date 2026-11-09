@@ -11,6 +11,7 @@
     "clean:workspaces": "turbo clean",
     "dev": "turbo dev --parallel",
     "test": "turbo test --parallel",
+    "test:smoke": "bun run --cwd apps/dashboard test:smoke",
     "start:dashboard": "turbo start --filter=@midday/dashboard",
     "dev:api": "turbo dev --filter=@midday/api",
     "dev:dashboard": "turbo dev --filter=@midday/dashboard",
