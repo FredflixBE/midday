@@ -159,6 +159,22 @@ export const EMBEDDING = {
   },
 } as const;
 
+/**
+ * How many texts Gemini embeds in one request. `@ai-sdk/google` says 2048, the
+ * API answers "at most 100 requests can be in one batch" — which the
+ * assistant's tool index, at 108 tools, ran into. `embedMany` splits by this.
+ */
+const GEMINI_EMBEDDING_BATCH = 100;
+
 export function embeddingModel(): EmbeddingModel {
-  return google.textEmbedding(EMBEDDING.id);
+  const model = google.textEmbedding(EMBEDDING.id);
+
+  return {
+    specificationVersion: model.specificationVersion,
+    provider: model.provider,
+    modelId: model.modelId,
+    maxEmbeddingsPerCall: GEMINI_EMBEDDING_BATCH,
+    supportsParallelCalls: model.supportsParallelCalls,
+    doEmbed: (options) => model.doEmbed(options),
+  };
 }
