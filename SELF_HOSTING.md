@@ -188,6 +188,7 @@ same value everywhere the name appears.
 | Variable | Required | Where it comes from |
 | --- | --- | --- |
 | `NODE_ENV`, `LOG_LEVEL`, `LOG_PRETTY` | yes | `production`, `info`, `false` in Dokploy. |
+| `BETTER_STACK_SOURCE_TOKEN`, `BETTER_STACK_INGESTING_HOST` | no | A Better Stack log source's token and ingesting host (the host without `https://`). With both set, every log line also goes to Better Stack; unset means stdout only. On shutdown the API waits up to 2s for the last lines to send. |
 | `PORT` | no | Defaults to 3000; the Dockerfile sets 8080. |
 | `DASHBOARD_URL`, `ALLOWED_API_ORIGINS` | yes | The dashboard's public URL (`https://midday.fredflix.be`). The API throws at startup if `DASHBOARD_URL` is unset in production. |
 | `API_URL` | yes | The API's public URL (`https://api.midday.fredflix.be`). OAuth redirect URLs, the OpenAPI document and the MCP metadata are built from it. |
