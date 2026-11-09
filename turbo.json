@@ -28,6 +28,7 @@
         "GITHUB_TOKEN",
         "PLAIN_API_KEY",
         "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
         "SLACK_CLIENT_SECRET",
         "SLACK_CLIENT_ID",
         "SLACK_SIGNING_SECRET",
@@ -51,6 +52,7 @@
     },
     "dev": {
       "inputs": ["$TURBO_DEFAULT$", ".env"],
+      "passThroughEnv": ["ANTHROPIC_API_KEY"],
       "persistent": true,
       "cache": false
     },

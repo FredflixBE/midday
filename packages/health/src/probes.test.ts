@@ -97,3 +97,76 @@ describe("resendProbe", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("anthropicProbe", () => {
+  let anthropicProbe: typeof import("./probes.js").anthropicProbe;
+  let claudeModelsInUse: typeof import("@midday/ai").claudeModelsInUse;
+
+  beforeAll(async () => {
+    ({ anthropicProbe } = await import("./probes.js"));
+    ({ claudeModelsInUse } = await import("@midday/ai"));
+  });
+
+  /** Anthropic's answer per model id; anything not listed is unknown. */
+  let models: Record<string, number>;
+  const anthropicFetch = mock(async (url: string | URL | Request) => {
+    const id = String(url).split("/v1/models/")[1] ?? "";
+    const status = models[id] ?? 404;
+    return Response.json(
+      status === 200
+        ? { id, type: "model" }
+        : { type: "error", error: { type: "not_found_error" } },
+      { status },
+    );
+  });
+
+  beforeEach(() => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+    models = Object.fromEntries(claudeModelsInUse().map((id) => [id, 200]));
+    anthropicFetch.mockClear();
+    globalThis.fetch = anthropicFetch as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  const probe = () => anthropicProbe().probe();
+
+  test("asks Anthropic about every Claude model the config uses, and is healthy when each exists", async () => {
+    expect(await probe()).toBe(true);
+
+    const asked = anthropicFetch.mock.calls.map(([url]) => String(url));
+    expect(asked).toEqual(
+      claudeModelsInUse().map(
+        (id) => `https://api.anthropic.com/v1/models/${id}`,
+      ),
+    );
+
+    const init = (anthropicFetch.mock.calls[0] as unknown[] | undefined)?.[1] as
+      | RequestInit
+      | undefined;
+    expect(new Headers(init?.headers).get("x-api-key")).toBe("sk-ant-test");
+  });
+
+  test("a model Anthropic no longer knows fails, and names the model", async () => {
+    const [retired] = claudeModelsInUse();
+    models[retired!] = 404;
+
+    await expect(probe()).rejects.toThrow(retired!);
+  });
+
+  test("a key Anthropic refuses fails", async () => {
+    for (const id of Object.keys(models)) models[id] = 401;
+
+    await expect(probe()).rejects.toThrow("401");
+  });
+
+  test("no key is unhealthy, and nothing is asked", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+
+    expect(await probe()).toBe(false);
+    expect(anthropicFetch).not.toHaveBeenCalled();
+  });
+});

@@ -19,7 +19,7 @@
     "migrate:run": "tsx scripts/migrate.ts --command migrate"
   },
   "dependencies": {
-    "@ai-sdk/google": "catalog:",
+    "@midday/ai": "workspace:*",
     "@midday/logger": "workspace:*",
     "ai": "catalog:",
     "zod": "catalog:"

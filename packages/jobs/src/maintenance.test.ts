@@ -38,6 +38,9 @@ describe("maintenance registry", () => {
     expect(getMaintenanceAction("pull-invoices").task).toBe(
       "yuki-pull-invoices",
     );
+    expect(getMaintenanceAction("check-ai-models").task).toBe(
+      "check-ai-models",
+    );
   });
 
   test("rejects an id that is not in the registry", () => {
@@ -49,6 +52,24 @@ describe("maintenance registry", () => {
 });
 
 describe("summarizing a run", () => {
+  test("names every AI model that answered, and how fast", () => {
+    expect(
+      getMaintenanceAction("check-ai-models").summarize({
+        checks: [
+          {
+            model: "claude-opus-5-5",
+            purposes: ["assistant"],
+            ok: true,
+            ms: 1840,
+          },
+          { model: "gemini-embedding-001", purposes: [], ok: true, ms: 212 },
+        ],
+      }),
+    ).toBe(
+      "Every model answered: claude-opus-5-5 in 1.8 s, gemini-embedding-001 in 0.2 s.",
+    );
+  });
+
   test("reports what the bank sync changed", () => {
     expect(
       getMaintenanceAction("sync-banks").summarize({
