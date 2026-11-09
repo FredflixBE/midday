@@ -75,17 +75,21 @@ export function MaintenanceActionCard({ id }: Props) {
       return `Could not start the job: ${mutation.error.message}`;
     }
 
-    // The run is going, but the subscription that reports on it is not. The
+    // A known result comes first: a connection that fails after the run has
+    // answered must not hide the answer (FF-2282).
+    if (run && finished) {
+      if (status === "completed") return action.summarize(result);
+
+      return error ? `The run failed: ${error}` : "The run failed.";
+    }
+
+    // Neither the live connection nor a direct lookup can see the run. The
     // job is unaffected; only this page has lost sight of it.
     if (queryError) {
       return "Started, but this page lost track of the run. Check Trigger.dev for the result.";
     }
 
-    if (!run || !finished) return undefined;
-
-    if (status === "completed") return action.summarize(result);
-
-    return error ? `The run failed: ${error}` : "The run failed.";
+    return undefined;
   }
 
   return (

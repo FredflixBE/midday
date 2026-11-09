@@ -1,7 +1,8 @@
 "use client";
 
-import { readRunProgress, toJobStatus } from "@midday/jobs/run-status";
-import { useRealtimeRun } from "@trigger.dev/react-hooks";
+import { settleRun, toJobStatus } from "@midday/jobs/run-status";
+import { useQuery } from "@tanstack/react-query";
+import { useApiClient, useRealtimeRun } from "@trigger.dev/react-hooks";
 
 export type { JobStatus } from "@midday/jobs/run-status";
 
@@ -17,13 +18,22 @@ type UseJobStatusProps = {
   enabled?: boolean;
 };
 
+/** How often to look a run up once the live connection has failed. */
+const LOOKUP_INTERVAL_MS = 3_000;
+
+function finished(status: string | undefined) {
+  const job = toJobStatus(status);
+  return job === "completed" || job === "failed";
+}
+
 /**
  * Follow a job's progress over a live subscription.
  *
- * This used to poll `jobs.getStatus` once a second for as long as a job ran.
- * The shape it returns is unchanged; only where the numbers come from is —
- * progress and step are written into run metadata by the shared processor
- * base, and arrive here as the job reports them rather than on a timer.
+ * Progress and step are written into run metadata by the shared processor
+ * base and arrive here as the job reports them. When the live connection
+ * reports an error before the run has finished, the run is looked up directly
+ * with the same token until it does (FF-2282), so a dropped connection costs
+ * a few seconds of delay rather than the result.
  */
 export function useJobStatus({
   runId,
@@ -37,15 +47,33 @@ export function useJobStatus({
     accessToken,
   });
 
-  const { progress, step } = readRunProgress(run?.metadata);
+  const apiClient = useApiClient({ accessToken, enabled: subscribed });
+  const lookupNeeded =
+    subscribed && !!error && !finished(run?.status) && !!apiClient;
+
+  const lookup = useQuery({
+    queryKey: ["job-run-lookup", runId],
+    queryFn: () => apiClient!.retrieveRun(runId!),
+    enabled: lookupNeeded,
+    refetchInterval: (query) =>
+      finished(query.state.data?.status) ? false : LOOKUP_INTERVAL_MS,
+    retry: 2,
+  });
+
+  const settled = settleRun({
+    live: run,
+    liveError: error,
+    lookup: lookup.data,
+    lookupError: lookup.error,
+  });
 
   return {
-    status: toJobStatus(run?.status),
-    progress,
-    progressStep: step,
-    result: run?.output,
-    error: run?.error?.message,
-    isLoading: subscribed && !run && !error,
-    queryError: error,
+    status: settled.status,
+    progress: settled.progress.progress,
+    progressStep: settled.progress.step,
+    result: settled.result,
+    error: settled.error,
+    isLoading: subscribed && !run && !lookup.data && !settled.lostTrack,
+    queryError: settled.lostTrack ? (lookup.error ?? error) : undefined,
   };
 }
