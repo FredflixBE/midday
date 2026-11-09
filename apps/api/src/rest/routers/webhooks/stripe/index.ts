@@ -112,7 +112,6 @@ app.openapi(
             logger.info("Invoice marked as paid", {
               invoiceId,
               paymentIntentId: paymentIntent.id,
-              amount: paymentIntent.amount,
             });
 
             // Fetch full invoice details for notification

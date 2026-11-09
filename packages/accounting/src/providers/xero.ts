@@ -809,10 +809,6 @@ export class XeroProvider extends BaseAccountingProvider {
           errorType: typeof error,
           errorName: error?.constructor?.name,
           rawMessage: error instanceof Error ? error.message : undefined,
-          rawJson:
-            error && typeof error === "object"
-              ? JSON.stringify(error, null, 2).slice(0, 500)
-              : undefined,
         });
 
         // Mark all transactions in batch as failed with descriptive error
@@ -991,10 +987,6 @@ export class XeroProvider extends BaseAccountingProvider {
         errorType: typeof error,
         errorName: error?.constructor?.name,
         rawMessage: error instanceof Error ? error.message : undefined,
-        rawJson:
-          error && typeof error === "object"
-            ? JSON.stringify(error, null, 2).slice(0, 500)
-            : undefined,
       });
 
       return { success: false, error: errorMessage };

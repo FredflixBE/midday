@@ -52,6 +52,37 @@ export function createBetterStackClient(
   };
 }
 
+// A key that names a credential, in any letter case and spelling:
+// `accessToken`, `refresh_token`, `x-api-key`, `Authorization`, `Cookie` …
+const SECRET_KEY =
+  /^(.*token|(proxy[-_]?)?authorization|(set[-_]?)?cookie|password|passwd|secret|client[-_]?secret|private[-_]?key|(x[-_])?api[-_]?key)$/i;
+
+// A failed Drizzle query puts every value it wrote in its message (and so in
+// the first line of its stack) after "params:". The SQL before it is kept.
+const QUERY_VALUES = /\nparams: [\s\S]*?(?=\n\s+at\s|$)/g;
+
+const REDACTED = "[redacted]";
+
+/**
+ * A copy of a log line's fields that is safe to leave our host: credentials
+ * masked at any depth, and the values of a failed query cut out of any
+ * string and dropped from its `params` array. Stdout is not rewritten.
+ */
+export function withoutSecrets(value: unknown, key?: string): unknown {
+  if (key !== undefined && SECRET_KEY.test(key)) return REDACTED;
+  if (key === "params" && Array.isArray(value)) return REDACTED;
+  if (typeof value === "string") {
+    return value.replace(QUERY_VALUES, `\nparams: ${REDACTED}`);
+  }
+  if (Array.isArray(value)) return value.map((item) => withoutSecrets(item));
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, withoutSecrets(v, k)]),
+    );
+  }
+  return value;
+}
+
 // Fields pino writes on every line that Better Stack carries in its own
 // columns: the message, the level, and the time (sent as `dt`).
 const PINO_OWN_FIELDS = new Set(["msg", "time", "level", "v"]);
@@ -69,7 +100,7 @@ export function betterStackStream(
     write(line: string) {
       let fields: Record<string, unknown>;
       try {
-        fields = JSON.parse(line);
+        fields = withoutSecrets(JSON.parse(line)) as Record<string, unknown>;
       } catch {
         // Never throw into the code that was logging; stdout still has it.
         return;
