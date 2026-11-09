@@ -17,7 +17,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const ROOT = resolve(import.meta.dir, "../../..");
+const ROOT = resolve(__dirname, "../../..");
 
 /**
  * Packages that construct a model: the AI SDK's providers and the vendors' own

@@ -7,7 +7,7 @@ import {
   GENERATION_PURPOSES,
   languageModel,
   modelIdFor,
-} from "./models.js";
+} from "./models";
 
 describe("languageModel", () => {
   test("every purpose resolves to a Claude model through the Anthropic provider", () => {

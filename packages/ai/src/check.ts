@@ -18,7 +18,7 @@ import {
   type GenerationPurpose,
   languageModel,
   modelIdFor,
-} from "./models.js";
+} from "./models";
 
 export interface ModelCheck {
   model: ClaudeModel | typeof EMBEDDING.id;

@@ -1,4 +1,4 @@
-export { checkModels, type ModelCheck } from "./check.js";
+export { checkModels, type ModelCheck } from "./check";
 export {
   type ClaudeModel,
   claudeModelsInUse,
@@ -11,4 +11,4 @@ export {
   languageModel,
   type ModelChoice,
   modelIdFor,
-} from "./models.js";
+} from "./models";
