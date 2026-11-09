@@ -38,7 +38,6 @@ const PENDING: Record<string, string> = {
   "apps/api/src/chat/assistant-runtime.ts": "FF-2274",
   "apps/api/src/chat/tools.ts": "FF-2274",
   "apps/api/src/chat/utils.ts": "FF-2274",
-  "apps/api/src/trpc/routers/transactions.ts": "FF-2275",
   "apps/api/src/utils/search-filters.ts": "FF-2274",
   "apps/dashboard/src/actions/ai/get-tax-rate.ts": "FF-2274",
   "packages/insights/evals/insight.eval.ts": "FF-2274",

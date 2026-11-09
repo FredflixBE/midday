@@ -15,7 +15,6 @@
     "./trpc/routers/_app": "./src/trpc/routers/_app.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "catalog:",
     "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai": "catalog:",
     "@composio/core": "^0.6.7",

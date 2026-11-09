@@ -17,7 +17,6 @@
     "apps/api": {
       "name": "@midday/api",
       "dependencies": {
-        "@ai-sdk/anthropic": "catalog:",
         "@ai-sdk/mcp": "^1.0.30",
         "@ai-sdk/openai": "catalog:",
         "@composio/core": "^0.6.7",
@@ -438,9 +437,12 @@
       "name": "@midday/import",
       "version": "1.0.0",
       "dependencies": {
+        "@midday/ai": "workspace:*",
+        "ai": "catalog:",
         "change-case": "catalog:",
         "chrono-node": "^2.9.0",
         "date-fns": "catalog:",
+        "zod": "catalog:",
       },
     },
     "packages/inbox": {
