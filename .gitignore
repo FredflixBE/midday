@@ -93,8 +93,8 @@ dist-ssr
 .matching-eval-history.json
 
 # Toolpick embedding cache (auto-generated on first boot)
+.toolpick-cache*.json
 # playwright smoke suite
 apps/dashboard/e2e/.auth
 apps/dashboard/test-results
 apps/dashboard/playwright-report
-.toolpick-cache*.json

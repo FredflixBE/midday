@@ -12,8 +12,8 @@
  * The model union is closed, so a typo or an id this deployment has not
  * chosen fails the typecheck rather than the first production call.
  *
- * The call sites that still name their own model are listed, with the ticket
- * that moves each, in `call-sites.test.ts`; that list only shrinks.
+ * `call-sites.test.ts` fails any file outside this package that imports a
+ * model provider or spells a model id.
  *
  * Generation through this module runs on Claude, paid from the Console API
  * credits behind `ANTHROPIC_API_KEY`. Embeddings stay on Gemini (`GOOGLE_GENERATIVE_AI_API_KEY`)

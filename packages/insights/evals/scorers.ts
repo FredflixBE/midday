@@ -306,7 +306,11 @@ export const noFalseGrowthInLoss = createScorer<InsightSlots, InsightOutput>({
 // LLM-as-judge scorer - more expensive, checks subjective quality
 // ============================================================================
 
-/** The judge: a small helper call, not the model being judged. */
+/**
+ * The judge: the helper purpose. Today that is the same model that writes the
+ * insights, so a tone it is blind to it will not catch; switching `helper` in
+ * `@midday/ai` changes the judge too.
+ */
 const judge = languageModel("helper");
 
 /**
