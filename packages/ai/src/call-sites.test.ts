@@ -19,9 +19,12 @@ import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 
-/** Packages that construct a model. UI hooks, MCP and shared types are not. */
+/**
+ * Packages that construct a model: the AI SDK's providers and the vendors' own
+ * SDKs. The AI SDK's UI hooks, MCP client and shared types construct none.
+ */
 const PROVIDER_IMPORT =
-  /["']@ai-sdk\/(anthropic|google|google-vertex|openai|openai-compatible|mistral|gateway|groq|xai|deepseek|cohere|amazon-bedrock|azure|perplexity|togetherai|fireworks)["']/;
+  /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'](@ai-sdk\/(?:anthropic|google|google-vertex|openai|openai-compatible|mistral|gateway|groq|xai|deepseek|cohere|amazon-bedrock|azure|perplexity|togetherai|fireworks)|openai|@anthropic-ai\/sdk|@google\/genai|@google\/generative-ai|@mistralai\/mistralai)["']/;
 
 /** A model id as a string literal, or a gateway id such as "openai/gpt-4o". */
 const MODEL_ID =
@@ -103,7 +106,7 @@ function breaksARule(file: string): string | null {
   }
 
   const provider = source.match(PROVIDER_IMPORT);
-  if (provider) return `imports @ai-sdk/${provider[1]}`;
+  if (provider) return `imports ${provider[1]}`;
 
   if (LABELS_ONLY.includes(file)) return null;
 
