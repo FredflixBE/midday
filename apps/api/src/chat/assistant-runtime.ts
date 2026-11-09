@@ -1,4 +1,3 @@
-import { openai } from "@ai-sdk/openai";
 import {
   buildPrepareStep,
   createExecutionClient,
@@ -8,6 +7,7 @@ import {
 } from "@api/chat/tools";
 import { getComposioTools } from "@api/composio/client";
 import type { McpContext } from "@api/mcp/types";
+import { languageModel, webSearch } from "@midday/ai";
 import { logger } from "@midday/logger";
 import {
   type ModelMessage,
@@ -48,14 +48,15 @@ export async function streamMiddayAssistant(params: {
     }
 
     const agent = new ToolLoopAgent({
-      model: openai("gpt-4.1-mini"),
+      model: languageModel("assistant"),
       instructions: systemPrompt,
       tools: {
         ...mcpTools,
         ...composioMetaTools,
         search_tools: getSearchTool(),
-        web_search: openai.tools.webSearch({
-          searchContextSize: "medium",
+        web_search: webSearch({
+          // A few searches per answer at most: each one is billed.
+          maxUses: 3,
           userLocation: {
             type: "approximate",
             country: mcpCtx.countryCode ?? undefined,

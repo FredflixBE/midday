@@ -12,8 +12,8 @@
  * The model union is closed, so a typo or an id this deployment has not
  * chosen fails the typecheck rather than the first production call.
  *
- * The call sites that still name their own model are listed, with the ticket
- * that moves each, in `call-sites.test.ts`; that list only shrinks.
+ * `call-sites.test.ts` fails any file outside this package that imports a
+ * model provider or spells a model id.
  *
  * Generation through this module runs on Claude, paid from the Console API
  * credits behind `ANTHROPIC_API_KEY`. Embeddings stay on Gemini (`GOOGLE_GENERATIVE_AI_API_KEY`)
@@ -115,12 +115,26 @@ export function languageModelFor(choice: ModelChoice): LanguageModel {
  * and only this module imports one. Billed per search on top of the tokens,
  * so `maxUses` bounds what one answer can cost.
  */
-export function webSearch(maxUses = 1): Tool {
+export function webSearch({
+  maxUses = 1,
+  userLocation,
+}: {
+  maxUses?: number;
+  /** Where the asker is, so "near me" and local prices mean something. */
+  userLocation?: {
+    type: "approximate";
+    country?: string;
+    timezone?: string;
+  };
+} = {}): Tool {
   // Typed as `ai`'s own Tool: @ai-sdk/anthropic 3.0.140 is built on a newer
   // @ai-sdk/provider-utils than `ai` 6.0.141, so the two Tool types differ in
   // their optional hooks while the object `generateText` receives is the same
   // provider-defined tool. Moving `ai` to 6.0.325 would align them.
-  return anthropic.tools.webSearch_20260209({ maxUses }) as unknown as Tool;
+  return anthropic.tools.webSearch_20260209({
+    maxUses,
+    userLocation,
+  }) as unknown as Tool;
 }
 
 /** Every distinct Claude model in use, each once. */
@@ -145,6 +159,22 @@ export const EMBEDDING = {
   },
 } as const;
 
+/**
+ * How many texts Gemini embeds in one request. `@ai-sdk/google` says 2048, the
+ * API answers "at most 100 requests can be in one batch" — which the
+ * assistant's tool index, at 108 tools, ran into. `embedMany` splits by this.
+ */
+const GEMINI_EMBEDDING_BATCH = 100;
+
 export function embeddingModel(): EmbeddingModel {
-  return google.textEmbedding(EMBEDDING.id);
+  const model = google.textEmbedding(EMBEDDING.id);
+
+  return {
+    specificationVersion: model.specificationVersion,
+    provider: model.provider,
+    modelId: model.modelId,
+    maxEmbeddingsPerCall: GEMINI_EMBEDDING_BATCH,
+    supportsParallelCalls: model.supportsParallelCalls,
+    doEmbed: (options) => model.doEmbed(options),
+  };
 }

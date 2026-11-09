@@ -27,7 +27,6 @@
         "FILE_KEY_SECRET",
         "GITHUB_TOKEN",
         "PLAIN_API_KEY",
-        "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "SLACK_CLIENT_SECRET",
         "SLACK_CLIENT_ID",

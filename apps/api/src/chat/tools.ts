@@ -1,9 +1,10 @@
 import type { MCPClient } from "@ai-sdk/mcp";
 import { createMCPClient } from "@ai-sdk/mcp";
-import { openai } from "@ai-sdk/openai";
+import { toolIndexCachePath } from "@api/chat/tool-index-cache";
 import { createMcpServer } from "@api/mcp/server";
 import type { McpContext } from "@api/mcp/types";
 import { expandScopes } from "@api/utils/scopes";
+import { EMBEDDING, embeddingModel } from "@midday/ai";
 import { logger } from "@midday/logger";
 import { getApiUrl } from "@midday/utils/envs";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -46,8 +47,10 @@ export function ensureToolIndex(ctx: McpContext): Promise<ToolIndex<any>> {
     cachedDefinitions = definitions;
 
     const index = await createToolIndex(tools, {
-      embeddingModel: openai.embeddingModel("text-embedding-3-small"),
-      embeddingCache: fileCache(".toolpick-cache.json"),
+      embeddingModel: embeddingModel(),
+      embeddingCache: fileCache(
+        toolIndexCachePath(EMBEDDING.id, definitions.tools),
+      ),
       relatedTools: {
         invoices_create: ["customers_list"],
         invoices_create_from_tracker: ["customers_list"],

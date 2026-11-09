@@ -4,7 +4,7 @@
  * Only scorers that catch real quality problems
  */
 import "dotenv/config";
-import { createOpenAI } from "@ai-sdk/openai";
+import { languageModel } from "@midday/ai";
 import { generateText } from "ai";
 import { createScorer } from "evalite";
 import type { InsightSlots } from "../src/content/prompts/slots";
@@ -306,9 +306,12 @@ export const noFalseGrowthInLoss = createScorer<InsightSlots, InsightOutput>({
 // LLM-as-judge scorer - more expensive, checks subjective quality
 // ============================================================================
 
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+/**
+ * The judge: the helper purpose. Today that is the same model that writes the
+ * insights, so a tone it is blind to it will not catch; switching `helper` in
+ * `@midday/ai` changes the judge too.
+ */
+const judge = languageModel("helper");
 
 /**
  * Tone should match the week type
@@ -359,9 +362,8 @@ VERDICT: [PASS or FAIL]`;
 
     try {
       const result = await generateText({
-        model: openai("gpt-4o-mini"),
+        model: judge,
         prompt,
-        temperature: 0,
       });
 
       const verdict = result.text.includes("VERDICT: PASS") ? 1 : 0;

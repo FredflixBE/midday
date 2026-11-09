@@ -3,7 +3,7 @@
  *
  * Tiers:
  *   1 = Core      — app breaks without it (DB, Supabase)
- *   2 = Important  — feature degrades (Stripe, Resend, OpenAI)
+ *   2 = Important  — feature degrades (Stripe, Resend, Anthropic)
  *   3 = Integration — individual feature affected (Slack, Xero, etc.)
  *   4 = Optional   — silently degrades (analytics, etc.)
  */

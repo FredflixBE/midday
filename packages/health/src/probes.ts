@@ -171,25 +171,6 @@ export function triggerDevProbe(): Dependency {
   };
 }
 
-/** OpenAI: GET /v1/models (lightweight list) */
-export function openaiProbe(): Dependency {
-  return {
-    name: "openai",
-    tier: 2,
-    cacheTtlMs: 60_000,
-    timeoutMs: 5_000,
-    probe: async () => {
-      const key = process.env.OPENAI_API_KEY;
-      if (!key) return false;
-      const res = await fetch("https://api.openai.com/v1/models?limit=1", {
-        headers: { Authorization: `Bearer ${key}` },
-        signal: AbortSignal.timeout(5_000),
-      });
-      return res.ok;
-    },
-  };
-}
-
 /**
  * Anthropic: asks whether each Claude model the config uses still exists.
  *
@@ -364,7 +345,6 @@ export function apiDependencies(): Dependency[] {
     resendProbe(),
     triggerDevProbe(),
     anthropicProbe(),
-    openaiProbe(),
     // Tier 3 — Integrations
     slackProbe(),
     xeroProbe(),

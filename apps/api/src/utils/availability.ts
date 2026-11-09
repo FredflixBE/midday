@@ -23,10 +23,16 @@ function hasAll(...names: string[]): boolean {
   return names.every((name) => Boolean(process.env[name]));
 }
 
+/** Claude to answer, Gemini to embed the tool descriptions it searches. */
+export function isAssistantConfigured(): boolean {
+  return hasAll("ANTHROPIC_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY");
+}
+
 export function getFeatureAvailability(): FeatureAvailability {
   return {
-    // The chat assistant and the LLM search fallback both need OpenAI.
-    assistant: hasAll("OPENAI_API_KEY"),
+    // The assistant answers with Claude and picks its tools by embedding them
+    // with Gemini; without either key every chat request would fail.
+    assistant: isAssistantConfigured(),
     // Matches isComposioConfigured() in @api/composio/client.
     connectors: hasAll("COMPOSIO_API_KEY"),
     // Matches isCompanyEnrichConfigured() in @midday/customers, which is what

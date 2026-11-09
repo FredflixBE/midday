@@ -22,9 +22,9 @@ export const searchRouter = createTRPCRouter({
 
       // Determine if we should fall back to LLM-generated filters:
       // we only do this when the user provides a multi-word query, and only
-      // when this deployment has an OpenAI key to do it with.
+      // when this deployment has a Claude key to do it with.
       const shouldUseLLMFilters =
-        Boolean(process.env.OPENAI_API_KEY) &&
+        Boolean(process.env.ANTHROPIC_API_KEY) &&
         !!searchTerm &&
         searchTerm.trim().split(/\s+/).length > 1;
 

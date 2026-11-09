@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateText } from "ai";
+import { embedMany, generateText } from "ai";
 import {
   claudeModelsInUse,
   DEFAULT_MODEL,
@@ -99,5 +99,41 @@ describe("effort", () => {
     const body = await requestBodyFor({ model: "claude-opus-5-5" });
 
     expect(body.output_config?.effort).toBeUndefined();
+  });
+});
+
+describe("embedding batches", () => {
+  test("never send Gemini more than 100 texts in one request", async () => {
+    // The provider says 2048; the API refuses more than 100 ("at most 100
+    // requests can be in one batch"). The assistant's tool index embeds 108.
+    const realFetch = globalThis.fetch;
+    const realKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const batchSizes: number[] = [];
+
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "google-test";
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      const { requests } = JSON.parse(String(init?.body)) as {
+        requests: unknown[];
+      };
+      batchSizes.push(requests.length);
+      return Response.json({
+        embeddings: requests.map(() => ({ values: [0.1, 0.2] })),
+      });
+    }) as typeof fetch;
+
+    try {
+      const { embeddings } = await embedMany({
+        model: embeddingModel(),
+        values: Array.from({ length: 150 }, (_, i) => `tool ${i}`),
+      });
+
+      expect(embeddings).toHaveLength(150);
+      expect(Math.max(...batchSizes)).toBeLessThanOrEqual(100);
+    } finally {
+      globalThis.fetch = realFetch;
+      if (realKey === undefined)
+        delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      else process.env.GOOGLE_GENERATIVE_AI_API_KEY = realKey;
+    }
   });
 });

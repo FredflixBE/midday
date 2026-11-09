@@ -206,7 +206,7 @@ same value everywhere the name appears.
 | `INBOX_FORWARDING_DOMAIN` | no | Domain receipts may be forwarded to, e.g. `inbox.fredflix.be`. Requires an inbound email provider posting to `/webhooks/inbox`. Unset means that route is not mounted and the dashboard hides the address; Gmail sync and manual upload are unaffected. Set `NEXT_PUBLIC_INBOX_FORWARDING_DOMAIN` to the same value for the dashboard. |
 | `ALLOWED_ASSET_HOSTS` | no | Extra hostnames the renderer may fetch a logo or avatar from, comma-separated. The Supabase storage host and your own `CDN_URL`, `DASHBOARD_URL` and `API_URL` are always allowed. |
 | `ANTHROPIC_API_KEY` | yes | A Claude Console API key (console.anthropic.com > API keys), paid from the Console's API credits. The AI features run on Claude, and `packages/ai/src/models.ts` names the model each one uses. `/health/dependencies` reports it as `anthropic`, and names any model id Anthropic no longer serves. |
-| `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` | yes / yes | The assistant; embeddings (document tags, categories, search). |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | yes | Embeddings: document tags, categories, search, and the assistant's tool search. The assistant is offered only when this and `ANTHROPIC_API_KEY` are both set. |
 | `COMPOSIO_API_KEY` | no | AI tool connectors. |
 | `EXA_API_KEY` | no | Exa web search. Only the health probe reads it; unset means that probe reports the integration as unconfigured. |
 | `COMPANY_ENRICH_API_KEY` | no | CompanyEnrich customer enrichment. Leave unset — the service refuses registration from Belgium, and every entry point is gated behind the key, so unset hides the feature rather than offering a button that only errors. |
@@ -243,7 +243,7 @@ Runtime environment:
 | `API_INTERNAL_URL` | no | Private URL of the API container for server-side requests. |
 | `SUPABASE_SECRET_KEY` | yes | Supabase project settings > API. |
 | `INVOICE_JWT_SECRET`, `FILE_KEY_SECRET`, `WEBHOOK_SECRET_KEY`, `MIDDAY_CACHE_API_SECRET`, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | yes | Shared secrets above. |
-| `OPENAI_API_KEY` | yes | OpenAI. |
+| `ANTHROPIC_API_KEY` | yes | Same Claude Console key as the API. The tax-rate suggestion in invoice settings runs in the dashboard itself. |
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT`, `AZURE_DOCUMENT_INTELLIGENCE_KEY` | no | Azure Document Intelligence. |
 | `PLAIN_API_KEY` | no | Plain support tickets. |
 | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REDIRECT_URI` | yes for Gmail inbox | The internal Google OAuth client with Gmail scopes (FF-1407). |
@@ -260,7 +260,6 @@ Runtime environment:
 | `INVOICE_JWT_SECRET` | for invoicing | Signs the public invoice links in invoice emails. Same value as the API. |
 | `GMAIL_*` / `OUTLOOK_*` | for inbox sync | Same OAuth client as the API. |
 | `XERO_*`, `QUICKBOOKS_*`, `FORTNOX_*` | for accounting export | Token refresh needs the client credentials. |
-| `OPENAI_API_KEY` | no | Slack receipt summaries. |
 | `DASHBOARD_URL`, `API_URL` | yes | Public URLs. Unset in production is a startup error, not a fallback. The bank sync jobs call the API at `API_URL`. |
 | `API_INTERNAL_URL` | no | A private address for the API that the jobs can reach, used instead of `API_URL` for their calls to it. Trigger.dev Cloud reaches only the public URL, so leave it unset there. |
 | `RESEND_API_KEY`, `RESEND_AUDIENCE_ID` | no / no | Resend, for the invite and onboarding emails; those tasks fail without a key. Same key and permission as the API. |
@@ -380,7 +379,7 @@ FILE_KEY_SECRET=<same as the API>
 WEBHOOK_SECRET_KEY=<shared secret>
 MIDDAY_CACHE_API_SECRET=<shared secret>
 NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<the same value as the build argument>
-OPENAI_API_KEY=<key>
+ANTHROPIC_API_KEY=<the Claude Console key>
 GMAIL_CLIENT_ID=<same client as the API>
 GMAIL_CLIENT_SECRET=<same client as the API>
 GMAIL_REDIRECT_URI=https://api.midday.fredflix.be/apps/gmail/oauth-callback

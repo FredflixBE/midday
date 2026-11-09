@@ -42,8 +42,8 @@ const result = await service.generateInsight({
 ## Environment Variables
 
 ```bash
-# Required for AI content generation
-OPENAI_API_KEY=sk-...
+# Required for AI content generation (Claude; the model is in packages/ai/src/models.ts)
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Architecture
