@@ -44,9 +44,7 @@ const PENDING: Record<string, string> = {
   "packages/insights/evals/insight.eval.ts": "FF-2274",
   "packages/insights/evals/scorers.ts": "FF-2274",
   "packages/insights/src/content/generator.ts": "FF-2274",
-  "packages/jobs/scripts/link-suppliers.ts": "FF-2273",
   "packages/jobs/src/tasks/inbox/slack-upload.ts": "FF-2274",
-  "packages/jobs/src/tasks/transactions/enrich-transaction.ts": "FF-2273",
 };
 
 /**

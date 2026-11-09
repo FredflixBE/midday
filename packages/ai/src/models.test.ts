@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { generateText } from "ai";
 import {
   claudeModelsInUse,
   DEFAULT_MODEL,
@@ -6,6 +7,8 @@ import {
   embeddingModel,
   GENERATION_PURPOSES,
   languageModel,
+  languageModelFor,
+  type ModelChoice,
   modelIdFor,
 } from "./models";
 
@@ -47,5 +50,53 @@ describe("embeddingModel", () => {
 
     expect(model.modelId).toBe(EMBEDDING.id);
     expect(model.provider).toStartWith("google");
+  });
+});
+
+describe("effort", () => {
+  /** The body of the one request a call made, read off a stubbed fetch. */
+  async function requestBodyFor(choice: ModelChoice) {
+    const realFetch = globalThis.fetch;
+    const realKey = process.env.ANTHROPIC_API_KEY;
+    let body: Record<string, any> = {};
+
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return Response.json({
+        id: "msg_1",
+        type: "message",
+        role: "assistant",
+        model: choice.model,
+        content: [{ type: "text", text: "ok" }],
+        stop_reason: "end_turn",
+        usage: { input_tokens: 1, output_tokens: 1 },
+      });
+    }) as typeof fetch;
+
+    try {
+      await generateText({ model: languageModelFor(choice), prompt: "hi" });
+    } finally {
+      globalThis.fetch = realFetch;
+      process.env.ANTHROPIC_API_KEY = realKey;
+    }
+
+    return body;
+  }
+
+  test("a choice with an effort sends it to Claude", async () => {
+    const body = await requestBodyFor({
+      model: "claude-opus-5-5",
+      effort: "low",
+    });
+
+    expect(body.model).toBe("claude-opus-5-5");
+    expect(body.output_config?.effort).toBe("low");
+  });
+
+  test("a choice without one leaves the model's default", async () => {
+    const body = await requestBodyFor({ model: "claude-opus-5-5" });
+
+    expect(body.output_config?.effort).toBeUndefined();
   });
 });

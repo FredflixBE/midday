@@ -133,7 +133,6 @@ export function askSuppliersWith(model: LanguageModel): AskSuppliers {
       prompt: generateSupplierPrompt(questions, known),
       output: "array",
       schema: supplierAnswerSchema,
-      temperature: 0.1,
     });
 
     return object as SupplierAnswer[];
